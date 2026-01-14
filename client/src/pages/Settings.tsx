@@ -1,10 +1,10 @@
+import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -19,310 +19,217 @@ import {
   Puzzle,
   Check,
   Crown,
+  Layout,
+  Database,
+  Type,
 } from "lucide-react";
 import { mockModules } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
 
 export default function Settings() {
   return (
-    <AppLayout title="Configuración" subtitle="Personaliza tu ERP">
-      <Tabs defaultValue="company" className="space-y-6">
+    <AppLayout title="Configuración ERP" subtitle="Personaliza la estructura y adaptabilidad del sistema">
+      <Tabs defaultValue="generic" className="space-y-6">
         <TabsList className="flex flex-wrap h-auto gap-2">
-          <TabsTrigger value="company" data-testid="tab-company">
+          <TabsTrigger value="generic" data-testid="tab-generic">
+            <Layout className="w-4 h-4 mr-2" />
+            Estructura Genérica
+          </TabsTrigger>
+          <TabsTrigger value="industries" data-testid="tab-industries">
             <Building2 className="w-4 h-4 mr-2" />
-            Empresa
+            Adaptación Industrial
           </TabsTrigger>
           <TabsTrigger value="modules" data-testid="tab-modules">
             <Puzzle className="w-4 h-4 mr-2" />
-            Módulos
-          </TabsTrigger>
-          <TabsTrigger value="users" data-testid="tab-users">
-            <Users className="w-4 h-4 mr-2" />
-            Usuarios
+            Módulos SaaS
           </TabsTrigger>
           <TabsTrigger value="billing" data-testid="tab-billing">
             <CreditCard className="w-4 h-4 mr-2" />
-            Facturación
-          </TabsTrigger>
-          <TabsTrigger value="notifications" data-testid="tab-notifications">
-            <Bell className="w-4 h-4 mr-2" />
-            Notificaciones
-          </TabsTrigger>
-          <TabsTrigger value="security" data-testid="tab-security">
-            <Shield className="w-4 h-4 mr-2" />
-            Seguridad
+            Pago por Uso
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="company">
-          <Card>
+        <TabsContent value="generic" className="space-y-6">
+          <Card className="border-primary/20 bg-primary/5">
             <CardHeader>
-              <CardTitle className="font-display">Información de la Empresa</CardTitle>
-              <CardDescription>Configura los datos básicos de tu negocio</CardDescription>
+              <CardTitle className="font-display flex items-center gap-2">
+                <Database className="w-5 h-5 text-primary" />
+                Motor de Configuración Universal
+              </CardTitle>
+              <CardDescription>
+                Define campos personalizados y tipos de datos que se aplicarán a todo el ERP
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="companyName">Nombre de la Empresa</Label>
-                  <Input id="companyName" defaultValue="Panadería El Buen Pan" data-testid="input-company-name" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="rfc">RFC</Label>
-                  <Input id="rfc" defaultValue="PBP123456789" data-testid="input-rfc" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Correo Electrónico</Label>
-                  <Input id="email" type="email" defaultValue="contacto@panaderia.com" data-testid="input-email" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Teléfono</Label>
-                  <Input id="phone" defaultValue="555-123-4567" data-testid="input-phone" />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="address">Dirección</Label>
-                  <Input id="address" defaultValue="Av. Principal #123, Col. Centro" data-testid="input-address" />
-                </div>
-              </div>
-
-              <Separator />
-
-              <div className="space-y-4">
-                <h4 className="font-semibold">Preferencias</h4>
-                <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="p-4 rounded-xl bg-card border shadow-sm space-y-3">
                   <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label>Zona Horaria</Label>
-                      <p className="text-sm text-muted-foreground">Ciudad de México (GMT-6)</p>
-                    </div>
-                    <Button variant="outline" size="sm">Cambiar</Button>
+                    <Label className="font-bold">Tipos de Lugar</Label>
+                    <Badge variant="outline">Configurable</Badge>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label>Moneda</Label>
-                      <p className="text-sm text-muted-foreground">Peso Mexicano (MXN)</p>
-                    </div>
-                    <Button variant="outline" size="sm">Cambiar</Button>
+                  <p className="text-xs text-muted-foreground">Define si son sucursales, bodegas, plantas o puntos de venta.</p>
+                  <div className="flex flex-wrap gap-1">
+                    <Badge variant="secondary" className="text-[10px]">Almacén</Badge>
+                    <Badge variant="secondary" className="text-[10px]">Tienda</Badge>
+                    <Badge variant="secondary" className="text-[10px]">Fábrica</Badge>
                   </div>
                 </div>
-              </div>
 
-              <div className="flex justify-end">
-                <Button data-testid="button-save-company">Guardar Cambios</Button>
+                <div className="p-4 rounded-xl bg-card border shadow-sm space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="font-bold">Atributos de Producto</Label>
+                    <Badge variant="outline">Dinámico</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Campos extra según la industria (peso, color, caducidad, serie).</p>
+                  <Button variant="ghost" size="sm" className="w-full text-xs h-7">Gestionar Campos</Button>
+                </div>
+
+                <div className="p-4 rounded-xl bg-card border shadow-sm space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="font-bold">Flujos de Proceso</Label>
+                    <Badge variant="outline">Flexible</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Configura qué productos se consumen y cuáles se producen.</p>
+                  <Button variant="ghost" size="sm" className="w-full text-xs h-7">Diseñar Workflows</Button>
+                </div>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="modules">
+        <TabsContent value="industries" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="font-display">Perfiles de Industria</CardTitle>
+                <CardDescription>Selecciona un perfil preconfigurado o crea uno desde cero</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {[
+                  { name: "Manufactura / Producción", icon: "Factory", active: true },
+                  { name: "Retail / Abarrotes", icon: "ShoppingCart", active: false },
+                  { name: "Logística y Distribución", icon: "Truck", active: false },
+                  { name: "Servicios Profesionales", icon: "Briefcase", active: false },
+                ].map((ind, i) => (
+                  <div key={i} className={cn(
+                    "flex items-center justify-between p-3 rounded-lg border transition-all cursor-pointer",
+                    ind.active ? "border-primary bg-primary/5" : "hover:bg-muted"
+                  )}>
+                    <div className="flex items-center gap-3">
+                      <div className={cn("w-8 h-8 rounded flex items-center justify-center", ind.active ? "bg-primary text-white" : "bg-muted")}>
+                        <Building2 className="w-4 h-4" />
+                      </div>
+                      <span className="font-medium text-sm">{ind.name}</span>
+                    </div>
+                    {ind.active && <Check className="w-4 h-4 text-primary" />}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="font-display">Personalización Visual</CardTitle>
+                <CardDescription>Adapta la interfaz a la marca de cada cliente</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Color Primario</Label>
+                  <div className="flex gap-2">
+                    {['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'].map(c => (
+                      <div key={c} className="w-8 h-8 rounded-full cursor-pointer border-2 border-transparent hover:border-white shadow-sm" style={{ backgroundColor: c }} />
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Estilo de Interfaz</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button variant="outline" className="h-20 flex-col gap-1 border-primary bg-primary/5">
+                      <Layout className="w-4 h-4" />
+                      <span className="text-xs">Moderna (Glass)</span>
+                    </Button>
+                    <Button variant="outline" className="h-20 flex-col gap-1">
+                      <Type className="w-4 h-4" />
+                      <span className="text-xs">Compacta (Data)</span>
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="modules" className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="font-display flex items-center gap-2">
                 <Puzzle className="w-5 h-5 text-primary" />
-                Módulos del Sistema
+                Catálogo de Módulos SaaS
               </CardTitle>
-              <CardDescription>
-                Activa o desactiva los módulos según las necesidades de tu negocio
-              </CardDescription>
+              <CardDescription>Módulos gratuitos activables según necesidad</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {mockModules.map((module) => (
-                  <div
-                    key={module.id}
-                    className={cn(
-                      "p-4 rounded-xl border-2 transition-all",
-                      module.enabled
-                        ? "border-primary/30 bg-primary/5"
-                        : "border-border bg-muted/30"
-                    )}
-                  >
+                  <div key={module.id} className={cn(
+                    "p-4 rounded-xl border-2 transition-all",
+                    module.enabled ? "border-primary/30 bg-primary/5" : "border-border bg-muted/30"
+                  )}>
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-3">
-                        <div
-                          className={cn(
-                            "w-10 h-10 rounded-lg flex items-center justify-center",
-                            module.enabled ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
-                          )}
-                        >
-                          {module.enabled ? <Check className="w-5 h-5" /> : <Puzzle className="w-5 h-5" />}
+                        <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center", module.enabled ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground")}>
+                          <Check className="w-5 h-5" />
                         </div>
-                        <div>
-                          <h4 className="font-semibold">{module.name}</h4>
-                          {module.id === "analytics" && (
-                            <Badge className="bg-accent/15 text-accent border-accent/30 text-[10px]">
-                              <Crown className="w-3 h-3 mr-1" />
-                              Premium
-                            </Badge>
-                          )}
-                        </div>
+                        <h4 className="font-semibold">{module.name}</h4>
                       </div>
-                      <Switch
-                        checked={module.enabled}
-                        disabled={module.id === "analytics"}
-                        data-testid={`switch-module-${module.id}`}
-                      />
+                      <Switch checked={module.enabled} />
                     </div>
                     <p className="text-sm text-muted-foreground">{module.description}</p>
+                    <div className="mt-4 pt-4 border-t border-dashed flex justify-between items-center">
+                      <span className="text-xs font-bold text-success">GRATIS</span>
+                      <Button variant="ghost" size="sm" className="h-7 text-xs">Configurar</Button>
+                    </div>
                   </div>
                 ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="users">
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-display">Usuarios y Permisos</CardTitle>
-              <CardDescription>Gestiona el acceso al sistema</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-12">
-                <Users className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">Gestión de Usuarios</h3>
-                <p className="text-muted-foreground max-w-md mx-auto">
-                  Crea usuarios, asigna roles y define permisos para cada módulo del sistema.
-                </p>
-                <Button className="mt-4" data-testid="button-manage-users">
-                  Administrar Usuarios
-                </Button>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="billing">
-          <Card>
+          <Card className="border-accent/20">
             <CardHeader>
-              <CardTitle className="font-display">Plan y Facturación</CardTitle>
-              <CardDescription>Gestiona tu suscripción</CardDescription>
+              <CardTitle className="font-display flex items-center gap-2 text-accent">
+                <Crown className="w-5 h-5" />
+                Modelo de Pago por Uso Mensual
+              </CardTitle>
+              <CardDescription>Sin costos fijos por módulos, paga solo por el volumen de tu operación</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="p-6 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 border border-primary/20">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <Badge className="bg-primary text-primary-foreground mb-2">Plan Actual</Badge>
-                    <h3 className="text-2xl font-display font-bold">Profesional</h3>
-                    <p className="text-muted-foreground">$999 MXN/mes</p>
-                  </div>
-                  <Button variant="outline">Cambiar Plan</Button>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="p-6 rounded-xl bg-card border text-center space-y-2">
+                  <p className="text-sm text-muted-foreground">Costo por Transacción</p>
+                  <p className="text-3xl font-bold font-display">$0.10 <span className="text-xs font-normal">MXN</span></p>
+                  <p className="text-[10px] text-muted-foreground">Ventas, compras, producción</p>
                 </div>
-                <div className="grid grid-cols-3 gap-4 mt-4">
-                  <div className="text-center p-3 rounded-lg bg-background/50">
-                    <p className="text-2xl font-bold">10</p>
-                    <p className="text-xs text-muted-foreground">Usuarios</p>
-                  </div>
-                  <div className="text-center p-3 rounded-lg bg-background/50">
-                    <p className="text-2xl font-bold">5</p>
-                    <p className="text-xs text-muted-foreground">Kioskos</p>
-                  </div>
-                  <div className="text-center p-3 rounded-lg bg-background/50">
-                    <p className="text-2xl font-bold">∞</p>
-                    <p className="text-xs text-muted-foreground">Transacciones</p>
-                  </div>
+                <div className="p-6 rounded-xl bg-card border text-center space-y-2">
+                  <p className="text-sm text-muted-foreground">Costo por Empleado</p>
+                  <p className="text-3xl font-bold font-display">$5.00 <span className="text-xs font-normal">MXN</span></p>
+                  <p className="text-[10px] text-muted-foreground">Activos en el mes</p>
+                </div>
+                <div className="p-6 rounded-xl bg-card border text-center space-y-2">
+                  <p className="text-sm text-muted-foreground">Costo por Kiosko</p>
+                  <p className="text-3xl font-bold font-display">$50.00 <span className="text-xs font-normal">MXN</span></p>
+                  <p className="text-[10px] text-muted-foreground">Terminales activas</p>
                 </div>
               </div>
 
-              <div className="space-y-3">
-                <h4 className="font-semibold">Historial de Pagos</h4>
-                {[
-                  { date: "01/01/2026", amount: "$999.00", status: "Pagado" },
-                  { date: "01/12/2025", amount: "$999.00", status: "Pagado" },
-                  { date: "01/11/2025", amount: "$999.00", status: "Pagado" },
-                ].map((payment, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
-                  >
-                    <span className="font-mono text-sm">{payment.date}</span>
-                    <span className="font-semibold">{payment.amount}</span>
-                    <Badge className="bg-success/15 text-success border-success/30">
-                      {payment.status}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="notifications">
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-display">Preferencias de Notificaciones</CardTitle>
-              <CardDescription>Configura cómo y cuándo recibir alertas</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {[
-                { title: "Stock bajo", description: "Cuando un producto está por debajo del mínimo" },
-                { title: "Nuevas ventas", description: "Resumen diario de ventas" },
-                { title: "Empleados", description: "Entradas y salidas del personal" },
-                { title: "Entregas", description: "Actualizaciones de estado de entregas" },
-                { title: "Anomalías IA", description: "Alertas de patrones inusuales" },
-              ].map((notification, index) => (
-                <div key={index} className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">{notification.title}</p>
-                    <p className="text-sm text-muted-foreground">{notification.description}</p>
-                  </div>
-                  <Switch defaultChecked data-testid={`switch-notification-${index}`} />
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="security">
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-display">Seguridad</CardTitle>
-              <CardDescription>Protege tu cuenta y datos</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
+              <div className="p-4 rounded-lg bg-muted/50 border border-dashed flex items-center justify-between">
                 <div>
-                  <p className="font-medium">Autenticación de dos factores</p>
-                  <p className="text-sm text-muted-foreground">Añade una capa extra de seguridad</p>
+                  <p className="font-semibold">Simulador de Costo Mensual</p>
+                  <p className="text-xs text-muted-foreground">Calcula tu inversión según el tamaño de tu empresa</p>
                 </div>
-                <Switch data-testid="switch-2fa" />
-              </div>
-
-              <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
-                <div>
-                  <p className="font-medium">Face ID para administradores</p>
-                  <p className="text-sm text-muted-foreground">Requiere reconocimiento facial para acciones críticas</p>
-                </div>
-                <Switch defaultChecked data-testid="switch-face-id-admin" />
-              </div>
-
-              <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
-                <div>
-                  <p className="font-medium">Registro de actividad</p>
-                  <p className="text-sm text-muted-foreground">Mantén un log de todas las acciones del sistema</p>
-                </div>
-                <Switch defaultChecked data-testid="switch-activity-log" />
-              </div>
-
-              <Separator />
-
-              <div className="space-y-4">
-                <h4 className="font-semibold">Cambiar Contraseña</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="currentPassword">Contraseña Actual</Label>
-                    <Input id="currentPassword" type="password" data-testid="input-current-password" />
-                  </div>
-                  <div />
-                  <div className="space-y-2">
-                    <Label htmlFor="newPassword">Nueva Contraseña</Label>
-                    <Input id="newPassword" type="password" data-testid="input-new-password" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="confirmPassword">Confirmar Contraseña</Label>
-                    <Input id="confirmPassword" type="password" data-testid="input-confirm-password" />
-                  </div>
-                </div>
-                <Button data-testid="button-change-password">Cambiar Contraseña</Button>
+                <Button variant="outline" size="sm">Abrir Simulador</Button>
               </div>
             </CardContent>
           </Card>
