@@ -15,13 +15,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import {
   Monitor,
@@ -34,15 +27,18 @@ import {
   Link2,
   Settings,
   Trash2,
-  Copy,
   ExternalLink,
-  QrCode,
   Wifi,
   WifiOff,
+  Layout,
+  Eye,
+  Lock,
+  Smartphone,
 } from "lucide-react";
 import { mockKiosks, kioskTypes, mockModules } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "wouter";
 
 const kioskIcons: Record<string, typeof Clock> = {
   timeclock: Clock,
@@ -54,8 +50,12 @@ const kioskIcons: Record<string, typeof Clock> = {
 
 export default function Kiosks() {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [kiosks, setKiosks] = useState(mockKiosks);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [selectedKiosk, setSelectedKiosk] = useState<typeof mockKiosks[0] | null>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  
   const [newKiosk, setNewKiosk] = useState({
     name: "",
     type: "",
@@ -88,6 +88,30 @@ export default function Kiosks() {
       title: "Kiosko creado",
       description: "El magic link ha sido generado",
     });
+  };
+
+  const handleOpenKiosk = (kiosk: typeof mockKiosks[0]) => {
+    toast({
+      title: `Abriendo ${kiosk.name}`,
+      description: "Redirigiendo a la interfaz de terminal...",
+    });
+    
+    // In a real app this would open the specific kiosk view
+    // For now we'll route to timeclock as it's our only specialized kiosk view
+    if (kiosk.type === "timeclock") {
+      setLocation("/timeclock");
+    } else {
+      toast({
+        title: "Módulo en desarrollo",
+        description: `La interfaz para ${kiosk.type} estará disponible pronto en el mockup.`,
+      });
+    }
+  };
+
+  const openSettings = (kiosk: typeof mockKiosks[0], e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedKiosk(kiosk);
+    setIsSettingsOpen(true);
   };
 
   const generateMagicLink = (kioskId: number) => {
@@ -136,7 +160,7 @@ export default function Kiosks() {
             </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle className="font-display">Crear Nuevo Kiosko</DialogTitle>
+                <DialogTitle className="font-display text-2xl">Crear Nuevo Kiosko</DialogTitle>
                 <DialogDescription>
                   Configure el kiosko y seleccione los módulos disponibles
                 </DialogDescription>
@@ -151,7 +175,6 @@ export default function Kiosks() {
                       placeholder="Ej: Reloj Checador - Entrada"
                       value={newKiosk.name}
                       onChange={(e) => setNewKiosk({ ...newKiosk, name: e.target.value })}
-                      data-testid="input-kiosk-name"
                     />
                   </div>
                   <div className="space-y-2">
@@ -161,13 +184,12 @@ export default function Kiosks() {
                       placeholder="Ej: Planta Principal"
                       value={newKiosk.location}
                       onChange={(e) => setNewKiosk({ ...newKiosk, location: e.target.value })}
-                      data-testid="input-kiosk-location"
                     />
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Tipo de Kiosko</Label>
+                <div className="space-y-3">
+                  <Label className="text-base font-semibold">Tipo de Kiosko</Label>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                     {kioskTypes.map((type) => {
                       const Icon = kioskIcons[type.id];
@@ -177,21 +199,20 @@ export default function Kiosks() {
                           key={type.id}
                           onClick={() => setNewKiosk({ ...newKiosk, type: type.id })}
                           className={cn(
-                            "p-4 rounded-xl border-2 text-left transition-all",
+                            "p-4 rounded-xl border-2 text-left transition-all group",
                             isSelected
-                              ? "border-primary bg-primary/10"
+                              ? "border-primary bg-primary/5 ring-1 ring-primary/20"
                               : "border-border hover:border-primary/50 hover:bg-muted/50"
                           )}
-                          data-testid={`button-kiosk-type-${type.id}`}
                         >
                           <Icon
                             className={cn(
-                              "w-6 h-6 mb-2",
+                              "w-6 h-6 mb-2 transition-transform group-hover:scale-110",
                               isSelected ? "text-primary" : "text-muted-foreground"
                             )}
                           />
-                          <p className="font-medium text-sm">{type.name}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">
+                          <p className="font-bold text-sm">{type.name}</p>
+                          <p className="text-[10px] text-muted-foreground mt-1 leading-tight">
                             {type.description}
                           </p>
                         </button>
@@ -200,26 +221,26 @@ export default function Kiosks() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Módulos Disponibles</Label>
-                  <div className="grid grid-cols-2 gap-3 p-4 rounded-xl bg-muted/50">
+                <div className="space-y-3">
+                  <Label className="text-base font-semibold">Módulos Activables</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 rounded-xl bg-muted/30 border border-dashed border-muted-foreground/20">
                     {mockModules.map((module) => (
                       <div
                         key={module.id}
-                        className="flex items-center space-x-3"
+                        className="flex items-start space-x-3 p-2 rounded-lg hover:bg-muted/50 transition-colors"
                       >
                         <Checkbox
                           id={module.id}
                           checked={newKiosk.modules.includes(module.id)}
                           onCheckedChange={() => toggleModule(module.id)}
-                          data-testid={`checkbox-module-${module.id}`}
+                          className="mt-1"
                         />
                         <label
                           htmlFor={module.id}
                           className="text-sm font-medium cursor-pointer flex-1"
                         >
-                          {module.name}
-                          <span className="block text-xs text-muted-foreground font-normal">
+                          <span className="block font-bold">{module.name}</span>
+                          <span className="block text-[10px] text-muted-foreground font-normal">
                             {module.description}
                           </span>
                         </label>
@@ -233,8 +254,8 @@ export default function Kiosks() {
                 <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
                   Cancelar
                 </Button>
-                <Button onClick={handleCreateKiosk} data-testid="button-confirm-create-kiosk">
-                  Crear y Generar Magic Link
+                <Button onClick={handleCreateKiosk} className="bg-primary hover:bg-primary/90">
+                  Generar Magic Link y Crear
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -248,93 +269,153 @@ export default function Kiosks() {
               <Card
                 key={kiosk.id}
                 className={cn(
-                  "overflow-hidden transition-all hover:shadow-lg",
-                  kiosk.status === "online" && "ring-1 ring-success/30"
+                  "group relative overflow-hidden transition-all duration-300 hover:shadow-2xl hover:-translate-y-1",
+                  kiosk.status === "online" ? "border-success/30 bg-success/[0.02]" : "bg-card"
                 )}
                 data-testid={`kiosk-card-${kiosk.id}`}
               >
+                {kiosk.status === "online" && (
+                   <div className="absolute top-0 right-0 p-2">
+                     <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-success"></span>
+                      </span>
+                   </div>
+                )}
+                
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-4">
                       <div
                         className={cn(
-                          "w-12 h-12 rounded-xl flex items-center justify-center",
+                          "w-14 h-14 rounded-2xl flex items-center justify-center transition-all group-hover:scale-110 group-hover:rotate-3 shadow-sm",
                           kiosk.status === "online"
-                            ? "bg-primary/15 text-primary"
+                            ? "bg-primary text-white glow"
                             : "bg-muted text-muted-foreground"
                         )}
                       >
-                        <Icon className="w-6 h-6" />
+                        <Icon className="w-7 h-7" />
                       </div>
                       <div>
-                        <CardTitle className="text-base font-semibold">
+                        <CardTitle className="text-lg font-display font-bold">
                           {kiosk.name}
                         </CardTitle>
-                        <p className="text-sm text-muted-foreground">{kiosk.location}</p>
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
+                          <Layout className="w-3 h-3" />
+                          {kiosk.location}
+                        </div>
                       </div>
                     </div>
-                    <StatusBadge status={kiosk.status} />
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-5">
                   <div className="flex flex-wrap gap-1.5">
                     {kiosk.modules.map((module) => (
-                      <Badge key={module} variant="secondary" className="text-xs">
-                        {module}
+                      <Badge key={module} variant="secondary" className="text-[10px] font-bold tracking-tight py-0">
+                        {module.toUpperCase()}
                       </Badge>
                     ))}
                   </div>
 
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Última conexión</span>
-                    <span className="font-medium">{kiosk.lastPing}</span>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between text-xs border-b border-border/50 pb-2">
+                      <span className="text-muted-foreground flex items-center gap-1.5">
+                        <StatusBadge status={kiosk.status} className="h-4 px-1" />
+                        Status
+                      </span>
+                      <span className="font-mono text-muted-foreground">{kiosk.lastPing}</span>
+                    </div>
                   </div>
 
-                  <div className="flex gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     <Button
                       variant="outline"
                       size="sm"
-                      className="flex-1"
+                      className="bg-background/50 backdrop-blur-sm border-primary/20 hover:border-primary/50 text-xs font-bold"
                       onClick={() => generateMagicLink(kiosk.id)}
-                      data-testid={`button-copy-link-${kiosk.id}`}
                     >
-                      <Link2 className="w-4 h-4 mr-1" />
+                      <Link2 className="w-3.5 h-3.5 mr-1.5 text-primary" />
                       Magic Link
                     </Button>
                     <Button
-                      variant="outline"
                       size="sm"
-                      className="flex-1"
-                      data-testid={`button-open-kiosk-${kiosk.id}`}
+                      className="bg-primary hover:bg-primary/90 text-xs font-bold glow-sm"
+                      onClick={() => handleOpenKiosk(kiosk)}
                     >
-                      <ExternalLink className="w-4 h-4 mr-1" />
+                      <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
                       Abrir
                     </Button>
-                    <Button variant="ghost" size="icon" className="w-9 h-9">
-                      <Settings className="w-4 h-4" />
-                    </Button>
                   </div>
+                  
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="absolute bottom-2 right-2 w-8 h-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => openSettings(kiosk, e)}
+                  >
+                    <Settings className="w-4 h-4 text-muted-foreground" />
+                  </Button>
                 </CardContent>
               </Card>
             );
           })}
 
-          <Card className="border-dashed border-2 hover:border-primary/50 hover:bg-muted/30 transition-all cursor-pointer flex items-center justify-center min-h-[280px]">
+          <Card className="border-dashed border-2 border-muted-foreground/20 hover:border-primary/50 hover:bg-primary/[0.02] transition-all cursor-pointer flex items-center justify-center min-h-[260px] group">
             <button
               onClick={() => setIsCreateOpen(true)}
-              className="text-center p-6"
-              data-testid="button-add-kiosk-card"
+              className="text-center p-6 space-y-4"
             >
-              <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
-                <Plus className="w-8 h-8 text-muted-foreground" />
+              <div className="w-16 h-16 rounded-3xl bg-muted flex items-center justify-center mx-auto transition-all group-hover:bg-primary/10 group-hover:scale-110 group-hover:rotate-12 group-hover:shadow-lg">
+                <Plus className="w-8 h-8 text-muted-foreground group-hover:text-primary transition-colors" />
               </div>
-              <p className="font-medium text-muted-foreground">Agregar Kiosko</p>
-              <p className="text-sm text-muted-foreground/70 mt-1">
-                Crea una nueva terminal
-              </p>
+              <div>
+                <p className="font-display font-bold text-muted-foreground group-hover:text-primary transition-colors">Agregar Kiosko</p>
+                <p className="text-xs text-muted-foreground/70 mt-1 max-w-[140px] mx-auto">
+                  Despliega una nueva terminal en tu red
+                </p>
+              </div>
             </button>
           </Card>
         </div>
+
+        {/* Kiosk Settings Dialog */}
+        <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="font-display flex items-center gap-2">
+                <Settings className="w-5 h-5" />
+                Configurar {selectedKiosk?.name}
+              </DialogTitle>
+              <DialogDescription>
+                Ajustes rápidos de la terminal
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-3">
+                <Button variant="outline" className="w-full justify-start gap-3 h-12">
+                   <Lock className="w-4 h-4 text-warning" />
+                   Reiniciar Credenciales Face ID
+                </Button>
+                <Button variant="outline" className="w-full justify-start gap-3 h-12">
+                   <Eye className="w-4 h-4 text-primary" />
+                   Ver Registros Locales
+                </Button>
+                <Button variant="outline" className="w-full justify-start gap-3 h-12">
+                   <Smartphone className="w-4 h-4 text-accent" />
+                   Sincronizar Dispositivo
+                </Button>
+                <Separator className="my-2" />
+                <Button variant="ghost" className="w-full justify-start gap-3 h-12 text-destructive hover:bg-destructive/10 hover:text-destructive">
+                   <Trash2 className="w-4 h-4" />
+                   Eliminar Terminal
+                </Button>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button onClick={() => setIsSettingsOpen(false)}>Listo</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </AppLayout>
   );
