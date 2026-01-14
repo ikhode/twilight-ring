@@ -1,0 +1,99 @@
+Crea la base funcional (core) de un sistema ERP SaaS multiempresa, modular, escalable y listo para IA nativa. El proyecto debe incluir:
+
+──────────────────────────────
+1️⃣ Arquitectura general
+──────────────────────────────
+- Frontend: Vite + React + TailwindCSS
+- Backend: Supabase (PostgreSQL, Auth, Storage, Functions, Row-Level Security)
+- Infraestructura multi-tenant (cada empresa con tenant_id)
+- Estructura modular sin duplicar código ni versiones alternas
+- Carpetas principales:
+/landing        → Landing page y registro
+/admin-panel    → Panel maestro (control total)
+/client-panel   → Panel ERP de clientes
+/agent-panel    → Panel de representantes
+/shared         → Componentes y hooks comunes
+/supabase       → Configuración de DB, Auth, Storage, Functions
+/ai             → Modelos TensorFlow y endpoints IA
+
+──────────────────────────────
+2️⃣ Flujos funcionales
+──────────────────────────────
+- Registro desde landing → crea tenant + usuario admin + instancia ERP → redirige a client-panel
+- Autenticación multiempresa con RLS en Supabase
+- Panel cliente (client-panel):
+  • Módulos básicos: Finanzas, Inventario, Ventas, Reportes
+  • Activación/desactivación de módulos según plan
+  • Dashboard con “IA Insights”
+- Panel maestro (admin-panel):
+  • Gestión de empresas, usuarios, planes y representantes
+  • Métricas globales: clientes activos, pruebas, pagos, churn
+  • Recomendaciones IA y analítica centralizada
+- Panel representantes (agent-panel):
+  • Seguimiento de clientes referidos
+  • Comisiones automáticas
+  • IA de sugerencias de clientes prioritarios
+
+──────────────────────────────
+3️⃣ Crecimiento sin círculos viciosos
+──────────────────────────────
+- Arquitectura modular: cada módulo activable/desactivable sin afectar otros
+- Control centralizado en panel maestro
+- Automatización completa de onboarding, registro, pago y renovación
+- Trazabilidad completa de representantes sin perder control
+- Analítica integrada: métricas, retención, churn, uso de módulos
+- Preparado para escalar sin rehacer el core
+
+──────────────────────────────
+4️⃣ Integración TensorFlow (IA nativa)
+──────────────────────────────
+- TensorFlow forma parte del stack desde el inicio (TF.js o backend Python)
+- Todos los módulos registran eventos y métricas listas para ML
+- Carpeta /ai:
+  • /models → modelos TF: inventoryPredictor, financePredictor, churnPredictor
+  • /endpoints → predictInventory, predictFinance, predictChurn
+- Supabase Functions registran eventos (ventas, pagos, uso de módulos) y los envían a endpoints IA
+- Dashboards cliente/admin muestran predicciones vía endpoints
+- Arquitectura permite sustituir modelos simulados por reales sin rehacer el core
+
+──────────────────────────────
+5️⃣ Innovaciones IA
+──────────────────────────────
+- Asistente inteligente contextual en client-panel (/ai/advisor)
+- Predicciones: inventario, finanzas, churn
+- Recomendaciones automáticas: upsell, priorización de clientes, alertas de churn
+- Dashboards con lenguaje natural: “Muéstrame ventas por sucursal”
+- IA en landing: personalización de textos según país/sector
+- IA para representantes: sugerencias para mejorar conversión
+
+──────────────────────────────
+6️⃣ Landing page
+──────────────────────────────
+- Presentación comercial, beneficios y precios
+- Botón de prueba gratuita (30 días)
+- Registro automático de tenant y usuario admin
+- Preparada para SEO y expansión internacional
+- Redirección automática al panel ERP
+
+──────────────────────────────
+7️⃣ Requisitos de código
+──────────────────────────────
+- Código limpio, modular y comentado
+- Separación clara de paneles
+- Preparado para agregar módulos futuros
+- Preparado para escalar a nivel internacional
+- Deployable en Vercel, Netlify o cualquier hosting moderno
+- Documentación breve (README con pasos para correr proyecto y conectar Supabase)
+
+──────────────────────────────
+✅ Resultado esperado
+──────────────────────────────
+- Proyecto funcional (datos simulados aceptables)
+- Login y registro multiempresa
+- Panel maestro con métricas, planes y representantes
+- Panel cliente con módulos activos y IA Insights
+- Panel representantes con comisiones y tracking
+- Landing page conectada al flujo de registro
+- Supabase Auth, DB y Policies operativos
+- Estructura lista para IA avanzada y modelos TensorFlow
+- Arquitectura escalable y modular sin rehacer nada
