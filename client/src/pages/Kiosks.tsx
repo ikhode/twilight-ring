@@ -98,15 +98,8 @@ export default function Kiosks() {
     });
     
     // In a real app this would open the specific kiosk view
-    // For now we'll route to timeclock as it's our only specialized kiosk view
-    if (kiosk.type === "timeclock") {
-      setLocation("/timeclock");
-    } else {
-      toast({
-        title: "Módulo en desarrollo",
-        description: `La interfaz para ${kiosk.type} estará disponible pronto en el mockup.`,
-      });
-    }
+    // For now we'll route to our unified kiosk interface
+    setLocation("/kiosk-terminal");
   };
 
   const openSettings = (kiosk: typeof mockKiosks[0], e: React.MouseEvent) => {

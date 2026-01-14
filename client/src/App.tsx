@@ -7,6 +7,7 @@ import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/Dashboard";
 import TimeClock from "@/pages/TimeClock";
 import Kiosks from "@/pages/Kiosks";
+import KioskInterface from "@/pages/KioskInterface";
 import Employees from "@/pages/Employees";
 import Inventory from "@/pages/Inventory";
 import Production from "@/pages/Production";
@@ -24,6 +25,7 @@ function Router() {
       <Route path="/" component={Dashboard} />
       <Route path="/timeclock" component={TimeClock} />
       <Route path="/kiosks" component={Kiosks} />
+      <Route path="/kiosk-terminal" component={KioskInterface} />
       <Route path="/employees" component={Employees} />
       <Route path="/inventory" component={Inventory} />
       <Route path="/production" component={Production} />
