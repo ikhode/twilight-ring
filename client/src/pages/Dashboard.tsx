@@ -35,8 +35,16 @@ export default function Dashboard() {
     }).format(amount);
 
   return (
-    <AppLayout title="Dashboard" subtitle="Resumen general del negocio">
+    <AppLayout title="Fábrica de Procesamiento de Coco" subtitle="Gestión de Recepción, Procesado y Comercialización">
       <div className="space-y-6">
+        <div className="bg-primary/5 border border-primary/20 rounded-2xl p-6 mb-8 text-center backdrop-blur-sm">
+          <h2 className="text-3xl font-display font-black tracking-tight mb-2 gradient-text">
+            Panel de Control de Planta
+          </h2>
+          <p className="text-muted-foreground max-w-2xl mx-auto text-lg leading-relaxed">
+            Plataforma integral para la gestión de procesamiento de coco, desde la recepción en patio hasta la comercialización de copra y agua.
+          </p>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
             title="Ventas del Día"

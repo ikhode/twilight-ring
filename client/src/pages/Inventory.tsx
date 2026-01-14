@@ -49,29 +49,29 @@ export default function Inventory() {
     }).format(amount);
 
   return (
-    <AppLayout title="Inventario" subtitle="Control de productos y existencias">
+    <AppLayout title="Patios e Inventario" subtitle="Control de coco en patio y producto terminado">
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <StatCard
-            title="Total Productos"
+            title="Total Cocos en Patio"
             value={stats.totalProducts}
             icon={Package}
             variant="primary"
           />
           <StatCard
-            title="Stock Bajo"
+            title="Sectores Bajos"
             value={stats.lowStock}
             icon={TrendingDown}
             variant="warning"
           />
           <StatCard
-            title="Stock Crítico"
+            title="Sectores Críticos"
             value={stats.criticalStock}
             icon={AlertTriangle}
             variant="destructive"
           />
           <StatCard
-            title="Valor Total"
+            title="Valor en Patio"
             value={formatCurrency(stats.totalValue)}
             icon={DollarSign}
             variant="success"
@@ -81,7 +81,7 @@ export default function Inventory() {
         <Card>
           <CardHeader>
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <CardTitle className="font-display">Productos</CardTitle>
+              <CardTitle className="font-display">Inventario de Patio y Almacén</CardTitle>
               <div className="flex items-center gap-3">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -101,7 +101,7 @@ export default function Inventory() {
                 </Button>
                 <Button className="gap-2" data-testid="button-add-product">
                   <Plus className="w-4 h-4" />
-                  Agregar Producto
+                  Registrar Entrada de Patio
                 </Button>
               </div>
             </div>
