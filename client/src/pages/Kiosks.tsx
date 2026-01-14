@@ -35,6 +35,7 @@ import {
   Lock,
   Smartphone,
 } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 import { mockKiosks, kioskTypes, mockModules } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
