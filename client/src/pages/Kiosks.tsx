@@ -97,9 +97,8 @@ export default function Kiosks() {
       description: "Redirigiendo a la interfaz de terminal...",
     });
     
-    // In a real app this would open the specific kiosk view
-    // For now we'll route to our unified kiosk interface
-    setLocation("/kiosk-terminal");
+    // Navigate to the specific kiosk interface
+    setLocation(`/kiosk-terminal/${kiosk.id}`);
   };
 
   const openSettings = (kiosk: typeof mockKiosks[0], e: React.MouseEvent) => {

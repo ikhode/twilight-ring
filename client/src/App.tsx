@@ -25,7 +25,7 @@ function Router() {
       <Route path="/" component={Dashboard} />
       <Route path="/timeclock" component={TimeClock} />
       <Route path="/kiosks" component={Kiosks} />
-      <Route path="/kiosk-terminal" component={KioskInterface} />
+      <Route path="/kiosk-terminal/:id" component={KioskInterface} />
       <Route path="/employees" component={Employees} />
       <Route path="/inventory" component={Inventory} />
       <Route path="/production" component={Production} />
