@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,17 @@ import { Progress } from "@/components/ui/progress";
 import { DataTable } from "@/components/shared/DataTable";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { StatCard } from "@/components/shared/StatCard";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Package,
   Plus,
@@ -23,23 +34,62 @@ import {
 } from "lucide-react";
 import { mockProducts } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Inventory() {
+  const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
-  const [products] = useState(mockProducts);
+  const [products, setProducts] = useState(mockProducts);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [newProduct, setNewProduct] = useState({
+    name: "",
+    sku: "",
+    category: "Materia Prima",
+    stock: 0,
+    unit: "pza",
+    price: 0,
+  });
 
-  const filteredProducts = products.filter(
-    (p) =>
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.category.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredProducts = useMemo(() => {
+    return products.filter(
+      (p) =>
+        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.category.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [products, searchQuery]);
 
-  const stats = {
+  const stats = useMemo(() => ({
     totalProducts: products.length,
     lowStock: products.filter((p) => p.status === "low").length,
     criticalStock: products.filter((p) => p.status === "critical").length,
     totalValue: products.reduce((acc, p) => acc + p.stock * p.price, 0),
+  }), [products]);
+
+  const handleAddProduct = () => {
+    if (!newProduct.name || !newProduct.sku) {
+      toast({
+        title: "Error",
+        description: "Nombre y SKU son obligatorios",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const product = {
+      id: products.length + 1,
+      ...newProduct,
+      status: newProduct.stock < 100 ? ("critical" as const) : newProduct.stock < 500 ? ("low" as const) : ("available" as const),
+    };
+
+    setProducts([product, ...products]);
+    setIsAddDialogOpen(false);
+    setNewProduct({ name: "", sku: "", category: "Materia Prima", stock: 0, unit: "pza", price: 0 });
+    
+    toast({
+      title: "Registro exitoso",
+      description: `Se ha registrado ${product.name} en el inventario de patio.`,
+    });
   };
 
   const formatCurrency = (amount: number) =>
@@ -96,13 +146,57 @@ export default function Inventory() {
                 <Button variant="outline" size="icon">
                   <Filter className="w-4 h-4" />
                 </Button>
-                <Button variant="outline" size="icon">
-                  <Download className="w-4 h-4" />
-                </Button>
-                <Button className="gap-2" data-testid="button-add-product">
-                  <Plus className="w-4 h-4" />
-                  Registrar Entrada de Patio
-                </Button>
+                
+                <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="gap-2" data-testid="button-add-product">
+                      <Plus className="w-4 h-4" />
+                      Registrar Entrada de Patio
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Nueva Entrada de Patio</DialogTitle>
+                      <DialogDescription>
+                        Registre el ingreso de materia prima o subproductos.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="name" className="text-right">Nombre</Label>
+                        <Input id="name" value={newProduct.name} onChange={(e) => setNewProduct({...newProduct, name: e.target.value})} className="col-span-3" />
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="sku" className="text-right">SKU</Label>
+                        <Input id="sku" value={newProduct.sku} onChange={(e) => setNewProduct({...newProduct, sku: e.target.value})} className="col-span-3" />
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="category" className="text-right">Categoría</Label>
+                        <Select onValueChange={(v) => setNewProduct({...newProduct, category: v})} defaultValue={newProduct.category}>
+                          <SelectTrigger className="col-span-3">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Materia Prima">Materia Prima</SelectItem>
+                            <SelectItem value="Producto Terminado">Producto Terminado</SelectItem>
+                            <SelectItem value="Subproducto">Subproducto</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="stock" className="text-right">Cantidad</Label>
+                        <Input id="stock" type="number" value={newProduct.stock} onChange={(e) => setNewProduct({...newProduct, stock: parseInt(e.target.value) || 0})} className="col-span-3" />
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="price" className="text-right">Precio Un.</Label>
+                        <Input id="price" type="number" step="0.01" value={newProduct.price} onChange={(e) => setNewProduct({...newProduct, price: parseFloat(e.target.value) || 0})} className="col-span-3" />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button onClick={handleAddProduct}>Confirmar Registro</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               </div>
             </div>
           </CardHeader>
@@ -135,13 +229,13 @@ export default function Inventory() {
                   key: "stock",
                   header: "Stock",
                   render: (item) => {
-                    const maxStock = 500;
+                    const maxStock = 20000;
                     const percentage = Math.min((item.stock / maxStock) * 100, 100);
                     return (
                       <div className="space-y-1.5 min-w-32">
                         <div className="flex items-center justify-between">
                           <span className="font-semibold font-mono">
-                            {item.stock} {item.unit}
+                            {item.stock.toLocaleString()} {item.unit}
                           </span>
                           <StatusBadge status={item.status} />
                         </div>
@@ -240,7 +334,7 @@ export default function Inventory() {
                       </div>
                       <div className="text-right">
                         <p className="font-semibold font-mono">
-                          {product.stock} {product.unit}
+                          {product.stock.toLocaleString()} {product.unit}
                         </p>
                         <Button variant="link" size="sm" className="h-auto p-0 text-xs">
                           Reordenar
@@ -248,6 +342,9 @@ export default function Inventory() {
                       </div>
                     </div>
                   ))}
+                {products.filter((p) => p.status === "low" || p.status === "critical").length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-4">No hay productos con stock bajo.</p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -261,7 +358,7 @@ export default function Inventory() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {["Materia Prima", "Producto Terminado"].map((category) => {
+                {["Materia Prima", "Producto Terminado", "Subproducto"].map((category) => {
                   const categoryProducts = products.filter((p) => p.category === category);
                   const totalValue = categoryProducts.reduce(
                     (acc, p) => acc + p.stock * p.price,
