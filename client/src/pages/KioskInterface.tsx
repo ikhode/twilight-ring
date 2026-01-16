@@ -33,6 +33,7 @@ export default function KioskInterface() {
   const [location, setLocation] = useLocation();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isScanning, setIsScanning] = useState(false);
+  const [activeKiosk, setActiveKiosk] = useState<"timeclock" | "supervisor">("timeclock");
   const [activeView, setActiveView] = useState<"main" | "entry-coco" | "worker-activity" | "faceid-config">("main");
   const [selectedWorker, setSelectedWorker] = useState<typeof mockEmployees[0] | null>(null);
   const [scanResult, setScanResult] = useState<{
