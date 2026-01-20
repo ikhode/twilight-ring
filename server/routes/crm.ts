@@ -7,7 +7,14 @@ const router = Router();
 
 // --- CUSTOMERS ---
 
-router.get("/customers", async (req, res) => {
+/**
+ * Obtiene el listado de clientes de la organización.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.get("/customers", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -19,7 +26,14 @@ router.get("/customers", async (req, res) => {
     }
 });
 
-router.post("/customers", async (req, res) => {
+/**
+ * Registra un nuevo cliente en la base de datos.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.post("/customers", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -35,9 +49,14 @@ router.post("/customers", async (req, res) => {
     }
 });
 
-// --- SUPPLIERS ---
-
-router.get("/suppliers", async (req, res) => {
+/**
+ * Obtiene el listado de proveedores de la organización.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.get("/suppliers", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -49,7 +68,14 @@ router.get("/suppliers", async (req, res) => {
     }
 });
 
-router.post("/suppliers", async (req, res) => {
+/**
+ * Registra un nuevo proveedor en la base de datos.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.post("/suppliers", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -65,9 +91,14 @@ router.post("/suppliers", async (req, res) => {
     }
 });
 
-// --- COGNITIVE ACTIONS ---
-
-router.get("/analysis", async (req, res) => {
+/**
+ * Realiza un análisis cognitivo de los clientes, segmentándolos por riesgo de fuga y valor.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.get("/analysis", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -114,7 +145,14 @@ router.get("/analysis", async (req, res) => {
     }
 });
 
-router.post("/reminders", async (req, res) => {
+/**
+ * Procesa y envía recordatorios de pago automáticos a los clientes con deuda pendiente.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.post("/reminders", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });

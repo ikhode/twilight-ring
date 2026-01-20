@@ -6,7 +6,14 @@ import { eq } from "drizzle-orm";
 
 const router = Router();
 
-router.get("/dashboard", async (req, res) => {
+/**
+ * Obtiene las métricas para el dashboard de analítica, incluyendo predicciones basadas en datos reales.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.get("/dashboard", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -40,7 +47,14 @@ router.get("/dashboard", async (req, res) => {
     }
 });
 
-router.get("/cashflow", async (req, res) => {
+/**
+ * Genera una proyección de flujo de caja (Cashflow) para los próximos 30 días.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.get("/cashflow", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -77,7 +91,14 @@ router.get("/cashflow", async (req, res) => {
     }
 });
 
-router.post("/metrics", async (req, res) => {
+/**
+ * Registra una nueva métrica analítica en la base de datos.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.post("/metrics", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -93,7 +114,14 @@ router.post("/metrics", async (req, res) => {
     }
 });
 
-router.post("/models/:id/train", async (req, res) => {
+/**
+ * Inicia el entrenamiento de un modelo de métricas específico.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.post("/models/:id/train", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });

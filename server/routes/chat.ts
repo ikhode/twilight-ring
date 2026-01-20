@@ -5,28 +5,43 @@ import { supabaseAdmin } from "../supabase";
 
 /**
  * Register chat-related routes
+ * 
+ * @param {import("express").Express} app - Express application
  */
-export function registerChatRoutes(app: Express) {
+export function registerChatRoutes(app: Express): void {
 
-    // Create a new conversation
-    app.post("/api/chat/conversations", async (req: Request, res: Response) => {
+    /**
+     * Crea una nueva conversación de chat para el usuario.
+     * 
+     * @param {import("express").Request} req - Solicitud de Express
+     * @param {import("express").Response} res - Respuesta de Express
+     * @returns {Promise<void>}
+     */
+    app.post("/api/chat/conversations", async (req: Request, res: Response): Promise<void> => {
         try {
             const authHeader = req.headers.authorization;
-            if (!authHeader) return res.status(401).json({ message: "No token provided" });
+            if (!authHeader) {
+                res.status(401).json({ message: "No token provided" });
+                return;
+            }
 
             const token = authHeader.replace("Bearer ", "");
             const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-            if (error || !user) return res.status(401).json({ message: "Invalid token" });
+            if (error || !user) {
+                res.status(401).json({ message: "Invalid token" });
+                return;
+            }
 
             const organizationId = await getOrgIdFromRequest(req);
-            if (!organizationId) return res.status(401).json({ message: "Unauthorized" });
+            if (!organizationId) {
+                res.status(401).json({ message: "Unauthorized" });
+                return;
+            }
 
             const { title } = req.body;
 
-            // Get user's role
-            const userOrg = await chatAgentService.getUserConversations(user.id, organizationId);
-            // For now, we'll use a simple role detection - in production, fetch from userOrganizations table
-            const role = "user"; // TODO: Get actual role from userOrganizations
+            // Get user's role - TODO: Fetch from userOrganizations table
+            const role = "user";
 
             const conversationId = await chatAgentService.createConversation(
                 user.id,
@@ -45,18 +60,33 @@ export function registerChatRoutes(app: Express) {
         }
     });
 
-    // Get user's conversations
-    app.get("/api/chat/conversations", async (req: Request, res: Response) => {
+    /**
+     * Obtiene el listado de conversaciones del usuario autenticado.
+     * 
+     * @param {import("express").Request} req - Solicitud de Express
+     * @param {import("express").Response} res - Respuesta de Express
+     * @returns {Promise<void>}
+     */
+    app.get("/api/chat/conversations", async (req: Request, res: Response): Promise<void> => {
         try {
             const authHeader = req.headers.authorization;
-            if (!authHeader) return res.status(401).json({ message: "No token provided" });
+            if (!authHeader) {
+                res.status(401).json({ message: "No token provided" });
+                return;
+            }
 
             const token = authHeader.replace("Bearer ", "");
             const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-            if (error || !user) return res.status(401).json({ message: "Invalid token" });
+            if (error || !user) {
+                res.status(401).json({ message: "Invalid token" });
+                return;
+            }
 
             const organizationId = await getOrgIdFromRequest(req);
-            if (!organizationId) return res.status(401).json({ message: "Unauthorized" });
+            if (!organizationId) {
+                res.status(401).json({ message: "Unauthorized" });
+                return;
+            }
 
             const { status = "active" } = req.query;
 
@@ -73,22 +103,35 @@ export function registerChatRoutes(app: Express) {
         }
     });
 
-    // Get specific conversation
-    app.get("/api/chat/conversations/:id", async (req: Request, res: Response) => {
+    /**
+     * Obtiene los detalles de una conversación específica.
+     * 
+     * @param {import("express").Request} req - Solicitud de Express
+     * @param {import("express").Response} res - Respuesta de Express
+     * @returns {Promise<void>}
+     */
+    app.get("/api/chat/conversations/:id", async (req: Request, res: Response): Promise<void> => {
         try {
             const authHeader = req.headers.authorization;
-            if (!authHeader) return res.status(401).json({ message: "No token provided" });
+            if (!authHeader) {
+                res.status(401).json({ message: "No token provided" });
+                return;
+            }
 
             const token = authHeader.replace("Bearer ", "");
             const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-            if (error || !user) return res.status(401).json({ message: "Invalid token" });
+            if (error || !user) {
+                res.status(401).json({ message: "Invalid token" });
+                return;
+            }
 
             const { id } = req.params;
 
             const conversation = await chatAgentService.getConversation(id, user.id);
 
             if (!conversation) {
-                return res.status(404).json({ message: "Conversation not found" });
+                res.status(404).json({ message: "Conversation not found" });
+                return;
             }
 
             res.json({ conversation });
@@ -98,22 +141,35 @@ export function registerChatRoutes(app: Express) {
         }
     });
 
-    // Get conversation messages
-    app.get("/api/chat/conversations/:id/messages", async (req: Request, res: Response) => {
+    /**
+     * Obtiene el historial de mensajes de una conversación.
+     * 
+     * @param {import("express").Request} req - Solicitud de Express
+     * @param {import("express").Response} res - Respuesta de Express
+     * @returns {Promise<void>}
+     */
+    app.get("/api/chat/conversations/:id/messages", async (req: Request, res: Response): Promise<void> => {
         try {
             const authHeader = req.headers.authorization;
-            if (!authHeader) return res.status(401).json({ message: "No token provided" });
+            if (!authHeader) {
+                res.status(401).json({ message: "No token provided" });
+                return;
+            }
 
             const token = authHeader.replace("Bearer ", "");
             const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-            if (error || !user) return res.status(401).json({ message: "Invalid token" });
+            if (error || !user) {
+                res.status(401).json({ message: "Invalid token" });
+                return;
+            }
 
             const { id } = req.params;
 
             // Verify user has access to this conversation
             const conversation = await chatAgentService.getConversation(id, user.id);
             if (!conversation) {
-                return res.status(404).json({ message: "Conversation not found" });
+                res.status(404).json({ message: "Conversation not found" });
+                return;
             }
 
             const messages = await chatAgentService.getConversationMessages(id);
@@ -125,31 +181,45 @@ export function registerChatRoutes(app: Express) {
         }
     });
 
-    // Send a message
-    app.post("/api/chat/conversations/:id/messages", async (req: Request, res: Response) => {
+    /**
+     * Envía un mensaje en una conversación y procesa la respuesta de la IA.
+     * 
+     * @param {import("express").Request} req - Solicitud de Express
+     * @param {import("express").Response} res - Respuesta de Express
+     * @returns {Promise<void>}
+     */
+    app.post("/api/chat/conversations/:id/messages", async (req: Request, res: Response): Promise<void> => {
         try {
             const authHeader = req.headers.authorization;
-            if (!authHeader) return res.status(401).json({ message: "No token provided" });
+            if (!authHeader) {
+                res.status(401).json({ message: "No token provided" });
+                return;
+            }
 
             const token = authHeader.replace("Bearer ", "");
             const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-            if (error || !user) return res.status(401).json({ message: "Invalid token" });
+            if (error || !user) {
+                res.status(401).json({ message: "Invalid token" });
+                return;
+            }
 
             const { id } = req.params;
             const { message } = req.body;
 
             if (!message || message.trim().length === 0) {
-                return res.status(400).json({ message: "Message is required" });
+                res.status(400).json({ message: "Message is required" });
+                return;
             }
 
             // Verify user has access to this conversation
             const conversation = await chatAgentService.getConversation(id, user.id);
             if (!conversation) {
-                return res.status(404).json({ message: "Conversation not found" });
+                res.status(404).json({ message: "Conversation not found" });
+                return;
             }
 
             // Get user's role - TODO: fetch from userOrganizations
-            const role = "user"; // Placeholder
+            const role = "user";
 
             const { userMsg, aiMsg } = await chatAgentService.sendMessage(
                 id,
@@ -168,15 +238,27 @@ export function registerChatRoutes(app: Express) {
         }
     });
 
-    // Archive a conversation
-    app.post("/api/chat/conversations/:id/archive", async (req: Request, res: Response) => {
+    /**
+     * Archiva una conversación para ocultarla de la lista activa.
+     * 
+     * @param {import("express").Request} req - Solicitud de Express
+     * @param {import("express").Response} res - Respuesta de Express
+     * @returns {Promise<void>}
+     */
+    app.post("/api/chat/conversations/:id/archive", async (req: Request, res: Response): Promise<void> => {
         try {
             const authHeader = req.headers.authorization;
-            if (!authHeader) return res.status(401).json({ message: "No token provided" });
+            if (!authHeader) {
+                res.status(401).json({ message: "No token provided" });
+                return;
+            }
 
             const token = authHeader.replace("Bearer ", "");
             const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-            if (error || !user) return res.status(401).json({ message: "Invalid token" });
+            if (error || !user) {
+                res.status(401).json({ message: "Invalid token" });
+                return;
+            }
 
             const { id } = req.params;
 
@@ -189,15 +271,27 @@ export function registerChatRoutes(app: Express) {
         }
     });
 
-    // Delete a conversation
-    app.delete("/api/chat/conversations/:id", async (req: Request, res: Response) => {
+    /**
+     * Elimina definitivamente una conversación.
+     * 
+     * @param {import("express").Request} req - Solicitud de Express
+     * @param {import("express").Response} res - Respuesta de Express
+     * @returns {Promise<void>}
+     */
+    app.delete("/api/chat/conversations/:id", async (req: Request, res: Response): Promise<void> => {
         try {
             const authHeader = req.headers.authorization;
-            if (!authHeader) return res.status(401).json({ message: "No token provided" });
+            if (!authHeader) {
+                res.status(401).json({ message: "No token provided" });
+                return;
+            }
 
             const token = authHeader.replace("Bearer ", "");
             const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-            if (error || !user) return res.status(401).json({ message: "Invalid token" });
+            if (error || !user) {
+                res.status(401).json({ message: "Invalid token" });
+                return;
+            }
 
             const { id } = req.params;
 

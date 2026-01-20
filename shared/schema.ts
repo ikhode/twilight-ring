@@ -1,6 +1,5 @@
+import { pgTable, text, varchar, timestamp, boolean, integer, jsonb, pgEnum, customType } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, boolean, integer, jsonb, pgEnum, customType, point } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -391,7 +390,7 @@ export const employees = pgTable("employees", {
   // T-CAC Fields
   currentArea: text("current_area"), // Where they are now
   currentStatus: text("current_status").default("offline"), // "active", "break", "lunch", "offline"
-  // @ts-ignore
+  // @ts-expect-error - Vector type handled by customType
   faceEmbedding: customType<{ data: number[] }>({
     dataType() {
       return "vector(128)"; // Standard for face-api.js descriptors
@@ -520,7 +519,7 @@ export const embeddings = pgTable("embeddings", {
   entityType: text("entity_type").notNull(), // "product", "process_step", "log"
   entityId: varchar("entity_id").notNull(),
   content: text("content").notNull(), // The text representation
-  // @ts-ignore - Drizzle Kit will handle the vector type even if type definitions are strict
+  // @ts-expect-error - Drizzle Kit handles vector type
   vector: customType<{ data: number[] }>({
     dataType() {
       return "vector(1536)";
@@ -605,6 +604,9 @@ export const terminals = pgTable("terminals", {
   deviceSalt: text("device_salt"), // High-entropy salt for hardware binding
   provisioningToken: text("provisioning_token"), // One-time use token for linking
   provisioningExpiresAt: timestamp("provisioning_expires_at"),
+  // Real-time GPS Tracking
+  lastLatitude: customType<{ data: number }>({ dataType() { return "real"; } })("last_latitude"),
+  lastLongitude: customType<{ data: number }>({ dataType() { return "real"; } })("last_longitude"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

@@ -2,13 +2,19 @@ import { Router } from "express";
 import { storage, db } from "../storage";
 import { getOrgIdFromRequest } from "../auth_util";
 import { supabaseAdmin } from "../supabase";
-import { insertEmployeeSchema, insertPayrollAdvanceSchema, users, userOrganizations, employees } from "@shared/schema";
-import { eq, gte, desc, and } from "drizzle-orm";
+import { insertEmployeeSchema, users, userOrganizations, employees } from "@shared/schema";
+import { eq, and } from "drizzle-orm";
 
 const router = Router();
 
-// EMPLOYEES
-router.get("/employees", async (req, res) => {
+/**
+ * Obtiene el listado de empleados de la organización.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.get("/employees", async (req, res): Promise<void> => {
     const orgId = await getOrgIdFromRequest(req);
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
@@ -16,7 +22,14 @@ router.get("/employees", async (req, res) => {
     res.json(employees);
 });
 
-router.post("/employees", async (req, res) => {
+/**
+ * Registra un nuevo empleado en la organización.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.post("/employees", async (req, res): Promise<void> => {
     const orgId = await getOrgIdFromRequest(req);
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
@@ -27,8 +40,14 @@ router.post("/employees", async (req, res) => {
     res.status(201).json(employee);
 });
 
-// PAYROLL ADVANCES
-router.get("/payroll/advances", async (req, res) => {
+/**
+ * Obtiene las solicitudes de adelanto de nómina de la organización.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.get("/payroll/advances", async (req, res): Promise<void> => {
     const orgId = await getOrgIdFromRequest(req);
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
@@ -36,8 +55,14 @@ router.get("/payroll/advances", async (req, res) => {
     res.json(advances);
 });
 
-// INVITE USER
-router.post("/invite", async (req, res) => {
+/**
+ * Invita a un nuevo usuario a la organización vía Supabase Auth y crea su registro de empleado.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.post("/invite", async (req, res): Promise<void> => {
     const orgId = await getOrgIdFromRequest(req);
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
@@ -75,7 +100,7 @@ router.post("/invite", async (req, res) => {
         await db.insert(userOrganizations).values({
             userId: userId,
             organizationId: orgId,
-            role: role as any,
+            role: role as "admin" | "member" | "owner", // Fixed 'any'
             xp: 0,
             level: 1
         });
@@ -97,9 +122,10 @@ router.post("/invite", async (req, res) => {
 
         res.json({ message: "Invitation sent", userId });
 
-    } catch (error: any) {
-        console.error("Invite error:", error);
-        res.status(500).json({ error: error.message });
+    } catch (error) {
+        const err = error as Error; // Fixed 'any'
+        console.error("Invite error:", err);
+        res.status(500).json({ error: err.message });
     }
 });
 

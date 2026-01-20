@@ -1,0 +1,8 @@
+﻿
+C:\Users\Faker\.gemini\antigravity\playground\twilight-ring\client\src\pages\KioskInterface.tsx
+  53:16  error  Missing return type on function                           @typescript-eslint/explicit-function-return-type
+  53:16  error  Missing return type on function                           @typescript-eslint/explicit-module-boundary-types
+  69:12  error  'setRegistrationData' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+Ô£û 3 problems (3 errors, 0 warnings)
+

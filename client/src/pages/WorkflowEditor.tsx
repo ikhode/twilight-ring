@@ -93,10 +93,18 @@ function WorkflowEditor() {
                 id: "p-start",
                 type: "placeholder",
                 position: { x: 250, y: 50 },
-                data: { label: "Añadir un disparador", onClick: () => setIsCatalogOpen(true) },
+                data: {
+                    label: "Añadir un disparador",
+                    onClick: () => {
+                        setActivePlaceholderId("p-start");
+                        setIsCatalogOpen(true);
+                    }
+                },
             },
         ]);
     }, []);
+
+    const [activePlaceholderId, setActivePlaceholderId] = useState<string | null>(null);
 
     const onNodesChange: OnNodesChange = useCallback(
         (changes) => setNodes((nds) => applyNodeChanges(changes, nds)),
@@ -116,55 +124,115 @@ function WorkflowEditor() {
     // Node addition logic
     const addStep = (item: any, type: 'action' | 'trigger' | 'condition') => {
         const id = `${type}-${Date.now()}`;
+        const targetId = activePlaceholderId;
 
         setNodes((nds) => {
-            // Find and replace the relevant placeholder or append
-            const placeholderIndex = nds.findIndex(n => n.type === 'placeholder');
-            const baseNode = placeholderIndex !== -1 ? nds[placeholderIndex] : nds[nds.length - 1];
+            const targetPlaceholder = nds.find(n => n.id === targetId) || nds.find(n => n.type === 'placeholder');
+            if (!targetPlaceholder) return nds;
 
             const newNode: Node = {
                 id,
                 type,
-                position: { x: baseNode.position.x, y: baseNode.position.y },
+                position: { ...targetPlaceholder.position },
                 data: { ...item },
             };
 
-            const newPlaceholder: Node = {
-                id: `p-${id}`,
-                type: "placeholder",
-                position: { x: baseNode.position.x, y: baseNode.position.y + 150 },
-                data: { label: "Añadir un paso", onClick: () => setIsCatalogOpen(true) },
-            };
+            let newNodes = nds.filter(n => n.id !== targetPlaceholder.id);
 
-            const filteredNodes = nds.filter(n => n.id !== baseNode.id);
-            const finalNodes = [...filteredNodes, newNode, newPlaceholder];
-
-            // Add edge automatically
-            if (placeholderIndex !== -1 && nds.length > 1) {
-                // Re-connect to parent of replaced placeholder if needed
-            } else if (newNode.type !== 'trigger') {
-                // connect to previous real node
+            if (type === 'condition') {
+                // Add two placeholders for condition branches
+                const yesPlaceholder: Node = {
+                    id: `p-${id}-yes`,
+                    type: "placeholder",
+                    position: { x: targetPlaceholder.position.x - 180, y: targetPlaceholder.position.y + 200 },
+                    data: {
+                        label: "Si es cierto",
+                        onClick: () => {
+                            setActivePlaceholderId(`p-${id}-yes`);
+                            setIsCatalogOpen(true);
+                        }
+                    },
+                };
+                const noPlaceholder: Node = {
+                    id: `p-${id}-no`,
+                    type: "placeholder",
+                    position: { x: targetPlaceholder.position.x + 180, y: targetPlaceholder.position.y + 200 },
+                    data: {
+                        label: "Si es falso",
+                        onClick: () => {
+                            setActivePlaceholderId(`p-${id}-no`);
+                            setIsCatalogOpen(true);
+                        }
+                    },
+                };
+                newNodes = [...newNodes, newNode, yesPlaceholder, noPlaceholder];
+            } else {
+                // Regular node placeholder
+                const nextPlaceholder: Node = {
+                    id: `p-${id}`,
+                    type: "placeholder",
+                    position: { x: targetPlaceholder.position.x, y: targetPlaceholder.position.y + 150 },
+                    data: {
+                        label: "Añadir un paso",
+                        onClick: () => {
+                            setActivePlaceholderId(`p-${id}`);
+                            setIsCatalogOpen(true);
+                        }
+                    },
+                };
+                newNodes = [...newNodes, newNode, nextPlaceholder];
             }
 
-            // Simplified connection for demo
+            // Update edges
             setEdges(eds => {
-                const prevNode = filteredNodes[filteredNodes.length - 1];
-                if (prevNode && newNode.type !== 'trigger') {
-                    return addEdge({
-                        id: `e-${prevNode.id}-${id}`,
-                        source: prevNode.id,
-                        target: id,
-                        animated: true,
-                        style: { strokeWidth: 2, stroke: '#3b82f6' }
-                    }, eds);
+                let newEdges = [...eds];
+
+                // Find edge that was pointing to the placeholder
+                const incomingEdge = eds.find(e => e.target === targetPlaceholder.id);
+                if (incomingEdge) {
+                    newEdges = newEdges.map(e =>
+                        e.id === incomingEdge.id ? { ...e, target: id } : e
+                    );
                 }
-                return eds;
+
+                // If condition, add initial branch edges to placeholders
+                if (type === 'condition') {
+                    newEdges.push(
+                        {
+                            id: `e-${id}-yes`,
+                            source: id,
+                            target: `p-${id}-yes`,
+                            sourceHandle: 'yes',
+                            animated: true,
+                            style: { stroke: '#22c55e', strokeWidth: 2 }
+                        },
+                        {
+                            id: `e-${id}-no`,
+                            source: id,
+                            target: `p-${id}-no`,
+                            sourceHandle: 'no',
+                            animated: true,
+                            style: { stroke: '#64748b', strokeWidth: 2 }
+                        }
+                    );
+                } else {
+                    // Normal child placeholder edge
+                    newEdges.push({
+                        id: `e-${id}-next`,
+                        source: id,
+                        target: `p-${id}`,
+                        animated: true,
+                    });
+                }
+
+                return newEdges;
             });
 
-            return finalNodes;
+            return newNodes;
         });
 
         setIsCatalogOpen(false);
+        setActivePlaceholderId(null);
         toast({ title: "Proceso Actualizado", description: `${item.name} se ha configurado.` });
     };
 
@@ -214,8 +282,7 @@ function WorkflowEditor() {
                                 <Link href="/dashboard"><ArrowLeft className="w-4 h-4" /></Link>
                             </Button>
                             <div className="flex items-center gap-2">
-                                <span className="text-sm font-black uppercase italic tracking-tighter">Nexus <span className="text-primary">Flow 2.0</span></span>
-                                <Badge className="bg-primary/10 text-primary border-none text-[8px] h-4">GUIADO</Badge>
+                                <span className="text-sm font-black uppercase italic tracking-tighter">Nexus <span className="text-primary">Architect</span></span>
                             </div>
                         </div>
 
@@ -298,7 +365,7 @@ function WorkflowEditor() {
                                         {filteredActions?.map((a: any) => (
                                             <div
                                                 key={a.id}
-                                                onClick={() => addStep(a, 'action')}
+                                                onClick={() => addStep(a, a.type || 'action')}
                                                 className="p-2 bg-slate-800/50 rounded-lg hover:bg-slate-800 transition-all cursor-pointer flex items-center gap-2"
                                             >
                                                 <div className="w-6 h-6 rounded bg-slate-700 flex items-center justify-center">
@@ -366,6 +433,17 @@ function WorkflowEditor() {
                                             <Badge className="bg-primary/20 text-primary border-none text-[8px] mb-2">DISPARADOR</Badge>
                                             <h4 className="text-sm font-bold text-white group-hover:text-primary transition-colors">{t.name}</h4>
                                             <p className="text-[10px] text-slate-500 mt-1">{t.description}</p>
+                                        </Card>
+                                    ))}
+                                    {(catalog as any)?.conditions?.map((c: any) => (
+                                        <Card
+                                            key={c.id}
+                                            onClick={() => addStep(c, 'condition')}
+                                            className="p-5 bg-white/5 border-white/5 hover:border-orange-500/50 transition-all cursor-pointer group"
+                                        >
+                                            <Badge className="bg-orange-500/20 text-orange-500 border-none text-[8px] mb-2">CONDICIÓN</Badge>
+                                            <h4 className="text-sm font-bold text-white group-hover:text-orange-500 transition-colors">{c.name}</h4>
+                                            <p className="text-[10px] text-slate-500 mt-1">{c.description}</p>
                                         </Card>
                                     ))}
                                     {(catalog as any)?.actions?.map((a: any) => (

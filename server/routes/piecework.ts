@@ -3,8 +3,21 @@ import { storage } from "../storage";
 import { getOrgIdFromRequest } from "../auth_util";
 import { insertPieceworkTicketSchema } from "../../shared/schema";
 
-export function registerPieceworkRoutes(app: Express) {
-    app.get("/api/piecework/tickets", async (req: Request, res: Response) => {
+/**
+ * Registra todas las rutas relacionadas con el Control de Destajo (Piecework).
+ * 
+ * @param {import("express").Express} app - Aplicación Express
+ * @returns {void}
+ */
+export function registerPieceworkRoutes(app: Express): void {
+    /**
+     * Obtiene el listado de tickets de destajo para la organización.
+     * 
+     * @param {import("express").Request} req - Solicitud de Express
+     * @param {import("express").Response} res - Respuesta de Express
+     * @returns {Promise<void>}
+     */
+    app.get("/api/piecework/tickets", async (req: Request, res: Response): Promise<void> => {
         try {
             const orgId = await getOrgIdFromRequest(req);
             if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -20,7 +33,14 @@ export function registerPieceworkRoutes(app: Express) {
         }
     });
 
-    app.post("/api/piecework/tickets", async (req: Request, res: Response) => {
+    /**
+     * Registra un nuevo ticket de destajo, calculando el monto total.
+     * 
+     * @param {import("express").Request} req - Solicitud de Express
+     * @param {import("express").Response} res - Respuesta de Express
+     * @returns {Promise<void>}
+     */
+    app.post("/api/piecework/tickets", async (req: Request, res: Response): Promise<void> => {
         try {
             const orgId = await getOrgIdFromRequest(req);
             if (!orgId) return res.status(401).json({ message: "Unauthorized" });

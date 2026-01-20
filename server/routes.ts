@@ -23,6 +23,7 @@ import { configRoutes } from "./routes/config";
 import { searchRoutes } from "./routes/search";
 import { whatsappRoutes } from "./routes/whatsapp";
 import { kioskRoutes } from "./routes/kiosks";
+import productionRoutes from "./routes/production";
 import { registerChatRoutes } from "./routes/chat";
 import { registerDocumentationRoutes } from "./routes/documentation";
 import { registerAdminRoutes } from "./routes/admin";
@@ -71,6 +72,7 @@ export async function registerRoutes(
   app.use("/api/search", searchRoutes);
   app.use("/api/whatsapp", whatsappRoutes);
   app.use("/api/kiosks", kioskRoutes);
+  app.use("/api/production", productionRoutes);
 
   // AI Documentation & Chat
   registerChatRoutes(app);

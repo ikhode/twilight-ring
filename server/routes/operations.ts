@@ -11,9 +11,14 @@ import { getOrgIdFromRequest } from "../auth_util";
 
 const router = Router();
 
-// --- FINANCE ---
-
-router.get("/finance/summary", async (req, res) => {
+/**
+ * Obtiene el resumen financiero de la organización, incluyendo balance, ingresos, gastos y nómina.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.get("/finance/summary", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -46,9 +51,14 @@ router.get("/finance/summary", async (req, res) => {
     }
 });
 
-// --- FLEET / LOGISTICS ---
-
-router.get("/fleet/vehicles", async (req, res) => {
+/**
+ * Obtiene el listado de todos los vehículos de la organización, ordenados por kilometraje.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.get("/fleet/vehicles", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -65,7 +75,14 @@ router.get("/fleet/vehicles", async (req, res) => {
     }
 });
 
-router.post("/fleet/vehicles", async (req, res) => {
+/**
+ * Registra un nuevo vehículo en la flotilla de la organización.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.post("/fleet/vehicles", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -83,7 +100,14 @@ router.post("/fleet/vehicles", async (req, res) => {
     }
 });
 
-router.post("/fleet/vehicles/:id/maintenance", async (req, res) => {
+/**
+ * Registra una bitácora de mantenimiento para un vehículo específico y actualiza su kilometraje.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.post("/fleet/vehicles/:id/maintenance", async (req, res): Promise<void> => {
     try {
         const { id: vehicleId } = req.params;
         const orgId = await getOrgIdFromRequest(req);
@@ -110,9 +134,14 @@ router.post("/fleet/vehicles/:id/maintenance", async (req, res) => {
     }
 });
 
-// --- ROUTES (Cognitive Logistics) ---
-
-router.post("/fleet/routes/generate", async (req, res) => {
+/**
+ * Genera una ruta de entrega de forma cognitiva, asignando paradas basadas en pedidos pendientes.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.post("/fleet/routes/generate", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -173,7 +202,14 @@ router.post("/fleet/routes/generate", async (req, res) => {
     }
 });
 
-router.get("/fleet/routes/driver/:driverId", async (req, res) => {
+/**
+ * Obtiene la ruta activa asignada a un conductor específico, incluyendo todas sus paradas.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.get("/fleet/routes/driver/:driverId", async (req, res): Promise<void> => {
     // Get active route for a driver
     try {
         const { driverId } = req.params;
@@ -198,7 +234,14 @@ router.get("/fleet/routes/driver/:driverId", async (req, res) => {
     }
 });
 
-router.post("/fleet/routes/:id/location", async (req, res) => {
+/**
+ * Actualiza la ubicación en tiempo real de una ruta activa.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.post("/fleet/routes/:id/location", async (req, res): Promise<void> => {
     // Update live location
     try {
         const { id } = req.params;
@@ -215,7 +258,14 @@ router.post("/fleet/routes/:id/location", async (req, res) => {
     }
 });
 
-router.post("/fleet/routes/stops/:id/complete", async (req, res) => {
+/**
+ * Marca una parada de ruta como completada, registrando firma, foto y ubicación de prueba.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.post("/fleet/routes/stops/:id/complete", async (req, res): Promise<void> => {
     try {
         const { id } = req.params;
         const { signature, photo, lat, lng } = req.body;
@@ -235,9 +285,14 @@ router.post("/fleet/routes/stops/:id/complete", async (req, res) => {
     }
 });
 
-// --- MAINTENANCE ---
-
-router.get("/fleet/maintenance", async (req, res) => {
+/**
+ * Obtiene el historial de registros de mantenimiento de toda la flotilla de la organización.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.get("/fleet/maintenance", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -272,9 +327,14 @@ router.get("/fleet/maintenance", async (req, res) => {
     }
 });
 
-// --- INVENTORY ---
-
-router.get("/inventory/products", async (req, res) => {
+/**
+ * Obtiene el inventario de productos enriquecido con predicciones cognitivas de agotamiento.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.get("/inventory/products", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -312,7 +372,14 @@ router.get("/inventory/products", async (req, res) => {
     }
 });
 
-router.post("/inventory/products", async (req, res) => {
+/**
+ * Registra un nuevo producto en el inventario de la organización.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.post("/inventory/products", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -335,9 +402,14 @@ router.post("/inventory/products", async (req, res) => {
     }
 });
 
-// --- SALES ---
-
-router.post("/sales", async (req, res) => {
+/**
+ * Procesa una venta masiva, validando el stock de cada producto y generando los registros correspondientes.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.post("/sales", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -393,7 +465,14 @@ router.post("/sales", async (req, res) => {
     }
 });
 
-router.get("/sales/orders", async (req, res) => {
+/**
+ * Obtiene el historial de pedidos de venta registrados para la organización.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.get("/sales/orders", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -412,9 +491,14 @@ router.get("/sales/orders", async (req, res) => {
     }
 });
 
-// --- PURCHASES & SUPPLIERS ---
-
-router.get("/suppliers", async (req, res) => {
+/**
+ * Obtiene el listado de proveedores registrados para la organización.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.get("/suppliers", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -429,7 +513,14 @@ router.get("/suppliers", async (req, res) => {
     }
 });
 
-router.get("/purchases", async (req, res) => {
+/**
+ * Obtiene el historial de compras realizadas a proveedores.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.get("/purchases", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -453,7 +544,14 @@ router.get("/purchases", async (req, res) => {
     }
 });
 
-router.post("/purchases", async (req, res) => {
+/**
+ * Registra una nueva compra a un proveedor y actualiza automáticamente el inventario y los gastos.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.post("/purchases", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -502,9 +600,14 @@ router.post("/purchases", async (req, res) => {
     }
 });
 
-// --- EMPLOYEES & PAYROLL ---
-
-router.get("/hr/employees", async (req, res) => {
+/**
+ * Obtiene el listado completo de empleados de la organización.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.get("/hr/employees", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -519,7 +622,14 @@ router.get("/hr/employees", async (req, res) => {
     }
 });
 
-router.post("/hr/employees", async (req, res) => {
+/**
+ * Registra un nuevo empleado en la base de datos de la organización.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.post("/hr/employees", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -537,7 +647,14 @@ router.post("/hr/employees", async (req, res) => {
     }
 });
 
-router.put("/hr/employees/:id", async (req, res) => {
+/**
+ * Actualiza la información de un empleado existente.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.put("/hr/employees/:id", async (req, res): Promise<void> => {
     try {
         const { id } = req.params;
         const orgId = await getOrgIdFromRequest(req);
@@ -563,7 +680,14 @@ router.put("/hr/employees/:id", async (req, res) => {
     }
 });
 
-router.delete("/hr/employees/:id", async (req, res) => {
+/**
+ * Elimina el registro de un empleado de la organización.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.delete("/hr/employees/:id", async (req, res): Promise<void> => {
     try {
         const { id } = req.params;
         const orgId = await getOrgIdFromRequest(req);
@@ -580,7 +704,14 @@ router.delete("/hr/employees/:id", async (req, res) => {
 });
 
 
-router.get("/hr/payroll/advances", async (req, res) => {
+/**
+ * Obtiene todas las solicitudes de adelantos de nómina realizadas por los empleados.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.get("/hr/payroll/advances", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });

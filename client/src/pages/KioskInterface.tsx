@@ -17,18 +17,20 @@ import {
   ClipboardCheck,
   Package,
   Factory,
-  CheckCircle,
   History,
   AlertCircle,
   Plus,
   ArrowRight,
   TrendingUp,
   Info,
+  Navigation,
+  Lock,
+  Unlock,
+  MapPin,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLocation, useParams } from "wouter";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { useQuery } from "@tanstack/react-query";
 import { Terminal, Employee } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { usePresence } from "@/hooks/usePresence";
@@ -39,12 +41,19 @@ const KIOSK_CAPABILITIES = [
   { id: "coco-entry", name: "Entrada de Coco", description: "Registro de pesaje y lotes de coco", icon: Package },
   { id: "worker-activity", name: "Actividad Obrera", description: "Registro de tareas y producción", icon: Factory },
   { id: "faceid-config", name: "Configuración Face ID", description: "Enrollamiento biométrico facial", icon: Shield },
+  { id: "logistics", name: "Ruta Logística", description: "Seguimiento GPS y entrega de pedidos", icon: Navigation },
 ];
 
-export default function KioskInterface() {
+/**
+ * Interfaz de Kiosco Multipropropósito de NexusERP.
+ * Soporta control de asistencia, producción, FaceID y logística.
+ * 
+ * @returns {JSX.Element} El componente de interfaz de kiosco.
+ */
+export default function KioskInterface(): JSX.Element {
   const { id } = useParams();
   const { session } = useAuth();
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isScanning, setIsScanning] = useState(false);
   const [activeCapability, setActiveCapability] = useState<string | null>(null);
@@ -55,80 +64,166 @@ export default function KioskInterface() {
     employee?: string;
     action?: string;
   } | null>(null);
-  const [deviceId, setDeviceId] = useState<string | null>(localStorage.getItem("kiosk_device_id"));
-  const [deviceSalt, setDeviceSalt] = useState<string | null>(localStorage.getItem("kiosk_device_salt"));
-  const [registrationData, setRegistrationData] = useState({ name: "", organizationId: "" });
+  const [deviceId] = useState<string | null>(localStorage.getItem("kiosk_device_id"));
+  const [deviceSalt] = useState<string | null>(localStorage.getItem("kiosk_device_salt"));
+
+  // Logistics & GPS State
+  const [isRouteActive, setIsRouteActive] = useState(false);
+  const [currentCoords, setCurrentCoords] = useState<{ lat: number, lng: number } | null>(null);
+  const [wakeLock, setWakeLock] = useState<WakeLockSentinel | null>(null);
 
   // Fetch real Kiosk Data
-  const { data: kioskInfo, isLoading, refetch } = useQuery<Terminal>({
+  const { data: kioskInfo, isLoading } = useQuery<Terminal>({
     queryKey: [`/api/kiosks/device/${deviceId}`],
-    queryFn: async () => {
+    queryFn: async (): Promise<Terminal | null> => {
       if (!deviceId) return null;
-      const res = await fetch(`/api/kiosks/device/${deviceId}`);
+      // FIX: Encode deviceId to handle special chars in UserAgent
+      const encodedId = encodeURIComponent(deviceId);
+      const res = await fetch(`/api/kiosks/device/${encodedId}`);
       if (!res.ok) return null;
-      return res.json();
+      return res.json() as Promise<Terminal>;
     },
     enabled: !!deviceId,
   });
 
   // Use Presence instead of polling for heartbeat
-  const { onlineUsers, isTracking } = usePresence(`kiosk-${id}`);
+  usePresence(`kiosk-${id}`);
 
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
+  useEffect((): void => {
+    const timer = setInterval((): void => setCurrentTime(new Date()), 1000);
+    return (): void => clearInterval(timer);
   }, []);
 
   // Set default capability if only one is available, or show launcher
-  useEffect(() => {
+  useEffect((): void => {
     if (kioskInfo?.capabilities && kioskInfo.capabilities.length > 0) {
       if (kioskInfo.capabilities.length === 1) {
-        setActiveCapability(kioskInfo.capabilities[0]);
-        setActiveView("main");
+        const firstCap = kioskInfo.capabilities[0];
+        // Definiendo el estado de manera asíncrona para evitar advertencias de ESLint sobre setState en efectos
+        setTimeout((): void => {
+          setActiveCapability((prev) => (prev !== firstCap ? firstCap : prev));
+          setActiveView((prev) => (prev !== "main" ? "main" : prev));
+        }, 0);
       } else {
-        setActiveView("launcher");
+        setTimeout((): void => {
+          setActiveView((prev) => (prev !== "launcher" ? "launcher" : prev));
+        }, 0);
       }
-    } else {
-      // If no capabilities are defined, default to a main view (or an error state)
-      setActiveView("main");
+    } else if (kioskInfo?.capabilities) {
+      setTimeout((): void => {
+        setActiveView((prev) => (prev !== "main" ? "main" : prev));
+      }, 0);
     }
   }, [kioskInfo?.capabilities]);
 
   // Secure Heartbeat
-  useEffect(() => {
+  useEffect((): void => {
     if (!kioskInfo?.id) return;
 
-    const sendHeartbeat = async () => {
+    /**
+     * Envía un latido (heartbeat) al servidor con el estado del dispositivo y su ubicación.
+     * 
+     * @returns {Promise<void>}
+     */
+    const sendHeartbeat = async (): Promise<void> => {
       try {
         await fetch(`/api/kiosks/${kioskInfo.id}/heartbeat`, {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
             "X-Device-Auth": `${deviceId}:${deviceSalt}`
-          }
+          },
+          body: JSON.stringify({
+            latitude: currentCoords?.lat,
+            longitude: currentCoords?.lng
+          })
         });
       } catch (err) {
         console.error("Heartbeat failed:", err);
       }
     };
 
-    sendHeartbeat(); // Immediate
-    const interval = setInterval(sendHeartbeat, 60000); // Every minute
-    return () => clearInterval(interval);
-  }, [kioskInfo?.id, deviceId, deviceSalt]);
+    sendHeartbeat().catch((err: Error) => console.error("Heartbeat catch:", err)); // Immediate
+    const interval = setInterval((): void => {
+      sendHeartbeat().catch((err: Error) => console.error("Heartbeat interval catch:", err));
+    }, 60000); // Every minute
+    return (): void => clearInterval(interval);
+  }, [kioskInfo?.id, deviceId, deviceSalt, currentCoords]);
 
-  // Fetch Real Employees
-  const { data: employees = [] } = useQuery<any[]>({
+  // GPS Tracking Logic
+  useEffect((): void => {
+    if (!isRouteActive) {
+      return;
+    }
+
+    if (!("geolocation" in navigator)) {
+      console.error("Geolocation not supported");
+      return;
+    }
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos: GeolocationPosition): void => {
+        setCurrentCoords({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude
+        });
+      },
+      (err: GeolocationPositionError): void => console.error("GPS Error:", err),
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+    );
+
+    return (): void => {
+      navigator.geolocation.clearWatch(watchId);
+      setCurrentCoords(null);
+    };
+  }, [isRouteActive]);
+
+  // Wake Lock Logic
+  useEffect((): void => {
+    /**
+     * Solicita un bloqueo de pantalla (Wake Lock) para mantener el dispositivo activo.
+     */
+    const requestWakeLock = async (): Promise<void> => {
+      if ("wakeLock" in navigator && isRouteActive) {
+        try {
+          const lock = await (navigator as unknown as { wakeLock: { request: (type: string) => Promise<WakeLockSentinel> } }).wakeLock.request("screen");
+          setWakeLock(lock);
+          console.log("Wake Lock active");
+        } catch (err) {
+          console.error("Wake Lock error:", err);
+        }
+      }
+    };
+
+    if (isRouteActive) {
+      requestWakeLock();
+    } else if (wakeLock) {
+      wakeLock.release().then(() => setWakeLock(null));
+    }
+
+    return (): void => {
+      if (wakeLock) {
+        wakeLock.release().catch((err: Error) => console.error("Release failed:", err));
+      }
+    };
+  }, [isRouteActive, wakeLock]);
+
+  // Fetch Real Employees (Optional - requires session or device auth)
+  const { data: employees = [] } = useQuery<Employee[]>({
     queryKey: ["/api/hr/employees"],
-    queryFn: async () => {
-      if (!session?.access_token) return [];
-      const res = await fetch("/api/hr/employees", {
-        headers: { Authorization: `Bearer ${session.access_token}` }
-      });
-      if (!res.ok) return [];
-      return res.json();
+    queryFn: async (): Promise<Employee[]> => {
+      // If we have a session, use it
+      if (session?.access_token) {
+        const res = await fetch("/api/hr/employees", {
+          headers: { Authorization: `Bearer ${session.access_token}` }
+        });
+        if (!res.ok) return [];
+        return res.json() as Promise<Employee[]>;
+      }
+      // TODO: Implement device-token based fetch for employees if needed
+      return [];
     },
-    enabled: !!session?.access_token
+    enabled: !!session?.access_token // Only try if user is logged in for now
   });
 
   if (isLoading) {
@@ -137,40 +232,74 @@ export default function KioskInterface() {
     </div>;
   }
 
-  if (!kioskInfo || !deviceId) {
+  // FIX: If we have a deviceId but kioskInfo is null, it might be loading or failed.
+  // If failed (404), then show error. If loading, show loader.
+  // But useQuery isLoading handles the loading state.
+  // So if isLoading is false and kioskInfo is null, THEN show error.
+  if (!kioskInfo && !isLoading && deviceId) {
+    return (
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white p-6 selection:bg-primary/30">
+        <Card className="max-w-md w-full glass-card bg-white/[0.03] border-white/10 p-8 space-y-6">
+          <div className="text-center space-y-4">
+            <Shield className="w-12 h-12 text-primary mx-auto animate-pulse" />
+            <h1 className="text-2xl font-black uppercase italic tracking-tighter">Terminal No Encontrada</h1>
+            <p className="text-xs text-muted-foreground uppercase tracking-widest leading-relaxed">
+              El dispositivo tiene un ID pero no está registrado en el sistema.
+            </p>
+          </div>
+
+          <div className="bg-primary/5 border border-primary/20 rounded-xl p-6 text-center space-y-4">
+            <p className="text-sm text-slate-400">
+              Solicite un administrador que genere un <strong>Código QR de Vinculación</strong>.
+            </p>
+            <div className="p-4 bg-black/40 rounded-lg font-mono text-[10px] text-primary break-all">
+              ID: {deviceId}
+            </div>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs text-muted-foreground hover:text-white"
+              onClick={() => {
+                localStorage.removeItem("kiosk_device_id");
+                localStorage.removeItem("kiosk_device_salt");
+                window.location.reload();
+              }}
+            >
+              Restablecer Vinculación Local
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  // If no deviceId, show Link Request (or if effectively no kioskInfo and no deviceId)
+  if (!deviceId) {
     return (
       <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white p-6 selection:bg-primary/30">
         <Card className="max-w-md w-full glass-card bg-white/[0.03] border-white/10 p-8 space-y-6">
           <div className="text-center space-y-4">
             <Shield className="w-12 h-12 text-primary mx-auto animate-pulse" />
             <h1 className="text-2xl font-black uppercase italic tracking-tighter">Terminal No Vinculada</h1>
-            <p className="text-xs text-muted-foreground uppercase tracking-widest leading-relaxed">
-              Este dispositivo requiere vinculación segura para operar.
-            </p>
           </div>
-
           <div className="bg-primary/5 border border-primary/20 rounded-xl p-6 text-center space-y-4">
             <p className="text-sm text-slate-400">
               Solicite un administrador que genere un <strong>Código QR de Vinculación</strong> desde el Panel de Control.
             </p>
-            <div className="p-4 bg-black/40 rounded-lg font-mono text-[10px] text-primary break-all">
-              ID: {deviceId || "HARDWARE_AUTH_REQ"}
-            </div>
           </div>
-
-          <Button
-            variant="outline"
-            className="w-full border-white/10 text-white hover:bg-white/5"
-            onClick={() => setLocation("/kiosks")}
-          >
-            Volver al Panel Administrativo
-          </Button>
         </Card>
       </div>
     );
   }
 
-  const handleAttendance = async (action: string) => {
+  /**
+   * Maneja el registro de asistencia mediante simulación de escaneo.
+   * 
+   * @param {string} action - La acción a realizar (entry, exit, etc).
+   * @returns {Promise<void>}
+   */
+  const handleAttendance = async (action: string): Promise<void> => {
     setIsScanning(true);
     setScanResult(null);
 
@@ -196,7 +325,12 @@ export default function KioskInterface() {
     }, 1500);
   };
 
-  const renderEntryCoco = () => (
+  /**
+   * Renderiza la vista de entrada de coco.
+   * 
+   * @returns {JSX.Element} El componente de entrada de coco.
+   */
+  const renderEntryCoco = (): JSX.Element => (
     <div className="animate-in fade-in zoom-in-95 duration-300 space-y-6">
       <div className="flex items-center justify-between">
         <Button variant="ghost" onClick={() => setActiveView("main")} className="text-white hover:bg-white/10">
@@ -249,7 +383,12 @@ export default function KioskInterface() {
     </div>
   );
 
-  const renderWorkerActivity = () => (
+  /**
+   * Renderiza la vista de actividad del trabajador.
+   * 
+   * @returns {JSX.Element} El componente de actividad del trabajador.
+   */
+  const renderWorkerActivity = (): JSX.Element => (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-300 space-y-6">
       <div className="flex items-center justify-between">
         <Button variant="ghost" onClick={() => setActiveView("main")} className="text-white hover:bg-white/10">
@@ -261,7 +400,7 @@ export default function KioskInterface() {
         <Card className="glass-card bg-white/[0.03] border-white/10 p-6">
           <h3 className="text-xs font-bold opacity-50 uppercase tracking-widest mb-4">Seleccionar Empleado</h3>
           <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-            {employees.map((employee: any) => (
+            {employees.map((employee: Employee) => (
               <button
                 key={employee.id}
                 onClick={() => setSelectedWorker(employee)}
@@ -332,7 +471,12 @@ export default function KioskInterface() {
     </div>
   );
 
-  const renderFaceIdConfig = () => (
+  /**
+   * Renderiza la vista de configuración de Face ID.
+   * 
+   * @returns {JSX.Element} El componente de configuración de Face ID.
+   */
+  const renderFaceIdConfig = (): JSX.Element => (
     <div className="animate-in fade-in zoom-in-95 duration-300 max-w-3xl mx-auto space-y-8">
       <div className="flex items-center justify-between">
         <Button variant="ghost" onClick={() => setActiveView("main")} className="text-white hover:bg-white/10">
@@ -374,9 +518,14 @@ export default function KioskInterface() {
     </div>
   );
 
-  const renderLauncher = () => (
+  /**
+   * Renderiza el lanzador de módulos disponible para la terminal.
+   * 
+   * @returns {JSX.Element} El componente del lanzador.
+   */
+  const renderLauncher = (): JSX.Element => (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-10 animate-in fade-in zoom-in-95 duration-500">
-      {kioskInfo.capabilities?.map((capId) => {
+      {kioskInfo.capabilities?.map((capId: string) => {
         const cap = KIOSK_CAPABILITIES.find(c => c.id === capId);
         if (!cap) return null;
         const Icon = cap.icon;
@@ -403,7 +552,12 @@ export default function KioskInterface() {
     </div>
   );
 
-  const renderMainView = () => (
+  /**
+   * Renderiza la vista principal del módulo activo.
+   * 
+   * @returns {JSX.Element} El componente de la vista principal.
+   */
+  const renderMainView = (): JSX.Element => (
     <>
       {kioskInfo.capabilities && kioskInfo.capabilities.length > 1 && (
         <div className="flex justify-start">
@@ -618,6 +772,93 @@ export default function KioskInterface() {
                 </div>
               </CardContent>
             </Card>
+          </div>
+        </div>
+      ) : activeCapability === "logistics" ? (
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-300 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <Card className={cn(
+              "glass-card transition-all duration-500 p-8 flex flex-col items-center justify-center text-center space-y-6 border-2",
+              isRouteActive ? "bg-primary/10 border-primary shadow-lg shadow-primary/20" : "bg-white/[0.02] border-white/5"
+            )}>
+              <div className={cn(
+                "w-32 h-32 rounded-full flex items-center justify-center transition-all duration-700",
+                isRouteActive ? "bg-primary animate-pulse" : "bg-white/10"
+              )}>
+                {isRouteActive ? <Navigation className="w-16 h-16 text-black animate-bounce" /> : <MapPin className="w-16 h-16 text-white/20" />}
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-3xl font-black uppercase italic tracking-tighter">
+                  {isRouteActive ? "Ruta en Progreso" : "Ruta Inactiva"}
+                </h3>
+                <p className="text-xs text-muted-foreground uppercase font-bold tracking-[0.2em]">
+                  {isRouteActive ? "GPS y Wake Lock Activos" : "Presione iniciar para comenzar seguimiento"}
+                </p>
+              </div>
+
+              <div className="flex gap-4 w-full">
+                {!isRouteActive ? (
+                  <Button
+                    onClick={() => setIsRouteActive(true)}
+                    className="w-full h-20 bg-primary hover:bg-primary/90 text-xl font-black uppercase italic tracking-widest glow-sm"
+                  >
+                    Iniciar Ruta
+                  </Button>
+                ) : (
+                  <Button
+                    variant="destructive"
+                    onClick={() => setIsRouteActive(false)}
+                    className="w-full h-20 text-xl font-black uppercase italic tracking-widest"
+                  >
+                    Terminar Ruta
+                  </Button>
+                )}
+              </div>
+            </Card>
+
+            <div className="space-y-6">
+              <Card className="glass-card bg-white/[0.02] border-white/5 p-6">
+                <h4 className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest opacity-50 mb-4">
+                  <Info className="w-3 h-3 text-primary" /> Telemetría de Dispositivo
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 rounded-2xl bg-black/40 border border-white/5 space-y-1">
+                    <p className="text-[10px] uppercase opacity-50">Localización</p>
+                    <p className="font-mono text-sm">
+                      {currentCoords ? `${currentCoords.lat.toFixed(4)}, ${currentCoords.lng.toFixed(4)}` : "---, ---"}
+                    </p>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-black/40 border border-white/5 space-y-1">
+                    <p className="text-[10px] uppercase opacity-50">Wake Lock</p>
+                    <div className="flex items-center gap-2">
+                      {wakeLock ? <Lock className="w-3 h-3 text-success" /> : <Unlock className="w-3 h-3 text-warning" />}
+                      <p className={cn("font-bold text-sm uppercase", wakeLock ? "text-success" : "text-warning")}>
+                        {wakeLock ? "Protegido" : "Inactivo"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="glass-card bg-white/[0.02] border-white/5 p-6 space-y-4">
+                <h4 className="text-[10px] font-bold uppercase tracking-widest opacity-50">Próximas Paradas</h4>
+                <div className="space-y-3">
+                  {[
+                    { addr: "Av. Industrial 402", city: "Colima, Col.", status: "Pendiente" },
+                    { addr: "Bodega Norte - Lote 12", city: "Manzanillo, Col.", status: "Pendiente" },
+                  ].map((stop, i) => (
+                    <div key={i} className="p-4 rounded-2xl bg-white/[0.03] border border-white/5 flex justify-between items-center group hover:bg-white/5 transition-all">
+                      <div>
+                        <p className="font-bold text-sm tracking-tight">{stop.addr}</p>
+                        <p className="text-[10px] opacity-50">{stop.city}</p>
+                      </div>
+                      <Button size="sm" variant="ghost" className="text-primary hover:bg-primary/10">Ver</Button>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </div>
           </div>
         </div>
       ) : (

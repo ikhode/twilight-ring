@@ -1,14 +1,24 @@
 import { Express, Request, Response } from "express";
 import { db } from "../storage";
-import { processes, processSteps } from "../../shared/schema";
+import { processes } from "../../shared/schema";
 import { eq, and } from "drizzle-orm";
 import { getOrgIdFromRequest } from "../auth_util";
 
-export function registerAutomationRoutes(app: Express) {
+/**
+ * Registra todas las rutas relacionadas con el motor de automatización y flujos de trabajo.
+ * 
+ * @param {import("express").Express} app - Instancia de la aplicación Express
+ */
+export function registerAutomationRoutes(app: Express): void {
 
-    // GET /api/automation/catalog
-    // Provides available triggers and actions for the UI
-    app.get("/api/automation/catalog", async (req: Request, res: Response) => {
+    /**
+     * Provee el catálogo de disparadores (triggers), acciones y condiciones disponibles para el motor de automatización.
+     * 
+     * @param {import("express").Request} req - Solicitud de Express
+     * @param {import("express").Response} res - Respuesta de Express
+     * @returns {Promise<void>}
+     */
+    app.get("/api/automation/catalog", async (req: Request, res: Response): Promise<void> => {
         res.json({
             triggers: [
                 { id: 'manual', name: 'Activación Manual', description: 'Se inicia cuando un usuario presiona un botón', icon: 'zap' },
@@ -29,11 +39,20 @@ export function registerAutomationRoutes(app: Express) {
         });
     });
 
-    // GET /api/automations
-    app.get("/api/automations", async (req: Request, res: Response) => {
+    /**
+     * Obtiene el listado de todos los flujos de automatización configurados para la organización.
+     * 
+     * @param {import("express").Request} req - Solicitud de Express
+     * @param {import("express").Response} res - Respuesta de Express
+     * @returns {Promise<void>}
+     */
+    app.get("/api/automations", async (req: Request, res: Response): Promise<void> => {
         try {
             const orgId = await getOrgIdFromRequest(req);
-            if (!orgId) return res.status(401).json({ message: "No autorizado" });
+            if (!orgId) {
+                res.status(401).json({ message: "No autorizado" });
+                return;
+            }
 
             const automations = await db.query.processes.findMany({
                 where: and(
@@ -42,16 +61,21 @@ export function registerAutomationRoutes(app: Express) {
                 )
             });
             res.json(automations);
-        } catch (error: any) {
-            res.status(500).json({ message: error.message });
+        } catch (error) {
+            const err = error as Error;
+            res.status(500).json({ message: err.message });
         }
     });
 
-    // GET /api/automation/suggestions
-    app.get("/api/automation/suggestions", async (req, res) => {
+    /**
+     * Sugiere flujos de automatización inteligentes basados en la actividad y configuraciones de la organización.
+     * 
+     * @param {import("express").Request} req - Solicitud de Express
+     * @param {import("express").Response} res - Respuesta de Express
+     * @returns {Promise<void>}
+     */
+    app.get("/api/automation/suggestions", async (req: Request, res: Response): Promise<void> => {
         try {
-            const orgId = req.headers['x-organization-id'] as string;
-
             // In a real scenario, we'd query metrics (sales, anomalies) from DB
             const suggestions = [
                 {
@@ -87,16 +111,26 @@ export function registerAutomationRoutes(app: Express) {
             ];
 
             res.json(suggestions);
-        } catch (error: any) {
-            res.status(500).json({ message: error.message });
+        } catch (error) {
+            const err = error as Error;
+            res.status(500).json({ message: err.message });
         }
     });
 
-    // POST /api/automations/save
-    app.post("/api/automations/save", async (req: Request, res: Response) => {
+    /**
+     * Guarda o actualiza un flujo de trabajo de automatización.
+     * 
+     * @param {import("express").Request} req - Solicitud de Express
+     * @param {import("express").Response} res - Respuesta de Express
+     * @returns {Promise<void>}
+     */
+    app.post("/api/automations/save", async (req: Request, res: Response): Promise<void> => {
         try {
             const orgId = await getOrgIdFromRequest(req);
-            if (!orgId) return res.status(401).json({ message: "No autorizado" });
+            if (!orgId) {
+                res.status(401).json({ message: "No autorizado" });
+                return;
+            }
 
             const { id, name, description, workflowData } = req.body;
 
@@ -120,23 +154,34 @@ export function registerAutomationRoutes(app: Express) {
                     .returning();
                 res.json(created);
             }
-        } catch (error: any) {
-            res.status(500).json({ message: error.message });
+        } catch (error) {
+            const err = error as Error;
+            res.status(500).json({ message: err.message });
         }
     });
 
-    // DELETE /api/automations/:id
-    app.delete("/api/automations/:id", async (req: Request, res: Response) => {
+    /**
+     * Elimina un flujo de automatización específico.
+     * 
+     * @param {import("express").Request} req - Solicitud de Express
+     * @param {import("express").Response} res - Respuesta de Express
+     * @returns {Promise<void>}
+     */
+    app.delete("/api/automations/:id", async (req: Request, res: Response): Promise<void> => {
         try {
             const orgId = await getOrgIdFromRequest(req);
-            if (!orgId) return res.status(401).json({ message: "No autorizado" });
+            if (!orgId) {
+                res.status(401).json({ message: "No autorizado" });
+                return;
+            }
 
             await db.delete(processes)
                 .where(and(eq(processes.id, req.params.id), eq(processes.organizationId, orgId)));
 
             res.json({ success: true });
-        } catch (error: any) {
-            res.status(500).json({ message: error.message });
+        } catch (error) {
+            const err = error as Error;
+            res.status(500).json({ message: err.message });
         }
     });
 }

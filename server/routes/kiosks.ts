@@ -8,7 +8,14 @@ import { getOrgIdFromRequest } from "../auth_util";
 const router = Router();
 
 // GET /api/kiosks - List all terminals for the organization
-router.get("/", async (req, res) => {
+/**
+ * Obtiene el listado de todas las terminales (kioskos) de la organización.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.get("/", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -22,7 +29,14 @@ router.get("/", async (req, res) => {
 });
 
 // GET /api/kiosks/:id - Get specific terminal details
-router.get("/:id", async (req, res) => {
+/**
+ * Obtiene los detalles de una terminal específica por su ID.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.get("/:id", async (req, res): Promise<void> => {
     try {
         // Note: This endpoint might be accessed publicly by the kiosk device.
         // For now, we'll assume it's protected or correct ID is enough.
@@ -41,7 +55,14 @@ router.get("/:id", async (req, res) => {
 });
 
 // GET /api/kiosks/device/:deviceId - Get specific terminal details by deviceId
-router.get("/device/:deviceId", async (req, res) => {
+/**
+ * Obtiene los detalles de una terminal por su Device ID.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.get("/device/:deviceId", async (req, res): Promise<void> => {
     try {
         const deviceId = req.params.deviceId;
         if (!deviceId) return res.status(400).json({ message: "Device ID Required" });
@@ -57,7 +78,14 @@ router.get("/device/:deviceId", async (req, res) => {
 });
 
 // POST /api/kiosks - Register a new terminal
-router.post("/", async (req, res) => {
+/**
+ * Registra una nueva terminal en la organización.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.post("/", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -77,7 +105,14 @@ router.post("/", async (req, res) => {
 });
 
 // POST /api/kiosks/register - Public/Semi-public registration from the device itself
-router.post("/register", async (req, res) => {
+/**
+ * Realiza el registro automático de una terminal desde el propio dispositivo.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.post("/register", async (req, res): Promise<void> => {
     try {
         const { name, deviceId, organizationId, type, location } = req.body;
 
@@ -109,26 +144,40 @@ router.post("/register", async (req, res) => {
 });
 
 // PATCH /api/kiosks/:id/heartbeat - Update status
-router.patch("/:id/heartbeat", async (req, res) => {
+/**
+ * Actualiza el estado de conexión (Heartbeat) de una terminal y verifica su identidad.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.patch("/:id/heartbeat", async (req, res): Promise<void> => {
     try {
         const kioskId = req.params.id;
         const deviceAuth = req.headers["x-device-auth"] as string; // format: "deviceId:salt"
+        const { latitude, longitude } = req.body;
 
         const [terminal] = await db.select().from(terminals).where(eq(terminals.id, kioskId)).limit(1);
-        if (!terminal) return res.status(404).json({ message: "Terminal not found" });
+        if (!terminal) {
+            res.status(404).json({ message: "Terminal not found" });
+            return;
+        }
 
         // If terminal is bound to a salt, verify it
         if (terminal.deviceSalt) {
             const expectedAuth = `${terminal.deviceId}:${terminal.deviceSalt}`;
             if (deviceAuth !== expectedAuth) {
-                return res.status(403).json({ message: "Security breach: Unauthorized device fingerprint" });
+                res.status(403).json({ message: "Security breach: Unauthorized device fingerprint" });
+                return;
             }
         }
 
         await db.update(terminals)
             .set({
                 status: "online",
-                lastActiveAt: new Date()
+                lastActiveAt: new Date(),
+                lastLatitude: latitude,
+                lastLongitude: longitude
             })
             .where(eq(terminals.id, kioskId));
 
@@ -140,7 +189,14 @@ router.patch("/:id/heartbeat", async (req, res) => {
 });
 
 // POST /api/kiosks/:id/provisioning - Generate one-time provisioning token
-router.post("/:id/provisioning", async (req, res) => {
+/**
+ * Genera un token de provisión temporal para vincular un dispositivo físico a una terminal.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.post("/:id/provisioning", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -168,7 +224,14 @@ router.post("/:id/provisioning", async (req, res) => {
 });
 
 // POST /api/kiosks/bind - Bind device to terminal using token
-router.post("/bind", async (req, res) => {
+/**
+ * Vincula un dispositivo físico a una terminal utilizando un token de provisión.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.post("/bind", async (req, res): Promise<void> => {
     try {
         const { token, deviceId, salt } = req.body;
         if (!token || !deviceId || !salt) {
@@ -211,7 +274,14 @@ router.post("/bind", async (req, res) => {
 
 
 // T-CAC: Identify Employee by Face Vector
-router.post("/identify", async (req, res) => {
+/**
+ * Identifica a un empleado mediante su vector facial (Face Embedding).
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.post("/identify", async (req, res): Promise<void> => {
     try {
         const { descriptor, terminalId } = req.body; // Expect terminalId now
         if (!descriptor || !Array.isArray(descriptor) || descriptor.length !== 128) {
@@ -242,7 +312,14 @@ router.post("/identify", async (req, res) => {
 });
 
 // T-CAC: Execute Action (Start, Switch, End)
-router.post("/action", async (req, res) => {
+/**
+ * Ejecuta una acción de asistencia (entrada, salida, cambio de área) para un empleado.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.post("/action", async (req, res): Promise<void> => {
     try {
         const { employeeId, action, area, notes, terminalId } = req.body;
         // action: "check_in", "check_out", "switch_area", "break", "resume"
@@ -256,7 +333,8 @@ router.post("/action", async (req, res) => {
         const orgId = terminal.organizationId;
 
         // Verify Employee belongs to Org
-        const employee = await storage.getEmployee(employeeId); // Need to update storage.getEmployee to return raw or filtered? 
+        // Verify Employee belongs to Org (Future check)
+        // const employee = await storage.getEmployee(employeeId); 
         // Logic: getEmployee likely returns by ID. If IDs are UUIDs, collision is unlikely, but checking org match is safer.
         // Or simple:
         // const [employee] = await db.select().from(employees).where(and(eq(employees.id, employeeId), eq(employees.organizationId, orgId)));
@@ -299,12 +377,19 @@ router.post("/action", async (req, res) => {
 });
 
 // T-CAC: Simple Enroll (Update embedding)
-router.post("/enroll", async (req, res) => {
+/**
+ * Registra el vector facial (embedding) de un empleado.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.post("/enroll", async (req, res): Promise<void> => {
     try {
         const { employeeId, descriptor } = req.body;
         await storage.updateEmployeeEmbedding(employeeId, descriptor);
         res.json({ success: true });
-    } catch (error) {
+    } catch {
         res.status(500).json({ message: "Enrollment failed" });
     }
 });
@@ -312,8 +397,14 @@ router.post("/enroll", async (req, res) => {
 // DRIVER KIOSK - SECURE PWA FLOW
 // ==========================================
 
-// 1. ADMIN: Generate One-Time Link (OTL)
-router.post("/driver/link/generate", async (req, res) => {
+/**
+ * Genera un enlace de un solo uso (Magic Link) para que un conductor vincule su dispositivo móvil.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.post("/driver/link/generate", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -343,7 +434,14 @@ router.post("/driver/link/generate", async (req, res) => {
 });
 
 // 2. DRIVER DEVICE: Verify Link & Bind Device
-router.post("/driver/link/verify", async (req, res) => {
+/**
+ * Verifica un enlace de un solo uso y vincula el dispositivo del conductor a un Kiosko de Flotilla.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.post("/driver/link/verify", async (req, res): Promise<void> => {
     try {
         const { token, deviceId } = req.body; // deviceId generated by client (fingerprint)
 
@@ -396,7 +494,14 @@ router.post("/driver/link/verify", async (req, res) => {
 });
 
 // 3. DRIVER DEVICE: Auto-Login / Session Check
-router.get("/driver/session/:deviceId", async (req, res) => {
+/**
+ * Verifica si un dispositivo de conductor tiene una sesión activa y devuelve los detalles vinculados.
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.get("/driver/session/:deviceId", async (req, res): Promise<void> => {
     try {
         const { deviceId } = req.params;
         if (!deviceId) return res.status(400).json({ message: "Device ID required" });

@@ -19,8 +19,14 @@ export function registerDocumentationRoutes(app: Express) {
         return userOrg?.role || "user";
     }
 
-    // Get all documentation accessible by user's role
-    app.get("/api/documentation", async (req: Request, res: Response) => {
+    /**
+     * Obtiene todos los documentos accesibles según el rol del usuario.
+     * 
+     * @param {import("express").Request} req - Solicitud de Express
+     * @param {import("express").Response} res - Respuesta de Express
+     * @returns {Promise<void>}
+     */
+    app.get("/api/documentation", async (req: Request, res: Response): Promise<void> => {
         try {
             const authHeader = req.headers.authorization;
             if (!authHeader) return res.status(401).json({ message: "No token provided" });
@@ -47,8 +53,14 @@ export function registerDocumentationRoutes(app: Express) {
         }
     });
 
-    // Get specific document
-    app.get("/api/documentation/:id", async (req: Request, res: Response) => {
+    /**
+     * Obtiene un documento específico por su ID, verificando el acceso por rol.
+     * 
+     * @param {import("express").Request} req - Solicitud de Express
+     * @param {import("express").Response} res - Respuesta de Express
+     * @returns {Promise<void>}
+     */
+    app.get("/api/documentation/:id", async (req: Request, res: Response): Promise<void> => {
         try {
             const authHeader = req.headers.authorization;
             if (!authHeader) return res.status(401).json({ message: "No token provided" });
@@ -76,8 +88,14 @@ export function registerDocumentationRoutes(app: Express) {
         }
     });
 
-    // Search documentation
-    app.post("/api/documentation/search", async (req: Request, res: Response) => {
+    /**
+     * Busca documentos que coincidan con una consulta de texto y sean accesibles por el rol.
+     * 
+     * @param {import("express").Request} req - Solicitud de Express
+     * @param {import("express").Response} res - Respuesta de Express
+     * @returns {Promise<void>}
+     */
+    app.post("/api/documentation/search", async (req: Request, res: Response): Promise<void> => {
         try {
             const authHeader = req.headers.authorization;
             if (!authHeader) return res.status(401).json({ message: "No token provided" });
@@ -109,8 +127,14 @@ export function registerDocumentationRoutes(app: Express) {
         }
     });
 
-    // Get available categories
-    app.get("/api/documentation/categories", async (req: Request, res: Response) => {
+    /**
+     * Obtiene las categorías de documentación disponibles para el rol del usuario.
+     * 
+     * @param {import("express").Request} req - Solicitud de Express
+     * @param {import("express").Response} res - Respuesta de Express
+     * @returns {Promise<void>}
+     */
+    app.get("/api/documentation/categories", async (req: Request, res: Response): Promise<void> => {
         try {
             const authHeader = req.headers.authorization;
             if (!authHeader) return res.status(401).json({ message: "No token provided" });
@@ -133,8 +157,14 @@ export function registerDocumentationRoutes(app: Express) {
         }
     });
 
-    // Create documentation (admin only)
-    app.post("/api/documentation", async (req: Request, res: Response) => {
+    /**
+     * Crea un nuevo documento (Solo administradores).
+     * 
+     * @param {import("express").Request} req - Solicitud de Express
+     * @param {import("express").Response} res - Respuesta de Express
+     * @returns {Promise<void>}
+     */
+    app.post("/api/documentation", async (req: Request, res: Response): Promise<void> => {
         try {
             const authHeader = req.headers.authorization;
             if (!authHeader) return res.status(401).json({ message: "No token provided" });
@@ -178,8 +208,14 @@ export function registerDocumentationRoutes(app: Express) {
         }
     });
 
-    // Update documentation (admin only)
-    app.put("/api/documentation/:id", async (req: Request, res: Response) => {
+    /**
+     * Actualiza un documento existente (Solo administradores).
+     * 
+     * @param {import("express").Request} req - Solicitud de Express
+     * @param {import("express").Response} res - Respuesta de Express
+     * @returns {Promise<void>}
+     */
+    app.put("/api/documentation/:id", async (req: Request, res: Response): Promise<void> => {
         try {
             const authHeader = req.headers.authorization;
             if (!authHeader) return res.status(401).json({ message: "No token provided" });
@@ -210,8 +246,14 @@ export function registerDocumentationRoutes(app: Express) {
         }
     });
 
-    // Delete documentation (admin only)
-    app.delete("/api/documentation/:id", async (req: Request, res: Response) => {
+    /**
+     * Elimina un documento (Solo administradores).
+     * 
+     * @param {import("express").Request} req - Solicitud de Express
+     * @param {import("express").Response} res - Respuesta de Express
+     * @returns {Promise<void>}
+     */
+    app.delete("/api/documentation/:id", async (req: Request, res: Response): Promise<void> => {
         try {
             const authHeader = req.headers.authorization;
             if (!authHeader) return res.status(401).json({ message: "No token provided" });
