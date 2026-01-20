@@ -3,7 +3,6 @@ import { db } from "../storage";
 import { organizations, processes, processSteps, users, userOrganizations } from "../../shared/schema";
 import { eq, and } from "drizzle-orm";
 import { supabaseAdmin } from "../supabase";
-import { processGenerator } from "../../client/src/lib/ai/process-generator";
 
 // Need to duplicate logic since we can't import client-side code directly in Node if it uses React types
 // For now, we'll trust the client sends the nodes, OR we re-generate here.
