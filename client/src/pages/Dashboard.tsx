@@ -60,7 +60,7 @@ export default function Dashboard() {
     enabled: !!session?.access_token
   });
 
-  const salesHistory = stats?.salesHistory || [45, 52, 48, 70, 65, 80, 85, 90, 88, 95];
+  const salesHistory = stats?.salesHistory || [];
 
   useEffect(() => {
     setConfig(dashboardEngine.getDashboardConfig(role, industry));
@@ -70,11 +70,15 @@ export default function Dashboard() {
     const runPredictions = async () => {
       setIsCalculating(true);
       await aiEngine.initialize();
-      const forecast = await aiEngine.predictSales(salesHistory, 7);
+      const forecast = await aiEngine.predictSales(salesHistory.length > 0 ? salesHistory : [0], 7);
       setPredictions(forecast);
       setIsCalculating(false);
     };
-    if (stats) runPredictions();
+    if (stats && stats.hasEnoughData) runPredictions();
+    else if (stats) {
+      setPredictions([]);
+      setIsCalculating(false);
+    }
   }, [salesHistory, stats]);
 
 
@@ -175,11 +179,18 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h2 className="text-xl font-black uppercase italic tracking-widest leading-none text-white">Status: <span className="text-primary">ÓPTIMO</span></h2>
-                    <Badge className="bg-green-500/10 text-green-500 border-green-500/20 text-[8px] h-4">IA ACTIVA</Badge>
+                    <h2 className="text-xl font-black uppercase italic tracking-widest leading-none text-white">
+                      Status: <span className="text-primary">{stats?.hasEnoughData ? "ÓPTIMO" : "APRENDIENDO"}</span>
+                    </h2>
+                    <Badge className={cn(
+                      "text-[8px] h-4 border-none",
+                      stats?.hasEnoughData ? "bg-green-500/10 text-green-500" : "bg-blue-500/10 text-blue-500"
+                    )}>
+                      {stats?.hasEnoughData ? "IA ACTIVA" : "CALIBRANDO RED"}
+                    </Badge>
                   </div>
                   <p className="text-xs text-slate-400 font-bold uppercase mt-1">
-                    <span className="text-slate-500">Red Neuronal:</span> {role.toUpperCase()} @ {industry.toUpperCase()}
+                    <span className="text-slate-500">Estado:</span> {stats?.hasEnoughData ? "Modelo Calibrado" : "Esperando flujo de datos inicial"}
                   </p>
                 </div>
               </div>
@@ -189,20 +200,21 @@ export default function Dashboard() {
           {/* Confidence Widget */}
           <Card className="bg-slate-900/50 border-slate-800 flex flex-col justify-center p-6">
             <div className="text-right mb-4">
-              <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Confianza del Sistema</p>
-              <p className="text-4xl font-black text-white italic tracking-tighter">98.4<span className="text-lg text-primary">%</span></p>
+              <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Madurez del Sistema</p>
+              <p className="text-4xl font-black text-white italic tracking-tighter">
+                {stats?.dataMaturityScore || 0}<span className="text-lg text-primary">%</span>
+              </p>
             </div>
             <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
               <motion.div
                 initial={{ width: 0 }}
-                animate={{ width: "98.4%" }}
+                animate={{ width: `${stats?.dataMaturityScore || 0}%` }}
                 className="h-full bg-primary shadow-[0_0_15px_rgba(59,130,246,0.6)]"
               />
             </div>
-            <Button size="sm" variant="outline" className="mt-6 w-full border-slate-800 text-slate-400 font-black text-[10px] uppercase hover:bg-slate-800">
-              <Settings2 className="w-3 h-3 mr-2" />
-              Ajustar Sensibilidad
-            </Button>
+            <p className="text-[9px] text-slate-500 mt-2 text-right uppercase font-bold tracking-tight">
+              {stats?.hasEnoughData ? "Confianza de Predicción Alta" : "Datos insuficientes para predicción"}
+            </p>
           </Card>
         </div>
 
@@ -211,17 +223,21 @@ export default function Dashboard() {
           <CognitiveKPI
             label="Ingresos Totales"
             value={stats?.revenue || "---"}
-            change={14.2}
-            trend="up"
-            insight={`El modelo detecta un aumento inusual en ventas ${stats?.industry === 'manufacturing' ? 'B2B' : 'directas'}.`}
+            change={stats?.hasEnoughData ? 14.2 : 0}
+            trend={stats?.hasEnoughData ? "up" : "neutral"}
+            insight={stats?.hasEnoughData
+              ? `El modelo detecta un aumento inusual en ventas ${stats?.industry === 'manufacturing' ? 'B2B' : 'directas'}.`
+              : "Esperando registros de ventas para análisis de tendencia."}
             icon={DollarSign}
           />
           <CognitiveKPI
             label="Eficiencia Producción"
             value={stats?.efficiency || "---"}
-            change={2.1}
-            trend="up"
-            insight="La planta opera por encima del promedio histórico. Datos obtenidos del CPE."
+            change={stats?.hasEnoughData ? 2.1 : 0}
+            trend={stats?.hasEnoughData ? "up" : "neutral"}
+            insight={stats?.hasEnoughData
+              ? "La planta opera por encima del promedio histórico. Datos obtenidos del CPE."
+              : "Analizando flujos de procesos iniciales."}
             icon={Factory}
           />
           <CognitiveKPI
@@ -276,13 +292,13 @@ export default function Dashboard() {
                           </div>
                           <div className="text-right">
                             <p className="text-[10px] text-slate-500 font-black uppercase mb-1">Cierre Estimado</p>
-                            <p className="text-3xl font-black text-primary">{stats?.revenue || "---"}</p>
+                            <p className="text-3xl font-black text-primary">{stats?.hasEnoughData ? stats?.revenue : "---"}</p>
                           </div>
                         </div>
                       </CardHeader>
                       <CardContent>
                         <div className="h-[200px] w-full flex items-end gap-1.5 p-4 bg-slate-950/50 rounded-2xl border border-white/5 relative overflow-hidden">
-                          {isCalculating ? (
+                          {isCalculating || !stats ? (
                             <div className="absolute inset-0 flex items-center justify-center bg-slate-950/20 backdrop-blur-sm z-10">
                               <div className="flex gap-2">
                                 <div className="w-2 h-2 rounded-full bg-primary animate-bounce shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
@@ -290,13 +306,19 @@ export default function Dashboard() {
                                 <div className="w-2 h-2 rounded-full bg-primary animate-bounce [animation-delay:-0.3s] shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
                               </div>
                             </div>
+                          ) : !stats.hasEnoughData ? (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6">
+                              <Brain className="w-12 h-12 text-slate-800 mb-4 opacity-20" />
+                              <p className="text-xs font-black uppercase tracking-widest text-slate-500 italic">Datos Insuficientes</p>
+                              <p className="text-[10px] text-slate-600 mt-2 max-w-[200px] font-bold">La IA necesita al menos 5 registros de venta para generar proyecciones confiables.</p>
+                            </div>
                           ) : (
                             <>
                               {salesHistory.map((val: number, i: number) => (
                                 <div key={`h-${i}`} className="flex-1 flex flex-col items-center gap-2 group relative">
                                   <motion.div
                                     initial={{ height: 0 }}
-                                    animate={{ height: `${(val / Math.max(...salesHistory)) * 100}%` }}
+                                    animate={{ height: `${(val / Math.max(...salesHistory, 1)) * 100}%` }}
                                     className="w-full bg-slate-800 rounded-t-sm hover:bg-slate-700 transition-colors"
                                   />
                                 </div>
@@ -305,7 +327,7 @@ export default function Dashboard() {
                                 <div key={`p-${i}`} className="flex-1 flex flex-col items-center gap-2 group relative">
                                   <motion.div
                                     initial={{ height: 0 }}
-                                    animate={{ height: `${(val / Math.max(...salesHistory)) * 100}%` }}
+                                    animate={{ height: `${(val / Math.max(...salesHistory, 1)) * 100}%` }}
                                     className="w-full bg-primary/40 rounded-t-sm border-t-2 border-primary hover:bg-primary/60 transition-colors"
                                   />
                                 </div>

@@ -301,10 +301,10 @@ export default function Analytics() {
     queryKeyToInvalidate: ["/api/analytics/dashboard"]
   });
 
-  const { data, isLoading } = useQuery<{ metrics: AnalyticsMetric[], models: MetricModel[] }>({
+  const { data, isLoading } = useQuery<{ metrics: AnalyticsMetric[], models: MetricModel[], hasEnoughData: boolean }>({
     queryKey: ["/api/analytics/dashboard"],
     queryFn: async () => {
-      if (!session?.access_token) return { metrics: [], models: [] };
+      if (!session?.access_token) return { metrics: [], models: [], hasEnoughData: false };
       const res = await fetch("/api/analytics/dashboard", {
         headers: { Authorization: `Bearer ${session.access_token}` }
       });
@@ -381,7 +381,17 @@ export default function Analytics() {
                 Comparativa de rendimiento real vs. predicción de IA generativa
               </CardDescription>
             </CardHeader>
-            <CardContent className="h-[300px]">
+            <CardContent className="h-[300px] relative">
+              {!data?.hasEnoughData && (
+                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-slate-950/60 backdrop-blur-sm p-8 text-center">
+                  <Cpu className="w-12 h-12 text-primary mb-4 opacity-40 animate-pulse" />
+                  <p className="text-sm font-black uppercase tracking-widest text-slate-300">MODO APRENDIZAJE</p>
+                  <p className="text-xs text-slate-500 mt-2 max-w-[300px]">
+                    El núcleo cognitivo está recopilando flujos históricos para calibrar las proyecciones.
+                    Se requieren al menos 5 registros de actividad.
+                  </p>
+                </div>
+              )}
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData}>
                   <defs>
@@ -463,26 +473,39 @@ export default function Analytics() {
         <div>
           <h3 className="text-xl font-display font-bold mb-4 flex items-center gap-2">
             <Network className="w-5 h-5 text-accent" />
-            Capa de Acción (Suggested Actions: {industry.toUpperCase()})
+            Capa de Acción (Sugerencias Contextuales: {industry.toUpperCase()})
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {activeSuggestions.map((suggestion, idx) => (
-              <Card key={idx} className={cn("bg-slate-900/40 border-slate-800 transition-colors cursor-pointer group", suggestion.border)}>
-                <CardContent className="pt-6">
-                  <div className="flex items-start gap-4">
-                    <div className={cn("w-10 h-10 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform", suggestion.bg)}>
-                      <suggestion.icon className={cn("w-5 h-5", suggestion.color)} />
+          {!data?.hasEnoughData ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 opacity-50 grayscale pointer-events-none select-none">
+              {[1, 2, 3].map(i => (
+                <Card key={i} className="bg-slate-900/40 border-slate-800 border-dashed">
+                  <CardContent className="pt-6 flex flex-col items-center justify-center py-12 text-center">
+                    <Lightbulb className="w-8 h-8 text-slate-700 mb-2" />
+                    <p className="text-[10px] uppercase font-black text-slate-600">Sugerencia en Calibración</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {activeSuggestions.map((suggestion, idx) => (
+                <Card key={idx} className={cn("bg-slate-900/40 border-slate-800 transition-colors cursor-pointer group", suggestion.border)}>
+                  <CardContent className="pt-6">
+                    <div className="flex items-start gap-4">
+                      <div className={cn("w-10 h-10 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform", suggestion.bg)}>
+                        <suggestion.icon className={cn("w-5 h-5", suggestion.color)} />
+                      </div>
+                      <div>
+                        <h4 className={cn("font-semibold text-slate-200 transition-colors", `group-hover:${suggestion.color.replace('text-', '')}`)}>{suggestion.title}</h4>
+                        <p className="text-sm text-slate-400 mt-1">{suggestion.description}</p>
+                        <Button variant="link" className={cn("p-0 h-auto mt-2", suggestion.color)}>{suggestion.action} →</Button>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className={cn("font-semibold text-slate-200 transition-colors", `group-hover:${suggestion.color.replace('text-', '')}`)}>{suggestion.title}</h4>
-                      <p className="text-sm text-slate-400 mt-1">{suggestion.description}</p>
-                      <Button variant="link" className={cn("p-0 h-auto mt-2", suggestion.color)}>{suggestion.action} →</Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
 
       </div>

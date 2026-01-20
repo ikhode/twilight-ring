@@ -16,8 +16,9 @@ router.get("/dashboard", async (req, res) => {
             storage.getMetricModels(orgId)
         ]);
 
+        const hasEnoughData = realSales.length >= 5;
+
         // Transform real sales data into the expected format
-        // We'll generate a simple "prediction" (moving average + 10%) for demonstration if no ML service is active
         const metrics = realSales.map((s, i, arr) => {
             const avg = i > 0 ? (arr[i - 1].value + s.value) / 2 : s.value;
             return {
@@ -26,13 +27,13 @@ router.get("/dashboard", async (req, res) => {
                 metricKey: "daily_revenue",
                 value: s.value,
                 date: s.date, // already formatted YYYY-MM-DD
-                predictedValue: Math.round(avg * 1.1), // Simple naive prediction
-                confidence: 85,
+                predictedValue: hasEnoughData ? Math.round(avg * 1.1) : null,
+                confidence: hasEnoughData ? 85 : 0,
                 tags: {}
             };
         });
 
-        res.json({ metrics, models });
+        res.json({ metrics, models, hasEnoughData });
     } catch (error) {
         console.error("Analytics dashboard error:", error);
         res.status(500).json({ message: "Failed to fetch analytics dashboard" });
