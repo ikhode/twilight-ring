@@ -82,14 +82,6 @@ export const ERP_MODULES: SystemModule[] = [
         category: 'hr'
     },
     {
-        id: 'timeclock',
-        name: 'Reloj Checador',
-        description: 'Asistencia biométrica y turnos',
-        icon: Clock,
-        href: '/attendance',
-        category: 'hr'
-    },
-    {
         id: 'tickets',
         name: 'Mesa de Ayuda',
         description: 'Tickets de soporte y mantenimiento',

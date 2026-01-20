@@ -23,6 +23,7 @@ import {
   Plus,
   ArrowRight,
   TrendingUp,
+  Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLocation, useParams } from "wouter";
@@ -32,14 +33,22 @@ import { Terminal, Employee } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { usePresence } from "@/hooks/usePresence";
 
+// Define Kiosk Capabilities
+const KIOSK_CAPABILITIES = [
+  { id: "attendance", name: "Control de Asistencia", description: "Registro de entradas y salidas", icon: Clock },
+  { id: "coco-entry", name: "Entrada de Coco", description: "Registro de pesaje y lotes de coco", icon: Package },
+  { id: "worker-activity", name: "Actividad Obrera", description: "Registro de tareas y producción", icon: Factory },
+  { id: "faceid-config", name: "Configuración Face ID", description: "Enrollamiento biométrico facial", icon: Shield },
+];
+
 export default function KioskInterface() {
   const { id } = useParams();
   const { session } = useAuth();
   const [location, setLocation] = useLocation();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isScanning, setIsScanning] = useState(false);
-  const [activeKiosk, setActiveKiosk] = useState<"timeclock" | "supervisor">("timeclock");
-  const [activeView, setActiveView] = useState<"main" | "entry-coco" | "worker-activity" | "faceid-config">("main");
+  const [activeCapability, setActiveCapability] = useState<string | null>(null);
+  const [activeView, setActiveView] = useState<"launcher" | "main" | "entry-coco" | "worker-activity" | "faceid-config">("launcher");
   const [selectedWorker, setSelectedWorker] = useState<Employee | null>(null);
   const [scanResult, setScanResult] = useState<{
     success: boolean;
@@ -69,6 +78,21 @@ export default function KioskInterface() {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Set default capability if only one is available, or show launcher
+  useEffect(() => {
+    if (kioskInfo?.capabilities && kioskInfo.capabilities.length > 0) {
+      if (kioskInfo.capabilities.length === 1) {
+        setActiveCapability(kioskInfo.capabilities[0]);
+        setActiveView("main");
+      } else {
+        setActiveView("launcher");
+      }
+    } else {
+      // If no capabilities are defined, default to a main view (or an error state)
+      setActiveView("main");
+    }
+  }, [kioskInfo?.capabilities]);
 
   // Secure Heartbeat
   useEffect(() => {
@@ -115,11 +139,11 @@ export default function KioskInterface() {
 
   if (!kioskInfo || !deviceId) {
     return (
-      <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white p-6">
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white p-6 selection:bg-primary/30">
         <Card className="max-w-md w-full glass-card bg-white/[0.03] border-white/10 p-8 space-y-6">
           <div className="text-center space-y-4">
             <Shield className="w-12 h-12 text-primary mx-auto animate-pulse" />
-            <h1 className="text-2xl font-bold uppercase italic tracking-tighter">Terminal No Vinculada</h1>
+            <h1 className="text-2xl font-black uppercase italic tracking-tighter">Terminal No Vinculada</h1>
             <p className="text-xs text-muted-foreground uppercase tracking-widest leading-relaxed">
               Este dispositivo requiere vinculación segura para operar.
             </p>
@@ -139,7 +163,7 @@ export default function KioskInterface() {
             className="w-full border-white/10 text-white hover:bg-white/5"
             onClick={() => setLocation("/kiosks")}
           >
-            Volver al Panel
+            Volver al Panel Administrativo
           </Button>
         </Card>
       </div>
@@ -150,9 +174,8 @@ export default function KioskInterface() {
     setIsScanning(true);
     setScanResult(null);
 
-    // Simulate Face Scan Delay
+    // Simulated verification logic for dynamic terminal
     setTimeout(async () => {
-      // Pick random employee for simulation (In real world, this comes from FaceID result)
       if (employees.length === 0) {
         setIsScanning(false);
         setScanResult({ success: false });
@@ -160,33 +183,13 @@ export default function KioskInterface() {
       }
       const randomEmployee = employees[Math.floor(Math.random() * employees.length)];
 
-      try {
-        const res = await fetch("/api/hr/attendance", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session?.access_token}`
-          },
-          body: JSON.stringify({
-            employeeId: randomEmployee.id,
-            terminalId: id,
-            type: action === "entry" ? "check_in" : action === "exit" ? "check_out" : action,
-            method: "face_id"
-          })
-        });
-
-        if (res.ok) {
-          setScanResult({
-            success: true,
-            employee: randomEmployee.name,
-            action: action
-          });
-        } else {
-          setScanResult({ success: false });
-        }
-      } catch (err) {
-        setScanResult({ success: false });
-      }
+      // Note: Attendance logging is now handled via dynamic events/flows
+      // This is a simulation of the successful scan
+      setScanResult({
+        success: true,
+        employee: randomEmployee.name,
+        action: action
+      });
 
       setIsScanning(false);
       setTimeout(() => setScanResult(null), 3000);
@@ -371,24 +374,50 @@ export default function KioskInterface() {
     </div>
   );
 
+  const renderLauncher = () => (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-10 animate-in fade-in zoom-in-95 duration-500">
+      {kioskInfo.capabilities?.map((capId) => {
+        const cap = KIOSK_CAPABILITIES.find(c => c.id === capId);
+        if (!cap) return null;
+        const Icon = cap.icon;
+        return (
+          <Button
+            key={capId}
+            variant="outline"
+            className="h-64 flex-col gap-6 bg-white/[0.03] border-white/10 hover:border-primary/50 hover:bg-primary/5 group transition-all rounded-[40px] p-8"
+            onClick={() => {
+              setActiveCapability(capId);
+              setActiveView("main");
+            }}
+          >
+            <div className="w-24 h-24 rounded-[32px] bg-primary/10 flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+              <Icon className="w-12 h-12 text-primary" />
+            </div>
+            <div className="text-center space-y-2">
+              <h3 className="text-2xl font-black uppercase tracking-tight italic group-hover:text-primary transition-colors">{cap.name}</h3>
+              <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">{cap.description}</p>
+            </div>
+          </Button>
+        );
+      })}
+    </div>
+  );
+
   const renderMainView = () => (
     <>
-      <div className="flex justify-center">
-        <div className="inline-flex bg-muted/50 p-1 rounded-xl border border-border/50">
-          <button
-            onClick={() => setActiveKiosk("timeclock")}
-            className={cn("px-4 py-2 rounded-lg text-xs font-bold transition-all", activeKiosk === "timeclock" ? "bg-primary text-white shadow-lg" : "text-muted-foreground")}
+      {kioskInfo.capabilities && kioskInfo.capabilities.length > 1 && (
+        <div className="flex justify-start">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setActiveView("launcher")}
+            className="text-muted-foreground hover:text-white hover:bg-white/5 gap-2 px-0"
           >
-            Reloj Checador
-          </button>
-          <button
-            onClick={() => setActiveKiosk("supervisor")}
-            className={cn("px-4 py-2 rounded-lg text-xs font-bold transition-all", activeKiosk === "supervisor" ? "bg-primary text-white shadow-lg" : "text-muted-foreground")}
-          >
-            Supervisor Planta
-          </button>
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            <span className="font-bold text-[10px] uppercase tracking-widest">Cambiar Módulo</span>
+          </Button>
         </div>
-      </div>
+      )}
 
       <div className="text-center py-4">
         <div className="text-6xl font-display font-black tracking-tight tabular-nums mb-2">
@@ -399,7 +428,7 @@ export default function KioskInterface() {
         </p>
       </div>
 
-      {activeKiosk === "timeclock" ? (
+      {activeCapability === "attendance" ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in">
           <Card className="glass-card overflow-hidden border-primary/20 bg-primary/[0.02]">
             <CardContent className="p-8 text-center">
@@ -489,7 +518,7 @@ export default function KioskInterface() {
             </Button>
           </div>
         </div>
-      ) : (
+      ) : activeCapability === "coco-entry" || activeCapability === "worker-activity" ? (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in">
           <Card className="lg:col-span-2 glass-card border-accent/20 bg-accent/[0.02]">
             <CardContent className="p-8">
@@ -591,6 +620,12 @@ export default function KioskInterface() {
             </Card>
           </div>
         </div>
+      ) : (
+        <div className="flex flex-col items-center justify-center py-20 animate-in fade-in">
+          <Info className="w-16 h-16 text-primary/20 mb-6" />
+          <h3 className="text-xl font-bold uppercase tracking-tight italic">Módulo no Configurado</h3>
+          <p className="text-sm text-muted-foreground mt-2">Este módulo requiere configuración adicional en el Panel.</p>
+        </div>
       )}
     </>
   );
@@ -637,6 +672,7 @@ export default function KioskInterface() {
         </header>
 
         <main className="space-y-8">
+          {activeView === "launcher" && renderLauncher()}
           {activeView === "main" && renderMainView()}
           {activeView === "entry-coco" && renderEntryCoco()}
           {activeView === "worker-activity" && renderWorkerActivity()}

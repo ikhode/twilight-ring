@@ -29,6 +29,7 @@ import { registerAdminRoutes } from "./routes/admin";
 import { registerNLQueryRoutes } from "./routes/nl-query";
 import { registerModuleMarketplaceRoutes } from "./routes/module-marketplace";
 import { registerSubscriptionRoutes } from "./routes/subscriptions";
+import { registerAutomationRoutes } from "./routes/automation";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -57,6 +58,7 @@ export async function registerRoutes(
   registerCPERoutes(app);
   registerPieceworkRoutes(app); // Fixed: Was missing
   registerSubscriptionRoutes(app);
+  registerAutomationRoutes(app);
   app.use("/api/onboarding", onboardingRoutes);
   app.use("/api/dashboard", dashboardRoutes);
   app.use("/api/operations", operationsRoutes);

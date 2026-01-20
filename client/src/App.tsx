@@ -30,6 +30,7 @@ import Query from "@/pages/Query";
 import Demo from "@/pages/Demo";
 import TerminalLink from "@/pages/TerminalLink";
 import SubscriptionSuccess from "@/pages/SubscriptionSuccess";
+import WorkflowEditor from "@/pages/WorkflowEditor";
 
 import Kiosk from "@/pages/Kiosk";
 
@@ -65,6 +66,7 @@ function Router() {
       <Route path="/demo" component={Demo} />
       <Route path="/kiosk-link" component={TerminalLink} />
       <Route path="/subscription-success" component={SubscriptionSuccess} />
+      <Route path="/workflows" component={WorkflowEditor} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -49,26 +49,13 @@ import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 import { QRCodeCanvas } from "qrcode.react";
 import { Terminal } from "@shared/schema";
 
-// Kiosk type definitions (system constants)
-const kioskTypes = [
-  { id: "timeclock", name: "Reloj Checador", description: "Registro FaceID para obreros", icon: "Clock", color: "primary" },
-  { id: "supervisor", name: "Terminal Patio", description: "Registro de compra y clasificación", icon: "ClipboardCheck", color: "accent" },
-  { id: "pos", name: "Despacho", description: "Salida de mercancía y facturación", icon: "CreditCard", color: "success" },
-  { id: "management", name: "Administración", description: "Control de costos y rendimiento", icon: "BarChart3", color: "warning" },
-  { id: "logistics", name: "Embarque", description: "Gestión de carga y transporte", icon: "Truck", color: "destructive" },
-  { id: "access", name: "Control de Acceso", description: "Entrada y salida de personal", icon: "Lock", color: "primary" },
-  { id: "info", name: "Información", description: "Pantalla de información general", icon: "Info", color: "accent" },
+// Kiosk capabilities (dynamic modules)
+const KIOSK_CAPABILITIES = [
+  { id: "attendance", name: "Asistencia", description: "Verificación biométrica y turnos", icon: Clock },
+  { id: "production", name: "Producción", description: "Control de patio y procesos", icon: ClipboardCheck },
+  { id: "sales", name: "Ventas / POS", description: "Despacho y facturación", icon: CreditCard },
+  { id: "info", name: "Información", description: "Tableros de anuncios e indicadores", icon: Info },
 ];
-
-const kioskIcons: Record<string, typeof Clock> = {
-  timeclock: Clock,
-  supervisor: ClipboardCheck,
-  pos: CreditCard,
-  management: BarChart3,
-  logistics: Truck,
-  access: Lock,
-  info: Info,
-};
 
 export default function Kiosks() {
   const { toast } = useToast();
@@ -83,7 +70,7 @@ export default function Kiosks() {
 
   const [newKiosk, setNewKiosk] = useState({
     name: "",
-    type: "timeclock",
+    capabilities: [] as string[],
     location: "",
   });
 
@@ -108,7 +95,6 @@ export default function Kiosks() {
 
   const createKioskMutation = useMutation({
     mutationFn: async (data: any) => {
-      // Use manual fetch to include headers
       const res = await fetch("/api/kiosks", {
         method: "POST",
         headers: {
@@ -127,7 +113,7 @@ export default function Kiosks() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/kiosks"] });
       setIsCreateOpen(false);
-      setNewKiosk({ name: "", type: "timeclock", location: "" });
+      setNewKiosk({ name: "", capabilities: [], location: "" });
       toast({
         title: "Kiosko creado",
         description: "El dispositivo ha sido registrado correctamente",
@@ -143,7 +129,7 @@ export default function Kiosks() {
   });
 
   const handleCreateKiosk = () => {
-    if (!newKiosk.name || !newKiosk.type || !newKiosk.location) {
+    if (!newKiosk.name || newKiosk.capabilities.length === 0 || !newKiosk.location) {
       toast({
         title: "Campos incompletos",
         description: "Por favor complete todos los campos requeridos",
@@ -191,8 +177,6 @@ export default function Kiosks() {
       title: `Abriendo ${kiosk.name}`,
       description: "Redirigiendo a la interfaz de terminal...",
     });
-
-    // Navigate to the specific kiosk interface
     setLocation(`/kiosk-terminal/${kiosk.id}`);
   };
 
@@ -202,17 +186,8 @@ export default function Kiosks() {
     setIsSettingsOpen(true);
   };
 
-  const generateMagicLink = (kioskId: string) => {
-    const link = `${window.location.origin}/kiosk/${kioskId}?token=${btoa(kioskId)}`;
-    navigator.clipboard.writeText(link);
-    toast({
-      title: "Magic Link copiado",
-      description: "El enlace ha sido copiado al portapapeles",
-    });
-  };
-
   return (
-    <AppLayout title="Kioskos y Terminales" subtitle="Gestiona los dispositivos y sus módulos">
+    <AppLayout title="Kioskos y Terminales" subtitle="Gestiona los dispositivos y sus módulos dinámicos">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -239,28 +214,28 @@ export default function Kiosks() {
             </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle className="font-display text-2xl">Crear Nuevo Kiosko</DialogTitle>
+                <DialogTitle className="font-display text-2xl">Configurar Nueva Terminal</DialogTitle>
                 <DialogDescription>
-                  Configure el kiosko y seleccione los módulos disponibles
+                  Defina el nombre y las capacidades que tendrá este hardware
                 </DialogDescription>
               </DialogHeader>
 
               <div className="space-y-6 py-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="name">Nombre del Kiosko</Label>
+                    <Label htmlFor="name">Nombre de la Terminal</Label>
                     <Input
                       id="name"
-                      placeholder="Ej: Reloj Checador - Entrada"
+                      placeholder="Ej: Acceso Planta A"
                       value={newKiosk.name}
                       onChange={(e) => setNewKiosk({ ...newKiosk, name: e.target.value })}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="location">Ubicación</Label>
+                    <Label htmlFor="location">Ubicación física</Label>
                     <Input
                       id="location"
-                      placeholder="Ej: Planta Principal"
+                      placeholder="Ej: Entrada Principal"
                       value={newKiosk.location || ""}
                       onChange={(e) => setNewKiosk({ ...newKiosk, location: e.target.value })}
                     />
@@ -268,31 +243,43 @@ export default function Kiosks() {
                 </div>
 
                 <div className="space-y-3">
-                  <Label className="text-base font-semibold">Tipo de Kiosko</Label>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    {kioskTypes.map((type) => {
-                      const Icon = kioskIcons[type.id] || Monitor;
-                      const isSelected = newKiosk.type === type.id;
+                  <Label className="text-base font-semibold">Capacidades de la Terminal</Label>
+                  <p className="text-xs text-muted-foreground">Seleccione todos los módulos que estarán activos en este hardware</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {KIOSK_CAPABILITIES.map((cap) => {
+                      const Icon = cap.icon;
+                      const isSelected = newKiosk.capabilities.includes(cap.id);
                       return (
                         <button
-                          key={type.id}
-                          onClick={() => setNewKiosk({ ...newKiosk, type: type.id })}
+                          key={cap.id}
+                          type="button"
+                          onClick={() => {
+                            const current = [...newKiosk.capabilities];
+                            if (isSelected) {
+                              setNewKiosk({ ...newKiosk, capabilities: current.filter(id => id !== cap.id) });
+                            } else {
+                              setNewKiosk({ ...newKiosk, capabilities: [...current, cap.id] });
+                            }
+                          }}
                           className={cn(
-                            "p-4 rounded-xl border-2 text-left transition-all group",
+                            "p-4 rounded-xl border-2 text-left transition-all group relative",
                             isSelected
                               ? "border-primary bg-primary/5 ring-1 ring-primary/20"
                               : "border-border hover:border-primary/50 hover:bg-muted/50"
                           )}
                         >
-                          <Icon
-                            className={cn(
-                              "w-6 h-6 mb-2 transition-transform group-hover:scale-110",
-                              isSelected ? "text-primary" : "text-muted-foreground"
-                            )}
-                          />
-                          <p className="font-bold text-sm">{type.name}</p>
+                          <div className="flex items-center justify-between mb-2">
+                            <Icon
+                              className={cn(
+                                "w-6 h-6 transition-transform group-hover:scale-110",
+                                isSelected ? "text-primary" : "text-muted-foreground"
+                              )}
+                            />
+                            {isSelected && <Checkbox checked className="rounded-full shadow-none" />}
+                          </div>
+                          <p className="font-bold text-sm">{cap.name}</p>
                           <p className="text-[10px] text-muted-foreground mt-1 leading-tight">
-                            {type.description}
+                            {cap.description}
                           </p>
                         </button>
                       );
@@ -305,8 +292,12 @@ export default function Kiosks() {
                 <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
                   Cancelar
                 </Button>
-                <Button onClick={handleCreateKiosk} disabled={createKioskMutation.isPending} className="bg-primary hover:bg-primary/90">
-                  {createKioskMutation.isPending ? "Creando..." : "Generar Magic Link y Crear"}
+                <Button
+                  onClick={handleCreateKiosk}
+                  disabled={createKioskMutation.isPending || newKiosk.capabilities.length === 0}
+                  className="bg-primary hover:bg-primary/90"
+                >
+                  {createKioskMutation.isPending ? "Registrando..." : "Crear Terminal y Vincular"}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -320,7 +311,8 @@ export default function Kiosks() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {kiosks.map((kiosk) => {
-              const Icon = kioskIcons[kiosk.type] || Monitor;
+              const mainCap = kiosk.capabilities?.[0] || 'info';
+              const Icon = KIOSK_CAPABILITIES.find(c => c.id === mainCap)?.icon || Monitor;
               return (
                 <Card
                   key={kiosk.id}
@@ -363,13 +355,23 @@ export default function Kiosks() {
                         </div>
                       </div>
                     </div>
+                    <div className="flex flex-wrap gap-1 mt-3">
+                      {kiosk.capabilities?.map((capId) => {
+                        const cap = KIOSK_CAPABILITIES.find(c => c.id === capId);
+                        return (
+                          <Badge key={capId} variant="secondary" className="text-[9px] px-1.5 py-0 bg-primary/5 text-primary border-primary/10">
+                            {cap?.name || capId}
+                          </Badge>
+                        );
+                      })}
+                    </div>
                   </CardHeader>
                   <CardContent className="space-y-5">
                     <div className="space-y-3">
                       <div className="flex items-center justify-between text-xs border-b border-border/50 pb-2">
                         <span className="text-muted-foreground flex items-center gap-1.5">
                           {kiosk.status === 'online' ? <Wifi className="w-3 h-3 text-success" /> : <WifiOff className="w-3 h-3" />}
-                          Status
+                          Estado
                         </span>
                         <span className="font-mono text-muted-foreground">
                           {kiosk.lastActiveAt
@@ -479,6 +481,6 @@ export default function Kiosks() {
           </DialogContent>
         </Dialog>
       </div>
-    </AppLayout >
+    </AppLayout>
   );
 }

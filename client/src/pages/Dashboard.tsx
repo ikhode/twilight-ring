@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
+import { Link } from "wouter";
 import { aiEngine } from "@/lib/ai/tensorflow";
 import { GuardianPanel } from "@/components/GuardianPanel";
 import { SystemHealth } from "@/components/cognitive/SystemHealth";
@@ -193,6 +194,15 @@ export default function Dashboard() {
                     <span className="text-slate-500">Estado:</span> {stats?.hasEnoughData ? "Modelo Calibrado" : "Esperando flujo de datos inicial"}
                   </p>
                 </div>
+              </div>
+
+              <div className="mt-4">
+                <Button asChild variant="outline" size="sm" className="h-7 border-primary/20 bg-primary/5 text-[9px] font-black uppercase tracking-widest hover:bg-primary/20 transition-all pointer-events-auto">
+                  <Link href="/workflows">
+                    <Zap className="w-3 h-3 mr-1.5 text-primary" />
+                    Configurar Automatización
+                  </Link>
+                </Button>
               </div>
             </div>
           </div>

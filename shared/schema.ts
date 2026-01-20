@@ -126,7 +126,9 @@ export const processes = pgTable("processes", {
   description: text("description"),
   type: text("type").notNull(), // "production", "sales", "logistics"
   isTemplate: boolean("is_template").default(false),
+  workflowData: jsonb("workflow_data").default({}), // Stores React Flow nodes and edges
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Process Steps (Graph-based nodes)
@@ -140,6 +142,7 @@ export const processSteps = pgTable("process_steps", {
   expectedDuration: integer("expected_duration"), // in minutes
   criticalKpis: jsonb("critical_kpis").default({}), // e.g. { "temperature": { "max": 100 } }
   metrics: jsonb("metrics").default({}), // For "Optimization Map": { "efficiency": 85, "waste": 7 }
+  config: jsonb("config").default({}), // Workflow step logic (e.g., condition rules, action targets)
 });
 
 // Process Instances (Executions)
@@ -426,17 +429,6 @@ export const payrollAdvances = pgTable("payroll_advances", {
   date: timestamp("date").defaultNow(),
 });
 
-export const attendanceLogs = pgTable("attendance_logs", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  employeeId: varchar("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
-  terminalId: varchar("terminal_id").references(() => terminals.id),
-  type: text("type").notNull(), // "check_in", "check_out", "break_start", "break_end"
-  method: text("method").notNull().default("manual"), // "pin", "card", "face", "manual"
-  timestamp: timestamp("timestamp").defaultNow(),
-  location: point("location"), // Optional: GPS coordinates if mobile
-  notes: text("notes"),
-});
 
 // Zod schemas for validation
 export const insertOrganizationSchema = createInsertSchema(organizations).pick({
@@ -601,7 +593,7 @@ export const terminals = pgTable("terminals", {
   organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   location: text("location"),
-  type: text("type").notNull().default("standard"), // "access", "pos", "info"
+  capabilities: jsonb("capabilities").$type<string[]>().notNull().default([]), // ["attendance", "production", "sales", "info"]
   status: text("status").notNull().default("active"), // "active", "offline", "maintenance"
   deviceId: text("device_id").unique(), // Hardware identifier
   ipAddress: text("ip_address"),
@@ -630,8 +622,6 @@ export const driverTokens = pgTable("driver_tokens", {
 export type Terminal = typeof terminals.$inferSelect;
 export const insertTerminalSchema = createInsertSchema(terminals);
 
-export type AttendanceLog = typeof attendanceLogs.$inferSelect;
-export const insertAttendanceLogSchema = createInsertSchema(attendanceLogs);
 
 // ============================================================================
 // AI DOCUMENTATION SYSTEM - Knowledge Base & Chat Agents

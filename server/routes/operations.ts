@@ -3,7 +3,7 @@ import { db } from "../storage";
 import {
     suppliers, products, expenses, payments,
     vehicles, fuelLogs, maintenanceLogs, routes, routeStops,
-    sales, purchases, employees, payrollAdvances, attendanceLogs, terminals,
+    sales, purchases, employees, payrollAdvances, terminals,
     insertProductSchema, insertVehicleSchema, insertSaleSchema, insertRouteSchema, insertRouteStopSchema
 } from "../../shared/schema";
 import { eq, and, desc } from "drizzle-orm";
@@ -579,37 +579,6 @@ router.delete("/hr/employees/:id", async (req, res) => {
     }
 });
 
-router.post("/hr/attendance", async (req, res) => {
-    try {
-        const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
-
-        // { employeeId, terminalId, type, method }
-        const data = req.body;
-
-        // Log attendance
-        const [log] = await db.insert(attendanceLogs).values({
-            organizationId: orgId,
-            employeeId: data.employeeId,
-            terminalId: data.terminalId,
-            type: data.type, // check_in, check_out, break_start...
-            method: data.method || "face_id",
-            timestamp: new Date()
-        }).returning();
-
-        // Update Terminal "Last Active"
-        if (data.terminalId) {
-            await db.update(terminals)
-                .set({ lastActiveAt: new Date() })
-                .where(eq(terminals.id, data.terminalId));
-        }
-
-        res.json(log);
-    } catch (error) {
-        console.error("Attendance error:", error);
-        res.status(500).json({ message: "Error recording attendance", error: String(error) });
-    }
-});
 
 router.get("/hr/payroll/advances", async (req, res) => {
     try {
