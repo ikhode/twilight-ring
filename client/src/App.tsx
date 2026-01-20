@@ -29,6 +29,7 @@ import Admin from "@/pages/Admin";
 import Query from "@/pages/Query";
 import Demo from "@/pages/Demo";
 import TerminalLink from "@/pages/TerminalLink";
+import SubscriptionSuccess from "@/pages/SubscriptionSuccess";
 
 import Kiosk from "@/pages/Kiosk";
 
@@ -63,6 +64,7 @@ function Router() {
       <Route path="/query" component={Query} />
       <Route path="/demo" component={Demo} />
       <Route path="/kiosk-link" component={TerminalLink} />
+      <Route path="/subscription-success" component={SubscriptionSuccess} />
       <Route component={NotFound} />
     </Switch>
   );

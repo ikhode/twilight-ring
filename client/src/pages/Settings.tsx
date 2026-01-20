@@ -45,6 +45,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useConfiguration, IndustryType } from "@/context/ConfigurationContext";
 import { ERP_MODULES } from "@/lib/modules";
 import { ModuleMarketplace } from "@/components/modules/ModuleMarketplace";
+import { useAuth } from "@/hooks/use-auth";
+import { useQuery, useMutation } from "@tanstack/react-query";
 
 export default function Settings() {
   const { toast } = useToast();
@@ -62,6 +64,10 @@ export default function Settings() {
           <TabsTrigger value="org" data-testid="tab-org">
             <Building2 className="w-4 h-4 mr-2" />
             Perfil & Identidad
+          </TabsTrigger>
+          <TabsTrigger value="subscription" data-testid="tab-subscription">
+            <CreditCard className="w-4 h-4 mr-2" />
+            Suscripción
           </TabsTrigger>
           <TabsTrigger value="modules" data-testid="tab-modules">
             <Puzzle className="w-4 h-4 mr-2" />
@@ -426,6 +432,10 @@ export default function Settings() {
           <EthicsPanel />
         </TabsContent>
 
+        <TabsContent value="subscription" className="space-y-6">
+          <SubscriptionPanel />
+        </TabsContent>
+
         <TabsContent value="advanced" className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card>
@@ -480,5 +490,140 @@ export default function Settings() {
         </TabsContent>
       </Tabs>
     </AppLayout>
+  );
+}
+
+function SubscriptionPanel() {
+  const { profile, session } = useAuth();
+  const org = profile?.organization;
+
+  const checkoutMutation = useMutation({
+    mutationFn: async (tier: string) => {
+      const res = await fetch("/api/subscriptions/checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify({ tier })
+      });
+      if (!res.ok) throw new Error("Error al iniciar checkout");
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    }
+  });
+
+  const portalMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/subscriptions/portal", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`
+        }
+      });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      if (data.url) window.location.href = data.url;
+    }
+  });
+
+  const plans = [
+    {
+      id: "starter",
+      name: "Starter",
+      price: "$49",
+      description: "Ideal para pequeñas plantas y talleres de manufactura.",
+      features: ["Hasta 5 terminales", "AI Guardian Básico", "Soporte Estándar"],
+      color: "bg-slate-500",
+    },
+    {
+      id: "professional",
+      name: "Professional",
+      price: "$129",
+      description: "Optimización avanzada para empresas en crecimiento.",
+      features: ["Terminales ilimitadas", "Suite AI Full", "Soporte Prioritario", "Módulos Avanzados"],
+      color: "bg-primary",
+      popular: true,
+    },
+    {
+      id: "enterprise",
+      name: "Enterprise",
+      price: "$499",
+      description: "Control total y adaptabilidad para grandes corporaciones.",
+      features: ["Entrenamiento AI Custom", "Account Manager Dedicado", "Soporte 24/7", "API & Webhooks"],
+      color: "bg-purple-600",
+    }
+  ];
+
+  return (
+    <div className="space-y-6">
+      <Card className="border-primary/20 bg-primary/5">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <div className="space-y-1">
+            <CardTitle className="text-2xl font-display flex items-center gap-2">
+              <Crown className="w-6 h-6 text-primary" />
+              Suscripción Actual: <span className="uppercase text-primary">{org?.subscriptionTier || 'Trial'}</span>
+            </CardTitle>
+            <CardDescription>
+              Estado: <span className={cn("font-bold uppercase", org?.subscriptionStatus === 'active' ? "text-success" : "text-warning")}>
+                {org?.subscriptionStatus || 'Pendiente'}
+              </span>
+            </CardDescription>
+          </div>
+          {org?.stripeCustomerId && (
+            <Button variant="outline" onClick={() => portalMutation.mutate()}>
+              Gestionar Pagos
+            </Button>
+          )}
+        </CardHeader>
+      </Card>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {plans.map((plan) => (
+          <Card key={plan.id} className={cn(
+            "relative flex flex-col transition-all duration-300 hover:scale-[1.02] hover:shadow-xl",
+            plan.popular ? "border-primary shadow-lg shadow-primary/10" : "border-slate-800"
+          )}>
+            {plan.popular && (
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-white text-[10px] font-black uppercase px-3 py-1 rounded-full tracking-widest glow-sm">
+                Más Popular
+              </div>
+            )}
+            <CardHeader className="space-y-1">
+              <CardTitle className="text-xl font-display uppercase italic tracking-tighter">{plan.name}</CardTitle>
+              <div className="flex items-baseline gap-1">
+                <span className="text-4xl font-black">{plan.price}</span>
+                <span className="text-xs text-slate-500 uppercase tracking-widest">/ mes</span>
+              </div>
+              <CardDescription className="text-xs leading-relaxed">{plan.description}</CardDescription>
+            </CardHeader>
+            <CardContent className="flex-grow space-y-4">
+              <div className="space-y-2">
+                {plan.features.map((feature, i) => (
+                  <div key={i} className="flex items-center gap-2 text-xs">
+                    <Check className="w-3.5 h-3.5 text-primary shrink-0" />
+                    <span className="text-slate-300">{feature}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+            <DialogFooter className="p-6 pt-0">
+              <Button
+                className={cn("w-full h-12 font-bold uppercase tracking-widest text-xs", plan.popular ? "bg-primary hover:bg-primary/90" : "bg-slate-800 hover:bg-slate-700")}
+                disabled={org?.subscriptionTier === plan.id || checkoutMutation.isPending}
+                onClick={() => checkoutMutation.mutate(plan.id)}
+              >
+                {org?.subscriptionTier === plan.id ? 'Plan Actual' : `Mejorar a ${plan.name}`}
+              </Button>
+            </DialogFooter>
+          </Card>
+        ))}
+      </div>
+    </div>
   );
 }

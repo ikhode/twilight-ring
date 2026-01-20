@@ -28,6 +28,9 @@ export const organizations = pgTable("organizations", {
   name: text("name").notNull(),
   industry: industryEnum("industry").notNull(),
   subscriptionTier: subscriptionTierEnum("subscription_tier").notNull().default("trial"),
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  subscriptionStatus: text("subscription_status"),
   onboardingStatus: text("onboarding_status").notNull().default("pending"), // "pending", "completed"
   meta: jsonb("meta").default({}), // Stores AI context, raw industry input
   createdAt: timestamp("created_at").notNull().defaultNow(),
