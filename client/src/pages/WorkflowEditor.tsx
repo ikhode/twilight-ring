@@ -87,22 +87,44 @@ function WorkflowEditor() {
     });
 
     // Initial flow with placeholders
+    // Load Process if ID provided
+    const searchParams = new URLSearchParams(window.location.search);
+    const processId = searchParams.get("processId");
+
+    const { data: existingProcess, isLoading: isLoadingProcess } = useQuery({
+        queryKey: [`/api/cpe/processes/${processId}`],
+        queryFn: async () => {
+            if (!processId) return null;
+            const res = await fetch(`/api/cpe/processes/${processId}`);
+            if (!res.ok) throw new Error("Failed to load process");
+            return res.json();
+        },
+        enabled: !!processId
+    });
+
+    // Initial flow initialization
     useEffect(() => {
-        setNodes([
-            {
-                id: "p-start",
-                type: "placeholder",
-                position: { x: 250, y: 50 },
-                data: {
-                    label: "Añadir un disparador",
-                    onClick: () => {
-                        setActivePlaceholderId("p-start");
-                        setIsCatalogOpen(true);
-                    }
+        if (existingProcess && existingProcess.workflowData) {
+            setNodes(existingProcess.workflowData.nodes || []);
+            setEdges(existingProcess.workflowData.edges || []);
+        } else if (!processId) {
+            // Only set default placeholders if NOT loading a process (or if new/empty)
+            setNodes([
+                {
+                    id: "p-start",
+                    type: "placeholder",
+                    position: { x: 250, y: 50 },
+                    data: {
+                        label: "Añadir un disparador",
+                        onClick: () => {
+                            setActivePlaceholderId("p-start");
+                            setIsCatalogOpen(true);
+                        }
+                    },
                 },
-            },
-        ]);
-    }, []);
+            ]);
+        }
+    }, [existingProcess, processId]);
 
     const [activePlaceholderId, setActivePlaceholderId] = useState<string | null>(null);
 
@@ -244,16 +266,19 @@ function WorkflowEditor() {
 
     const saveMutation = useMutation({
         mutationFn: async () => {
+            const payload = {
+                id: processId, // Pass ID if updating
+                name: existingProcess?.name || "Nuevo Flujo de Automatización",
+                workflowData: { nodes, edges }
+            };
+
             const res = await fetch("/api/automations/save", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                     Authorization: `Bearer ${session?.access_token}`
                 },
-                body: JSON.stringify({
-                    name: "Nuevo Flujo de Automatización",
-                    workflowData: { nodes, edges }
-                })
+                body: JSON.stringify(payload)
             });
             return res.json();
         },

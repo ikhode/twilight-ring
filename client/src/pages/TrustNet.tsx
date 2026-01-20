@@ -7,10 +7,12 @@ import { Shield, Share2, Network, Lock, Zap, TrendingUp } from "lucide-react";
 import { motion } from "framer-motion";
 import { useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/use-auth";
+import { useConfiguration } from "@/context/ConfigurationContext";
 
 export default function TrustNet() {
     const { session } = useAuth();
     const queryClient = useQueryClient();
+    const { industry } = useConfiguration();
 
     const { data: status, isLoading } = useQuery({
         queryKey: ["/api/trust/status"],
@@ -151,8 +153,13 @@ export default function TrustNet() {
                                                 <TrendingUp className="w-4 h-4" />
                                             </div>
                                             <div>
-                                                <p className="text-xs font-bold text-white">Precios MP (Acero) - Q3</p>
-                                                <p className="text-[10px] text-slate-500">Retail / Global</p>
+                                                <p className="text-xs font-bold text-white">
+                                                    {industry === 'retail' ? 'Tendencias de Consumo - Q3' :
+                                                        industry === 'manufacturing' ? 'Precios MP (Acero) - Q3' :
+                                                            industry === 'logistics' ? 'Costos de Combustible' :
+                                                                'Market Trends - Global'}
+                                                </p>
+                                                <p className="text-[10px] text-slate-500 capitalize">{industry} / Global</p>
                                             </div>
                                         </div>
                                         <Button size="sm" variant="ghost" className="h-6 text-[10px]" disabled={status?.trustScore < 500}>
@@ -166,7 +173,7 @@ export default function TrustNet() {
                                             </div>
                                             <div>
                                                 <p className="text-xs font-bold text-white">Benchmarks de Eficiencia</p>
-                                                <p className="text-[10px] text-slate-500">Manufactura / Latam</p>
+                                                <p className="text-[10px] text-slate-500 capitalize">{industry} / Latam</p>
                                             </div>
                                         </div>
                                         <Button size="sm" variant="ghost" className="h-6 text-[10px]" disabled={status?.trustScore < 300}>

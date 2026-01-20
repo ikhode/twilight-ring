@@ -246,9 +246,11 @@ export default function Production() {
                       <p className="text-sm text-muted-foreground">{process.description || "Sin descripción"}</p>
 
                       <div className="flex gap-2">
-                        <Button size="sm" className="flex-1" variant="outline">
-                          Ver Detalles
-                        </Button>
+                        <Link href={`/workflow-editor?processId=${process.id}`}>
+                          <Button size="sm" className="flex-1" variant="outline">
+                            Ver Detalles
+                          </Button>
+                        </Link>
                         <Button size="icon" variant="ghost">
                           <Play className="w-4 h-4" />
                         </Button>

@@ -8,6 +8,8 @@ import {
 } from "../../shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { getOrgIdFromRequest } from "../auth_util";
+import pdf from "pdf-parse"; // Added pdf-parse import
+
 
 const router = Router();
 
@@ -201,6 +203,62 @@ router.post("/fleet/routes/generate", async (req, res): Promise<void> => {
         res.status(500).json({ message: "Error generating route" });
     }
 });
+
+/**
+ * Analiza un documento PDF (Constancia de Situación Fiscal) y extrae información clave.
+ * Expects body: { file: "base64string..." }
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.post("/documents/parse", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const { file } = req.body;
+        if (!file) {
+            return res.status(400).json({ message: "No file provided" });
+        }
+
+        // Convert Base64 to Buffer
+        // Handle data:application/pdf;base64, prefix if present
+        const base64Data = file.split(';base64,').pop();
+        const dataBuffer = Buffer.from(base64Data, 'base64');
+
+        const data = await pdf(dataBuffer);
+        const text = data.text;
+
+        // Extract Data using Regex for "Constancia de Situación Fiscal" logic
+        const extracted = {
+            rfc: text.match(/[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}/)?.[0] || null,
+            // Nombre is tricky, usually appears after "Denominación/Razón Social" or similar.
+            // Simplified heuristics:
+            name: text.match(/Nombre, denominación o razón social:\s*([\w\s.]+)/i)?.[1]?.trim() || null,
+            zipCode: text.match(/C\.P\.\s*(\d{5})/i)?.[1] || text.match(/\b\d{5}\b/)?.[0] || null,
+            regimen: text.match(/Régimen:\s*([\w\s]+)/i)?.[1]?.trim() || null,
+            rawText: text.substring(0, 500) // Preview
+        };
+
+        // Fallback for Name if specific field not found (start of Doc often has it in uppercase)
+        if (!extracted.name) {
+            const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 5);
+            // Assume name is one of the first few logical lines that isn't a header
+            extracted.name = lines.find(l => !l.includes("CONSTANCIA") && !l.includes("SAT") && l.length < 50) || null;
+        }
+
+        res.json({
+            success: true,
+            extracted
+        });
+
+    } catch (error) {
+        console.error("PDF Parse error:", error);
+        res.status(500).json({ message: "Error parsing document", error: String(error) });
+    }
+});
+
 
 /**
  * Obtiene la ruta activa asignada a un conductor específico, incluyendo todas sus paradas.

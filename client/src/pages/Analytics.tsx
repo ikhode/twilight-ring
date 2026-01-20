@@ -285,6 +285,101 @@ function CashflowForecastSection() {
   );
 }
 
+
+
+function ScenarioSimulator() {
+  const [growth, setGrowth] = useState(15);
+  const [costReduction, setCostReduction] = useState(5);
+  const baseRevenue = 150000; // Mock base, could come from props
+
+  const simulationData = useMemo(() => {
+    const data = [];
+    let revenue = baseRevenue;
+    for (let i = 0; i < 12; i++) {
+      revenue = revenue * (1 + (growth / 100 / 12));
+      data.push({
+        month: `M${i + 1}`,
+        revenue: Math.round(revenue),
+        baseline: Math.round(baseRevenue * (1 + (0.05 / 12) * i)) // 5% baseline
+      });
+    }
+    return data;
+  }, [growth, costReduction]);
+
+  return (
+    <Card className="bg-slate-950/50 border-slate-800">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Activity className="w-5 h-5 text-purple-400" />
+          Simulador de Escenarios
+        </CardTitle>
+        <CardDescription>Proyecta el impacto de cambios en crecimiento y costos</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Crecimiento Mensual</span>
+                <span className="font-bold text-purple-400">{growth}%</span>
+              </div>
+              <input
+                type="range" min="0" max="50" value={growth}
+                onChange={(e) => setGrowth(parseInt(e.target.value))}
+                className="w-full accent-purple-500"
+              />
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Reducción de Costos</span>
+                <span className="font-bold text-emerald-400">{costReduction}%</span>
+              </div>
+              <input
+                type="range" min="0" max="30" value={costReduction}
+                onChange={(e) => setCostReduction(parseInt(e.target.value))}
+                className="w-full accent-emerald-500"
+              />
+            </div>
+
+            <Card className="bg-slate-900 border-none p-4">
+              <p className="text-xs text-muted-foreground uppercase">Impacto Proyectado (Anual)</p>
+              <p className="text-2xl font-black text-white mt-1">
+                {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(
+                  simulationData.reduce((acc, curr) => acc + curr.revenue, 0)
+                )}
+              </p>
+              <Badge variant="outline" className="mt-2 text-purple-400 border-purple-400/30">
+                +{(growth - 5).toFixed(1)}% vs Baseline
+              </Badge>
+            </Card>
+          </div>
+          <div className="md:col-span-2 h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={simulationData}>
+                <defs>
+                  <linearGradient id="colorSim" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#c084fc" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#c084fc" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                <XAxis dataKey="month" stroke="#64748b" tick={{ fontSize: 12 }} />
+                <YAxis stroke="#64748b" tick={{ fontSize: 12 }} tickFormatter={(val) => `$${val / 1000}k`} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155' }}
+                  formatter={(val: number) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(val)}
+                />
+                <Area type="monotone" dataKey="revenue" stroke="#c084fc" strokeWidth={3} fillOpacity={1} fill="url(#colorSim)" name="Proyección" />
+                <Area type="monotone" dataKey="baseline" stroke="#64748b" strokeDasharray="3 3" fill="none" name="Baseline (5%)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Analytics() {
   const { session } = useAuth();
   const queryClient = useQueryClient();
@@ -365,6 +460,9 @@ export default function Analytics() {
 
         {/* NEW: Cashflow Forecast Section */}
         <CashflowForecastSection />
+
+        {/* NEW: Scenario Simulator */}
+        <ScenarioSimulator />
 
         {/* HERO SECTION: Cognitive Status */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

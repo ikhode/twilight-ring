@@ -35,23 +35,59 @@ export default function Documents() {
         simulateOCR(e.dataTransfer.files[0]);
     };
 
-    const simulateOCR = (file: File) => {
+    const simulateOCR = async (file: File) => {
         setIsProcessing(true);
-        // Simulate AI Latency
-        setTimeout(() => {
+        try {
+            // Convert to Base64
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = async () => {
+                const base64 = reader.result;
+
+                const response = await fetch("/api/operations/documents/parse", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ file: base64 })
+                });
+
+                if (!response.ok) throw new Error("Error parsing document");
+
+                const data = await response.json();
+
+                setProcessedFile({
+                    name: file.name,
+                    type: "tax_id", // Autodetected as CIF
+                    confidence: 95,
+                    extracted: {
+                        supplier: data.extracted.name || "Desconocido",
+                        amount: "N/A", // CIF doesn't have amount
+                        date: new Date().toISOString().split('T')[0],
+                        invoiceId: data.extracted.rfc || "N/A",
+                        // Extra fields used for Entity Creation
+                        rfc: data.extracted.rfc,
+                        zipCode: data.extracted.zipCode
+                    }
+                });
+            };
+        } catch (error) {
+            console.error(error);
+            // Fallback for demo
+            setTimeout(() => {
+                setProcessedFile({
+                    name: file.name,
+                    type: "invoice",
+                    confidence: 80,
+                    extracted: {
+                        supplier: "Error Parseando",
+                        amount: "$0.00",
+                        date: "2024-05-18",
+                        invoiceId: "ERR-001"
+                    }
+                });
+            }, 1000);
+        } finally {
             setIsProcessing(false);
-            setProcessedFile({
-                name: file.name,
-                type: "invoice",
-                confidence: 98,
-                extracted: {
-                    supplier: "Amazon Web Services",
-                    amount: "$153.20",
-                    date: "2024-05-18",
-                    invoiceId: "INV-99283"
-                }
-            });
-        }, 2500);
+        }
     };
 
     const saveDocument = () => {
@@ -64,6 +100,16 @@ export default function Documents() {
             status: "processed",
             meta: { amount: processedFile.extracted.amount, supplier: processedFile.extracted.supplier }
         }, ...prev]);
+        setProcessedFile(null);
+    };
+
+    const createEntity = (type: 'client' | 'supplier' | 'employee') => {
+        // Logic to navigate to creation page with pre-filled data
+        // For now, we'll just log or show a toast
+        console.log(`Creating ${type} with`, processedFile.extracted);
+        // Navigate example: history.push(`/hr/employees/new?rfc=${processedFile.extracted.rfc}&name=${processedFile.extracted.supplier}`)
+        // Since we don't have routing handy here without hooks, we usually use <Link> or navigate hook.
+        // Assuming we just close for now.
         setProcessedFile(null);
     };
 
@@ -129,11 +175,20 @@ export default function Documents() {
                                     </CardContent>
                                 </Card>
 
-                                <div className="flex gap-3">
-                                    <Button variant="outline" className="flex-1" onClick={() => setProcessedFile(null)}>Descartar</Button>
-                                    <Button className="flex-1 gap-2" onClick={saveDocument}>
-                                        <CheckCircle2 className="w-4 h-4" /> Validar y Guardar
-                                    </Button>
+                                <div className="flex flex-col gap-3">
+                                    <div className="flex gap-3">
+                                        <Button variant="outline" className="flex-1" onClick={() => setProcessedFile(null)}>Descartar</Button>
+                                        <Button className="flex-1 gap-2" onClick={saveDocument}>
+                                            <CheckCircle2 className="w-4 h-4" /> Guardar Doc
+                                        </Button>
+                                    </div>
+                                    {processedFile.type === "tax_id" && (
+                                        <div className="grid grid-cols-3 gap-2 mt-2">
+                                            <Button variant="secondary" size="sm" onClick={() => createEntity('client')}>+ Cliente</Button>
+                                            <Button variant="secondary" size="sm" onClick={() => createEntity('supplier')}>+ Proveedor</Button>
+                                            <Button variant="secondary" size="sm" onClick={() => createEntity('employee')}>+ Empleado</Button>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         ) : (
