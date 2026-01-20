@@ -16,7 +16,9 @@ import {
     Package,
     DollarSign,
     Users,
-    BarChart3
+    BarChart3,
+    CheckCircle2,
+    MousePointer2,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useLocation } from "wouter";
@@ -118,18 +120,20 @@ export default function Landing() {
                         <Button
                             size="lg"
                             onClick={() => setLocation("/signup")}
-                            className="bg-primary hover:bg-primary/90 text-white px-12 py-8 text-xl font-black uppercase tracking-wider rounded-2xl shadow-[0_0_50px_rgba(59,130,246,0.3)] hover:shadow-[0_0_80px_rgba(59,130,246,0.5)] transition-all group"
+                            className="bg-primary hover:bg-primary/90 text-white px-10 py-8 text-lg font-black uppercase tracking-wider rounded-2xl shadow-[0_0_50px_rgba(59,130,246,0.3)] transition-all active:scale-95 group"
                         >
-                            Comenzar Prueba Gratuita
-                            <ArrowRight className="ml-3 w-6 h-6 group-hover:translate-x-2 transition-transform" />
+                            <Sparkles className="mr-3 w-6 h-6 group-hover:rotate-12 transition-transform" />
+                            Iniciar Despliegue Gratis
+                            <ArrowRight className="ml-3 w-5 h-5 opacity-50" />
                         </Button>
                         <Button
                             size="lg"
                             variant="outline"
                             onClick={() => setLocation("/demo")}
-                            className="border-2 border-white/20 hover:border-primary hover:bg-primary/10 px-12 py-8 text-xl font-bold rounded-2xl backdrop-blur-xl"
+                            className="border-slate-800 hover:bg-white/5 text-slate-300 px-10 py-8 text-lg font-black uppercase tracking-wider rounded-2xl transition-all"
                         >
-                            Ver en Acción
+                            <MousePointer2 className="mr-3 w-5 h-5 text-primary" />
+                            Probar Demo Interactiva
                         </Button>
                     </motion.div>
 
