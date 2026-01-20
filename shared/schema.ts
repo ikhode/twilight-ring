@@ -390,6 +390,13 @@ export const employees = pgTable("employees", {
     dataType() {
       return "vector(128)"; // Standard for face-api.js descriptors
     },
+    toDriver(value: number[]) {
+      return `[${value.join(',')}]`;
+    },
+    fromDriver(value: unknown) {
+      if (typeof value !== 'string') return [];
+      return value.slice(1, -1).split(',').map(Number);
+    }
   })("face_embedding"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -523,6 +530,13 @@ export const embeddings = pgTable("embeddings", {
     dataType() {
       return "vector(1536)";
     },
+    toDriver(value: number[]) {
+      return `[${value.join(',')}]`;
+    },
+    fromDriver(value: unknown) {
+      if (typeof value !== 'string') return [];
+      return value.slice(1, -1).split(',').map(Number);
+    }
   })("vector"),
   createdAt: timestamp("created_at").defaultNow(),
 });
