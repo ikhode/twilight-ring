@@ -95,7 +95,7 @@ export default function TimeClock() {
       <div className="relative z-10 w-full max-w-4xl space-y-8">
         <div className="text-center space-y-2">
           <h1 className="text-4xl font-display font-bold gradient-text" data-testid="text-kiosk-title">
-            FlexiERP
+            Cognitive OS
           </h1>
           <p className="text-muted-foreground">Reloj Checador con Reconocimiento Facial</p>
         </div>
@@ -261,8 +261,8 @@ export default function TimeClock() {
                           record.action === "entry"
                             ? "bg-success/20"
                             : record.action === "exit"
-                            ? "bg-destructive/20"
-                            : "bg-warning/20"
+                              ? "bg-destructive/20"
+                              : "bg-warning/20"
                         )}
                       >
                         <ActionIcon

@@ -23,8 +23,12 @@ import {
   Clock,
   Printer,
 } from "lucide-react";
-import { mockProducts, mockTransactions } from "@/lib/mockData";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { useMemo } from "react";
+import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 
 interface CartItem {
   id: number;
@@ -34,16 +38,107 @@ interface CartItem {
 }
 
 export default function Sales() {
+  const { session } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedDriver, setSelectedDriver] = useState<string>("");
+  const [selectedVehicle, setSelectedVehicle] = useState<string>("");
 
-  const filteredProducts = mockProducts.filter(
-    (p) =>
+  const payMutation = useMutation({
+    mutationFn: async (items: any[]) => {
+      const res = await fetch("/api/operations/sales", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify({ items, driverId: selectedDriver, vehicleId: selectedVehicle, status: "paid" })
+      });
+      if (!res.ok) throw new Error("Payment failed");
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setCart([]);
+      setSelectedDriver("");
+      setSelectedVehicle("");
+      queryClient.invalidateQueries({ queryKey: ["/api/operations/inventory/products"] });
+      // Also invalidate finance summary as sales affect it
+      queryClient.invalidateQueries({ queryKey: ["/api/operations/finance/summary"] });
+
+      toast({
+        title: "Venta Exitosa",
+        description: `Se procesaron ${data.stats.success} items.`
+      });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "No se pudo completar la venta.", variant: "destructive" });
+    }
+  });
+
+  const handlePay = () => {
+    if (cart.length === 0) return;
+    // Map cart to expected payload { productId, quantity, price }
+    const items = cart.map(item => ({
+      productId: item.id, // Assuming CartItem.id matches Product.id
+      quantity: item.quantity,
+      price: Math.round(item.price * 100) // Convert back to cents for API
+    }));
+    payMutation.mutate(items);
+  };
+
+  const { data: dbProducts, isLoading } = useQuery({
+    queryKey: ["/api/operations/inventory/products"],
+    queryFn: async () => {
+      const res = await fetch("/api/operations/inventory/products", {
+        headers: { Authorization: `Bearer ${session?.access_token}` }
+      });
+      return res.json();
+    },
+    enabled: !!session?.access_token
+  });
+
+  const { data: drivers = [] } = useQuery({
+    queryKey: ["/api/hr/employees"],
+    queryFn: async () => {
+      const res = await fetch("/api/hr/employees", { headers: { Authorization: `Bearer ${session?.access_token}` } });
+      return (await res.json()).filter((e: any) => e.role.toLowerCase().includes("driver") || e.role.toLowerCase().includes("conductor"));
+    },
+    enabled: !!session?.access_token
+  });
+
+  const { data: vehicles = [] } = useQuery({
+    queryKey: ["/api/fleet/vehicles"],
+    queryFn: async () => {
+      const res = await fetch("/api/fleet/vehicles", { headers: { Authorization: `Bearer ${session?.access_token}` } });
+      return res.json();
+    },
+    enabled: !!session?.access_token
+  });
+
+  // Setup Realtime subscription for automatic product updates
+  useSupabaseRealtime({
+    table: 'products',
+    queryKey: ["/api/operations/inventory/products"],
+  });
+
+  const products = useMemo(() => {
+    const list = Array.isArray(dbProducts) ? dbProducts : [];
+    return list.map((p: any) => ({
+      ...p,
+      price: p.price / 100, // Convert from cents
+      status: p.stock < 100 ? "critical" : p.stock < 500 ? "low" : "available"
+    }));
+  }, [dbProducts]);
+
+  const filteredProducts = products.filter(
+    (p: any) =>
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.sku.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const addToCart = (product: typeof mockProducts[0]) => {
+  const addToCart = (product: any) => {
     setCart((prev) => {
       const existing = prev.find((item) => item.id === product.id);
       if (existing) {
@@ -171,6 +266,36 @@ export default function Sales() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {cart.length > 0 && (
+                <div className="space-y-3 p-3 rounded-lg bg-primary/5 border border-primary/10">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Conductor</label>
+                    <select
+                      className="w-full bg-background border border-border rounded-md p-2 text-sm"
+                      value={selectedDriver}
+                      onChange={(e) => setSelectedDriver(e.target.value)}
+                    >
+                      <option value="">Sin asignar</option>
+                      {drivers.map((d: any) => (
+                        <option key={d.id} value={d.id}>{d.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Vehículo</label>
+                    <select
+                      className="w-full bg-background border border-border rounded-md p-2 text-sm"
+                      value={selectedVehicle}
+                      onChange={(e) => setSelectedVehicle(e.target.value)}
+                    >
+                      <option value="">Sin asignar</option>
+                      {vehicles.map((v: any) => (
+                        <option key={v.id} value={v.id}>{v.plate} - {v.model}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
               {cart.length === 0 ? (
                 <div className="text-center py-8">
                   <ShoppingCart className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
@@ -256,16 +381,20 @@ export default function Sales() {
                       variant="outline"
                       className="h-14"
                       data-testid="button-pay-cash"
+                      onClick={handlePay}
+                      disabled={payMutation.isPending}
                     >
                       <Banknote className="w-5 h-5 mr-2" />
-                      Efectivo
+                      {payMutation.isPending ? "Procesando..." : "Efectivo"}
                     </Button>
                     <Button
                       className="h-14"
                       data-testid="button-pay-card"
+                      onClick={handlePay}
+                      disabled={payMutation.isPending}
                     >
                       <CreditCard className="w-5 h-5 mr-2" />
-                      Tarjeta
+                      {payMutation.isPending ? "Procesando..." : "Tarjeta"}
                     </Button>
                   </div>
 
@@ -278,7 +407,59 @@ export default function Sales() {
             </CardContent>
           </Card>
         </div>
+
+        {/* COGNITIVE UPSELL LAYER */}
+        {cart.length > 0 && (
+          <div className="lg:col-span-1">
+            <UpsellSuggestion cart={cart} allProducts={products} onAdd={addToCart} />
+          </div>
+        )}
       </div>
     </AppLayout>
+  );
+}
+
+function UpsellSuggestion({ cart, allProducts, onAdd }: { cart: CartItem[], allProducts: any[], onAdd: (p: any) => void }) {
+  // Simple "Cognitive" Logic: Find product in same category or just random related one not in cart
+  const suggestion = useMemo(() => {
+    if (cart.length === 0) return null;
+    const lastItem = cart[cart.length - 1];
+    // Find item with same category (mock check as we might not have category in CartItem, checking allProducts)
+    const fullLastItem = allProducts.find(p => p.id === lastItem.id);
+    if (!fullLastItem) return null;
+
+    return allProducts.find(p =>
+      p.id !== lastItem.id &&
+      !cart.find(c => c.id === p.id) &&
+      p.category === fullLastItem.category
+    );
+  }, [cart, allProducts]);
+
+  if (!suggestion) return null;
+
+  return (
+    <Card className="bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border-indigo-500/20">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2 text-indigo-400">
+          <Package className="w-4 h-4" />
+          Sugerencia Inteligente
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 rounded bg-indigo-500/20 flex items-center justify-center">
+            <TrendingUp className="w-5 h-5 text-indigo-400" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-indigo-100">{suggestion.name}</p>
+            <p className="text-xs text-indigo-300/70">Clientes suelen llevar esto junto.</p>
+          </div>
+          <Button size="sm" variant="secondary" className="h-8" onClick={() => onAdd(suggestion)}>
+            <Plus className="w-3 h-3 mr-1" />
+            Agg
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

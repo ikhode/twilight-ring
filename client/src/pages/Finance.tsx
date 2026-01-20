@@ -23,18 +23,38 @@ import {
   Download,
   Filter,
 } from "lucide-react";
-import { mockTransactions, mockDashboardStats } from "@/lib/mockData";
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
+import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 
 export default function Finance() {
+  const { session } = useAuth();
+  const { data: summary, isLoading } = useQuery({
+    queryKey: ["/api/operations/finance/summary"],
+    queryFn: async () => {
+      const res = await fetch("/api/operations/finance/summary", {
+        headers: { Authorization: `Bearer ${session?.access_token}` }
+      });
+      return res.json();
+    },
+    enabled: !!session?.access_token
+  });
+
+  // Realtime subscriptions for financial data
+  useSupabaseRealtime({ table: 'payments', queryKey: ["/api/operations/finance/summary"] });
+  useSupabaseRealtime({ table: 'expenses', queryKey: ["/api/operations/finance/summary"] });
+
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat("es-MX", {
       style: "currency",
       currency: "MXN",
     }).format(amount);
 
-  const income = mockTransactions.filter((t) => t.amount > 0).reduce((acc, t) => acc + t.amount, 0);
-  const expenses = mockTransactions.filter((t) => t.amount < 0).reduce((acc, t) => acc + Math.abs(t.amount), 0);
+  const income = summary?.income || 0;
+  const expenses = summary?.expenses || 0;
+  const balance = summary?.balance || 0;
+  const recentTransactions = summary?.recentTransactions || [];
 
   return (
     <AppLayout title="Finanzas" subtitle="Control financiero y reportes">
@@ -42,19 +62,19 @@ export default function Finance() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <StatCard
             title="Caja Actual"
-            value={formatCurrency(mockDashboardStats.cashBalance)}
+            value={formatCurrency(balance)}
             icon={Wallet}
             variant="primary"
           />
           <StatCard
-            title="Ingresos del Día"
+            title="Ingresos"
             value={formatCurrency(income)}
             icon={TrendingUp}
             trend={12.5}
             variant="success"
           />
           <StatCard
-            title="Egresos del Día"
+            title="Egresos"
             value={formatCurrency(expenses)}
             icon={TrendingDown}
             trend={-5.2}
@@ -62,7 +82,7 @@ export default function Finance() {
           />
           <StatCard
             title="Balance Neto"
-            value={formatCurrency(mockDashboardStats.cashBalance + mockDashboardStats.receivables - mockDashboardStats.payables)}
+            value={formatCurrency(balance)}
             icon={PiggyBank}
             variant="success"
           />
@@ -80,7 +100,7 @@ export default function Finance() {
                   <ArrowUpRight className="w-4 h-4 text-success" />
                 </div>
                 <p className="text-2xl font-bold font-mono text-success">
-                  {formatCurrency(mockDashboardStats.receivables)}
+                  {formatCurrency(0)}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">4 facturas pendientes</p>
               </div>
@@ -91,7 +111,7 @@ export default function Finance() {
                   <ArrowDownRight className="w-4 h-4 text-destructive" />
                 </div>
                 <p className="text-2xl font-bold font-mono text-destructive">
-                  {formatCurrency(mockDashboardStats.payables)}
+                  {formatCurrency(0)}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">2 facturas pendientes</p>
               </div>
@@ -102,9 +122,9 @@ export default function Finance() {
                   <DollarSign className="w-4 h-4 text-primary" />
                 </div>
                 <p className="text-2xl font-bold font-mono text-primary">
-                  {formatCurrency(5000)}
+                  {formatCurrency((summary?.payroll?.total || 0) / 100)}
                 </p>
-                <p className="text-xs text-muted-foreground mt-1">2 empleados</p>
+                <p className="text-xs text-muted-foreground mt-1">{summary?.payroll?.count || 0} empleados</p>
               </div>
 
               <Button className="w-full gap-2" data-testid="button-new-transaction">
@@ -136,7 +156,7 @@ export default function Finance() {
                   {
                     key: "description",
                     header: "Descripción",
-                    render: (item) => (
+                    render: (item: any) => (
                       <div className="flex items-center gap-3">
                         <div
                           className={cn(
@@ -144,8 +164,8 @@ export default function Finance() {
                             item.type === "sale"
                               ? "bg-success/15 text-success"
                               : item.type === "expense"
-                              ? "bg-destructive/15 text-destructive"
-                              : "bg-warning/15 text-warning"
+                                ? "bg-destructive/15 text-destructive"
+                                : "bg-warning/15 text-warning"
                           )}
                         >
                           {item.type === "sale" ? (
@@ -166,7 +186,7 @@ export default function Finance() {
                   {
                     key: "date",
                     header: "Fecha",
-                    render: (item) => (
+                    render: (item: any) => (
                       <span className="text-sm font-mono text-muted-foreground">
                         {item.date}
                       </span>
@@ -175,7 +195,7 @@ export default function Finance() {
                   {
                     key: "amount",
                     header: "Monto",
-                    render: (item) => (
+                    render: (item: any) => (
                       <span
                         className={cn(
                           "font-bold font-mono",
@@ -190,10 +210,15 @@ export default function Finance() {
                   {
                     key: "status",
                     header: "Estado",
-                    render: (item) => <StatusBadge status={item.status} />,
+                    render: (item: any) => <StatusBadge status={item.status} />,
                   },
                 ]}
-                data={mockTransactions}
+                data={(Array.isArray(recentTransactions) ? recentTransactions : []).map((t: any) => ({
+                  ...t,
+                  type: t.amount > 0 ? 'sale' : 'expense',
+                  description: t.description || (t.amount > 0 ? "Venta Regular" : "Gasto Operativo"),
+                  status: 'completed'
+                }))}
               />
             </CardContent>
           </Card>
@@ -263,7 +288,7 @@ export default function Finance() {
                     </div>
                     <div className="p-6 rounded-xl bg-muted/50">
                       <p className="text-sm text-muted-foreground mb-2">Esperado en Sistema</p>
-                      <p className="text-3xl font-bold font-mono">{formatCurrency(mockDashboardStats.cashBalance)}</p>
+                      <p className="text-3xl font-bold font-mono">{formatCurrency(balance)}</p>
                     </div>
                     <div className="p-6 rounded-xl bg-success/10 border border-success/20">
                       <p className="text-sm text-muted-foreground mb-2">Diferencia</p>

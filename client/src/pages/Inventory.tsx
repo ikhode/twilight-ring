@@ -31,23 +31,64 @@ import {
   Filter,
   Download,
   BarChart3,
+  CheckCircle2,
 } from "lucide-react";
-import { mockProducts } from "@/lib/mockData";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { AliveValue } from "@/components/cognitive/AliveValue";
+import { CognitiveButton } from "@/components/cognitive/CognitiveButton";
+import { useConfiguration } from "@/context/ConfigurationContext";
+import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 
 export default function Inventory() {
+  const { session } = useAuth();
   const { toast } = useToast();
+  const { universalConfig } = useConfiguration();
   const [searchQuery, setSearchQuery] = useState("");
-  const [products, setProducts] = useState(mockProducts);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+
+  // Fallback to defaults if no universal categories are defined
+  const categories = universalConfig.productCategories?.length > 0
+    ? universalConfig.productCategories
+    : ["Materia Prima", "Producto Terminado", "Subproducto"];
+
+  const { data: dbProducts, isLoading } = useQuery({
+    queryKey: ["/api/operations/inventory/products"],
+    queryFn: async () => {
+      const res = await fetch("/api/operations/inventory/products", {
+        headers: { Authorization: `Bearer ${session?.access_token}` }
+      });
+      return res.json();
+    },
+    enabled: !!session?.access_token
+  });
+
+  // Setup Realtime subscription for automatic product updates
+  useSupabaseRealtime({
+    table: 'products',
+    queryKey: ["/api/operations/inventory/products"],
+  });
+
+  const products = useMemo(() => {
+    const list = Array.isArray(dbProducts) ? dbProducts : [];
+    return list.map((p: any) => ({
+      ...p,
+      price: p.price / 100,
+      status: p.stock < 100 ? "critical" : p.stock < 500 ? "low" : "available",
+      unit: "pza"
+    }));
+  }, [dbProducts]);
+
   const [newProduct, setNewProduct] = useState({
     name: "",
     sku: "",
-    category: "Materia Prima",
+    category: categories[0],
     stock: 0,
     unit: "pza",
     price: 0,
+    cost: 0,
   });
 
   const filteredProducts = useMemo(() => {
@@ -66,29 +107,37 @@ export default function Inventory() {
     totalValue: products.reduce((acc, p) => acc + p.stock * p.price, 0),
   }), [products]);
 
-  const handleAddProduct = () => {
-    if (!newProduct.name || !newProduct.sku) {
-      toast({
-        title: "Error",
-        description: "Nombre y SKU son obligatorios",
-        variant: "destructive",
+  const queryClient = useQueryClient();
+
+  const createProductMutation = useMutation({
+    mutationFn: async (productData: any) => {
+      const res = await fetch("/api/operations/inventory/products", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify(productData)
       });
-      return;
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/operations/inventory/products"] });
+      setIsAddDialogOpen(false);
+      toast({ title: "Producto Creado", description: "El producto se ha registrado correctamente." });
+      setNewProduct({ name: "", sku: "", category: categories[0], stock: 0, unit: "pza", price: 0, cost: 0 });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "No se pudo crear el producto.", variant: "destructive" });
     }
+  });
 
-    const product = {
-      id: products.length + 1,
+  const handleAddProduct = () => {
+    createProductMutation.mutate({
       ...newProduct,
-      status: newProduct.stock < 100 ? ("critical" as const) : newProduct.stock < 500 ? ("low" as const) : ("available" as const),
-    };
-
-    setProducts([product, ...products]);
-    setIsAddDialogOpen(false);
-    setNewProduct({ name: "", sku: "", category: "Materia Prima", stock: 0, unit: "pza", price: 0 });
-    
-    toast({
-      title: "Registro exitoso",
-      description: `Se ha registrado ${product.name} en el inventario de patio.`,
+      price: Math.round(newProduct.price * 100), // to cents
+      cost: Math.round(newProduct.cost * 100) // to cents
     });
   };
 
@@ -99,29 +148,29 @@ export default function Inventory() {
     }).format(amount);
 
   return (
-    <AppLayout title="Patios e Inventario" subtitle="Control de coco en patio y producto terminado">
+    <AppLayout title="Inventario Inteligente" subtitle="Gestión predictiva de materia prima y producto terminado">
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <StatCard
-            title="Total Cocos en Patio"
-            value={stats.totalProducts}
+            title="Total Items en Inventario"
+            value={<AliveValue value={stats.totalProducts} unit="" />}
             icon={Package}
             variant="primary"
           />
           <StatCard
-            title="Sectores Bajos"
-            value={stats.lowStock}
+            title="Stock Bajo"
+            value={<AliveValue value={stats.lowStock} unit="" allowTrend />}
             icon={TrendingDown}
             variant="warning"
           />
           <StatCard
-            title="Sectores Críticos"
-            value={stats.criticalStock}
+            title="Stock Crítico"
+            value={<AliveValue value={stats.criticalStock} unit="" allowTrend />}
             icon={AlertTriangle}
             variant="destructive"
           />
           <StatCard
-            title="Valor en Patio"
+            title="Valor Total"
             value={formatCurrency(stats.totalValue)}
             icon={DollarSign}
             variant="success"
@@ -131,7 +180,7 @@ export default function Inventory() {
         <Card>
           <CardHeader>
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <CardTitle className="font-display">Inventario de Patio y Almacén</CardTitle>
+              <CardTitle className="font-display">Inventario General</CardTitle>
               <div className="flex items-center gap-3">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -146,54 +195,65 @@ export default function Inventory() {
                 <Button variant="outline" size="icon">
                   <Filter className="w-4 h-4" />
                 </Button>
-                
+
                 <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                   <DialogTrigger asChild>
-                    <Button className="gap-2" data-testid="button-add-product">
+                    <CognitiveButton
+                      className="gap-2"
+                      data-testid="button-add-product"
+                      intent="register_inventory"
+                    >
                       <Plus className="w-4 h-4" />
-                      Registrar Entrada de Patio
-                    </Button>
+                      Registrar Entrada
+                    </CognitiveButton>
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>Nueva Entrada de Patio</DialogTitle>
+                      <DialogTitle>Nueva Entrada de Inventario</DialogTitle>
                       <DialogDescription>
-                        Registre el ingreso de materia prima o subproductos.
+                        Registre el ingreso utilizando las categorías definidas.
                       </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
                       <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="name" className="text-right">Nombre</Label>
-                        <Input id="name" value={newProduct.name} onChange={(e) => setNewProduct({...newProduct, name: e.target.value})} className="col-span-3" />
+                        <Input id="name" value={newProduct.name} onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })} className="col-span-3" />
                       </div>
                       <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="sku" className="text-right">SKU</Label>
-                        <Input id="sku" value={newProduct.sku} onChange={(e) => setNewProduct({...newProduct, sku: e.target.value})} className="col-span-3" />
+                        <Input id="sku" value={newProduct.sku} onChange={(e) => setNewProduct({ ...newProduct, sku: e.target.value })} className="col-span-3" />
                       </div>
                       <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="category" className="text-right">Categoría</Label>
-                        <Select onValueChange={(v) => setNewProduct({...newProduct, category: v})} defaultValue={newProduct.category}>
+                        <Select onValueChange={(v) => setNewProduct({ ...newProduct, category: v })} defaultValue={newProduct.category}>
                           <SelectTrigger className="col-span-3">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="Materia Prima">Materia Prima</SelectItem>
-                            <SelectItem value="Producto Terminado">Producto Terminado</SelectItem>
-                            <SelectItem value="Subproducto">Subproducto</SelectItem>
+                            {categories.map(c => (
+                              <SelectItem key={c} value={c}>{c}</SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
                       <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="stock" className="text-right">Cantidad</Label>
-                        <Input id="stock" type="number" value={newProduct.stock} onChange={(e) => setNewProduct({...newProduct, stock: parseInt(e.target.value) || 0})} className="col-span-3" />
+                        <Input id="stock" type="number" value={newProduct.stock} onChange={(e) => setNewProduct({ ...newProduct, stock: parseInt(e.target.value) || 0 })} className="col-span-3" />
+                      </div>
+
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="price" className="text-right">Precio Venta</Label>
+                        <Input id="price" type="number" step="0.01" value={newProduct.price} onChange={(e) => setNewProduct({ ...newProduct, price: parseFloat(e.target.value) || 0 })} className="col-span-3" />
                       </div>
                       <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="price" className="text-right">Precio Un.</Label>
-                        <Input id="price" type="number" step="0.01" value={newProduct.price} onChange={(e) => setNewProduct({...newProduct, price: parseFloat(e.target.value) || 0})} className="col-span-3" />
+                        <Label htmlFor="cost" className="text-right">Costo Unit.</Label>
+                        <Input id="cost" type="number" step="0.01" value={newProduct.cost} onChange={(e) => setNewProduct({ ...newProduct, cost: parseFloat(e.target.value) || 0 })} className="col-span-3" />
                       </div>
                     </div>
                     <DialogFooter>
-                      <Button onClick={handleAddProduct}>Confirmar Registro</Button>
+                      <Button onClick={handleAddProduct} disabled={createProductMutation.isPending}>
+                        {createProductMutation.isPending ? "Guardando..." : "Confirmar Registro"}
+                      </Button>
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
@@ -216,6 +276,26 @@ export default function Inventory() {
                         <p className="text-xs text-muted-foreground font-mono">{item.sku}</p>
                       </div>
                     </div>
+                  ),
+                },
+                {
+                  key: "cognitive",
+                  header: "IA Insight",
+                  render: (item: any) => (
+                    item.cognitive?.shouldRestock ? (
+                      <div className="flex flex-col items-start gap-1">
+                        <Badge variant="outline" className="border-warning text-warning bg-warning/5 text-[10px] uppercase font-bold tracking-wider">
+                          <AlertTriangle className="w-3 h-3 mr-1" />
+                          Agota en {item.cognitive.daysRemaining} días
+                        </Badge>
+                        <span className="text-[10px] text-muted-foreground">Sugerido: +{item.cognitive.suggestedOrder} pza</span>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground opacity-50 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-success" />
+                        Stock Saludable ({item.cognitive.daysRemaining}d)
+                      </span>
+                    )
                   ),
                 },
                 {
@@ -353,12 +433,12 @@ export default function Inventory() {
             <CardHeader>
               <CardTitle className="text-lg font-display flex items-center gap-2">
                 <Layers className="w-5 h-5 text-primary" />
-                Categorías
+                Categorías de Producto
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {["Materia Prima", "Producto Terminado", "Subproducto"].map((category) => {
+                {categories.map((category) => {
                   const categoryProducts = products.filter((p) => p.category === category);
                   const totalValue = categoryProducts.reduce(
                     (acc, p) => acc + p.stock * p.price,

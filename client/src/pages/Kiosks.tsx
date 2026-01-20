@@ -15,7 +15,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { StatusBadge } from "@/components/shared/StatusBadge";
 import {
   Monitor,
   Plus,
@@ -34,12 +33,29 @@ import {
   Eye,
   Lock,
   Smartphone,
+  Info,
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
-import { mockKiosks, kioskTypes, mockModules } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { formatDistanceToNow } from "date-fns";
+import { es } from "date-fns/locale";
+import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
+
+// Kiosk type definitions (system constants)
+const kioskTypes = [
+  { id: "timeclock", name: "Reloj Checador", description: "Registro FaceID para obreros", icon: "Clock", color: "primary" },
+  { id: "supervisor", name: "Terminal Patio", description: "Registro de compra y clasificación", icon: "ClipboardCheck", color: "accent" },
+  { id: "pos", name: "Despacho", description: "Salida de mercancía y facturación", icon: "CreditCard", color: "success" },
+  { id: "management", name: "Administración", description: "Control de costos y rendimiento", icon: "BarChart3", color: "warning" },
+  { id: "logistics", name: "Embarque", description: "Gestión de carga y transporte", icon: "Truck", color: "destructive" },
+  { id: "access", name: "Control de Acceso", description: "Entrada y salida de personal", icon: "Lock", color: "primary" },
+  { id: "info", name: "Información", description: "Pantalla de información general", icon: "Info", color: "accent" },
+];
 
 const kioskIcons: Record<string, typeof Clock> = {
   timeclock: Clock,
@@ -47,82 +63,119 @@ const kioskIcons: Record<string, typeof Clock> = {
   pos: CreditCard,
   management: BarChart3,
   logistics: Truck,
+  access: Lock,
+  info: Info,
 };
 
 export default function Kiosks() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
-  const [kiosks, setKiosks] = useState(mockKiosks);
+  const queryClient = useQueryClient();
+  const { session } = useAuth(); // Get Session
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [selectedKiosk, setSelectedKiosk] = useState<typeof mockKiosks[0] | null>(null);
+  const [selectedKiosk, setSelectedKiosk] = useState<Terminal | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  
+
   const [newKiosk, setNewKiosk] = useState({
     name: "",
-    type: "",
+    type: "timeclock",
     location: "",
-    modules: [] as string[],
+  });
+
+  const { data: kiosks = [], isLoading } = useQuery<Terminal[]>({
+    queryKey: ["/api/kiosks"],
+    queryFn: async () => {
+      if (!session?.access_token) return [];
+      const res = await fetch("/api/kiosks", {
+        headers: { Authorization: `Bearer ${session.access_token}` }
+      });
+      if (!res.ok) throw new Error("Failed to fetch kiosks");
+      return res.json();
+    },
+    enabled: !!session?.access_token,
+  });
+
+  // Setup Realtime subscription for automatic kiosk updates
+  useSupabaseRealtime({
+    table: 'terminals',
+    queryKey: ["/api/kiosks"],
+  });
+
+  const createKioskMutation = useMutation({
+    mutationFn: async (data: any) => {
+      // Use manual fetch to include headers
+      const res = await fetch("/api/kiosks", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify(data)
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Error creating kiosk");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/kiosks"] });
+      setIsCreateOpen(false);
+      setNewKiosk({ name: "", type: "timeclock", location: "" });
+      toast({
+        title: "Kiosko creado",
+        description: "El dispositivo ha sido registrado correctamente",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "No se pudo crear el kiosko. Intente nuevamente.",
+        variant: "destructive",
+      });
+    }
   });
 
   const handleCreateKiosk = () => {
     if (!newKiosk.name || !newKiosk.type || !newKiosk.location) {
       toast({
-        title: "Error",
+        title: "Campos incompletos",
         description: "Por favor complete todos los campos requeridos",
         variant: "destructive",
       });
       return;
     }
 
-    const kiosk = {
-      id: Date.now(),
+    createKioskMutation.mutate({
       ...newKiosk,
-      status: "offline" as const,
-      lastPing: "Nunca",
-    };
-
-    setKiosks([...kiosks, kiosk]);
-    setIsCreateOpen(false);
-    setNewKiosk({ name: "", type: "", location: "", modules: [] });
-
-    toast({
-      title: "Kiosko creado",
-      description: "El magic link ha sido generado",
+      status: "offline",
     });
   };
 
-  const handleOpenKiosk = (kiosk: typeof mockKiosks[0]) => {
+  const handleOpenKiosk = (kiosk: Terminal) => {
     toast({
       title: `Abriendo ${kiosk.name}`,
       description: "Redirigiendo a la interfaz de terminal...",
     });
-    
+
     // Navigate to the specific kiosk interface
     setLocation(`/kiosk-terminal/${kiosk.id}`);
   };
 
-  const openSettings = (kiosk: typeof mockKiosks[0], e: React.MouseEvent) => {
+  const openSettings = (kiosk: Terminal, e: React.MouseEvent) => {
     e.stopPropagation();
     setSelectedKiosk(kiosk);
     setIsSettingsOpen(true);
   };
 
-  const generateMagicLink = (kioskId: number) => {
-    const link = `https://flexierp.app/kiosk/${kioskId}?token=${btoa(String(kioskId))}`;
+  const generateMagicLink = (kioskId: string) => {
+    const link = `${window.location.origin}/kiosk/${kioskId}?token=${btoa(kioskId)}`;
     navigator.clipboard.writeText(link);
     toast({
       title: "Magic Link copiado",
       description: "El enlace ha sido copiado al portapapeles",
     });
-  };
-
-  const toggleModule = (moduleId: string) => {
-    setNewKiosk((prev) => ({
-      ...prev,
-      modules: prev.modules.includes(moduleId)
-        ? prev.modules.filter((m) => m !== moduleId)
-        : [...prev.modules, moduleId],
-    }));
   };
 
   return (
@@ -139,7 +192,7 @@ export default function Kiosks() {
             <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-muted">
               <WifiOff className="w-4 h-4 text-muted-foreground" />
               <span className="text-sm font-medium text-muted-foreground">
-                {kiosks.filter((k) => k.status === "offline").length} desconectados
+                {kiosks.filter((k) => k.status !== "online").length} desconectados
               </span>
             </div>
           </div>
@@ -175,7 +228,7 @@ export default function Kiosks() {
                     <Input
                       id="location"
                       placeholder="Ej: Planta Principal"
-                      value={newKiosk.location}
+                      value={newKiosk.location || ""}
                       onChange={(e) => setNewKiosk({ ...newKiosk, location: e.target.value })}
                     />
                   </div>
@@ -185,7 +238,7 @@ export default function Kiosks() {
                   <Label className="text-base font-semibold">Tipo de Kiosko</Label>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                     {kioskTypes.map((type) => {
-                      const Icon = kioskIcons[type.id];
+                      const Icon = kioskIcons[type.id] || Monitor;
                       const isSelected = newKiosk.type === type.id;
                       return (
                         <button
@@ -213,163 +266,137 @@ export default function Kiosks() {
                     })}
                   </div>
                 </div>
-
-                <div className="space-y-3">
-                  <Label className="text-base font-semibold">Módulos Activables</Label>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 rounded-xl bg-muted/30 border border-dashed border-muted-foreground/20">
-                    {mockModules.map((module) => (
-                      <div
-                        key={module.id}
-                        className="flex items-start space-x-3 p-2 rounded-lg hover:bg-muted/50 transition-colors"
-                      >
-                        <Checkbox
-                          id={module.id}
-                          checked={newKiosk.modules.includes(module.id)}
-                          onCheckedChange={() => toggleModule(module.id)}
-                          className="mt-1"
-                        />
-                        <label
-                          htmlFor={module.id}
-                          className="text-sm font-medium cursor-pointer flex-1"
-                        >
-                          <span className="block font-bold">{module.name}</span>
-                          <span className="block text-[10px] text-muted-foreground font-normal">
-                            {module.description}
-                          </span>
-                        </label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
               </div>
 
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
                   Cancelar
                 </Button>
-                <Button onClick={handleCreateKiosk} className="bg-primary hover:bg-primary/90">
-                  Generar Magic Link y Crear
+                <Button onClick={handleCreateKiosk} disabled={createKioskMutation.isPending} className="bg-primary hover:bg-primary/90">
+                  {createKioskMutation.isPending ? "Creando..." : "Generar Magic Link y Crear"}
                 </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {kiosks.map((kiosk) => {
-            const Icon = kioskIcons[kiosk.type] || Monitor;
-            return (
-              <Card
-                key={kiosk.id}
-                className={cn(
-                  "group relative overflow-hidden transition-all duration-300 hover:shadow-2xl hover:-translate-y-1",
-                  kiosk.status === "online" ? "border-success/30 bg-success/[0.02]" : "bg-card"
-                )}
-                data-testid={`kiosk-card-${kiosk.id}`}
-              >
-                {kiosk.status === "online" && (
-                   <div className="absolute top-0 right-0 p-2">
-                     <span className="relative flex h-2 w-2">
+        {isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3].map(i => <div key={i} className="h-64 rounded-xl bg-muted animate-pulse" />)}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {kiosks.map((kiosk) => {
+              const Icon = kioskIcons[kiosk.type] || Monitor;
+              return (
+                <Card
+                  key={kiosk.id}
+                  className={cn(
+                    "group relative overflow-hidden transition-all duration-300 hover:shadow-2xl hover:-translate-y-1",
+                    kiosk.status === "online" ? "border-success/30 bg-success/[0.02]" : "bg-card"
+                  )}
+                  data-testid={`kiosk-card-${kiosk.id}`}
+                >
+                  {kiosk.status === "online" && (
+                    <div className="absolute top-0 right-0 p-2">
+                      <span className="relative flex h-2 w-2">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-success"></span>
                       </span>
-                   </div>
-                )}
-                
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-4">
-                      <div
-                        className={cn(
-                          "w-14 h-14 rounded-2xl flex items-center justify-center transition-all group-hover:scale-110 group-hover:rotate-3 shadow-sm",
-                          kiosk.status === "online"
-                            ? "bg-primary text-white glow"
-                            : "bg-muted text-muted-foreground"
-                        )}
-                      >
-                        <Icon className="w-7 h-7" />
-                      </div>
-                      <div>
-                        <CardTitle className="text-lg font-display font-bold">
-                          {kiosk.name}
-                        </CardTitle>
-                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
-                          <Layout className="w-3 h-3" />
-                          {kiosk.location}
+                    </div>
+                  )}
+
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-4">
+                        <div
+                          className={cn(
+                            "w-14 h-14 rounded-2xl flex items-center justify-center transition-all group-hover:scale-110 group-hover:rotate-3 shadow-sm",
+                            kiosk.status === "online"
+                              ? "bg-primary text-white glow"
+                              : "bg-muted text-muted-foreground"
+                          )}
+                        >
+                          <Icon className="w-7 h-7" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-lg font-display font-bold">
+                            {kiosk.name}
+                          </CardTitle>
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
+                            <Layout className="w-3 h-3" />
+                            {kiosk.location || "Sin ubicación"}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-5">
-                  <div className="flex flex-wrap gap-1.5">
-                    {kiosk.modules.map((module) => (
-                      <Badge key={module} variant="secondary" className="text-[10px] font-bold tracking-tight py-0">
-                        {module.toUpperCase()}
-                      </Badge>
-                    ))}
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between text-xs border-b border-border/50 pb-2">
-                      <span className="text-muted-foreground flex items-center gap-1.5">
-                        <StatusBadge status={kiosk.status} className="h-4 px-1" />
-                        Status
-                      </span>
-                      <span className="font-mono text-muted-foreground">{kiosk.lastPing}</span>
+                  </CardHeader>
+                  <CardContent className="space-y-5">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between text-xs border-b border-border/50 pb-2">
+                        <span className="text-muted-foreground flex items-center gap-1.5">
+                          {kiosk.status === 'online' ? <Wifi className="w-3 h-3 text-success" /> : <WifiOff className="w-3 h-3" />}
+                          Status
+                        </span>
+                        <span className="font-mono text-muted-foreground">
+                          {kiosk.lastActiveAt
+                            ? formatDistanceToNow(new Date(kiosk.lastActiveAt), { addSuffix: true, locale: es })
+                            : "Nunca"}
+                        </span>
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="bg-background/50 backdrop-blur-sm border-primary/20 hover:border-primary/50 text-xs font-bold"
-                      onClick={() => generateMagicLink(kiosk.id)}
-                    >
-                      <Link2 className="w-3.5 h-3.5 mr-1.5 text-primary" />
-                      Magic Link
-                    </Button>
-                    <Button
-                      size="sm"
-                      className="bg-primary hover:bg-primary/90 text-xs font-bold glow-sm"
-                      onClick={() => handleOpenKiosk(kiosk)}
-                    >
-                      <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
-                      Abrir
-                    </Button>
-                  </div>
-                  
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="absolute bottom-2 right-2 w-8 h-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={(e) => openSettings(kiosk, e)}
-                  >
-                    <Settings className="w-4 h-4 text-muted-foreground" />
-                  </Button>
-                </CardContent>
-              </Card>
-            );
-          })}
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="bg-background/50 backdrop-blur-sm border-primary/20 hover:border-primary/50 text-xs font-bold"
+                        onClick={() => generateMagicLink(kiosk.id)}
+                      >
+                        <Link2 className="w-3.5 h-3.5 mr-1.5 text-primary" />
+                        Magic Link
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="bg-primary hover:bg-primary/90 text-xs font-bold glow-sm"
+                        onClick={() => handleOpenKiosk(kiosk)}
+                      >
+                        <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
+                        Abrir
+                      </Button>
+                    </div>
 
-          <Card className="border-dashed border-2 border-muted-foreground/20 hover:border-primary/50 hover:bg-primary/[0.02] transition-all cursor-pointer flex items-center justify-center min-h-[260px] group">
-            <button
-              onClick={() => setIsCreateOpen(true)}
-              className="text-center p-6 space-y-4"
-            >
-              <div className="w-16 h-16 rounded-3xl bg-muted flex items-center justify-center mx-auto transition-all group-hover:bg-primary/10 group-hover:scale-110 group-hover:rotate-12 group-hover:shadow-lg">
-                <Plus className="w-8 h-8 text-muted-foreground group-hover:text-primary transition-colors" />
-              </div>
-              <div>
-                <p className="font-display font-bold text-muted-foreground group-hover:text-primary transition-colors">Agregar Kiosko</p>
-                <p className="text-xs text-muted-foreground/70 mt-1 max-w-[140px] mx-auto">
-                  Despliega una nueva terminal en tu red
-                </p>
-              </div>
-            </button>
-          </Card>
-        </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute bottom-2 right-2 w-8 h-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => openSettings(kiosk, e)}
+                    >
+                      <Settings className="w-4 h-4 text-muted-foreground" />
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
+
+            <Card className="border-dashed border-2 border-muted-foreground/20 hover:border-primary/50 hover:bg-primary/[0.02] transition-all cursor-pointer flex items-center justify-center min-h-[260px] group">
+              <button
+                onClick={() => setIsCreateOpen(true)}
+                className="text-center p-6 space-y-4"
+              >
+                <div className="w-16 h-16 rounded-3xl bg-muted flex items-center justify-center mx-auto transition-all group-hover:bg-primary/10 group-hover:scale-110 group-hover:rotate-12 group-hover:shadow-lg">
+                  <Plus className="w-8 h-8 text-muted-foreground group-hover:text-primary transition-colors" />
+                </div>
+                <div>
+                  <p className="font-display font-bold text-muted-foreground group-hover:text-primary transition-colors">Agregar Kiosko</p>
+                  <p className="text-xs text-muted-foreground/70 mt-1 max-w-[140px] mx-auto">
+                    Despliega una nueva terminal en tu red
+                  </p>
+                </div>
+              </button>
+            </Card>
+          </div>
+        )}
 
         {/* Kiosk Settings Dialog */}
         <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
@@ -386,21 +413,21 @@ export default function Kiosks() {
             <div className="space-y-4 py-4">
               <div className="space-y-3">
                 <Button variant="outline" className="w-full justify-start gap-3 h-12">
-                   <Lock className="w-4 h-4 text-warning" />
-                   Reiniciar Credenciales Face ID
+                  <Lock className="w-4 h-4 text-warning" />
+                  Reiniciar Credenciales Face ID
                 </Button>
                 <Button variant="outline" className="w-full justify-start gap-3 h-12">
-                   <Eye className="w-4 h-4 text-primary" />
-                   Ver Registros Locales
+                  <Eye className="w-4 h-4 text-primary" />
+                  Ver Registros Locales
                 </Button>
                 <Button variant="outline" className="w-full justify-start gap-3 h-12">
-                   <Smartphone className="w-4 h-4 text-accent" />
-                   Sincronizar Dispositivo
+                  <Smartphone className="w-4 h-4 text-accent" />
+                  Sincronizar Dispositivo
                 </Button>
                 <Separator className="my-2" />
                 <Button variant="ghost" className="w-full justify-start gap-3 h-12 text-destructive hover:bg-destructive/10 hover:text-destructive">
-                   <Trash2 className="w-4 h-4" />
-                   Eliminar Terminal
+                  <Trash2 className="w-4 h-4" />
+                  Eliminar Terminal
                 </Button>
               </div>
             </div>

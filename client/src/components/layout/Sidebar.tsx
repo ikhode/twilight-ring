@@ -1,146 +1,141 @@
-import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import {
-  LayoutDashboard,
-  Users,
-  Package,
-  ShoppingCart,
-  Factory,
-  Truck,
-  Wallet,
-  Settings,
-  Monitor,
-  Clock,
-  Brain,
-  ChevronLeft,
-  ChevronRight,
-  Building2,
-  ClipboardList,
-  UserCircle,
-  LogOut,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { contextEngine, NavItem } from "@/lib/ai/context-engine";
+import { useAuth } from "@/hooks/use-auth";
+import { LevelIndicator } from "@/components/gamification/LevelIndicator";
+import { useState, useEffect } from "react";
+import { motion, LayoutGroup } from "framer-motion";
+import { Menu, Zap } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { UserRoleType } from "@/lib/ai/dashboard-engine";
+import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Separator } from "@/components/ui/separator";
+import { LogOut, ChevronRight, ChevronLeft, Settings } from "lucide-react";
 
-const navItems = [
-  { path: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { path: "/timeclock", icon: Clock, label: "Reloj Checador" },
-  { path: "/kiosks", icon: Monitor, label: "Kioskos" },
-  { path: "/employees", icon: Users, label: "Empleados" },
-  { path: "/inventory", icon: Package, label: "Inventario" },
-  { path: "/production", icon: Factory, label: "Producción" },
-  { path: "/sales", icon: ShoppingCart, label: "Ventas" },
-  { path: "/logistics", icon: Truck, label: "Logística" },
-  { path: "/finance", icon: Wallet, label: "Finanzas" },
-  { path: "/crm", icon: Building2, label: "Clientes/Proveedores" },
-  { path: "/tickets", icon: ClipboardList, label: "Tickets" },
-  { path: "/analytics", icon: Brain, label: "Analítica IA" },
-];
+import { useConfiguration } from "@/context/ConfigurationContext";
 
-export function Sidebar() {
+interface SidebarProps {
+  className?: string;
+  onLinkClick?: () => void;
+}
+
+export function Sidebar({ className, onLinkClick }: SidebarProps) {
   const [location] = useLocation();
+  const { user, profile } = useAuth();
+  const { enabledModules } = useConfiguration();
+  const [items, setItems] = useState<NavItem[]>([]);
   const [collapsed, setCollapsed] = useState(false);
 
+  // Mock role until profile is fully loaded with role
+  const role: UserRoleType = (profile?.role as UserRoleType) || 'admin';
+
+  useEffect(() => {
+    setItems(contextEngine.getAdaptiveNavigation(role, enabledModules));
+  }, [role, enabledModules]);
+
+  const handleLinkClick = () => {
+    if (onLinkClick) onLinkClick();
+  };
+
   return (
-    <aside
+    <div
       className={cn(
-        "fixed left-0 top-0 z-40 h-screen bg-sidebar border-r border-sidebar-border transition-all duration-300 flex flex-col",
-        collapsed ? "w-[72px]" : "w-[260px]"
+        "bg-[#020617]/95 backdrop-blur-xl border-r border-white/5 flex flex-col z-40 transition-all duration-300",
+        collapsed ? "w-[72px]" : "w-[260px]",
+        // Default fixed unless overridden
+        !className?.includes("relative") && "fixed left-0 top-0 h-screen",
+        className
       )}
-      data-testid="sidebar"
     >
-      <div className="flex items-center h-16 px-4 border-b border-sidebar-border">
-        <Link href="/" className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg gradient-primary flex items-center justify-center glow">
-            <span className="text-white font-bold text-lg font-display">F</span>
-          </div>
-          {!collapsed && (
-            <span className="font-display font-bold text-xl gradient-text" data-testid="logo-text">
-              FlexiERP
-            </span>
-          )}
-        </Link>
+      {/* Brand */}
+      <div className="h-16 flex items-center px-6 border-b border-white/5 bg-gradient-to-r from-primary/5 to-transparent overflow-hidden">
+        <Menu className="w-5 h-5 text-slate-400 mr-3 flex-shrink-0" />
+        {!collapsed && (
+          <h1 className="font-black text-xl tracking-tighter italic text-white whitespace-nowrap">
+            COGNITIVE<span className="text-primary text-xs align-top ml-0.5">OS</span>
+          </h1>
+        )}
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-thin">
-        {navItems.map((item) => {
-          const isActive = location === item.path;
-          const Icon = item.icon;
+      {/* Navigation */}
+      <LayoutGroup>
+        <nav className="flex-1 overflow-y-auto py-6 px-3 space-y-1 scrollbar-none">
 
-          const navLink = (
-            <Link
-              key={item.path}
-              href={item.path}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group",
-                isActive
-                  ? "bg-primary text-primary-foreground shadow-md"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent"
-              )}
-              data-testid={`nav-${item.path.replace("/", "") || "dashboard"}`}
-            >
-              <Icon className={cn("w-5 h-5 flex-shrink-0", isActive ? "" : "text-muted-foreground group-hover:text-foreground")} />
-              {!collapsed && <span className="font-medium text-sm">{item.label}</span>}
-            </Link>
-          );
-
-          if (collapsed) {
-            return (
-              <Tooltip key={item.path} delayDuration={0}>
-                <TooltipTrigger asChild>{navLink}</TooltipTrigger>
-                <TooltipContent side="right" className="font-medium">
-                  {item.label}
-                </TooltipContent>
-              </Tooltip>
-            );
-          }
-
-          return navLink;
-        })}
-      </nav>
-
-      <div className="px-3 pb-4">
-        <Separator className="mb-4" />
-        
-        <Tooltip delayDuration={0}>
-          <TooltipTrigger asChild>
-            <Link
-              href="/settings"
-              className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-sidebar-foreground hover:bg-sidebar-accent mb-2",
-                location === "/settings" && "bg-sidebar-accent"
-              )}
-              data-testid="nav-settings"
-            >
-              <Settings className="w-5 h-5 text-muted-foreground" />
-              {!collapsed && <span className="font-medium text-sm">Configuración</span>}
-            </Link>
-          </TooltipTrigger>
-          {collapsed && (
-            <TooltipContent side="right">Configuración</TooltipContent>
+          {!collapsed && (
+            <p className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-600 mb-2 flex justify-between">
+              <span>Navegación Contextual</span>
+              <Zap className="w-3 h-3 text-primary animate-pulse" />
+            </p>
           )}
-        </Tooltip>
 
-        <div className={cn(
-          "flex items-center gap-3 p-2 rounded-lg bg-sidebar-accent/50",
-          collapsed && "justify-center"
-        )}>
-          <Avatar className="w-9 h-9">
-            <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">
-              CM
-            </AvatarFallback>
-          </Avatar>
+          {items.map((item) => {
+            const isActive = location === item.href;
+            const isHighPriority = item.priority > 60;
+
+            return (
+              <motion.div key={item.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                <Link href={item.href} onClick={handleLinkClick}>
+                  <div
+                    className={cn(
+                      "relative flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group cursor-pointer overflow-hidden",
+                      isActive
+                        ? "bg-primary text-white shadow-[0_0_20px_rgba(59,130,246,0.5)]"
+                        : "text-slate-400 hover:text-white hover:bg-white/5"
+                    )}
+                  >
+                    {isActive && (
+                      <motion.div
+                        layoutId="active-nav"
+                        className="absolute inset-0 bg-primary z-0"
+                        transition={{ duration: 0.2 }}
+                      />
+                    )}
+
+                    {/* Icon */}
+                    <item.icon className={cn("w-5 h-5 relative z-10 transition-transform group-hover:scale-110 flex-shrink-0", isActive ? "text-white" : "text-slate-500 group-hover:text-white")} />
+
+                    {/* Title */}
+                    {!collapsed && (
+                      <span className="text-sm font-bold relative z-10 whitespace-nowrap">{item.title}</span>
+                    )}
+
+                    {/* Cognitive Indicator for High Priority Items */}
+                    {isHighPriority && item.reason && !isActive && !collapsed && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="absolute right-2 w-1.5 h-1.5 rounded-full bg-primary/40 animate-pulse z-10" />
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="bg-slate-900 border-primary/20 text-xs font-bold">
+                          <p className="flex items-center gap-2">
+                            <Zap className="w-3 h-3 text-primary" />
+                            {item.reason}
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
+                </Link>
+              </motion.div>
+            );
+          })}
+        </nav>
+      </LayoutGroup>
+
+      {/* User Footer */}
+      <div className="p-4 border-t border-slate-800">
+        <LevelIndicator />
+        <div className={cn("mt-4 flex items-center gap-3", collapsed ? "justify-center" : "")}>
+          <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-primary to-purple-500 border-2 border-slate-900 flex items-center justify-center text-xs font-black text-white shadow-lg flex-shrink-0">
+            {user?.email?.[0].toUpperCase() || "U"}
+          </div>
           {!collapsed && (
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">Carlos Mendoza</p>
-              <p className="text-xs text-muted-foreground truncate">Administrador</p>
+              <p className="text-xs font-bold text-white truncate">{user?.email || "Usuario"}</p>
+              <p className="text-[10px] text-slate-500 font-bold uppercase truncate">{role}</p>
             </div>
           )}
           {!collapsed && (
-            <Button variant="ghost" size="icon" className="w-8 h-8" data-testid="button-logout">
+            <Button variant="ghost" size="icon" className="w-8 h-8 text-slate-500 hover:text-red-400 transition-colors">
               <LogOut className="w-4 h-4" />
             </Button>
           )}
@@ -151,11 +146,11 @@ export function Sidebar() {
         variant="ghost"
         size="icon"
         onClick={() => setCollapsed(!collapsed)}
-        className="absolute -right-3 top-20 w-6 h-6 rounded-full border bg-background shadow-md hover:bg-accent"
-        data-testid="button-toggle-sidebar"
+        className="absolute -right-3 top-24 w-6 h-6 rounded-full border border-slate-800 bg-[#020617] shadow-xl hover:bg-slate-800 text-slate-400 group z-50 transition-all"
       >
-        {collapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
+        {collapsed ? <ChevronRight className="w-3 h-3 group-hover:text-primary" /> : <ChevronLeft className="w-3 h-3 group-hover:text-primary" />}
       </Button>
-    </aside>
+
+    </div>
   );
 }

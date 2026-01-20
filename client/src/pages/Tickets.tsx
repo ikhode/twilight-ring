@@ -18,13 +18,45 @@ import {
   Check,
   X,
 } from "lucide-react";
-import { mockTickets } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/use-auth";
+import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
+
+interface Ticket {
+  id: number;
+  employee: string;
+  process: string;
+  quantity: number;
+  status: 'pending' | 'approved' | 'rejected' | 'paid';
+  createdAt: string;
+  amount: number;
+}
 
 export default function Tickets() {
   const { toast } = useToast();
-  const [tickets, setTickets] = useState(mockTickets);
+  const { session } = useAuth();
+  const queryClient = useQueryClient();
+
+  // Fetch tickets from API
+  const { data: tickets = [], isLoading } = useQuery<Ticket[]>({
+    queryKey: ['/api/piecework/tickets'],
+    queryFn: async () => {
+      const res = await fetch('/api/piecework/tickets', {
+        headers: { Authorization: `Bearer ${session?.access_token}` }
+      });
+      if (!res.ok) throw new Error('Failed to fetch tickets');
+      return res.json();
+    },
+    enabled: !!session?.access_token,
+  });
+
+  // Setup Realtime subscription for automatic updates
+  useSupabaseRealtime({
+    table: 'piecework_tickets',
+    queryKey: ['/api/piecework/tickets'],
+  });
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat("es-MX", {
@@ -39,35 +71,66 @@ export default function Tickets() {
     totalAmount: tickets.reduce((acc, t) => acc + t.amount, 0),
   };
 
-  const handleApprove = (ticketId: number) => {
-    setTickets((prev) =>
-      prev.map((t) => (t.id === ticketId ? { ...t, status: "approved" as const } : t))
-    );
-    toast({
-      title: "Ticket aprobado",
-      description: "El empleado puede pasar a cobrar",
-    });
-  };
+  // Mutation for approving tickets
+  const approveMutation = useMutation({
+    mutationFn: async (ticketId: number) => {
+      const res = await fetch(`/api/piecework/tickets/${ticketId}/approve`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session?.access_token}` }
+      });
+      if (!res.ok) throw new Error('Failed to approve ticket');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/piecework/tickets'] });
+      toast({
+        title: "Ticket aprobado",
+        description: "El empleado puede pasar a cobrar",
+      });
+    },
+  });
 
-  const handleReject = (ticketId: number) => {
-    setTickets((prev) =>
-      prev.map((t) => (t.id === ticketId ? { ...t, status: "rejected" as const } : t))
-    );
-    toast({
-      title: "Ticket rechazado",
-      variant: "destructive",
-    });
-  };
+  // Mutation for rejecting tickets
+  const rejectMutation = useMutation({
+    mutationFn: async (ticketId: number) => {
+      const res = await fetch(`/api/piecework/tickets/${ticketId}/reject`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session?.access_token}` }
+      });
+      if (!res.ok) throw new Error('Failed to reject ticket');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/piecework/tickets'] });
+      toast({
+        title: "Ticket rechazado",
+        variant: "destructive",
+      });
+    },
+  });
 
-  const handlePay = (ticketId: number) => {
-    setTickets((prev) =>
-      prev.map((t) => (t.id === ticketId ? { ...t, status: "paid" as const } : t))
-    );
-    toast({
-      title: "Pago registrado",
-      description: "El ticket ha sido marcado como pagado",
-    });
-  };
+  // Mutation for paying tickets
+  const payMutation = useMutation({
+    mutationFn: async (ticketId: number) => {
+      const res = await fetch(`/api/piecework/tickets/${ticketId}/pay`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session?.access_token}` }
+      });
+      if (!res.ok) throw new Error('Failed to pay ticket');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/piecework/tickets'] });
+      toast({
+        title: "Pago registrado",
+        description: "El ticket ha sido marcado como pagado",
+      });
+    },
+  });
+
+  const handleApprove = (ticketId: number) => approveMutation.mutate(ticketId);
+  const handleReject = (ticketId: number) => rejectMutation.mutate(ticketId);
+  const handlePay = (ticketId: number) => payMutation.mutate(ticketId);
 
   return (
     <AppLayout title="Tickets de Producción" subtitle="Gestión de tickets para pago a empleados">
@@ -235,7 +298,7 @@ export default function Tickets() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {["Ana López", "Diego Torres", "José Hernández"].map((employee, index) => {
+                {Array.from(new Set(tickets.map(t => t.employee))).map((employee, index) => {
                   const employeeTickets = tickets.filter((t) => t.employee === employee);
                   const total = employeeTickets.reduce((acc, t) => acc + t.amount, 0);
                   const pending = employeeTickets.filter((t) => t.status === "pending" || t.status === "approved").length;
@@ -278,7 +341,7 @@ export default function Tickets() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {["Elaboración de Pan", "Empaquetado", "Control de Calidad"].map((process, index) => {
+                {Array.from(new Set(tickets.map(t => t.process))).map((process, index) => {
                   const processTickets = tickets.filter((t) => t.process === process);
                   const totalQuantity = processTickets.reduce((acc, t) => acc + t.quantity, 0);
                   const totalAmount = processTickets.reduce((acc, t) => acc + t.amount, 0);

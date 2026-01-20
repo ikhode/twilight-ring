@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
@@ -59,8 +60,13 @@ app.use((req, res, next) => {
   next();
 });
 
+import { guardian } from "./services/guardian";
+
 (async () => {
   await registerRoutes(httpServer, app);
+
+  // Start the Cognitive Guardian
+  guardian.start();
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -89,7 +95,6 @@ app.use((req, res, next) => {
     {
       port,
       host: "0.0.0.0",
-      reusePort: true,
     },
     () => {
       log(`serving on port ${port}`);

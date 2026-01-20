@@ -7,6 +7,12 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { StatCard } from "@/components/shared/StatCard";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Factory,
   Plus,
@@ -20,18 +26,73 @@ import {
   Users,
   AlertCircle,
   RefreshCw,
+  Eye,
+  Workflow,
+  Sparkles,
 } from "lucide-react";
-import { mockProcesses, mockProducts } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/use-auth";
+import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 
 export default function Production() {
-  const [processes] = useState(mockProcesses);
+  const { session } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+
+  const createMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await fetch("/api/cpe/processes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error("Failed to create process");
+      return res.json();
+    },
+    onSuccess: () => {
+      setIsCreateOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/cpe/processes"] });
+      toast({ title: "Proceso Creado", description: "El proceso ha sido definido exitosamente." });
+    },
+  });
+
+  const { data: processes, isLoading } = useQuery({
+    queryKey: ["/api/cpe/processes"],
+    queryFn: async () => {
+      if (!session?.access_token) return [];
+      const res = await fetch("/api/cpe/processes", {
+        headers: { Authorization: `Bearer ${session.access_token}` }
+      });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    enabled: !!session?.access_token
+  });
+
+  const { data: employees } = useQuery({
+    queryKey: ["/api/hr/employees"],
+    queryFn: async () => {
+      const res = await fetch("/api/hr/employees", { headers: { Authorization: `Bearer ${session?.access_token}` } });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    enabled: !!session?.access_token
+  });
+
+  // Realtime subscription for processes
+  useSupabaseRealtime({ table: 'processes', queryKey: ["/api/cpe/processes"] });
+  useSupabaseRealtime({ table: 'employees', queryKey: ["/api/hr/employees"] });
 
   const stats = {
-    activeProcesses: processes.filter((p) => p.status === "active").length,
-    pendingProcesses: processes.filter((p) => p.status === "pending").length,
-    completedToday: 12,
-    efficiency: 87,
+    activeProcesses: processes?.filter((p: any) => p.status === "active").length || 0,
+    pendingProcesses: processes?.filter((p: any) => p.status === "pending").length || 0,
+    completedToday: 0, // Placeholder until we have completedAt field logic
+    efficiency: 100, // Default to 100 or calculate based on non-existent metrics
   };
 
   return (
@@ -73,183 +134,173 @@ export default function Production() {
           </TabsList>
 
           <TabsContent value="processes" className="space-y-6">
+
+            {/* 
+            <Card className="bg-slate-900 border-indigo-500/30 overflow-hidden relative">
+               <div className="hidden">PLACEHOLDER FOR OPTICAL SUGGESTION</div>
+            </Card> 
+            */}
+
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-display font-semibold">Procesos Definidos</h2>
-              <Button className="gap-2" data-testid="button-create-process">
-                <Plus className="w-4 h-4" />
-                Crear Proceso
-              </Button>
+              <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                <DialogTrigger asChild>
+                  <Button className="gap-2" data-testid="button-create-process">
+                    <Plus className="w-4 h-4" />
+                    Crear Proceso
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Crear Nuevo Proceso</DialogTitle>
+                    <DialogDescription>Defina un nuevo flujo de producción.</DialogDescription>
+                  </DialogHeader>
+                  <form onSubmit={(e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.currentTarget);
+                    createMutation.mutate({
+                      name: formData.get("name"),
+                      description: formData.get("description"),
+                      type: formData.get("type"),
+                      isTemplate: false,
+                    });
+                  }} className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="name">Nombre del Proceso</Label>
+                      <Input id="name" name="name" required placeholder="Ej. Procesamiento de Coco" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="type">Tipo</Label>
+                      <Select name="type" defaultValue="production">
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccione tipo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="production">Producción</SelectItem>
+                          <SelectItem value="logistics">Logística</SelectItem>
+                          <SelectItem value="quality">Calidad</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="description">Descripción</Label>
+                      <Textarea id="description" name="description" placeholder="Detalles del proceso..." />
+                    </div>
+                    <DialogFooter>
+                      <Button type="submit" disabled={createMutation.isPending}>
+                        {createMutation.isPending ? "Creando..." : "Crear Proceso"}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </DialogContent>
+              </Dialog>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {processes.map((process) => (
-                <Card
-                  key={process.id}
-                  className={cn(
-                    "overflow-hidden",
-                    process.status === "active" && "ring-1 ring-primary/30"
-                  )}
-                  data-testid={`process-card-${process.id}`}
-                >
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={cn(
-                            "w-12 h-12 rounded-xl flex items-center justify-center",
-                            process.status === "active"
-                              ? "bg-primary/15 text-primary"
-                              : "bg-muted text-muted-foreground"
-                          )}
-                        >
-                          <Factory className="w-6 h-6" />
-                        </div>
-                        <div>
-                          <CardTitle className="text-base">{process.name}</CardTitle>
-                          <div className="flex items-center gap-2 mt-1">
-                            <Clock className="w-3 h-3 text-muted-foreground" />
-                            <span className="text-xs text-muted-foreground">
-                              {process.duration}
-                            </span>
+              {isLoading ? (
+                <div className="col-span-2 text-center py-12 text-muted-foreground">
+                  Cargando procesos...
+                </div>
+              ) : processes?.length === 0 ? (
+                <div className="col-span-2 text-center py-12">
+                  <p className="text-muted-foreground">No hay procesos definidos.</p>
+                </div>
+              ) : (
+                processes?.map((process: any) => (
+                  <Card
+                    key={process.id}
+                    className={cn(
+                      "overflow-hidden transition-all hover:border-primary/50",
+                      process.status === "active" && "ring-1 ring-primary/30"
+                    )}
+                    data-testid={`process-card-${process.id}`}
+                  >
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={cn(
+                              "w-12 h-12 rounded-xl flex items-center justify-center",
+                              "bg-primary/10 text-primary"
+                            )}
+                          >
+                            <Factory className="w-6 h-6" />
+                          </div>
+                          <div>
+                            <CardTitle className="text-base">{process.name}</CardTitle>
+                            <div className="flex items-center gap-2 mt-1">
+                              <Clock className="w-3 h-3 text-muted-foreground" />
+                              <span className="text-xs text-muted-foreground">
+                                {process.duration || "N/A"}
+                              </span>
+                            </div>
                           </div>
                         </div>
+                        <Badge variant={process.status === 'active' ? 'default' : 'secondary'} className="capitalize">
+                          {process.status || 'Definición'}
+                        </Badge>
                       </div>
-                      <StatusBadge status={process.status} />
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex items-center gap-4">
-                      <div className="flex-1">
-                        <p className="text-xs text-muted-foreground mb-2">Insumos</p>
-                        <div className="flex flex-wrap gap-1">
-                          {process.inputs.map((input) => (
-                            <Badge key={input} variant="secondary" className="text-xs">
-                              <Package className="w-3 h-3 mr-1" />
-                              {input}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                      <ArrowRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />
-                      <div className="flex-1">
-                        <p className="text-xs text-muted-foreground mb-2">Productos</p>
-                        <div className="flex flex-wrap gap-1">
-                          {process.outputs.map((output) => (
-                            <Badge key={output} className="text-xs bg-success/15 text-success border-success/30">
-                              <CheckCircle2 className="w-3 h-3 mr-1" />
-                              {output}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {/* Removed hardcoded Inputs/Outputs until we have that data model connected */}
+                      <p className="text-sm text-muted-foreground">{process.description || "Sin descripción"}</p>
 
-                    <div className="flex gap-2">
-                      {process.status === "active" ? (
-                        <Button variant="outline" size="sm" className="flex-1">
-                          <Pause className="w-4 h-4 mr-1" />
-                          Pausar
+                      <div className="flex gap-2">
+                        <Button size="sm" className="flex-1" variant="outline">
+                          Ver Detalles
                         </Button>
-                      ) : (
-                        <Button size="sm" className="flex-1">
-                          <Play className="w-4 h-4 mr-1" />
-                          Iniciar
+                        <Button size="icon" variant="ghost">
+                          <Play className="w-4 h-4" />
                         </Button>
-                      )}
-                      <Button variant="outline" size="sm">
-                        <RefreshCw className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )))}
             </div>
           </TabsContent>
 
           <TabsContent value="flow" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="font-display">Flujo de Producción en Tiempo Real</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="relative">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex-1 p-6 rounded-xl bg-muted/50 text-center">
-                      <div className="w-16 h-16 rounded-full bg-primary/15 flex items-center justify-center mx-auto mb-3">
-                        <Package className="w-8 h-8 text-primary" />
-                      </div>
-                      <p className="font-semibold">Materia Prima</p>
-                      <p className="text-sm text-muted-foreground">6 productos</p>
-                      <div className="mt-3">
-                        <Progress value={75} className="h-2" />
-                        <p className="text-xs text-muted-foreground mt-1">75% disponible</p>
-                      </div>
-                    </div>
-
-                    <ArrowRight className="w-8 h-8 text-muted-foreground flex-shrink-0" />
-
-                    <div className="flex-1 p-6 rounded-xl bg-warning/10 border border-warning/20 text-center">
-                      <div className="w-16 h-16 rounded-full bg-warning/20 flex items-center justify-center mx-auto mb-3">
-                        <Factory className="w-8 h-8 text-warning" />
-                      </div>
-                      <p className="font-semibold">En Proceso</p>
-                      <p className="text-sm text-muted-foreground">2 activos</p>
-                      <div className="mt-3">
-                        <Progress value={45} className="h-2 [&>div]:bg-warning" />
-                        <p className="text-xs text-muted-foreground mt-1">45% completado</p>
-                      </div>
-                    </div>
-
-                    <ArrowRight className="w-8 h-8 text-muted-foreground flex-shrink-0" />
-
-                    <div className="flex-1 p-6 rounded-xl bg-success/10 border border-success/20 text-center">
-                      <div className="w-16 h-16 rounded-full bg-success/20 flex items-center justify-center mx-auto mb-3">
-                        <CheckCircle2 className="w-8 h-8 text-success" />
-                      </div>
-                      <p className="font-semibold">Producto Final</p>
-                      <p className="text-sm text-muted-foreground">4 productos</p>
-                      <div className="mt-3">
-                        <Progress value={90} className="h-2 [&>div]:bg-success" />
-                        <p className="text-xs text-muted-foreground mt-1">90% en stock</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="text-center py-12 text-muted-foreground bg-muted/10 rounded-xl border border-dashed">
+              <Workflow className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p>La visualización de flujo en tiempo real requiere datos de sensores activos.</p>
+              <Button variant="outline" className="mt-4">Configurar Sensores</Button>
+            </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg font-display flex items-center gap-2">
                     <Users className="w-5 h-5 text-primary" />
-                    Personal en Producción
+                    Personal Disponible
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {[
-                      { name: "José Hernández", task: "Elaboración de Pan", progress: 60 },
-                      { name: "Ana López", task: "Horneado de Pasteles", progress: 35 },
-                      { name: "Diego Torres", task: "Empaquetado", progress: 80 },
-                    ].map((worker, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center gap-4 p-3 rounded-lg bg-muted/50"
-                      >
-                        <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center font-semibold text-primary">
-                          {worker.name.split(" ").map(n => n[0]).join("")}
+                    {employees?.length > 0 ? (
+                      employees.map((worker: any) => (
+                        <div
+                          key={worker.id}
+                          className="flex items-center gap-4 p-3 rounded-lg bg-muted/50"
+                        >
+                          <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center font-semibold text-primary">
+                            {worker.name.split(" ").map((n: string) => n[0]).join("").substring(0, 2)}
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-medium">{worker.name}</p>
+                            <p className="text-xs text-muted-foreground">{worker.role || "Operario"}</p>
+                          </div>
+                          <div className="text-right">
+                            <Badge variant="outline" className={cn(
+                              "text-[10px]",
+                              worker.status === 'active' ? "border-green-500 text-green-500" : "text-muted-foreground"
+                            )}>
+                              {worker.status === 'active' ? 'Activo' : 'Inactivo'}
+                            </Badge>
+                          </div>
                         </div>
-                        <div className="flex-1">
-                          <p className="font-medium">{worker.name}</p>
-                          <p className="text-xs text-muted-foreground">{worker.task}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-mono font-semibold">{worker.progress}%</p>
-                          <Progress value={worker.progress} className="h-1.5 w-20" />
-                        </div>
-                      </div>
-                    ))}
+                      ))) : (
+                      <p className="text-sm text-muted-foreground text-center py-4">No hay empleados registrados.</p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -262,25 +313,9 @@ export default function Production() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-3">
-                    {[
-                      { type: "warning", message: "Mantequilla por debajo del mínimo para pasteles", time: "Hace 10 min" },
-                      { type: "info", message: "Lote PAP-2026-001 listo para control de calidad", time: "Hace 25 min" },
-                      { type: "success", message: "Proceso de empaquetado completado", time: "Hace 1 hr" },
-                    ].map((alert, index) => (
-                      <div
-                        key={index}
-                        className={cn(
-                          "p-3 rounded-lg border-l-4",
-                          alert.type === "warning" && "bg-warning/10 border-warning",
-                          alert.type === "info" && "bg-primary/10 border-primary",
-                          alert.type === "success" && "bg-success/10 border-success"
-                        )}
-                      >
-                        <p className="text-sm font-medium">{alert.message}</p>
-                        <p className="text-xs text-muted-foreground mt-1">{alert.time}</p>
-                      </div>
-                    ))}
+                  <div className="space-y-3 text-center py-6 text-muted-foreground text-sm">
+                    <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-green-500 opacity-50" />
+                    <p>Sin alertas activas.</p>
                   </div>
                 </CardContent>
               </Card>

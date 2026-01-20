@@ -83,7 +83,7 @@ export const mockDashboardStats = {
 export const mockModules = [
   { id: "attendance", name: "Reloj Checador", icon: "Clock", description: "Control de asistencia con Face ID", enabled: true },
   { id: "employees", name: "Empleados", icon: "Users", description: "Gestión de personal y nómina", enabled: true },
-  { id: "inventory", name: "Patios e Inventario", icon: "Package", description: "Control de coco en patio y producto terminado", enabled: true },
+  { id: "inventory", name: "Inventario Inteligente", icon: "Package", description: "Control predictivo de stock y movimientos", enabled: true },
   { id: "sales", name: "Ventas", icon: "ShoppingCart", description: "Comercialización de pulpa y agua", enabled: true },
   { id: "production", name: "Procesamiento", icon: "Factory", description: "Destope, deshuace y secado", enabled: true },
   { id: "logistics", name: "Logística", icon: "Truck", description: "Rutas de entrega de copra", enabled: true },

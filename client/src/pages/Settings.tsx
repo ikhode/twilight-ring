@@ -22,14 +22,36 @@ import {
   Layout,
   Database,
   Type,
+  Plus,
+  Trash2,
+  X,
 } from "lucide-react";
-import { mockModules } from "@/lib/mockData";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { EthicsPanel } from "@/components/ai/EthicsPanel";
+import { Zap } from "lucide-react";
+
+import { useToast } from "@/hooks/use-toast";
+import { useConfiguration, IndustryType } from "@/context/ConfigurationContext";
+import { ERP_MODULES } from "@/lib/modules";
+import { ModuleMarketplace } from "@/components/modules/ModuleMarketplace";
 
 export default function Settings() {
+  const { toast } = useToast();
+  const { industry, setIndustry, enabledModules, toggleModule, theme, setTheme, themeColor, setThemeColor, universalConfig, updateUniversalConfig } = useConfiguration();
+
   return (
-    <AppLayout title="Configuración ERP" subtitle="Personaliza la estructura y adaptabilidad del sistema">
+    <AppLayout title="Configuración OS" subtitle="Personaliza la estructura y adaptabilidad del sistema">
       <Tabs defaultValue="generic" className="space-y-6">
+        {/* ... (TabsList remains same) */}
         <TabsList className="flex flex-wrap h-auto gap-2">
           <TabsTrigger value="generic" data-testid="tab-generic">
             <Layout className="w-4 h-4 mr-2" />
@@ -47,9 +69,14 @@ export default function Settings() {
             <CreditCard className="w-4 h-4 mr-2" />
             Pago por Uso
           </TabsTrigger>
+          <TabsTrigger value="ethics" data-testid="tab-ethics">
+            <Shield className="w-4 h-4 mr-2" />
+            Ética IA
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="generic" className="space-y-6">
+          {/* ...Generic Content... (Assuming no changes needed here for now) */}
           <Card className="border-primary/20 bg-primary/5">
             <CardHeader>
               <CardTitle className="font-display flex items-center gap-2">
@@ -57,11 +84,78 @@ export default function Settings() {
                 Motor de Configuración Universal
               </CardTitle>
               <CardDescription>
-                Define campos personalizados y tipos de datos que se aplicarán a todo el ERP
+                Define campos personalizados y tipos de datos que se aplicarán a todo el OS
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="p-4 rounded-xl bg-card border shadow-sm space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="font-bold">Categorías de Producto</Label>
+                    <Badge variant="outline">Core</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Define las familias de productos para el inventario.</p>
+                  <div className="flex flex-wrap gap-1">
+                    {(universalConfig?.productCategories?.length > 0 ? universalConfig.productCategories : ["Materia Prima", "Producto Terminado"]).map(cat => (
+                      <Badge key={cat} variant="secondary" className="text-[10px]">{cat}</Badge>
+                    ))}
+                  </div>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="ghost" size="sm" className="w-full text-xs h-7">Configurar Categorías</Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Categorías de Producto</DialogTitle>
+                        <DialogDescription>Define cómo clasificas tus productos o insumos.</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="Nueva categoría (ej. Bebidas)"
+                            id="new-category"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                const val = e.currentTarget.value;
+                                if (val) {
+                                  updateUniversalConfig({
+                                    productCategories: [...(universalConfig.productCategories || []), val]
+                                  });
+                                  e.currentTarget.value = '';
+                                }
+                              }
+                            }}
+                          />
+                          <Button onClick={() => {
+                            const input = document.getElementById('new-category') as HTMLInputElement;
+                            if (input.value) {
+                              updateUniversalConfig({
+                                productCategories: [...(universalConfig.productCategories || []), input.value]
+                              });
+                              input.value = '';
+                            }
+                          }}><Plus className="w-4 h-4" /></Button>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {(universalConfig.productCategories || []).map(cat => (
+                            <div key={cat} className="flex items-center gap-1 bg-muted px-2 py-1 rounded text-sm">
+                              {cat}
+                              <X
+                                className="w-3 h-3 cursor-pointer hover:text-destructive"
+                                onClick={() => {
+                                  updateUniversalConfig({
+                                    productCategories: universalConfig.productCategories.filter(c => c !== cat)
+                                  });
+                                }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+
                 <div className="p-4 rounded-xl bg-card border shadow-sm space-y-3">
                   <div className="flex items-center justify-between">
                     <Label className="font-bold">Tipos de Lugar</Label>
@@ -69,10 +163,64 @@ export default function Settings() {
                   </div>
                   <p className="text-xs text-muted-foreground">Define si son sucursales, bodegas, plantas o puntos de venta.</p>
                   <div className="flex flex-wrap gap-1">
-                    <Badge variant="secondary" className="text-[10px]">Almacén</Badge>
-                    <Badge variant="secondary" className="text-[10px]">Tienda</Badge>
-                    <Badge variant="secondary" className="text-[10px]">Fábrica</Badge>
+                    {(universalConfig?.placeTypes?.length > 0 ? universalConfig.placeTypes : ["Almacén", "Tienda", "Fábrica"]).map(type => (
+                      <Badge key={type} variant="secondary" className="text-[10px]">{type}</Badge>
+                    ))}
                   </div>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="ghost" size="sm" className="w-full text-xs h-7">Configurar Tipos</Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Configurar Tipos de Lugar</DialogTitle>
+                        <DialogDescription>Define las categorías de ubicaciones para tu operación.</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="Nuevo tipo (ej. Sucursal)"
+                            id="new-place-type"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                const val = e.currentTarget.value;
+                                if (val) {
+                                  updateUniversalConfig({
+                                    placeTypes: [...(universalConfig.placeTypes || []), val]
+                                  });
+                                  e.currentTarget.value = '';
+                                }
+                              }
+                            }}
+                          />
+                          <Button onClick={() => {
+                            const input = document.getElementById('new-place-type') as HTMLInputElement;
+                            if (input.value) {
+                              updateUniversalConfig({
+                                placeTypes: [...(universalConfig.placeTypes || []), input.value]
+                              });
+                              input.value = '';
+                            }
+                          }}><Plus className="w-4 h-4" /></Button>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {(universalConfig.placeTypes || []).map(type => (
+                            <div key={type} className="flex items-center gap-1 bg-muted px-2 py-1 rounded text-sm">
+                              {type}
+                              <X
+                                className="w-3 h-3 cursor-pointer hover:text-destructive"
+                                onClick={() => {
+                                  updateUniversalConfig({
+                                    placeTypes: universalConfig.placeTypes.filter(t => t !== type)
+                                  });
+                                }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                 </div>
 
                 <div className="p-4 rounded-xl bg-card border shadow-sm space-y-3">
@@ -82,6 +230,49 @@ export default function Settings() {
                   </div>
                   <p className="text-xs text-muted-foreground">Campos extra según la industria (peso, color, caducidad, serie).</p>
                   <Button variant="ghost" size="sm" className="w-full text-xs h-7">Gestionar Campos</Button>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="ghost" size="sm" className="w-full text-xs h-7">Gestionar Campos</Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Atributos de Producto</DialogTitle>
+                        <DialogDescription>Define campos personalizados para tus productos.</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="flex gap-2 items-center">
+                          <Input id="new-attr-name" placeholder="Nombre (ej. Color)" className="flex-1" />
+                          <select id="new-attr-type" className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                            <option value="text">Texto</option>
+                            <option value="number">Número</option>
+                            <option value="date">Fecha</option>
+                          </select>
+                          <Button onClick={() => {
+                            const nameInput = document.getElementById('new-attr-name') as HTMLInputElement;
+                            const typeInput = document.getElementById('new-attr-type') as HTMLSelectElement;
+                            if (nameInput.value) {
+                              updateUniversalConfig({
+                                productAttributes: [...(universalConfig.productAttributes || []), { name: nameInput.value, type: typeInput.value }]
+                              });
+                              nameInput.value = '';
+                            }
+                          }}><Plus className="w-4 h-4" /></Button>
+                        </div>
+                        <div className="space-y-2">
+                          {(universalConfig.productAttributes || []).map((attr, idx) => (
+                            <div key={idx} className="flex items-center justify-between bg-muted px-3 py-2 rounded text-sm">
+                              <span>{attr.name} <span className="text-xs text-muted-foreground">({attr.type})</span></span>
+                              <Trash2 className="w-4 h-4 cursor-pointer hover:text-destructive" onClick={() => {
+                                updateUniversalConfig({
+                                  productAttributes: universalConfig.productAttributes.filter((_, i) => i !== idx)
+                                });
+                              }} />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                 </div>
 
                 <div className="p-4 rounded-xl bg-card border shadow-sm space-y-3">
@@ -91,6 +282,49 @@ export default function Settings() {
                   </div>
                   <p className="text-xs text-muted-foreground">Configura qué productos se consumen y cuáles se producen.</p>
                   <Button variant="ghost" size="sm" className="w-full text-xs h-7">Diseñar Workflows</Button>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="ghost" size="sm" className="w-full text-xs h-7">Diseñar Workflows</Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Flujos de Proceso</DialogTitle>
+                        <DialogDescription>Define los flujos de transformación de tu operación.</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="flex gap-2 items-center">
+                          <Input id="new-flow-name" placeholder="Proceso (ej. Empaquetado)" className="flex-1" />
+                          <select id="new-flow-type" className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                            <option value="production">Producción</option>
+                            <option value="logistics">Logística</option>
+                            <option value="qa">Calidad</option>
+                          </select>
+                          <Button onClick={() => {
+                            const nameInput = document.getElementById('new-flow-name') as HTMLInputElement;
+                            const typeInput = document.getElementById('new-flow-type') as HTMLSelectElement;
+                            if (nameInput.value) {
+                              updateUniversalConfig({
+                                processFlows: [...(universalConfig.processFlows || []), { name: nameInput.value, type: typeInput.value }]
+                              });
+                              nameInput.value = '';
+                            }
+                          }}><Plus className="w-4 h-4" /></Button>
+                        </div>
+                        <div className="space-y-2">
+                          {(universalConfig.processFlows || []).map((flow, idx) => (
+                            <div key={idx} className="flex items-center justify-between bg-muted px-3 py-2 rounded text-sm">
+                              <span>{flow.name} <span className="text-xs text-muted-foreground">({flow.type})</span></span>
+                              <Trash2 className="w-4 h-4 cursor-pointer hover:text-destructive" onClick={() => {
+                                updateUniversalConfig({
+                                  processFlows: universalConfig.processFlows.filter((_, i) => i !== idx)
+                                });
+                              }} />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                 </div>
               </div>
             </CardContent>
@@ -106,22 +340,25 @@ export default function Settings() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {[
-                  { name: "Manufactura / Producción", icon: "Factory", active: true },
-                  { name: "Retail / Abarrotes", icon: "ShoppingCart", active: false },
-                  { name: "Logística y Distribución", icon: "Truck", active: false },
-                  { name: "Servicios Profesionales", icon: "Briefcase", active: false },
-                ].map((ind, i) => (
-                  <div key={i} className={cn(
-                    "flex items-center justify-between p-3 rounded-lg border transition-all cursor-pointer",
-                    ind.active ? "border-primary bg-primary/5" : "hover:bg-muted"
-                  )}>
+                  { id: "manufacturing", name: "Manufactura / Producción", icon: "Factory" },
+                  { id: "retail", name: "Retail / Abarrotes", icon: "ShoppingCart" },
+                  { id: "logistics", name: "Logística y Distribución", icon: "Truck" },
+                  { id: "services", name: "Servicios Profesionales", icon: "Briefcase" },
+                ].map((ind) => (
+                  <div
+                    key={ind.id}
+                    onClick={() => setIndustry(ind.id as IndustryType)}
+                    className={cn(
+                      "flex items-center justify-between p-3 rounded-lg border transition-all cursor-pointer",
+                      industry === ind.id ? "border-primary bg-primary/5 shadow-[0_0_10px_rgba(59,130,246,0.2)]" : "hover:bg-muted"
+                    )}>
                     <div className="flex items-center gap-3">
-                      <div className={cn("w-8 h-8 rounded flex items-center justify-center", ind.active ? "bg-primary text-white" : "bg-muted")}>
+                      <div className={cn("w-8 h-8 rounded flex items-center justify-center", industry === ind.id ? "bg-primary text-white" : "bg-muted")}>
                         <Building2 className="w-4 h-4" />
                       </div>
                       <span className="font-medium text-sm">{ind.name}</span>
                     </div>
-                    {ind.active && <Check className="w-4 h-4 text-primary" />}
+                    {industry === ind.id && <Check className="w-4 h-4 text-primary" />}
                   </div>
                 ))}
               </CardContent>
@@ -137,18 +374,34 @@ export default function Settings() {
                   <Label>Color Primario</Label>
                   <div className="flex gap-2">
                     {['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'].map(c => (
-                      <div key={c} className="w-8 h-8 rounded-full cursor-pointer border-2 border-transparent hover:border-white shadow-sm" style={{ backgroundColor: c }} />
+                      <div
+                        key={c}
+                        onClick={() => setThemeColor(c)}
+                        className={cn(
+                          "w-8 h-8 rounded-full cursor-pointer border-2 shadow-sm transition-all",
+                          themeColor === c ? "border-white ring-2 ring-primary scale-110" : "border-transparent hover:scale-105"
+                        )}
+                        style={{ backgroundColor: c }}
+                      />
                     ))}
                   </div>
                 </div>
                 <div className="space-y-2">
                   <Label>Estilo de Interfaz</Label>
                   <div className="grid grid-cols-2 gap-2">
-                    <Button variant="outline" className="h-20 flex-col gap-1 border-primary bg-primary/5">
+                    <Button
+                      variant="outline"
+                      onClick={() => setTheme('glass')}
+                      className={cn("h-20 flex-col gap-1", theme === 'glass' ? "border-primary bg-primary/5" : "")}
+                    >
                       <Layout className="w-4 h-4" />
                       <span className="text-xs">Moderna (Glass)</span>
                     </Button>
-                    <Button variant="outline" className="h-20 flex-col gap-1">
+                    <Button
+                      variant="outline"
+                      onClick={() => setTheme('compact')}
+                      className={cn("h-20 flex-col gap-1", theme === 'compact' ? "border-primary bg-primary/5" : "")}
+                    >
                       <Type className="w-4 h-4" />
                       <span className="text-xs">Compacta (Data)</span>
                     </Button>
@@ -160,40 +413,7 @@ export default function Settings() {
         </TabsContent>
 
         <TabsContent value="modules" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-display flex items-center gap-2">
-                <Puzzle className="w-5 h-5 text-primary" />
-                Catálogo de Módulos SaaS
-              </CardTitle>
-              <CardDescription>Módulos gratuitos activables según necesidad</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {mockModules.map((module) => (
-                  <div key={module.id} className={cn(
-                    "p-4 rounded-xl border-2 transition-all",
-                    module.enabled ? "border-primary/30 bg-primary/5" : "border-border bg-muted/30"
-                  )}>
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center", module.enabled ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground")}>
-                          <Check className="w-5 h-5" />
-                        </div>
-                        <h4 className="font-semibold">{module.name}</h4>
-                      </div>
-                      <Switch checked={module.enabled} />
-                    </div>
-                    <p className="text-sm text-muted-foreground">{module.description}</p>
-                    <div className="mt-4 pt-4 border-t border-dashed flex justify-between items-center">
-                      <span className="text-xs font-bold text-success">GRATIS</span>
-                      <Button variant="ghost" size="sm" className="h-7 text-xs">Configurar</Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          <ModuleMarketplace />
         </TabsContent>
 
         <TabsContent value="billing">
@@ -233,6 +453,9 @@ export default function Settings() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+        <TabsContent value="ethics">
+          <EthicsPanel />
         </TabsContent>
       </Tabs>
     </AppLayout>

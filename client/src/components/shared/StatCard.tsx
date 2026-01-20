@@ -3,7 +3,7 @@ import { LucideIcon, TrendingDown, TrendingUp } from "lucide-react";
 
 interface StatCardProps {
   title: string;
-  value: string | number;
+  value: string | number | React.ReactNode;
   icon: LucideIcon;
   trend?: number;
   trendLabel?: string;
@@ -48,7 +48,7 @@ export function StatCard({
       <div className="flex items-start justify-between">
         <div className="space-y-2">
           <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <p className="text-2xl font-display font-bold tracking-tight">{value}</p>
+          <div className="text-2xl font-display font-bold tracking-tight">{value}</div>
           {trend !== undefined && (
             <div className="flex items-center gap-1.5">
               {trend >= 0 ? (

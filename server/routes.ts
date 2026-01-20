@@ -1,16 +1,79 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { registerAuthRoutes } from "./routes/auth";
+import { registerModuleRoutes } from "./routes/modules";
+import { registerAIRoutes } from "./routes/ai";
+import { registerCPERoutes } from "./routes/cpe";
+import { registerPieceworkRoutes } from "./routes/piecework";
+import { seedModules } from "./seed";
+import { seedCPE } from "./seed_cpe";
+import { seedAuth } from "./seed_auth";
+import { seedOperations } from "./seed_operations";
+import { seedDocumentation } from "./scripts/seed-documentation";
+import { onboardingRoutes } from "./routes/onboarding";
+import dashboardRoutes from "./routes/dashboard";
+import operationsRoutes from "./routes/operations";
+import crmRoutes from "./routes/crm";
+import analyticsRoutes from "./routes/analytics";
+import { hrRoutes } from "./routes/hr";
+import { cognitiveRoutes } from "./routes/cognitive";
+import { trustRoutes } from "./routes/trust";
+import { configRoutes } from "./routes/config";
+import { searchRoutes } from "./routes/search";
+import { whatsappRoutes } from "./routes/whatsapp";
+import { kioskRoutes } from "./routes/kiosks";
+import { registerChatRoutes } from "./routes/chat";
+import { registerDocumentationRoutes } from "./routes/documentation";
+import { registerAdminRoutes } from "./routes/admin";
+import { registerNLQueryRoutes } from "./routes/nl-query";
+import { registerModuleMarketplaceRoutes } from "./routes/module-marketplace";
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // put application routes here
-  // prefix all routes with /api
+  // Seed modules on startup if SEED=true
+  if (process.env.SEED === "true") {
+    console.log("🌱 Seeding database...");
+    await seedModules();
+    await seedAuth();
+    await seedCPE();
+    await seedOperations();
+    await seedDocumentation(); // Seed documentation and chat agents
+    console.log("✅ Database seeded.");
+  } else {
+    console.log("ℹ️ Skipping auto-seed. set SEED=true to enable.");
+  }
 
-  // use storage to perform CRUD operations on the storage interface
-  // e.g. storage.insertUser(user) or storage.getUserByUsername(username)
+  // Register all route modules
+  registerAuthRoutes(app);
+  registerModuleRoutes(app);
+  registerAIRoutes(app);
+  registerCPERoutes(app);
+  registerPieceworkRoutes(app); // Fixed: Was missing
+  app.use("/api/onboarding", onboardingRoutes);
+  app.use("/api/dashboard", dashboardRoutes);
+  app.use("/api/operations", operationsRoutes);
+  app.use("/api/crm", crmRoutes);
+  app.use("/api/hr", hrRoutes);
+  app.use("/api/analytics", analyticsRoutes);
+  app.use("/api/cognitive", cognitiveRoutes);
+  app.use("/api/trust", trustRoutes);
+  app.use("/api/config", configRoutes);
+  app.use("/api/search", searchRoutes);
+  app.use("/api/whatsapp", whatsappRoutes);
+  app.use("/api/kiosks", kioskRoutes);
+
+  // AI Documentation & Chat
+  registerChatRoutes(app);
+  registerDocumentationRoutes(app);
+  registerAdminRoutes(app);
+  registerNLQueryRoutes(app);
+
+  // Module Marketplace
+  registerModuleMarketplaceRoutes(app);
+
 
   return httpServer;
 }
