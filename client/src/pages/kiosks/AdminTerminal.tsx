@@ -11,10 +11,12 @@ import {
     LayoutDashboard,
     LogOut,
     ChevronRight,
-    Camera
+    Camera,
+    Loader2
 } from "lucide-react";
 import { KioskSession } from "../KioskInterface";
 import { useLocation } from "wouter";
+import * as faceapi from 'face-api.js';
 
 interface AdminTerminalProps {
     sessionContext: KioskSession;
@@ -25,9 +27,14 @@ export default function AdminTerminal({ sessionContext, onLogout }: AdminTermina
     const { toast } = useToast();
     const [, setLocation] = useLocation();
     const videoRef = useRef<HTMLVideoElement>(null);
+    const canvasRef = useRef<HTMLCanvasElement>(null);
     const [formData, setFormData] = useState({ name: "", email: "", role: "operator" });
     const [isCapturing, setIsCapturing] = useState(false);
     const [stream, setStream] = useState<MediaStream | null>(null);
+
+    const [modelsLoaded, setModelsLoaded] = useState(false);
+    const [faceDescriptor, setFaceDescriptor] = useState<Float32Array | null>(null);
+    const [detectionStatus, setDetectionStatus] = useState<"none" | "detecting" | "valid">("none");
 
     // Quick Links
     const links = [
@@ -36,15 +43,53 @@ export default function AdminTerminal({ sessionContext, onLogout }: AdminTermina
         { title: "Inventario", icon: LayoutDashboard, href: "/logistics" },
     ];
 
-    /* 
-     * FACE ID LOGIC (Placeholder Mock)
-     * In a real implementation:
-     * 1. Load face-api.js models
-     * 2. Detect face in video stream
-     * 3. extracting 128-float descriptor
-     * 4. sending descriptor to /api/kiosks/enroll
-     */
+    // 1. Load Models on Mount
+    useEffect(() => {
+        const loadModels = async () => {
+            const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
+            try {
+                await Promise.all([
+                    faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
+                    faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+                    faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+                ]);
+                setModelsLoaded(true);
+            } catch (err) {
+                console.error("Failed to load face models", err);
+                toast({ title: "Error", description: "No se pudieron cargar los modelos de IA.", variant: "destructive" });
+            }
+        };
+        loadModels();
+    }, []);
+
+    // 2. Detection Loop
+    useEffect(() => {
+        if (!isCapturing || !videoRef.current || !modelsLoaded) return;
+
+        const interval = setInterval(async () => {
+            if (videoRef.current && !videoRef.current.paused && !videoRef.current.ended) {
+                const detection = await faceapi.detectSingleFace(videoRef.current)
+                    .withFaceLandmarks()
+                    .withFaceDescriptor();
+
+                if (detection) {
+                    setDetectionStatus("valid");
+                    setFaceDescriptor(detection.descriptor);
+                } else {
+                    setDetectionStatus("detecting");
+                    setFaceDescriptor(null);
+                }
+            }
+        }, 500);
+
+        return () => clearInterval(interval);
+    }, [isCapturing, modelsLoaded]);
+
     const startCamera = async () => {
+        if (!modelsLoaded) {
+            toast({ title: "Cargando Modelos", description: "Espere un momento..." });
+            return;
+        }
         try {
             const s = await navigator.mediaDevices.getUserMedia({ video: true });
             setStream(s);
@@ -59,19 +104,42 @@ export default function AdminTerminal({ sessionContext, onLogout }: AdminTermina
         stream?.getTracks().forEach(t => t.stop());
         setStream(null);
         setIsCapturing(false);
+        setFaceDescriptor(null);
+        setDetectionStatus("none");
     };
 
     const enrollMutation = useMutation({
         mutationFn: async () => {
-            // Simulate API call to enroll
-            await new Promise(r => setTimeout(r, 1500));
-            // Would post to /api/kiosks/enroll with formData + descriptor
-            return { success: true };
+            if (!faceDescriptor) throw new Error("No face detected");
+
+            // Convert Float32Array to standard array for JSON serialization
+            const descriptorArray = Array.from(faceDescriptor);
+
+            const res = await fetch("/api/hr/employees", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    name: formData.name,
+                    email: formData.email,
+                    role: formData.role,
+                    // Sending the descriptor as 'faceEmbedding' - backend must handle vector casting
+                    faceEmbedding: descriptorArray
+                })
+            });
+
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.message || "Failed to register");
+            }
+            return res.json();
         },
         onSuccess: () => {
-            toast({ title: "Empleado Registrado", description: "Biometría facial vinculada correctamente." });
+            toast({ title: "Empleado Registrado", description: "Biometría facial vinculada correctamente.", className: "bg-green-500 text-white" });
             setFormData({ name: "", email: "", role: "operator" });
             stopCamera();
+        },
+        onError: (err) => {
+            toast({ title: "Error", description: err.message, variant: "destructive" });
         }
     });
 
@@ -121,7 +189,9 @@ export default function AdminTerminal({ sessionContext, onLogout }: AdminTermina
                             <UserPlus className="w-5 h-5 text-primary" />
                             Alta de Empleado con Face ID
                         </CardTitle>
-                        <CardDescription>Registre nuevos operadores directamente en planta</CardDescription>
+                        <CardDescription>
+                            {modelsLoaded ? "Sistema Biométrico Listo" : "Cargando Modelos de IA..."}
+                        </CardDescription>
                     </CardHeader>
                     <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div className="space-y-4">
@@ -160,24 +230,61 @@ export default function AdminTerminal({ sessionContext, onLogout }: AdminTermina
                             <Label>Biometría Facial</Label>
                             <div className="relative aspect-video bg-black rounded-lg overflow-hidden border border-slate-700 flex items-center justify-center">
                                 {!isCapturing ? (
-                                    <ScanFace className="w-16 h-16 text-slate-600" />
+                                    <div className="text-center">
+                                        <ScanFace className="w-16 h-16 text-slate-600 mx-auto mb-2" />
+                                        <p className="text-sm text-slate-500">Cámara Inactiva</p>
+                                    </div>
                                 ) : (
-                                    <video ref={videoRef} autoPlay muted className="w-full h-full object-cover" />
-                                )}
+                                    <>
+                                        <video ref={videoRef} autoPlay muted className="w-full h-full object-cover scale-x-[-1]" />
 
-                                {isCapturing && (
-                                    <div className="absolute inset-0 border-2 border-primary/50 animate-pulse rounded-lg pointer-events-none" />
+                                        {/* Overlay for Face Status */}
+                                        <div className={`absolute inset-0 border-4 transition-colors duration-500 rounded-lg pointer-events-none 
+                                            ${detectionStatus === 'valid' ? 'border-green-500/50' : 'border-yellow-500/20'}`} />
+
+                                        {detectionStatus === 'detecting' && (
+                                            <div className="absolute top-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded animate-pulse">
+                                                Buscando rostro...
+                                            </div>
+                                        )}
+                                        {detectionStatus === 'valid' && (
+                                            <div className="absolute top-2 right-2 bg-green-500/80 text-white text-xs px-2 py-1 rounded font-bold">
+                                                Rostro Detectado
+                                            </div>
+                                        )}
+                                    </>
                                 )}
                             </div>
 
                             {!isCapturing ? (
-                                <Button className="w-full" variant="secondary" onClick={startCamera}>
-                                    <Camera className="w-4 h-4 mr-2" />
-                                    Activar Cámara
+                                <Button className="w-full" variant="secondary" onClick={startCamera} disabled={!modelsLoaded}>
+                                    {modelsLoaded ? (
+                                        <>
+                                            <Camera className="w-4 h-4 mr-2" />
+                                            Activar Cámara
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                            Cargando Modelos...
+                                        </>
+                                    )}
                                 </Button>
                             ) : (
-                                <Button className="w-full" onClick={() => enrollMutation.mutate()} disabled={enrollMutation.isPending}>
-                                    {enrollMutation.isPending ? "Analizando y Guardando..." : "Capturar y Registrar"}
+                                <Button
+                                    className="w-full"
+                                    onClick={() => enrollMutation.mutate()}
+                                    disabled={enrollMutation.isPending || detectionStatus !== 'valid'}
+                                    variant={detectionStatus === 'valid' ? "default" : "secondary"}
+                                >
+                                    {enrollMutation.isPending ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                            Guardando Biometría...
+                                        </>
+                                    ) : (
+                                        "Capturar y Registrar"
+                                    )}
                                 </Button>
                             )}
                         </div>
