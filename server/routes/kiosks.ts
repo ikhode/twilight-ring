@@ -251,6 +251,22 @@ router.post("/bind", async (req, res): Promise<void> => {
             return res.status(401).json({ message: "Invalid or expired provisioning token" });
         }
 
+        // Check for existing bindings for this deviceId to prevent unique constraint violation
+        const [existing] = await db.select().from(terminals).where(eq(terminals.deviceId, deviceId)).limit(1);
+
+        // If device is already bound to ANOTHER terminal, unbind it first (Force Re-bind)
+        if (existing && existing.id !== terminal.id) {
+            console.log(`[Re-bind] Device ${deviceId} was bound to terminal ${existing.id}. Unbinding it to allow new bind to ${terminal.id}.`);
+            await db.update(terminals)
+                .set({
+                    deviceId: null,
+                    linkedDeviceId: null,
+                    status: 'offline',
+                    deviceSalt: null
+                })
+                .where(eq(terminals.id, existing.id));
+        }
+
         // Bind device and burn token
         const [updated] = await db.update(terminals)
             .set({

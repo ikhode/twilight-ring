@@ -34,6 +34,10 @@ import { useQuery } from "@tanstack/react-query";
 import { Terminal, Employee } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { usePresence } from "@/hooks/usePresence";
+import ProductionTerminal from "./kiosks/ProductionTerminal";
+import CashierTerminal from "./kiosks/CashierTerminal";
+import AdminTerminal from "./kiosks/AdminTerminal";
+import { format } from "date-fns";
 
 // Define Kiosk Capabilities
 const KIOSK_CAPABILITIES = [
@@ -230,6 +234,42 @@ export default function KioskInterface(): JSX.Element {
     return <div className="min-h-screen bg-black flex items-center justify-center text-white">
       <Loader2 className="w-10 h-10 animate-spin text-primary" />
     </div>;
+  }
+
+  // RENDER: Functional Terminals Override
+  // If authenticated and has specific capabilities, show specialized UI
+
+  // 1. Production Terminal
+  if (session?.access_token && kioskInfo?.capabilities?.includes("production")) {
+    return (
+      <ProductionTerminal
+        sessionContext={{
+          terminal: kioskInfo,
+          driver: undefined // Mapping employee to generic user context if needed
+        }}
+        onLogout={() => window.location.reload()}
+      />
+    );
+  }
+
+  // 2. Cashier Terminal
+  if (session?.access_token && kioskInfo?.capabilities?.includes("cashier")) {
+    return (
+      <CashierTerminal
+        sessionContext={{ terminal: kioskInfo, driver: undefined }}
+        onLogout={() => window.location.reload()}
+      />
+    );
+  }
+
+  // 3. Admin Terminal
+  if (session?.access_token && kioskInfo?.capabilities?.includes("admin")) {
+    return (
+      <AdminTerminal
+        sessionContext={{ terminal: kioskInfo, driver: undefined }}
+        onLogout={() => window.location.reload()}
+      />
+    );
   }
 
   // FIX: If we have a deviceId but kioskInfo is null, it might be loading or failed.

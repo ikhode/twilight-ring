@@ -68,7 +68,15 @@ export default function TerminalLink() {
 
             } catch (err: any) {
                 console.error("Binding error:", err);
-                setError(err.message);
+                const msg = err.message || "Error desconocido";
+                // Friendly mapping
+                if (msg.includes("Invalid or expired")) {
+                    setError("El enlace ha caducado o no es válido. Genere uno nuevo.");
+                } else if (msg.includes("Network")) {
+                    setError("Error de conexión. Verifique su internet.");
+                } else {
+                    setError(`Error del sistema: ${msg}`);
+                }
                 setStatus("error");
             }
         }
