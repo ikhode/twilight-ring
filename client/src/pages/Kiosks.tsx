@@ -34,6 +34,7 @@ import {
   Lock,
   Smartphone,
   Info,
+  ShieldCheck,
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
@@ -45,6 +46,8 @@ import { apiRequest } from "@/lib/queryClient";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
+import { QRCodeCanvas } from "qrcode.react";
+import { Terminal } from "@shared/schema";
 
 // Kiosk type definitions (system constants)
 const kioskTypes = [
@@ -75,6 +78,8 @@ export default function Kiosks() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedKiosk, setSelectedKiosk] = useState<Terminal | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isProvisioningOpen, setIsProvisioningOpen] = useState(false);
+  const [provisioningToken, setProvisioningToken] = useState<string | null>(null);
 
   const [newKiosk, setNewKiosk] = useState({
     name: "",
@@ -151,6 +156,34 @@ export default function Kiosks() {
       ...newKiosk,
       status: "offline",
     });
+  };
+
+  const generateProvisioningTokenMutation = useMutation({
+    mutationFn: async (kioskId: string) => {
+      const res = await fetch(`/api/kiosks/${kioskId}/provisioning`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session?.access_token}` }
+      });
+      if (!res.ok) throw new Error("Failed to generate token");
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setProvisioningToken(data.token);
+      setIsProvisioningOpen(true);
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "No se pudo generar el código de vinculación.",
+        variant: "destructive",
+      });
+    }
+  });
+
+  const handleLinkDevice = (kiosk: Terminal, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedKiosk(kiosk);
+    generateProvisioningTokenMutation.mutate(kiosk.id);
   };
 
   const handleOpenKiosk = (kiosk: Terminal) => {
@@ -351,10 +384,11 @@ export default function Kiosks() {
                         variant="outline"
                         size="sm"
                         className="bg-background/50 backdrop-blur-sm border-primary/20 hover:border-primary/50 text-xs font-bold"
-                        onClick={() => generateMagicLink(kiosk.id)}
+                        onClick={(e) => handleLinkDevice(kiosk, e)}
+                        disabled={generateProvisioningTokenMutation.isPending && selectedKiosk?.id === kiosk.id}
                       >
-                        <Link2 className="w-3.5 h-3.5 mr-1.5 text-primary" />
-                        Magic Link
+                        <Smartphone className="w-3.5 h-3.5 mr-1.5 text-primary" />
+                        {kiosk.deviceSalt ? "Re-vincular" : "Vincular"}
                       </Button>
                       <Button
                         size="sm"
@@ -398,45 +432,53 @@ export default function Kiosks() {
           </div>
         )}
 
-        {/* Kiosk Settings Dialog */}
-        <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-          <DialogContent className="max-w-md">
+        {/* Provisioning QR Dialog */}
+        <Dialog open={isProvisioningOpen} onOpenChange={setIsProvisioningOpen}>
+          <DialogContent className="max-w-sm border-primary/20 bg-slate-900 shadow-2xl">
             <DialogHeader>
-              <DialogTitle className="font-display flex items-center gap-2">
-                <Settings className="w-5 h-5" />
-                Configurar {selectedKiosk?.name}
+              <DialogTitle className="font-display text-2xl flex items-center gap-2 text-white">
+                <Smartphone className="w-6 h-6 text-primary" />
+                Vincular Dispositivo
               </DialogTitle>
-              <DialogDescription>
-                Ajustes rápidos de la terminal
+              <DialogDescription className="text-slate-400">
+                Escanea este código con el dispositivo que deseas convertir en terminal.
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-3">
-                <Button variant="outline" className="w-full justify-start gap-3 h-12">
-                  <Lock className="w-4 h-4 text-warning" />
-                  Reiniciar Credenciales Face ID
-                </Button>
-                <Button variant="outline" className="w-full justify-start gap-3 h-12">
-                  <Eye className="w-4 h-4 text-primary" />
-                  Ver Registros Locales
-                </Button>
-                <Button variant="outline" className="w-full justify-start gap-3 h-12">
-                  <Smartphone className="w-4 h-4 text-accent" />
-                  Sincronizar Dispositivo
-                </Button>
-                <Separator className="my-2" />
-                <Button variant="ghost" className="w-full justify-start gap-3 h-12 text-destructive hover:bg-destructive/10 hover:text-destructive">
-                  <Trash2 className="w-4 h-4" />
-                  Eliminar Terminal
-                </Button>
+            <div className="flex flex-col items-center justify-center py-8 space-y-6">
+              <div className="p-6 bg-white rounded-3xl shadow-inner border-8 border-slate-800">
+                {provisioningToken && (
+                  <QRCodeCanvas
+                    value={`${window.location.origin}/kiosk-link?token=${provisioningToken}`}
+                    size={200}
+                    level="H"
+                    includeMargin
+                  />
+                )}
+              </div>
+              <div className="text-center space-y-2">
+                <p className="text-xs font-mono text-primary animate-pulse">
+                  TOKEN DE UN SOLO USO
+                </p>
+                <p className="text-[10px] text-slate-500 uppercase tracking-widest">
+                  Expira en 5 minutos
+                </p>
+              </div>
+
+              <div className="bg-primary/5 border border-primary/10 rounded-xl p-4 w-full flex items-start gap-3">
+                <ShieldCheck className="w-5 h-5 text-primary shrink-0" />
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Este proceso vincula permanentemente este hardware a la terminal <strong>{selectedKiosk?.name}</strong>.
+                </p>
               </div>
             </div>
             <DialogFooter>
-              <Button onClick={() => setIsSettingsOpen(false)}>Listo</Button>
+              <Button onClick={() => setIsProvisioningOpen(false)} className="w-full bg-slate-800 hover:bg-slate-700 text-white">
+                Cerrar
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
-    </AppLayout>
+    </AppLayout >
   );
 }

@@ -112,6 +112,19 @@ router.post("/register", async (req, res) => {
 router.patch("/:id/heartbeat", async (req, res) => {
     try {
         const kioskId = req.params.id;
+        const deviceAuth = req.headers["x-device-auth"] as string; // format: "deviceId:salt"
+
+        const [terminal] = await db.select().from(terminals).where(eq(terminals.id, kioskId)).limit(1);
+        if (!terminal) return res.status(404).json({ message: "Terminal not found" });
+
+        // If terminal is bound to a salt, verify it
+        if (terminal.deviceSalt) {
+            const expectedAuth = `${terminal.deviceId}:${terminal.deviceSalt}`;
+            if (deviceAuth !== expectedAuth) {
+                return res.status(403).json({ message: "Security breach: Unauthorized device fingerprint" });
+            }
+        }
+
         await db.update(terminals)
             .set({
                 status: "online",
@@ -123,6 +136,76 @@ router.patch("/:id/heartbeat", async (req, res) => {
     } catch (error) {
         console.error("Error updating heartbeat:", error);
         res.status(500).json({ message: "Internal Server Error" });
+    }
+});
+
+// POST /api/kiosks/:id/provisioning - Generate one-time provisioning token
+router.post("/:id/provisioning", async (req, res) => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const kioskId = req.params.id;
+        const token = randomBytes(16).toString("hex");
+        const expiresAt = new Date();
+        expiresAt.setMinutes(expiresAt.getMinutes() + 5); // 5 minute TTL
+
+        const [updated] = await db.update(terminals)
+            .set({
+                provisioningToken: token,
+                provisioningExpiresAt: expiresAt
+            })
+            .where(and(eq(terminals.id, kioskId), eq(terminals.organizationId, orgId)))
+            .returning();
+
+        if (!updated) return res.status(404).json({ message: "Terminal not found" });
+
+        res.json({ token, expiresAt });
+    } catch (error) {
+        console.error("Provisioning error:", error);
+        res.status(500).json({ message: "Failed to generate provisioning token" });
+    }
+});
+
+// POST /api/kiosks/bind - Bind device to terminal using token
+router.post("/bind", async (req, res) => {
+    try {
+        const { token, deviceId, salt } = req.body;
+        if (!token || !deviceId || !salt) {
+            return res.status(400).json({ message: "Missing required fields (token, deviceId, salt)" });
+        }
+
+        // Find terminal with this token
+        const [terminal] = await db.select()
+            .from(terminals)
+            .where(and(
+                eq(terminals.provisioningToken, token),
+                gt(terminals.provisioningExpiresAt, new Date())
+            ))
+            .limit(1);
+
+        if (!terminal) {
+            return res.status(401).json({ message: "Invalid or expired provisioning token" });
+        }
+
+        // Bind device and burn token
+        const [updated] = await db.update(terminals)
+            .set({
+                deviceId,
+                deviceSalt: salt,
+                linkedDeviceId: deviceId, // Legacy field for back-compat
+                provisioningToken: null,
+                provisioningExpiresAt: null,
+                status: "online",
+                lastActiveAt: new Date()
+            })
+            .where(eq(terminals.id, terminal.id))
+            .returning();
+
+        res.json({ success: true, terminalId: updated.id, name: updated.name });
+    } catch (error) {
+        console.error("Binding error:", error);
+        res.status(500).json({ message: "Failed to bind device" });
     }
 });
 

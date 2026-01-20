@@ -593,6 +593,9 @@ export const terminals = pgTable("terminals", {
   driverId: varchar("driver_id").references(() => employees.id),
   vehicleId: varchar("vehicle_id").references(() => vehicles.id),
   linkedDeviceId: text("linked_device_id"), // The PWA's local generated key
+  deviceSalt: text("device_salt"), // High-entropy salt for hardware binding
+  provisioningToken: text("provisioning_token"), // One-time use token for linking
+  provisioningExpiresAt: timestamp("provisioning_expires_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

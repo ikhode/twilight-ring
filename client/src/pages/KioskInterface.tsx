@@ -47,6 +47,7 @@ export default function KioskInterface() {
     action?: string;
   } | null>(null);
   const [deviceId, setDeviceId] = useState<string | null>(localStorage.getItem("kiosk_device_id"));
+  const [deviceSalt, setDeviceSalt] = useState<string | null>(localStorage.getItem("kiosk_device_salt"));
   const [registrationData, setRegistrationData] = useState({ name: "", organizationId: "" });
 
   // Fetch real Kiosk Data
@@ -68,6 +69,29 @@ export default function KioskInterface() {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Secure Heartbeat
+  useEffect(() => {
+    if (!kioskInfo?.id) return;
+
+    const sendHeartbeat = async () => {
+      try {
+        await fetch(`/api/kiosks/${kioskInfo.id}/heartbeat`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Device-Auth": `${deviceId}:${deviceSalt}`
+          }
+        });
+      } catch (err) {
+        console.error("Heartbeat failed:", err);
+      }
+    };
+
+    sendHeartbeat(); // Immediate
+    const interval = setInterval(sendHeartbeat, 60000); // Every minute
+    return () => clearInterval(interval);
+  }, [kioskInfo?.id, deviceId, deviceSalt]);
 
   // Fetch Real Employees
   const { data: employees = [] } = useQuery<any[]>({
@@ -93,53 +117,30 @@ export default function KioskInterface() {
     return (
       <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white p-6">
         <Card className="max-w-md w-full glass-card bg-white/[0.03] border-white/10 p-8 space-y-6">
-          <div className="text-center space-y-2">
-            <Shield className="w-12 h-12 text-primary mx-auto" />
-            <h1 className="text-2xl font-bold uppercase italic tracking-tighter">Vincular Dispositivo</h1>
-            <p className="text-xs text-muted-foreground uppercase tracking-widest">Registre este dispositivo como un nuevo kiosko</p>
+          <div className="text-center space-y-4">
+            <Shield className="w-12 h-12 text-primary mx-auto animate-pulse" />
+            <h1 className="text-2xl font-bold uppercase italic tracking-tighter">Terminal No Vinculada</h1>
+            <p className="text-xs text-muted-foreground uppercase tracking-widest leading-relaxed">
+              Este dispositivo requiere vinculación segura para operar.
+            </p>
           </div>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Nombre del Kiosko</label>
-              <input
-                className="w-full bg-black border border-white/10 rounded-xl p-4 text-white focus:border-primary outline-none"
-                placeholder="Ej: Recepción Planta A"
-                value={registrationData.name}
-                onChange={(e) => setRegistrationData({ ...registrationData, name: e.target.value })}
-              />
+
+          <div className="bg-primary/5 border border-primary/20 rounded-xl p-6 text-center space-y-4">
+            <p className="text-sm text-slate-400">
+              Solicite un administrador que genere un <strong>Código QR de Vinculación</strong> desde el Panel de Control.
+            </p>
+            <div className="p-4 bg-black/40 rounded-lg font-mono text-[10px] text-primary break-all">
+              ID: {deviceId || "HARDWARE_AUTH_REQ"}
             </div>
-            <div className="space-y-2">
-              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">ID de Organización</label>
-              <input
-                className="w-full bg-black border border-white/10 rounded-xl p-4 text-white focus:border-primary outline-none"
-                placeholder="Introduzca el ID de su empresa"
-                value={registrationData.organizationId}
-                onChange={(e) => setRegistrationData({ ...registrationData, organizationId: e.target.value })}
-              />
-            </div>
-            <Button
-              className="w-full h-14 bg-primary hover:bg-primary/90 font-black uppercase tracking-widest"
-              disabled={!registrationData.organizationId}
-              onClick={async () => {
-                const newDeviceId = crypto.randomUUID();
-                const res = await fetch("/api/kiosks/register", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    ...registrationData,
-                    deviceId: newDeviceId
-                  })
-                });
-                if (res.ok) {
-                  localStorage.setItem("kiosk_device_id", newDeviceId);
-                  setDeviceId(newDeviceId);
-                  refetch();
-                }
-              }}
-            >
-              Vincular Ahora
-            </Button>
           </div>
+
+          <Button
+            variant="outline"
+            className="w-full border-white/10 text-white hover:bg-white/5"
+            onClick={() => setLocation("/kiosks")}
+          >
+            Volver al Panel
+          </Button>
         </Card>
       </div>
     );

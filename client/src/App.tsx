@@ -28,6 +28,7 @@ import TrustNet from "@/pages/TrustNet";
 import Admin from "@/pages/Admin";
 import Query from "@/pages/Query";
 import Demo from "@/pages/Demo";
+import TerminalLink from "@/pages/TerminalLink";
 
 import Kiosk from "@/pages/Kiosk";
 
@@ -61,6 +62,7 @@ function Router() {
       <Route path="/admin" component={Admin} />
       <Route path="/query" component={Query} />
       <Route path="/demo" component={Demo} />
+      <Route path="/kiosk-link" component={TerminalLink} />
       <Route component={NotFound} />
     </Switch>
   );
