@@ -33,17 +33,20 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // Seed modules on startup if SEED=true
+  // Always seed system metadata on startup (idempotent)
+  console.log("⚙️ Syncing system metadata (Modules & Documentation)...");
+  await seedModules();
+  await seedDocumentation();
+
+  // Seed optional demo data if SEED=true
   if (process.env.SEED === "true") {
-    console.log("🌱 Seeding database...");
-    await seedModules();
+    console.log("🌱 Seeding demo data...");
     await seedAuth();
     await seedCPE();
     await seedOperations();
-    await seedDocumentation(); // Seed documentation and chat agents
-    console.log("✅ Database seeded.");
+    console.log("✅ Demo data seeded.");
   } else {
-    console.log("ℹ️ Skipping auto-seed. set SEED=true to enable.");
+    console.log("ℹ️ Skipping demo data seed. set SEED=true to enable.");
   }
 
   // Register all route modules
