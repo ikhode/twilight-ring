@@ -11,7 +11,13 @@ import {
     User,
     Building2,
     ArrowRight,
-    Sparkles
+    Sparkles,
+    Package,
+    Factory,
+    Users,
+    ShieldAlert,
+    Globe,
+    Zap
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
@@ -31,16 +37,13 @@ export default function Auth() {
     });
 
     const industries = [
-        { id: "retail", name: "Retail", emoji: "🛍️" },
-        { id: "manufacturing", name: "Manufactura", emoji: "🏭" },
-        { id: "services", name: "Servicios", emoji: "💼" },
-        { id: "healthcare", name: "Salud", emoji: "🏥" },
-        { id: "logistics", name: "Logística", emoji: "🚚" },
-        { id: "hospitality", name: "Hospitalidad", emoji: "🏨" },
-        { id: "construction", name: "Construcción", emoji: "🏗️" },
-        { id: "technology", name: "Tecnología", emoji: "💻" },
-        { id: "education", name: "Educación", emoji: "🎓" },
-        { id: "other", name: "Otro", emoji: "🌐" },
+        { id: "retail", name: "Retail", icon: Package, color: "from-blue-500 to-cyan-500" },
+        { id: "manufacturing", name: "Manufactura", icon: Factory, color: "from-purple-500 to-pink-500" },
+        { id: "services", name: "Servicios", icon: Users, color: "from-green-500 to-emerald-500" },
+        { id: "healthcare", name: "Salud", icon: ShieldAlert, color: "from-red-500 to-orange-500" },
+        { id: "logistics", name: "Logística", icon: Globe, color: "from-yellow-500 to-amber-500" },
+        { id: "technology", name: "Tecnología", icon: Zap, color: "from-indigo-500 to-violet-500" },
+        { id: "other", name: "Otro", icon: Sparkles, color: "from-slate-500 to-slate-700" },
     ];
 
     const { toast } = useToast();
@@ -138,6 +141,17 @@ export default function Auth() {
                     <p className="text-slate-400 text-sm">
                         {mode === "login" ? "Bienvenido de vuelta al futuro" : "Únete a la evolución"}
                     </p>
+
+                    {mode === "signup" && (
+                        <div className="flex justify-center gap-2 mt-6">
+                            {[1, 2].map((i) => (
+                                <div
+                                    key={i}
+                                    className={`h-1 rounded-full transition-all duration-500 ${step === i ? "w-12 bg-primary shadow-[0_0_10px_rgba(59,130,246,0.5)]" : "w-4 bg-slate-800"}`}
+                                />
+                            ))}
+                        </div>
+                    )}
                 </motion.div>
 
                 {/* Auth Card */}
@@ -334,21 +348,26 @@ export default function Auth() {
                                         </p>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-3 max-h-96 overflow-y-auto pr-2">
-                                        {industries.map((industry) => (
-                                            <button
-                                                key={industry.id}
-                                                type="button"
-                                                onClick={() => setFormData({ ...formData, industry: industry.id })}
-                                                className={`p-4 rounded-xl border-2 transition-all text-left ${formData.industry === industry.id
-                                                    ? "border-primary bg-primary/10"
-                                                    : "border-slate-800 bg-slate-950 hover:border-slate-700"
-                                                    }`}
-                                            >
-                                                <div className="text-2xl mb-2">{industry.emoji}</div>
-                                                <p className="text-sm font-bold">{industry.name}</p>
-                                            </button>
-                                        ))}
+                                    <div className="grid grid-cols-2 gap-3 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
+                                        {industries.map((industry) => {
+                                            const Icon = industry.icon;
+                                            return (
+                                                <button
+                                                    key={industry.id}
+                                                    type="button"
+                                                    onClick={() => setFormData({ ...formData, industry: industry.id })}
+                                                    className={`p-4 rounded-xl border-2 transition-all text-left flex flex-col gap-3 group ${formData.industry === industry.id
+                                                        ? "border-primary bg-primary/10 shadow-[0_0_20px_rgba(59,130,246,0.1)]"
+                                                        : "border-slate-800 bg-slate-950 hover:border-slate-700"
+                                                        }`}
+                                                >
+                                                    <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${industry.color} flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                                                        <Icon className="w-5 h-5 text-white" />
+                                                    </div>
+                                                    <p className="text-xs font-black uppercase tracking-tight italic">{industry.name}</p>
+                                                </button>
+                                            );
+                                        })}
                                     </div>
 
                                     <div className="flex gap-3">

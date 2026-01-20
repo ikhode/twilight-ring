@@ -25,6 +25,8 @@ import {
   Plus,
   Trash2,
   X,
+  ShieldAlert,
+  Terminal,
 } from "lucide-react";
 import {
   Dialog,
@@ -55,23 +57,23 @@ export default function Settings() {
         <TabsList className="flex flex-wrap h-auto gap-2">
           <TabsTrigger value="generic" data-testid="tab-generic">
             <Layout className="w-4 h-4 mr-2" />
-            Estructura Genérica
+            Core Configuration
           </TabsTrigger>
-          <TabsTrigger value="industries" data-testid="tab-industries">
+          <TabsTrigger value="org" data-testid="tab-org">
             <Building2 className="w-4 h-4 mr-2" />
-            Adaptación Industrial
+            Perfil & Identidad
           </TabsTrigger>
           <TabsTrigger value="modules" data-testid="tab-modules">
             <Puzzle className="w-4 h-4 mr-2" />
             Módulos SaaS
           </TabsTrigger>
-          <TabsTrigger value="billing" data-testid="tab-billing">
-            <CreditCard className="w-4 h-4 mr-2" />
-            Pago por Uso
-          </TabsTrigger>
           <TabsTrigger value="ethics" data-testid="tab-ethics">
             <Shield className="w-4 h-4 mr-2" />
-            Ética IA
+            Gobernanza IA
+          </TabsTrigger>
+          <TabsTrigger value="advanced" data-testid="tab-advanced">
+            <Zap className="w-4 h-4 mr-2 text-primary" />
+            Avanzado
           </TabsTrigger>
         </TabsList>
 
@@ -331,79 +333,83 @@ export default function Settings() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="industries" className="space-y-6">
+        <TabsContent value="org" className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
-                <CardTitle className="font-display">Perfiles de Industria</CardTitle>
-                <CardDescription>Selecciona un perfil preconfigurado o crea uno desde cero</CardDescription>
+                <CardTitle className="font-display flex items-center gap-2">
+                  <Building2 className="w-5 h-5 text-primary" />
+                  Perfil de la Organización
+                </CardTitle>
+                <CardDescription>Información básica de tu cuenta empresarial</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {[
-                  { id: "manufacturing", name: "Manufactura / Producción", icon: "Factory" },
-                  { id: "retail", name: "Retail / Abarrotes", icon: "ShoppingCart" },
-                  { id: "logistics", name: "Logística y Distribución", icon: "Truck" },
-                  { id: "services", name: "Servicios Profesionales", icon: "Briefcase" },
-                ].map((ind) => (
-                  <div
-                    key={ind.id}
-                    onClick={() => setIndustry(ind.id as IndustryType)}
-                    className={cn(
-                      "flex items-center justify-between p-3 rounded-lg border transition-all cursor-pointer",
-                      industry === ind.id ? "border-primary bg-primary/5 shadow-[0_0_10px_rgba(59,130,246,0.2)]" : "hover:bg-muted"
-                    )}>
-                    <div className="flex items-center gap-3">
-                      <div className={cn("w-8 h-8 rounded flex items-center justify-center", industry === ind.id ? "bg-primary text-white" : "bg-muted")}>
-                        <Building2 className="w-4 h-4" />
-                      </div>
-                      <span className="font-medium text-sm">{ind.name}</span>
-                    </div>
-                    {industry === ind.id && <Check className="w-4 h-4 text-primary" />}
+                <div className="space-y-2">
+                  <Label>Nombre de la Empresa</Label>
+                  <Input defaultValue="Mi Empresa S.A." className="bg-slate-950 border-slate-800" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Industria Principal</Label>
+                  <div className="p-3 rounded-lg border border-slate-800 bg-slate-950 flex items-center justify-between">
+                    <span className="font-bold uppercase tracking-wider text-sm">{industry}</span>
+                    <Badge variant="outline" className="text-primary border-primary/30">Activo</Badge>
                   </div>
-                ))}
+                </div>
+                <Button className="w-full bg-primary/20 hover:bg-primary/30 text-primary border border-primary/20">
+                  Guardar Perfil
+                </Button>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle className="font-display">Personalización Visual</CardTitle>
-                <CardDescription>Adapta la interfaz a la marca de cada cliente</CardDescription>
+                <CardTitle className="font-display flex items-center gap-2">
+                  <Palette className="w-5 h-5 text-primary" />
+                  Identidad Visual
+                </CardTitle>
+                <CardDescription>Adapta la marca de tu OS cognitivo</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-6">
                 <div className="space-y-2">
-                  <Label>Color Primario</Label>
-                  <div className="flex gap-2">
+                  <Label>Color de Acento</Label>
+                  <div className="flex gap-3">
                     {['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'].map(c => (
                       <div
                         key={c}
                         onClick={() => setThemeColor(c)}
                         className={cn(
-                          "w-8 h-8 rounded-full cursor-pointer border-2 shadow-sm transition-all",
-                          themeColor === c ? "border-white ring-2 ring-primary scale-110" : "border-transparent hover:scale-105"
+                          "w-10 h-10 rounded-xl cursor-pointer border-2 transition-all",
+                          themeColor === c ? "border-white ring-4 ring-primary/20 scale-110 shadow-[0_0_20px_rgba(59,130,246,0.3)]" : "border-transparent hover:scale-105"
                         )}
                         style={{ backgroundColor: c }}
                       />
                     ))}
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Estilo de Interfaz</Label>
-                  <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-4">
+                  <Label>Preset de Interfaz</Label>
+                  <div className="grid grid-cols-2 gap-3">
                     <Button
                       variant="outline"
                       onClick={() => setTheme('glass')}
-                      className={cn("h-20 flex-col gap-1", theme === 'glass' ? "border-primary bg-primary/5" : "")}
+                      className={cn("h-24 flex-col gap-2 border-slate-800 bg-slate-950 hover:border-primary/50", theme === 'glass' ? "border-primary bg-primary/10 shadow-[0_0_20px_rgba(59,130,246,0.1)]" : "")}
                     >
-                      <Layout className="w-4 h-4" />
-                      <span className="text-xs">Moderna (Glass)</span>
+                      <Layout className="w-5 h-5" />
+                      <div>
+                        <p className="text-xs font-black uppercase italic">Glass OS</p>
+                        <p className="text-[10px] text-slate-500">Moderno & Transparente</p>
+                      </div>
                     </Button>
                     <Button
                       variant="outline"
                       onClick={() => setTheme('compact')}
-                      className={cn("h-20 flex-col gap-1", theme === 'compact' ? "border-primary bg-primary/5" : "")}
+                      className={cn("h-24 flex-col gap-2 border-slate-800 bg-slate-950 hover:border-primary/50", theme === 'compact' ? "border-primary bg-primary/10 shadow-[0_0_20px_rgba(59,130,246,0.1)]" : "")}
                     >
-                      <Type className="w-4 h-4" />
-                      <span className="text-xs">Compacta (Data)</span>
+                      <Type className="w-5 h-5" />
+                      <div>
+                        <p className="text-xs font-black uppercase italic">Compact OS</p>
+                        <p className="text-[10px] text-slate-500">Denso & Analítico</p>
+                      </div>
                     </Button>
                   </div>
                 </div>
@@ -416,46 +422,61 @@ export default function Settings() {
           <ModuleMarketplace />
         </TabsContent>
 
-        <TabsContent value="billing">
-          <Card className="border-accent/20">
-            <CardHeader>
-              <CardTitle className="font-display flex items-center gap-2 text-accent">
-                <Crown className="w-5 h-5" />
-                Modelo de Pago por Uso Mensual
-              </CardTitle>
-              <CardDescription>Sin costos fijos por módulos, paga solo por el volumen de tu operación</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="p-6 rounded-xl bg-card border text-center space-y-2">
-                  <p className="text-sm text-muted-foreground">Costo por Transacción</p>
-                  <p className="text-3xl font-bold font-display">$0.10 <span className="text-xs font-normal">MXN</span></p>
-                  <p className="text-[10px] text-muted-foreground">Ventas, compras, producción</p>
-                </div>
-                <div className="p-6 rounded-xl bg-card border text-center space-y-2">
-                  <p className="text-sm text-muted-foreground">Costo por Empleado</p>
-                  <p className="text-3xl font-bold font-display">$5.00 <span className="text-xs font-normal">MXN</span></p>
-                  <p className="text-[10px] text-muted-foreground">Activos en el mes</p>
-                </div>
-                <div className="p-6 rounded-xl bg-card border text-center space-y-2">
-                  <p className="text-sm text-muted-foreground">Costo por Kiosko</p>
-                  <p className="text-3xl font-bold font-display">$50.00 <span className="text-xs font-normal">MXN</span></p>
-                  <p className="text-[10px] text-muted-foreground">Terminales activas</p>
-                </div>
-              </div>
-
-              <div className="p-4 rounded-lg bg-muted/50 border border-dashed flex items-center justify-between">
-                <div>
-                  <p className="font-semibold">Simulador de Costo Mensual</p>
-                  <p className="text-xs text-muted-foreground">Calcula tu inversión según el tamaño de tu empresa</p>
-                </div>
-                <Button variant="outline" size="sm">Abrir Simulador</Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
         <TabsContent value="ethics">
           <EthicsPanel />
+        </TabsContent>
+
+        <TabsContent value="advanced" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="font-display flex items-center gap-2">
+                  <Terminal className="w-5 h-5 text-primary" />
+                  Terminales & Kioskos
+                </CardTitle>
+                <CardDescription>Configuración de hardware y puntos de presencia</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Identificación Facial</Label>
+                    <p className="text-xs text-slate-500">Requerir reconocimiento para terminales T-CAC</p>
+                  </div>
+                  <Switch defaultChecked />
+                </div>
+                <div className="space-y-2">
+                  <Label>Intervalo de Heartbeat (ms)</Label>
+                  <Input type="number" defaultValue={5000} className="bg-slate-950 border-slate-800" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-rose-500/20 bg-rose-500/5">
+              <CardHeader>
+                <CardTitle className="font-display flex items-center gap-2 text-rose-500">
+                  <ShieldAlert className="w-5 h-5" />
+                  Danger Zone
+                </CardTitle>
+                <CardDescription className="text-rose-500/60">Acciones críticas e irreversibles</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between p-3 rounded-lg border border-rose-500/20 bg-rose-500/5">
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-bold text-rose-200 uppercase">Reiniciar Datos de IA</p>
+                    <p className="text-[10px] text-rose-500/70 italic">Elimina el modelo de entrenamiento actual</p>
+                  </div>
+                  <Button variant="ghost" size="sm" className="text-rose-500 hover:bg-rose-500 hover:text-white border border-rose-500/20">Reset</Button>
+                </div>
+                <div className="flex items-center justify-between p-3 rounded-lg border border-rose-500/20 bg-rose-500/5">
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-bold text-rose-200 uppercase">Eliminar Organización</p>
+                    <p className="text-[10px] text-rose-500/70 italic">Borrado total de la cuenta y módulos</p>
+                  </div>
+                  <Button variant="destructive" size="sm" className="bg-rose-500 hover:bg-rose-600">Delete</Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </AppLayout>

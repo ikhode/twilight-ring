@@ -37,27 +37,27 @@ export default function Landing() {
     const features = [
         {
             icon: Brain,
-            title: "Núcleo Cognitivo",
-            description: "IA que aprende los patrones de tu negocio y predice resultados con más del 98% de precisión",
+            title: "Aprendizaje Adaptativo",
+            description: "Nuestra IA no usa datos genéricos. Aprende los flujos específicos de tu operación para una precisión quirúrgica.",
             color: "text-primary"
+        },
+        {
+            icon: Sparkles,
+            title: "Modo Calibración",
+            description: "Privacidad total. El sistema entra en modo oculto mientras recolecta datos iniciales, evitando proyecciones ruidosas.",
+            color: "text-cyan-400"
         },
         {
             icon: ShieldAlert,
             title: "Capa Guardian",
-            description: "Detección de anomalías en tiempo real que identifica problemas antes de que ocurran",
-            color: "text-warning"
-        },
-        {
-            icon: Sparkles,
-            title: "UI Auto-Adaptativa",
-            description: "La interfaz se reconfigura automáticamente según tus patrones de uso e industria",
-            color: "text-success"
+            description: "Vigilancia 24/7 sobre anomalías operativas. Identifica fugas de capital y cuellos de botella antes de que impacten.",
+            color: "text-rose-400"
         },
         {
             icon: Target,
-            title: "Arquitectura Modular",
-            description: "Activa solo lo que necesitas. Sin sobrecarga, sin complejidad, solo eficiencia pura",
-            color: "text-primary"
+            title: "Despliegue Instantáneo",
+            description: "Configuración zero-code. Tu ecosistema operativo se autoconstruye basado en tu industria en segundos.",
+            color: "text-emerald-400"
         },
     ];
 
@@ -158,6 +158,25 @@ export default function Landing() {
                 </div>
             </section>
 
+            {/* Social Proof Section (Logos) */}
+            <section className="relative z-10 py-12 border-y border-slate-900 bg-slate-950/20">
+                <div className="max-w-7xl mx-auto px-8">
+                    <p className="text-[10px] text-slate-600 font-bold uppercase tracking-[0.4em] text-center mb-10 italic">
+                        Alimentando el crecimiento de visionarios en
+                    </p>
+                    <div className="flex flex-wrap justify-center items-center gap-12 md:gap-24 opacity-30 grayscale hover:opacity-100 hover:grayscale-0 transition-all duration-700">
+                        {["NEBULOS", "SYNTHX", "QUANTUM", "AXON", "VECTOR"].map((brand) => (
+                            <div key={brand} className="flex items-center gap-2 group cursor-default">
+                                <div className="w-8 h-8 rounded bg-white/10 flex items-center justify-center p-1.5 group-hover:bg-primary/20 transition-colors">
+                                    <Sparkles className="w-full h-full text-slate-400 group-hover:text-primary" />
+                                </div>
+                                <span className="text-xl font-black tracking-tighter text-slate-500 group-hover:text-white transition-colors uppercase">{brand}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </section>
+
             {/* Industry Selector */}
             <section className="relative z-10 py-32 px-8 bg-gradient-to-b from-transparent to-slate-950/50">
                 <div className="max-w-7xl mx-auto">
@@ -217,15 +236,16 @@ export default function Landing() {
                                     whileInView={{ opacity: 1, y: 0 }}
                                     viewport={{ once: true }}
                                     transition={{ duration: 0.6, delay: i * 0.1 }}
-                                    className="p-10 rounded-3xl bg-slate-900/50 border border-slate-800 hover:border-primary/30 transition-all group"
+                                    className="p-10 rounded-3xl bg-slate-900/40 border border-slate-800/50 hover:border-primary/30 transition-all group relative overflow-hidden"
                                 >
-                                    <div className="flex items-start gap-6">
-                                        <div className={`w-16 h-16 rounded-2xl bg-${feature.color}/10 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform`}>
+                                    <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 blur-[50px] group-hover:bg-primary/10 transition-colors" />
+                                    <div className="flex items-start gap-6 relative z-10">
+                                        <div className={`w-16 h-16 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-center shrink-0 group-hover:scale-110 group-hover:border-primary/50 transition-all shadow-2xl`}>
                                             <Icon className={`w-8 h-8 ${feature.color}`} />
                                         </div>
                                         <div>
-                                            <h3 className="text-2xl font-black mb-3">{feature.title}</h3>
-                                            <p className="text-slate-400 leading-relaxed">{feature.description}</p>
+                                            <h3 className="text-2xl font-black mb-3 italic tracking-tight uppercase text-slate-100">{feature.title}</h3>
+                                            <p className="text-slate-400 leading-relaxed font-medium">{feature.description}</p>
                                         </div>
                                     </div>
                                 </motion.div>

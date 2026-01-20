@@ -357,6 +357,23 @@ export default function Onboarding() {
                                                 Añadir Paso
                                             </Button>
                                             <div className="h-px bg-white/5 my-1" />
+                                            <div className="space-y-2 mt-2">
+                                                <p className="text-[8px] font-black uppercase tracking-widest text-slate-600 px-1">Biblioteca Core</p>
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    {["Ventas", "Inventario", "RRHH", "Calidad"].map(p => (
+                                                        <Button key={p} variant="secondary" className="h-7 text-[8px] font-bold uppercase tracking-tighter bg-slate-800/30 hover:bg-primary/20 hover:text-white border-transparent" onClick={() => {
+                                                            const newNode: Node = {
+                                                                id: `node-${Date.now()}`,
+                                                                data: { label: p },
+                                                                position: { x: 100, y: 100 },
+                                                                style: { background: '#0f172a', color: '#fff', border: '1px solid #334155', borderRadius: '12px', fontSize: '10px', fontWeight: 'bold', padding: '8px' }
+                                                            };
+                                                            setNodes(nds => [...nds, newNode]);
+                                                        }}>{p}</Button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <div className="h-px bg-white/5 my-1" />
                                             <div className="flex items-center gap-2 px-2 py-1">
                                                 <Settings2 className="w-3 h-3 text-slate-600" />
                                                 <span className="text-[9px] font-bold text-slate-600 uppercase tracking-tighter italic">Selecciona un nodo para editar</span>
@@ -395,23 +412,24 @@ export default function Onboarding() {
                             <div className="w-full max-w-sm space-y-4">
                                 <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-500">
                                     <span className="flex items-center gap-2">
-                                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                                        Base de Datos
+                                        <span className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
+                                        Iniciando Nexus Core...
                                     </span>
-                                    <span className="text-green-500">Completado</span>
                                 </div>
                                 <div className="w-full bg-slate-800/50 h-1.5 rounded-full overflow-hidden border border-white/5">
                                     <motion.div
                                         initial={{ width: 0 }}
                                         animate={{ width: "100%" }}
-                                        transition={{ duration: 3 }}
+                                        transition={{ duration: 4 }}
                                         className="h-full bg-gradient-to-r from-primary to-purple-500 shadow-[0_0_15px_rgba(59,130,246,0.5)]"
                                     />
                                 </div>
-                                <div className="flex justify-center pt-4">
-                                    <div className="flex items-center gap-2 text-slate-700 text-[9px] font-black uppercase tracking-[0.4em]">
-                                        Finalizando Despliegue <ArrowRight className="w-3 h-3" />
-                                    </div>
+                                <div className="bg-slate-950/50 border border-white/5 p-4 rounded-xl text-[9px] font-mono text-slate-500 space-y-1 text-left">
+                                    <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>{">"} Provisioning PostgreSQL clusters...</motion.p>
+                                    <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.0 }}>{">"} Activating pgvector extension...</motion.p>
+                                    <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.5 }}>{">"} Injecting industry-specific logic...</motion.p>
+                                    <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 2.0 }}>{">"} Calibrating TensorFlow.js models...</motion.p>
+                                    <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 2.5 }} className="text-primary">{">"} System Online. Routing to Dashboard...</motion.p>
                                 </div>
                             </div>
                         </motion.div>
