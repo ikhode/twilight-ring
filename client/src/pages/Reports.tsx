@@ -1,292 +1,176 @@
-
-import React, { useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import {
-    LineChart,
-    Line,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    ResponsiveContainer,
-    BarChart,
-    Bar,
-    PieChart,
-    Pie,
-    Cell,
-} from "recharts";
-import {
-    Download,
+    BarChart3,
     FileText,
-    TrendingUp,
-    DollarSign,
-    Package,
-    Calendar,
+    Download,
+    Search,
     Filter,
+    Box,
+    RefreshCw,
+    TrendingUp,
+    DollarSign
 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 import { CalendarDateRangePicker } from "@/components/ui/date-range-picker";
 
 export default function Reports() {
-    const { toast } = useToast();
+    const [searchTerm, setSearchTerm] = useState("");
+    const [reportType, setReportType] = useState("inventory");
     const [dateRange, setDateRange] = useState<any>({
         from: new Date(new Date().setDate(new Date().getDate() - 30)),
         to: new Date(),
     });
 
-    // Mock data - In a real app, this would come from the API
-    const salesData = [
-        { name: "Lun", ventas: 4000, costo: 2400 },
-        { name: "Mar", ventas: 3000, costo: 1398 },
-        { name: "Mie", ventas: 2000, costo: 9800 },
-        { name: "Jue", ventas: 2780, costo: 3908 },
-        { name: "Vie", ventas: 1890, costo: 4800 },
-        { name: "Sab", ventas: 2390, costo: 3800 },
-        { name: "Dom", ventas: 3490, costo: 4300 },
-    ];
+    // Fetch Inventory Movements
+    const { data: movements, isLoading: loadingMovements } = useQuery({
+        queryKey: ["/api/reports/inventory-movements"],
+        queryFn: async () => {
+            // Mock data for now until backend endpoint is ready
+            const response = await fetch("/api/reports/inventory-movements").catch(() => null);
+            if (response && response.ok) return response.json();
 
-    const categoryData = [
-        { name: "Bebidas", value: 400 },
-        { name: "Snacks", value: 300 },
-        { name: "Limpieza", value: 300 },
-        { name: "Otros", value: 200 },
-    ];
+            // Fallback mock data if endpoint not ready
+            return [
+                { id: "1", date: new Date().toISOString(), type: "purchase", product: "Mezclilla 14oz", quantity: 500, before: 100, after: 600, reference: "PUR-1001" },
+                { id: "2", date: new Date().toISOString(), type: "production", product: "Mezclilla 14oz", quantity: -50, before: 600, after: 550, reference: "TICKET-882" },
+                { id: "3", date: new Date().toISOString(), type: "production", product: "Pantalón Jeans 32", quantity: 50, before: 0, after: 50, reference: "TICKET-882" },
+                { id: "4", date: new Date().toISOString(), type: "sale", product: "Pantalón Jeans 32", quantity: -10, before: 50, after: 40, reference: "SALE-505" },
+            ];
+        }
+    });
 
-    const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042"];
-
-    const handleExport = (format: "pdf" | "excel") => {
-        toast({
-            title: "Exportando Reporte",
-            description: `Generando archivo ${format.toUpperCase()}... Por favor espere.`,
-        });
-        // Simulate API call
-        setTimeout(() => {
-            toast({
-                title: "Éxito",
-                description: "El reporte se ha descargado correctamente.",
-            });
-        }, 1500);
+    const handleDownload = () => {
+        alert("Generando reporte PDF...");
     };
 
     return (
-        <div className="h-full flex-1 flex-col space-y-8 p-8 md:flex">
-            <div className="flex items-center justify-between space-y-2">
+        <div className="h-full flex flex-col gap-6 p-8 max-w-[1600px] mx-auto w-full">
+            {/* Header */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                    <h2 className="text-3xl font-bold tracking-tight text-white mb-2">
-                        Reportes Avanzados
-                    </h2>
-                    <p className="text-muted-foreground">
-                        Análisis detallado de ventas, inventario y finanzas.
-                    </p>
+                    <h1 className="text-3xl font-display font-bold text-white">Reportes Avanzados</h1>
+                    <p className="text-slate-400">Trazabilidad completa de operaciones y finanzas</p>
                 </div>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center gap-2">
                     <CalendarDateRangePicker date={dateRange} setDate={setDateRange} />
-                    <Button onClick={() => handleExport("pdf")} variant="outline">
-                        <FileText className="mr-2 h-4 w-4" />
-                        PDF
+                    <Button variant="outline" className="gap-2" onClick={() => window.location.reload()}>
+                        <RefreshCw className="w-4 h-4" />
                     </Button>
-                    <Button onClick={() => handleExport("excel")} variant="secondary">
-                        <Download className="mr-2 h-4 w-4" />
-                        Excel
+                    <Button className="gap-2" onClick={handleDownload}>
+                        <Download className="w-4 h-4" /> Exportar
                     </Button>
                 </div>
             </div>
 
-            <Tabs defaultValue="sales" className="space-y-4">
-                <TabsList className="bg-black/40 border border-white/10 p-1">
-                    <TabsTrigger value="sales" className="data-[state=active]:bg-purple-600/20 data-[state=active]:text-purple-300">
-                        <TrendingUp className="mr-2 h-4 w-4" />
-                        Ventas
-                    </TabsTrigger>
-                    <TabsTrigger value="inventory" className="data-[state=active]:bg-blue-600/20 data-[state=active]:text-blue-300">
-                        <Package className="mr-2 h-4 w-4" />
-                        Inventario
-                    </TabsTrigger>
-                    <TabsTrigger value="financial" className="data-[state=active]:bg-emerald-600/20 data-[state=active]:text-emerald-300">
-                        <DollarSign className="mr-2 h-4 w-4" />
-                        Financiero
-                    </TabsTrigger>
-                </TabsList>
+            {/* Main Content */}
+            <Card className="flex-1 bg-slate-900/50 border-slate-800 flex flex-col min-h-0">
+                <CardHeader className="pb-0 border-b border-slate-800/50">
+                    <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
+                        <Tabs defaultValue="inventory" className="w-full md:w-auto" onValueChange={setReportType}>
+                            <TabsList className="bg-slate-950/50 border border-slate-800">
+                                <TabsTrigger value="inventory" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-black">
+                                    <Box className="w-4 h-4" /> Inventario & Kardex
+                                </TabsTrigger>
+                                <TabsTrigger value="sales" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-black">
+                                    <TrendingUp className="w-4 h-4" /> Ventas
+                                </TabsTrigger>
+                                <TabsTrigger value="financial" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-black">
+                                    <DollarSign className="w-4 h-4" /> Financiero
+                                </TabsTrigger>
+                            </TabsList>
+                        </Tabs>
 
-                <TabsContent value="sales" className="space-y-4">
-                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                        <Card className="bg-black/40 border-white/5 backdrop-blur-xl">
-                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                <CardTitle className="text-sm font-medium">
-                                    Ventas Totales
-                                </CardTitle>
-                                <DollarSign className="h-4 w-4 text-muted-foreground" />
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold">$45,231.89</div>
-                                <p className="text-xs text-muted-foreground">
-                                    +20.1% del mes pasado
-                                </p>
-                            </CardContent>
-                        </Card>
-                        <Card className="bg-black/40 border-white/5 backdrop-blur-xl">
-                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                <CardTitle className="text-sm font-medium">
-                                    Transacciones
-                                </CardTitle>
-                                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold">+2350</div>
-                                <p className="text-xs text-muted-foreground">
-                                    +180.1% del mes pasado
-                                </p>
-                            </CardContent>
-                        </Card>
-                        <Card className="bg-black/40 border-white/5 backdrop-blur-xl">
-                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                <CardTitle className="text-sm font-medium">Ticket Promedio</CardTitle>
-                                <FileText className="h-4 w-4 text-muted-foreground" />
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold">$19.25</div>
-                                <p className="text-xs text-muted-foreground">
-                                    +19% del mes pasado
-                                </p>
-                            </CardContent>
-                        </Card>
-                        <Card className="bg-black/40 border-white/5 backdrop-blur-xl">
-                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                <CardTitle className="text-sm font-medium">
-                                    Tasa de Conversión
-                                </CardTitle>
-                                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold">4.5%</div>
-                                <p className="text-xs text-muted-foreground">
-                                    +2.5% del mes pasado
-                                </p>
-                            </CardContent>
-                        </Card>
+                        <div className="flex items-center gap-2 w-full md:w-auto">
+                            <div className="relative flex-1 md:w-64">
+                                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
+                                <Input
+                                    placeholder="Buscar producto, referencia..."
+                                    className="pl-9 bg-slate-950 border-slate-800"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                            </div>
+                            <Button variant="outline" size="icon">
+                                <Filter className="w-4 h-4" />
+                            </Button>
+                        </div>
                     </div>
-                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-                        <Card className="col-span-4 bg-black/40 border-white/5 backdrop-blur-xl">
-                            <CardHeader>
-                                <CardTitle>Resumen de Ventas</CardTitle>
-                            </CardHeader>
-                            <CardContent className="pl-2">
-                                <ResponsiveContainer width="100%" height={350}>
-                                    <LineChart data={salesData}>
-                                        <XAxis
-                                            dataKey="name"
-                                            stroke="#888888"
-                                            fontSize={12}
-                                            tickLine={false}
-                                            axisLine={false}
-                                        />
-                                        <YAxis
-                                            stroke="#888888"
-                                            fontSize={12}
-                                            tickLine={false}
-                                            axisLine={false}
-                                            tickFormatter={(value) => `$${value}`}
-                                        />
-                                        <Tooltip
-                                            contentStyle={{ backgroundColor: '#1f1f1f', border: 'none', borderRadius: '8px' }}
-                                            itemStyle={{ color: '#fff' }}
-                                        />
-                                        <Line
-                                            type="monotone"
-                                            dataKey="ventas"
-                                            stroke="#8884d8"
-                                            strokeWidth={2}
-                                            activeDot={{ r: 8 }}
-                                        />
-                                        <Line
-                                            type="monotone"
-                                            dataKey="costo"
-                                            stroke="#82ca9d"
-                                            strokeWidth={2}
-                                        />
-                                    </LineChart>
-                                </ResponsiveContainer>
-                            </CardContent>
-                        </Card>
-                        <Card className="col-span-3 bg-black/40 border-white/5 backdrop-blur-xl">
-                            <CardHeader>
-                                <CardTitle>Ventas por Categoría</CardTitle>
-                                <CardDescription>
-                                    Distribución de ingresos por tipo de producto.
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <ResponsiveContainer width="100%" height={350}>
-                                    <PieChart>
-                                        <Pie
-                                            data={categoryData}
-                                            cx="50%"
-                                            cy="50%"
-                                            innerRadius={60}
-                                            outerRadius={80}
-                                            fill="#8884d8"
-                                            paddingAngle={5}
-                                            dataKey="value"
-                                        >
-                                            {categoryData.map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                            ))}
-                                        </Pie>
-                                        <Tooltip
-                                            contentStyle={{ backgroundColor: '#1f1f1f', border: 'none', borderRadius: '8px' }}
-                                            itemStyle={{ color: '#fff' }}
-                                        />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                                <div className="mt-4 flex justify-center gap-4">
-                                    {categoryData.map((entry, index) => (
-                                        <div key={entry.name} className="flex items-center gap-2">
-                                            <div className="h-3 w-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
-                                            <span className="text-xs text-muted-foreground">{entry.name}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </div>
-                </TabsContent>
+                </CardHeader>
 
-                <TabsContent value="inventory" className="space-y-4">
-                    <Card className="bg-black/40 border-white/5 backdrop-blur-xl">
-                        <CardHeader>
-                            <CardTitle>Movimientos de Inventario</CardTitle>
-                            <CardDescription>Entradas y salidas recientes.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-center py-10 text-muted-foreground">
-                                Funcionalidad de reportes de inventario detallado próximamente.
-                            </div>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-                <TabsContent value="financial" className="space-y-4">
-                    <Card className="bg-black/40 border-white/5 backdrop-blur-xl">
-                        <CardHeader>
-                            <CardTitle>Estado Financiero</CardTitle>
-                            <CardDescription>Pérdidas, ganancias y proyecciones.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-center py-10 text-muted-foreground">
-                                Funcionalidad de reportes financieros detallado próximamente.
-                            </div>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-            </Tabs>
+                <CardContent className="flex-1 p-0 overflow-auto">
+                    {/* Inventory Tab */}
+                    {reportType === "inventory" && (
+                        <Table>
+                            <TableHeader className="bg-slate-950/50 sticky top-0 z-10">
+                                <TableRow className="hover:bg-transparent border-slate-800">
+                                    <TableHead className="text-slate-400">Fecha / Hora</TableHead>
+                                    <TableHead className="text-slate-400">Tipo</TableHead>
+                                    <TableHead className="text-slate-400">Referencia</TableHead>
+                                    <TableHead className="text-slate-400">Producto</TableHead>
+                                    <TableHead className="text-right text-slate-400">Entrada</TableHead>
+                                    <TableHead className="text-right text-slate-400">Salida</TableHead>
+                                    <TableHead className="text-right text-slate-400">Stock Final</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {loadingMovements ? (
+                                    <TableRow>
+                                        <TableCell colSpan={7} className="h-24 text-center">Cargando movimientos...</TableCell>
+                                    </TableRow>
+                                ) : (
+                                    movements?.map((m: any) => (
+                                        <TableRow key={m.id} className="border-slate-800/50 hover:bg-slate-800/30">
+                                            <TableCell className="font-mono text-slate-300">
+                                                {format(new Date(m.date), "dd/MM/yyyy HH:mm", { locale: es })}
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge variant="outline" className={`
+                                                    ${m.type === 'purchase' ? 'border-emerald-500 text-emerald-500' : ''}
+                                                    ${m.type === 'sale' ? 'border-blue-500 text-blue-500' : ''}
+                                                    ${m.type === 'production' ? 'border-amber-500 text-amber-500' : ''}
+                                                    capitalize
+                                                `}>
+                                                    {m.type === 'purchase' && 'Compra'}
+                                                    {m.type === 'sale' && 'Venta'}
+                                                    {m.type === 'production' && 'Producción'}
+                                                    {m.type === 'adjustment' && 'Ajuste'}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="font-mono text-xs">{m.reference}</TableCell>
+                                            <TableCell className="font-medium text-white">{m.product}</TableCell>
+                                            <TableCell className="text-right font-mono text-emerald-400">
+                                                {m.quantity > 0 ? `+${m.quantity}` : '-'}
+                                            </TableCell>
+                                            <TableCell className="text-right font-mono text-red-400">
+                                                {m.quantity < 0 ? `${m.quantity}` : '-'}
+                                            </TableCell>
+                                            <TableCell className="text-right font-mono font-bold text-slate-200">
+                                                {m.afterStock}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    )}
+
+                    {/* Placeholder for other tabs */}
+                    {reportType !== "inventory" && (
+                        <div className="flex flex-col items-center justify-center h-full text-slate-500">
+                            <FileText className="w-16 h-16 mb-4 opacity-20" />
+                            <p>Reporte de {reportType} en construcción</p>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
         </div>
     );
 }

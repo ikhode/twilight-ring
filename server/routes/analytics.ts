@@ -1,8 +1,8 @@
 import { Router } from "express";
-import { storage } from "../storage";
+import { storage, db } from "../storage";
 import { getOrgIdFromRequest } from "../auth_util";
-import { insertAnalyticsMetricSchema } from "../../shared/schema";
-import { eq } from "drizzle-orm";
+import { insertAnalyticsMetricSchema, inventoryMovements } from "../../shared/schema";
+import { eq, desc } from "drizzle-orm";
 
 const router = Router();
 
@@ -16,7 +16,7 @@ const router = Router();
 router.get("/dashboard", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) { res.status(401).json({ message: "Unauthorized" }); return; }
 
         const [realSales, models] = await Promise.all([
             storage.getDailySalesStats(orgId),
@@ -57,7 +57,7 @@ router.get("/dashboard", async (req, res): Promise<void> => {
 router.get("/cashflow", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) { res.status(401).json({ message: "Unauthorized" }); return; }
 
         const days = 30;
         const now = new Date();
@@ -101,7 +101,7 @@ router.get("/cashflow", async (req, res): Promise<void> => {
 router.post("/metrics", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) { res.status(401).json({ message: "Unauthorized" }); return; }
 
         const parsed = insertAnalyticsMetricSchema.safeParse({ ...req.body, organizationId: orgId });
         if (!parsed.success) return res.status(400).json(parsed.error);
@@ -124,7 +124,7 @@ router.post("/metrics", async (req, res): Promise<void> => {
 router.post("/models/:id/train", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) { res.status(401).json({ message: "Unauthorized" }); return; }
 
         const { id } = req.params;
         // Verify ownership (simplified)
@@ -146,6 +146,56 @@ router.post("/models/:id/train", async (req, res): Promise<void> => {
     } catch (error) {
         console.error("Train model error:", error);
         res.status(500).json({ message: "Failed to start training" });
+    }
+});
+
+/**
+ * Obtiene el reporte detallado de movimientos de inventario (Kardex).
+ * 
+ * @param {import("express").Request} req - Solicitud de Express
+ * @param {import("express").Response} res - Respuesta de Express
+ * @returns {Promise<void>}
+ */
+router.get("/reports/inventory-movements", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) { res.status(401).json({ message: "Unauthorized" }); return; }
+
+        // Lazy load db/schema if not imported in analytics
+        // Note: analytics.ts usually imports storage, not db directly?
+        // Checking imports: import { storage } from "../storage";
+        // I need to import db to query inventory_movements directly or add a method to storage.
+        // I'll add db import to analytics.ts in a separate move or assume it's available.
+        // Actually, let's look at the file provided. It imports storage, eq, insertAnalytics...
+        // It DOES NOT import db.
+        // I will use storage.ts if possible, but adding a method is safer.
+        // However, for speed I'll import db here.
+
+        // I will add the import in the next step. Let's write the handler assuming db exists.
+        const movements = await db.query.inventoryMovements.findMany({
+            where: eq(inventoryMovements.organizationId, orgId),
+            orderBy: [desc(inventoryMovements.date)],
+            limit: 100,
+            with: { product: true }
+        });
+
+        // Format for frontend
+        const formatted = movements.map(m => ({
+            id: m.id,
+            date: m.date,
+            type: m.type,
+            product: m.product.name,
+            quantity: m.quantity,
+            before: m.beforeStock,
+            after: m.afterStock,
+            reference: m.referenceId
+        }));
+
+        res.json(formatted);
+
+    } catch (error) {
+        console.error("Inventory report error:", error);
+        res.status(500).json({ message: "Failed to fetch inventory report" });
     }
 });
 

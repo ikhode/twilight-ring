@@ -3,7 +3,7 @@ import { db } from "../storage";
 import {
     suppliers, products, expenses, payments,
     vehicles, fuelLogs, maintenanceLogs, routes, routeStops,
-    sales, purchases, employees, payrollAdvances, terminals,
+    sales, purchases, employees, payrollAdvances, terminals, inventoryMovements,
     insertProductSchema, insertVehicleSchema, insertSaleSchema, insertRouteSchema, insertRouteStopSchema
 } from "../../shared/schema";
 import { eq, and, desc } from "drizzle-orm";
@@ -592,6 +592,18 @@ router.post("/sales", async (req, res): Promise<void> => {
                     .set({ stock: product.stock - item.quantity })
                     .where(eq(products.id, item.productId));
 
+                // 4. Record Inventory Movement
+                await db.insert(inventoryMovements).values({
+                    organizationId: orgId,
+                    productId: item.productId,
+                    quantity: -item.quantity, // Out
+                    type: "sale",
+                    referenceId: "SALE-" + item.productId.slice(0, 4), // Ideally we have a Sale ID or Batch ID
+                    beforeStock: product.stock,
+                    afterStock: product.stock - item.quantity,
+                    date: new Date()
+                });
+
                 stats.success++;
 
             } catch (err) {
@@ -735,6 +747,23 @@ router.post("/purchases", async (req, res): Promise<void> => {
             supplierId: data.supplierId,
             date: new Date()
         });
+
+        // 4. Record Inventory Movement for Purchases
+        for (const item of data.items) {
+            const [product] = await db.select().from(products).where(eq(products.id, item.productId));
+            if (product) {
+                await db.insert(inventoryMovements).values({
+                    organizationId: orgId,
+                    productId: item.productId,
+                    quantity: item.quantity, // In
+                    type: "purchase",
+                    referenceId: purchase.id,
+                    beforeStock: product.stock - item.quantity, // It was already updated above
+                    afterStock: product.stock,
+                    date: new Date()
+                });
+            }
+        }
 
         res.json(purchase);
     } catch (error) {

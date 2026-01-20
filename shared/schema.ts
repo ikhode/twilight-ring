@@ -264,6 +264,19 @@ export const products = pgTable("products", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const inventoryMovements = pgTable("inventory_movements", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  productId: varchar("product_id").notNull().references(() => products.id),
+  quantity: integer("quantity").notNull(), // positive = in, negative = out
+  type: text("type").notNull(), // "sale", "purchase", "production", "adjustment"
+  referenceId: varchar("reference_id"), // Can be saleId, purchaseId, etc.
+  beforeStock: integer("before_stock"),
+  afterStock: integer("after_stock"),
+  date: timestamp("date").defaultNow(),
+  notes: text("notes"),
+});
+
 // Finance: Expenses & Payments
 export const expenses = pgTable("expenses", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -451,6 +464,7 @@ export const updateAiConfigSchema = createInsertSchema(aiConfigurations).pick({
 export const insertProcessEventSchema = createInsertSchema(processEvents);
 export const insertProcessSchema = createInsertSchema(processes);
 export const insertRcaReportSchema = createInsertSchema(rcaReports);
+export const insertInventoryMovementSchema = createInsertSchema(inventoryMovements);
 
 // Types
 export type Organization = typeof organizations.$inferSelect;
@@ -477,6 +491,8 @@ export type Customer = typeof customers.$inferSelect;
 export type InsertCustomer = z.infer<typeof insertCustomerSchema>;
 export type Product = typeof products.$inferSelect;
 export type InsertProduct = z.infer<typeof insertProductSchema>;
+export type InventoryMovement = typeof inventoryMovements.$inferSelect;
+export type InsertInventoryMovement = z.infer<typeof insertInventoryMovementSchema>;
 export type Expense = typeof expenses.$inferSelect;
 export type Payment = typeof payments.$inferSelect;
 export type Vehicle = typeof vehicles.$inferSelect;
