@@ -2,7 +2,7 @@ import { Express, Request, Response } from "express";
 import { storage } from "../storage";
 import { getOrgIdFromRequest } from "../auth_util";
 import { insertPieceworkTicketSchema } from "../../shared/schema";
-import { db } from "../db";
+import { db } from "../storage";
 import {
     pieceworkTickets,
     productionTasks,

@@ -289,7 +289,7 @@ export class DrizzleStorage implements IStorage {
       where: (tickets, { eq }) => eq(tickets.organizationId, orgId),
       orderBy: (tickets, { desc }) => [desc(tickets.createdAt)],
       with: {
-        user: true
+        employee: true
       }
     });
   }

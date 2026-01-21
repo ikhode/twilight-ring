@@ -148,9 +148,9 @@ export const expensesRelations = relations(schema.expenses, ({ one }) => ({
 }));
 
 export const pieceworkTicketsRelations = relations(schema.pieceworkTickets, ({ one }) => ({
-    user: one(schema.users, {
-        fields: [schema.pieceworkTickets.userId],
-        references: [schema.users.id],
+    employee: one(schema.employees, {
+        fields: [schema.pieceworkTickets.employeeId],
+        references: [schema.employees.id],
     }),
     organization: one(schema.organizations, {
         fields: [schema.pieceworkTickets.organizationId],
