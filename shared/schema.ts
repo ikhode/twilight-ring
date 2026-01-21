@@ -585,10 +585,21 @@ export const insertWhatsAppConversationSchema = createInsertSchema(whatsappConve
 export const insertWhatsAppMessageSchema = createInsertSchema(whatsappMessages);
 
 // Piecework (Destajo)
+export const productionTasks = pgTable("production_tasks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  unitPrice: integer("unit_price").notNull(), // in cents
+  unit: text("unit").notNull().default("pza"), // "pza", "par", "kg"
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const pieceworkTickets = pgTable("piecework_tickets", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  userId: varchar("user_id").notNull().references(() => users.id), // The operator
+  employeeId: varchar("employee_id").notNull().references(() => employees.id), // The operator
   taskName: text("task_name").notNull(),
   quantity: integer("quantity").notNull(),
   unitPrice: integer("unit_price").notNull(), // in cents

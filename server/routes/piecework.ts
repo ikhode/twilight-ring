@@ -2,6 +2,17 @@ import { Express, Request, Response } from "express";
 import { storage } from "../storage";
 import { getOrgIdFromRequest } from "../auth_util";
 import { insertPieceworkTicketSchema } from "../../shared/schema";
+import { db } from "../db";
+import {
+    pieceworkTickets,
+    productionTasks,
+    payrollAdvances,
+    employees,
+    expenses,
+    inventoryMovements
+} from "../../shared/schema";
+import { eq, and, desc, inArray, sql } from "drizzle-orm";
+import * as schema from "../../shared/schema";
 
 /**
  * Registra todas las rutas relacionadas con el Control de Destajo (Piecework).
@@ -18,36 +29,29 @@ export function registerPieceworkRoutes(app: Express): void {
             const orgId = await getOrgIdFromRequest(req);
             if (!orgId) return res.status(401).json({ message: "Unauthorized" });
 
-            const { userId, employeeId, status } = req.query;
-            const targetUserId = (userId || employeeId) as string;
+            const { employeeId, status } = req.query;
+            const targetEmployeeId = employeeId as string;
             const ticketStatus = status as string;
 
-            const conditions = [eq(schema.pieceworkTickets.organizationId, orgId)];
+            const conditions = [eq(pieceworkTickets.organizationId, orgId)];
 
-            if (targetUserId) {
-                // Determine if it's userId (operator) or employeeId (linked via user relation? No, schema says userId refs users)
-                // However, pieceworkTickets.userId references users.id. 
-                // Employees are in 'employees' table. 
-                // We need to clarify if tickets are linked to 'users' or 'employees'.
-                // Schema: userId -> users.id. 
-                // ProductionTerminal uses mocked 'userId'.
-                // We will assume for now filtering by userId matches the schema.
-                conditions.push(eq(schema.pieceworkTickets.userId, targetUserId));
+            if (targetEmployeeId) {
+                conditions.push(eq(pieceworkTickets.employeeId, targetEmployeeId));
             }
 
             if (ticketStatus) {
-                conditions.push(eq(schema.pieceworkTickets.status, ticketStatus));
+                conditions.push(eq(pieceworkTickets.status, ticketStatus));
             }
 
             const tickets = await db.query.pieceworkTickets.findMany({
                 where: and(...conditions),
-                with: { user: true },
-                orderBy: [desc(schema.pieceworkTickets.createdAt)]
+                with: { employee: true },
+                orderBy: [desc(pieceworkTickets.createdAt)]
             });
 
             res.json(tickets.map(t => ({
                 ...t,
-                employee: t.user?.name || "Desconocido"
+                employeeName: t.employee?.name || "Desconocido"
             })));
         } catch (error) {
             console.error("Fetch tickets error:", error);
@@ -56,19 +60,78 @@ export function registerPieceworkRoutes(app: Express): void {
     });
 
     /**
-     * Obtiene el listado de tareas disponibles.
+     * Obtiene el listado de tareas disponibles desde la BD.
      */
     app.get("/api/piecework/tasks", async (req: Request, res: Response): Promise<void> => {
-        // Mock list for now, eventually from db table
-        res.json([
-            "Corte de Pantalón",
-            "Costura Lateral",
-            "Dobladillo",
-            "Planchado Final",
-            "Empaque",
-            "Ojales",
-            "Botones"
-        ]);
+        try {
+            const orgId = await getOrgIdFromRequest(req);
+            if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+            const tasks = await db.select().from(productionTasks)
+                .where(and(
+                    eq(productionTasks.organizationId, orgId),
+                    eq(productionTasks.active, true)
+                ));
+
+            // Fallback seed if empty (for demo purposes)
+            if (tasks.length === 0) {
+                const defaultTasks = [
+                    { name: "Corte de Pantalón (Jeans)", unitPrice: 1500, unit: "pza" },
+                    { name: "Pegado de Bolsas", unitPrice: 500, unit: "par" },
+                    { name: "Dobladillo Final", unitPrice: 300, unit: "pza" },
+                    { name: "Planchado y Empaque", unitPrice: 800, unit: "pza" },
+                ];
+
+                const createdTasks = [];
+                for (const t of defaultTasks) {
+                    const [newTask] = await db.insert(productionTasks).values({
+                        organizationId: orgId,
+                        ...t
+                    }).returning();
+                    createdTasks.push(newTask);
+                }
+                res.json(createdTasks);
+            } else {
+                res.json(tasks);
+            }
+        } catch (error) {
+            console.error("Fetch tasks error:", error);
+            res.status(500).json({ message: "Internal server error" });
+        }
+    });
+
+    /**
+     * Obtiene el listado de adelantos de nómina pendientes.
+     */
+    app.get("/api/piecework/advances", async (req: Request, res: Response): Promise<void> => {
+        try {
+            const orgId = await getOrgIdFromRequest(req);
+            if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+            const { employeeId, status } = req.query;
+            const targetEmployeeId = employeeId as string;
+            const advanceStatus = (status as string) || "pending";
+
+            const conditions = [eq(payrollAdvances.organizationId, orgId)];
+
+            if (targetEmployeeId) {
+                conditions.push(eq(payrollAdvances.employeeId, targetEmployeeId));
+            }
+
+            if (advanceStatus) {
+                conditions.push(eq(payrollAdvances.status, advanceStatus));
+            }
+
+            const advances = await db.query.payrollAdvances.findMany({
+                where: and(...conditions),
+                orderBy: [desc(payrollAdvances.date)]
+            });
+
+            res.json(advances);
+        } catch (error) {
+            console.error("Fetch advances error:", error);
+            res.status(500).json({ message: "Internal server error" });
+        }
     });
 
     /**
@@ -79,17 +142,26 @@ export function registerPieceworkRoutes(app: Express): void {
             const orgId = await getOrgIdFromRequest(req);
             if (!orgId) return res.status(401).json({ message: "Unauthorized" });
 
-            const parsed = insertPieceworkTicketSchema.safeParse({
+            // Note: Schema expects employeeId, not userId.
+            // Ensure payload sends employeeId
+            const payload = {
                 ...req.body,
                 organizationId: orgId,
                 totalAmount: req.body.quantity * req.body.unitPrice
-            });
+            };
+
+            const parsed = insertPieceworkTicketSchema.safeParse(payload);
 
             if (!parsed.success) {
+                console.error("Validation error:", parsed.error);
                 return res.status(400).json({ error: parsed.error });
             }
 
-            const ticket = await storage.createPieceworkTicket(parsed.data);
+            const [ticket] = await db.insert(pieceworkTickets).values(parsed.data).returning();
+
+            // Record Inventory Movement Logic (Optional: Deduction of material?)
+            // For now we just record the ticket.
+
             res.status(201).json(ticket);
         } catch (error) {
             console.error("Create ticket error:", error);
@@ -119,37 +191,37 @@ export function registerPieceworkRoutes(app: Express): void {
             if (ticketIds.length > 0) {
                 const ticketsToPay = await db.query.pieceworkTickets.findMany({
                     where: and(
-                        eq(schema.pieceworkTickets.organizationId, orgId),
-                        inArray(schema.pieceworkTickets.id, ticketIds)
+                        eq(pieceworkTickets.organizationId, orgId),
+                        inArray(pieceworkTickets.id, ticketIds)
                     )
                 });
                 totalTicketAmount = ticketsToPay.reduce((sum, t) => sum + t.totalAmount, 0);
 
-                await db.update(schema.pieceworkTickets)
+                await db.update(pieceworkTickets)
                     .set({ status: 'paid', updatedAt: new Date() })
-                    .where(inArray(schema.pieceworkTickets.id, ticketIds));
+                    .where(inArray(pieceworkTickets.id, ticketIds));
             }
 
             // 2. Process Advances
             if (advanceIds.length > 0) {
                 const advancesToPay = await db.query.payrollAdvances.findMany({
                     where: and(
-                        eq(schema.payrollAdvances.organizationId, orgId),
-                        inArray(schema.payrollAdvances.id, advanceIds)
+                        eq(payrollAdvances.organizationId, orgId),
+                        inArray(payrollAdvances.id, advanceIds)
                     )
                 });
                 totalAdvanceAmount = advancesToPay.reduce((sum, a) => sum + a.amount, 0);
 
-                await db.update(schema.payrollAdvances)
+                await db.update(payrollAdvances)
                     .set({ status: 'paid' })
-                    .where(inArray(schema.payrollAdvances.id, advanceIds));
+                    .where(inArray(payrollAdvances.id, advanceIds));
             }
 
             const netPayout = totalTicketAmount - totalAdvanceAmount;
 
             // 3. Record Expense
             if (netPayout > 0) {
-                await db.insert(schema.expenses).values({
+                await db.insert(expenses).values({
                     organizationId: orgId,
                     amount: netPayout,
                     category: 'payroll',

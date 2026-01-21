@@ -24,30 +24,27 @@ interface ProductionTerminalProps {
 }
 
 export default function ProductionTerminal({ sessionContext, onLogout }: ProductionTerminalProps) {
-    const { session } = useAuth(); // Still need this for API calls if we use bearer, or use kiosk context
+    const { session } = useAuth();
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const [selectedTask, setSelectedTask] = useState<any>(null);
 
-    // Fetch available tasks/rates (Mock for now, or from config)
-    // Ideally this comes from /api/piecework/rates or similar
-    const tasks = [
-        { id: "cut_jeans", name: "Corte de Pantalón (Jeans)", price: 1500, unit: "pza" }, // $15.00
-        { id: "sew_pockets", name: "Pegado de Bolsas", price: 500, unit: "par" }, // $5.00
-        { id: "finish_hem", name: "Dobladillo Final", price: 300, unit: "pza" }, // $3.00
-        { id: "iron_final", name: "Planchado y Empaque", price: 800, unit: "pza" }, // $8.00
-    ];
+    // Fetch available tasks/rates from DB
+    const { data: tasks = [] } = useQuery({
+        queryKey: ["/api/piecework/tasks"],
+        enabled: !!sessionContext.terminal.organizationId
+    });
 
-    const { data: recentTickets } = useQuery({
-        queryKey: ["/api/piecework/tickets/my", sessionContext.driver?.id],
+    // Fetch recent tickets for this employee
+    const { data: recentTickets = [] } = useQuery({
+        queryKey: ["/api/piecework/tickets", sessionContext.driver?.id],
         queryFn: async () => {
-            // In a real scenario, we'd filter by the employee ID. 
-            // For now fetching all and filtering client side or assuming endpoint handles context
-            // Using a specific endpoint for "my recent tickets" woudl be best.
-            // We'll mock the fetch for the UI skeleton
-            return [];
+            const res = await fetch(`/api/piecework/tickets?employeeId=${sessionContext.driver?.id}`);
+            if (!res.ok) throw new Error("Failed to fetch history");
+            return res.json();
         },
-        enabled: !!sessionContext.driver?.id
+        enabled: !!sessionContext.driver?.id,
+        refetchInterval: 5000 // Real-time poll or stick to RT subscription
     });
 
     const createTicketMutation = useMutation({
@@ -56,15 +53,12 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    userId: sessionContext.driver?.id, // Use the Kiosk-session employee
+                    employeeId: sessionContext.driver?.id,
                     taskName: task.name,
                     quantity: 1, // Default to 1 unit per ticket scan
-                    unitPrice: task.price,
-                    totalAmount: task.price,
+                    unitPrice: task.unitPrice,
+                    totalAmount: task.unitPrice,
                     organizationId: sessionContext.terminal.organizationId
-                    // Note: In real auth, backend infers org. 
-                    // Here we assume backend trusts the kiosk if it's within internal network or verified.
-                    // Ideally we pass a Kiosk-header.
                 })
             });
             if (!res.ok) throw new Error("Error creating ticket");
@@ -76,6 +70,7 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
                 description: `ID: ${data.id.slice(0, 8)} - $${(data.totalAmount / 100).toFixed(2)}`,
             });
             setSelectedTask(null);
+            queryClient.invalidateQueries({ queryKey: ["/api/piecework/tickets"] });
             // Simulate printing
             printTicket(data);
         },
@@ -106,6 +101,9 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
         win?.print();
         // win?.close(); // Keep open for debug
     };
+
+    // Calculate daily total from recentTickets (Assuming backend only returns recent/today or we filter)
+    const todayTotal = recentTickets.reduce((acc: number, t: any) => acc + t.totalAmount, 0);
 
     return (
         <div className="h-full flex flex-col gap-6 p-6 max-w-6xl mx-auto">
@@ -141,7 +139,7 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
                     </CardHeader>
                     <CardContent className="flex-1 overflow-y-auto p-4">
                         <div className="grid grid-cols-2 gap-4">
-                            {tasks.map(task => (
+                            {tasks.map((task: any) => (
                                 <button
                                     key={task.id}
                                     onClick={() => createTicketMutation.mutate(task)}
@@ -153,7 +151,7 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
                                     </div>
                                     <h3 className="font-bold text-white mb-1">{task.name}</h3>
                                     <Badge variant="secondary" className="font-mono text-lg">
-                                        ${(task.price / 100).toFixed(2)}
+                                        ${(task.unitPrice / 100).toFixed(2)}
                                     </Badge>
                                 </button>
                             ))}
@@ -166,8 +164,8 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
                     <Card className="bg-primary/10 border-primary/20">
                         <CardContent className="p-6 text-center">
                             <p className="text-sm text-primary/80 uppercase font-black tracking-widest mb-1">Producción Hoy</p>
-                            <p className="text-4xl font-black text-white">$450.00</p>
-                            <p className="text-xs text-slate-400 mt-2">35 piezas procesadas</p>
+                            <p className="text-4xl font-black text-white">${(todayTotal / 100).toFixed(2)}</p>
+                            <p className="text-xs text-slate-400 mt-2">{recentTickets.length} piezas procesadas</p>
                         </CardContent>
                     </Card>
 
@@ -180,19 +178,21 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
                         </CardHeader>
                         <ScrollArea className="flex-1 p-4 pt-0">
                             <div className="space-y-3">
-                                {/* Mock History */}
-                                {[1, 2, 3, 4, 5].map(i => (
-                                    <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-slate-950/50 border border-slate-800">
+                                {recentTickets.map((t: any) => (
+                                    <div key={t.id} className="flex items-center justify-between p-3 rounded-lg bg-slate-950/50 border border-slate-800">
                                         <div className="flex items-center gap-3">
                                             <CheckCircle2 className="w-4 h-4 text-green-500" />
                                             <div>
-                                                <p className="text-sm font-medium text-slate-300">Corte de Jeans</p>
-                                                <p className="text-[10px] text-slate-600 font-mono">10:4{i} AM</p>
+                                                <p className="text-sm font-medium text-slate-300">{t.taskName}</p>
+                                                <p className="text-xs text-slate-600 font-mono">
+                                                    {new Date(t.createdAt).toLocaleTimeString()}
+                                                </p>
                                             </div>
                                         </div>
-                                        <span className="font-mono font-bold text-white">$15.00</span>
+                                        <span className="font-mono font-bold text-white">${(t.totalAmount / 100).toFixed(2)}</span>
                                     </div>
                                 ))}
+                                {recentTickets.length === 0 && <p className="text-center text-slate-500 py-4">No hay tickets recientes</p>}
                             </div>
                         </ScrollArea>
                     </Card>

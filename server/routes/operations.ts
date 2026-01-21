@@ -9,7 +9,7 @@ import {
 import { eq, and, desc } from "drizzle-orm";
 import { getOrgIdFromRequest } from "../auth_util";
 import { createRequire } from "module";
-const require = createRequire(import.meta.url);
+const require = createRequire(import.meta.url || "file://" + __filename);
 const pdf = require("pdf-parse");
 
 

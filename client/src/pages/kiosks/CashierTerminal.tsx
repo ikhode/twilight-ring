@@ -33,57 +33,67 @@ export default function CashierTerminal({ sessionContext, onLogout }: CashierTer
     // Mock employee search for now, replacing with real search if endpoint exists
     const handleEmployeeSearch = () => {
         // In real app, query /api/hr/employees by ID or Name
-        // For demo, we assume the scanned code IS the employee ID or ticket contains it.
-        // Let's assume we scan a generic "Ticket ID" but for payouts we need "Employee ID".
-        // Simplification: We search pending tickets for a specific employee.
-        setEmployeeId(scanCode); // Just treating the scan as "Employee ID" for payout flow
+        // For demo, we assume the scanned code IS the employee ID.
+        if (!scanCode) return;
+        setEmployeeId(scanCode);
     };
 
     // Fetch unpaid tickets for this employee
     const { data: unpaidTickets = [], isLoading: loadingTickets } = useQuery({
         queryKey: ["/api/piecework/tickets/unpaid", employeeId],
         queryFn: async () => {
-            // Mock endpoint standard: GET /api/piecework/tickets?status=pending&userId={employeeId}
-            // Assuming we have such filter logic. For now, stubbing response based on input.
             if (!employeeId) return [];
-
-            // Stub data
-            return [
-                { id: "MX-8291", taskName: "Corte de Pantalón (Jeans)", totalAmount: 1500, date: new Date().toISOString() },
-                { id: "MX-8292", taskName: "Corte de Pantalón (Jeans)", totalAmount: 1500, date: new Date().toISOString() },
-                { id: "MX-8295", taskName: "Pegado de Bolsas", totalAmount: 500, date: new Date().toISOString() }
-            ];
+            const res = await fetch(`/api/piecework/tickets?employeeId=${employeeId}&status=pending`);
+            if (!res.ok) throw new Error("Failed to fetch tickets");
+            return res.json();
         },
         enabled: !!employeeId
     });
 
     // Fetch pending advances
     const { data: advances = [] } = useQuery({
-        queryKey: ["/api/hr/payroll/advances", employeeId],
+        queryKey: ["/api/piecework/advances", employeeId],
         queryFn: async () => {
-            // Stub data
             if (!employeeId) return [];
-            return [
-                { id: "ADV-101", amount: 50000, date: new Date().toISOString(), reason: "Adelanto personal" } // $500.00
-            ];
+            const res = await fetch(`/api/piecework/advances?employeeId=${employeeId}&status=pending`);
+            if (!res.ok) throw new Error("Failed to fetch advances");
+            return res.json();
         },
         enabled: !!employeeId
     });
 
     const payMutation = useMutation({
         mutationFn: async () => {
-            // Here we would call POST /api/hr/payroll/payout 
-            // passing ticket IDs and advance IDs to mark as paid/deducted
-            await new Promise(r => setTimeout(r, 1000)); // Mock delay
-            return { success: true, totalPaid: 3500 - 500 };
+            const res = await fetch("/api/piecework/payout", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    ticketIds: unpaidTickets.map((t: any) => t.id),
+                    advanceIds: advances.map((a: any) => a.id)
+                })
+            });
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.message || "Payout failed");
+            }
+            return res.json();
         },
-        onSuccess: () => {
+        onSuccess: (data) => {
             toast({
                 title: "Pago Exitoso",
-                description: "Se han registrado los tickets como pagados.",
+                description: `Pagado $${(data.netPayout / 100).toFixed(2)}. Tickets: ${data.processedTickets}`,
             });
             setEmployeeId(null);
             setScanCode("");
+            queryClient.invalidateQueries({ queryKey: ["/api/piecework/tickets"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/piecework/advances"] });
+        },
+        onError: (err) => {
+            toast({
+                title: "Error",
+                description: err.message || "No se pudo procesar el pago",
+                variant: "destructive"
+            });
         }
     });
 
@@ -135,8 +145,8 @@ export default function CashierTerminal({ sessionContext, onLogout }: CashierTer
                                         <User className="w-6 h-6 text-primary" />
                                     </div>
                                     <div>
-                                        <p className="font-bold text-white">Juan Pérez</p>
-                                        <p className="text-xs text-primary/80">ID: {employeeId}</p>
+                                        <p className="font-bold text-white">Empleado</p>
+                                        <p className="text-xs text-primary/80">ID: {employeeId.slice(0, 8)}...</p>
                                     </div>
                                 </div>
                             )}
@@ -201,7 +211,7 @@ export default function CashierTerminal({ sessionContext, onLogout }: CashierTer
                                                         <DollarSign className="w-4 h-4 text-emerald-500" />
                                                         <div>
                                                             <p className="font-medium text-slate-200">{t.taskName}</p>
-                                                            <p className="text-xs text-slate-500 font-mono">{t.id}</p>
+                                                            <p className="text-xs text-slate-500 font-mono">{t.id.slice(0, 8)}</p>
                                                         </div>
                                                     </div>
                                                     <span className="font-mono text-white">${(t.totalAmount / 100).toFixed(2)}</span>
