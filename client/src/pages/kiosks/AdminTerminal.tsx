@@ -14,7 +14,7 @@ import {
     Camera,
     Loader2
 } from "lucide-react";
-import { KioskSession } from "../KioskInterface";
+import { KioskSession } from "@/types/kiosk";
 import { useLocation } from "wouter";
 import * as faceapi from 'face-api.js';
 

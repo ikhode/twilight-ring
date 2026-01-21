@@ -16,7 +16,7 @@ import {
     LogOut,
     Search
 } from "lucide-react";
-import { KioskSession } from "../KioskInterface";
+import { KioskSession } from "@/types/kiosk";
 
 interface CashierTerminalProps {
     sessionContext: KioskSession;

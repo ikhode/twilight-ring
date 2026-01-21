@@ -16,7 +16,7 @@ import {
     History,
     AlertCircle
 } from "lucide-react";
-import { KioskSession } from "../KioskInterface";
+import { KioskSession } from "@/types/kiosk";
 
 interface ProductionTerminalProps {
     sessionContext: KioskSession;
