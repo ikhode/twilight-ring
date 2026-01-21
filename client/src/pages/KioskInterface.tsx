@@ -77,7 +77,7 @@ export default function KioskInterface(): JSX.Element {
   const [wakeLock, setWakeLock] = useState<WakeLockSentinel | null>(null);
 
   // Fetch real Kiosk Data
-  const { data: kioskInfo, isLoading } = useQuery<Terminal>({
+  const { data: kioskInfo, isLoading } = useQuery<Terminal | null>({
     queryKey: [`/api/kiosks/device/${deviceId}`],
     queryFn: async (): Promise<Terminal | null> => {
       if (!deviceId) return null;
@@ -244,7 +244,7 @@ export default function KioskInterface(): JSX.Element {
     return (
       <ProductionTerminal
         sessionContext={{
-          terminal: kioskInfo,
+          terminal: kioskInfo as Terminal,
           driver: undefined // Mapping employee to generic user context if needed
         }}
         onLogout={() => window.location.reload()}
@@ -256,7 +256,7 @@ export default function KioskInterface(): JSX.Element {
   if (session?.access_token && kioskInfo?.capabilities?.includes("cashier")) {
     return (
       <CashierTerminal
-        sessionContext={{ terminal: kioskInfo, driver: undefined }}
+        sessionContext={{ terminal: kioskInfo as Terminal, driver: undefined }}
         onLogout={() => window.location.reload()}
       />
     );
@@ -266,7 +266,7 @@ export default function KioskInterface(): JSX.Element {
   if (session?.access_token && kioskInfo?.capabilities?.includes("admin")) {
     return (
       <AdminTerminal
-        sessionContext={{ terminal: kioskInfo, driver: undefined }}
+        sessionContext={{ terminal: kioskInfo as Terminal, driver: undefined }}
         onLogout={() => window.location.reload()}
       />
     );

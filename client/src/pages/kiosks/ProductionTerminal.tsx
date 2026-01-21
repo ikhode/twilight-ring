@@ -23,20 +23,34 @@ interface ProductionTerminalProps {
     onLogout: () => void;
 }
 
+
+interface Task {
+    id: string;
+    name: string;
+    unitPrice: number;
+}
+
+interface Ticket {
+    id: string;
+    taskName: string;
+    totalAmount: number;
+    createdAt: string;
+}
+
 export default function ProductionTerminal({ sessionContext, onLogout }: ProductionTerminalProps) {
     const { session } = useAuth();
     const { toast } = useToast();
     const queryClient = useQueryClient();
-    const [selectedTask, setSelectedTask] = useState<any>(null);
+    const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
     // Fetch available tasks/rates from DB
-    const { data: tasks = [] } = useQuery({
+    const { data: tasks = [] } = useQuery<Task[]>({
         queryKey: ["/api/piecework/tasks"],
         enabled: !!sessionContext.terminal.organizationId
     });
 
     // Fetch recent tickets for this employee
-    const { data: recentTickets = [] } = useQuery({
+    const { data: recentTickets = [] } = useQuery<Ticket[]>({
         queryKey: ["/api/piecework/tickets", sessionContext.driver?.id],
         queryFn: async () => {
             const res = await fetch(`/api/piecework/tickets?employeeId=${sessionContext.driver?.id}`);
@@ -103,7 +117,7 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
     };
 
     // Calculate daily total from recentTickets (Assuming backend only returns recent/today or we filter)
-    const todayTotal = recentTickets.reduce((acc: number, t: any) => acc + t.totalAmount, 0);
+    const todayTotal = recentTickets.reduce((acc: number, t: Ticket) => acc + t.totalAmount, 0);
 
     return (
         <div className="h-full flex flex-col gap-6 p-6 max-w-6xl mx-auto">
@@ -139,7 +153,7 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
                     </CardHeader>
                     <CardContent className="flex-1 overflow-y-auto p-4">
                         <div className="grid grid-cols-2 gap-4">
-                            {tasks.map((task: any) => (
+                            {tasks.map((task) => (
                                 <button
                                     key={task.id}
                                     onClick={() => createTicketMutation.mutate(task)}
@@ -178,7 +192,7 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
                         </CardHeader>
                         <ScrollArea className="flex-1 p-4 pt-0">
                             <div className="space-y-3">
-                                {recentTickets.map((t: any) => (
+                                {recentTickets.map((t) => (
                                     <div key={t.id} className="flex items-center justify-between p-3 rounded-lg bg-slate-950/50 border border-slate-800">
                                         <div className="flex items-center gap-3">
                                             <CheckCircle2 className="w-4 h-4 text-green-500" />

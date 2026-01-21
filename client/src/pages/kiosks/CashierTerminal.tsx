@@ -23,6 +23,18 @@ interface CashierTerminalProps {
     onLogout: () => void;
 }
 
+interface UnpaidTicket {
+    id: string;
+    taskName: string;
+    totalAmount: number;
+}
+
+interface Advance {
+    id: string;
+    amount: number;
+    date: string;
+}
+
 export default function CashierTerminal({ sessionContext, onLogout }: CashierTerminalProps) {
     const { session } = useAuth();
     const { toast } = useToast();
@@ -39,7 +51,7 @@ export default function CashierTerminal({ sessionContext, onLogout }: CashierTer
     };
 
     // Fetch unpaid tickets for this employee
-    const { data: unpaidTickets = [], isLoading: loadingTickets } = useQuery({
+    const { data: unpaidTickets = [], isLoading: loadingTickets } = useQuery<UnpaidTicket[]>({
         queryKey: ["/api/piecework/tickets/unpaid", employeeId],
         queryFn: async () => {
             if (!employeeId) return [];
@@ -51,7 +63,7 @@ export default function CashierTerminal({ sessionContext, onLogout }: CashierTer
     });
 
     // Fetch pending advances
-    const { data: advances = [] } = useQuery({
+    const { data: advances = [] } = useQuery<Advance[]>({
         queryKey: ["/api/piecework/advances", employeeId],
         queryFn: async () => {
             if (!employeeId) return [];
@@ -205,7 +217,7 @@ export default function CashierTerminal({ sessionContext, onLogout }: CashierTer
                                     <h3 className="text-sm font-bold text-slate-400 mb-2 uppercase tracking-wider">Tickets Pendientes</h3>
                                     <ScrollArea className="flex-1 rounded-md border border-slate-800 bg-slate-950/30 p-2">
                                         <div className="space-y-2">
-                                            {unpaidTickets.map((t: any) => (
+                                            {unpaidTickets.map((t) => (
                                                 <div key={t.id} className="flex items-center justify-between p-3 rounded bg-slate-900/50 border border-slate-800/50">
                                                     <div className="flex items-center gap-3">
                                                         <DollarSign className="w-4 h-4 text-emerald-500" />
@@ -229,7 +241,7 @@ export default function CashierTerminal({ sessionContext, onLogout }: CashierTer
                                     </h3>
                                     <ScrollArea className="flex-1 rounded-md border border-red-900/20 bg-red-950/10 p-2">
                                         <div className="space-y-2">
-                                            {advances.map((a: any) => (
+                                            {advances.map((a) => (
                                                 <div key={a.id} className="flex items-center justify-between p-3 rounded bg-red-900/10 border border-red-900/20">
                                                     <div>
                                                         <p className="font-medium text-red-200">Adelanto de Nómina</p>
