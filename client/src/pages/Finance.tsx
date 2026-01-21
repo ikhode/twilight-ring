@@ -27,7 +27,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -368,6 +368,7 @@ export default function Finance() {
 function NewTransactionDialog() {
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
+  const { session } = useAuth();
   const queryClient = useQueryClient();
   const [data, setData] = useState({
     type: "expense",
@@ -380,7 +381,10 @@ function NewTransactionDialog() {
     mutationFn: async () => {
       const res = await fetch("/api/operations/finance/transaction", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token}`
+        },
         body: JSON.stringify({
           ...data,
           amount: parseFloat(data.amount) * 100 // Convert to cents
@@ -408,6 +412,9 @@ function NewTransactionDialog() {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Registrar Movimiento</DialogTitle>
+          <DialogDescription>
+            Ingrese los detalles de la transacción financiera para registrarla en el sistema.
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="space-y-2">
