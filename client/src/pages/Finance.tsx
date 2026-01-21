@@ -390,7 +390,10 @@ function NewTransactionDialog() {
           amount: parseFloat(data.amount) * 100 // Convert to cents
         })
       });
-      if (!res.ok) throw new Error("Failed");
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "Failed" }));
+        throw new Error(err.message || "Failed");
+      }
       return res.json();
     },
     onSuccess: () => {
@@ -398,6 +401,14 @@ function NewTransactionDialog() {
       setOpen(false);
       setData({ type: "expense", amount: "", category: "general", description: "" });
       queryClient.invalidateQueries({ queryKey: ["/api/operations/finance/summary"] });
+    },
+    onError: (error) => {
+      console.error(error);
+      toast({
+        title: "Error al registrar",
+        description: error.message || "Verifique los datos e intente nuevamente",
+        variant: "destructive"
+      });
     }
   });
 
