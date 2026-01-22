@@ -59,6 +59,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Employee } from "../../../shared/schema";
 import { supabase } from "@/lib/supabase";
 import { useCognitiveEngine } from "@/lib/cognitive/engine";
+import { FaceEnrollmentDialog } from "@/components/hr/FaceEnrollmentDialog";
 
 
 function InviteDialog() {
@@ -143,31 +144,33 @@ function InviteDialog() {
   );
 }
 
+import { EntityDossier } from "@/components/documents/EntityDossier";
+
 function EditEmployeeDialog({ employee, open, onOpenChange }: { employee: Employee | null, open: boolean, onOpenChange: (open: boolean) => void }) {
   const { session } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const updateMutation = useMutation({
-    mutationFn: async (data: any) => {
+    mutationFn: async (userData: Partial<Employee>) => {
       const res = await fetch(`/api/hr/employees/${employee?.id}`, {
-        method: "PUT",
+        method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${session?.access_token}`
         },
-        body: JSON.stringify(data)
+        body: JSON.stringify(userData)
       });
       if (!res.ok) throw new Error("Failed to update");
       return res.json();
     },
     onSuccess: () => {
-      onOpenChange(false);
       queryClient.invalidateQueries({ queryKey: ["/api/hr/employees"] });
-      toast({ title: "Empleado Actualizado", description: "Los cambios se han guardado." });
+      onOpenChange(false);
+      toast({ title: "Datos Actualizados", description: "La información se ha guardado correctamente." });
     },
-    onError: (err) => {
-      toast({ title: "Error", description: "No se pudo actualizar el empleado.", variant: "destructive" });
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
     }
   });
 
@@ -175,76 +178,95 @@ function EditEmployeeDialog({ employee, open, onOpenChange }: { employee: Employ
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle>Editar Empleado</DialogTitle>
-          <DialogDescription>Modifica la información del colaborador.</DialogDescription>
+          <DialogTitle>Expediente de {employee.name}</DialogTitle>
+          <DialogDescription>Gestión de información y documentos.</DialogDescription>
         </DialogHeader>
-        <form onSubmit={(e) => {
-          e.preventDefault();
-          const formData = new FormData(e.currentTarget);
-          updateMutation.mutate({
-            name: formData.get("name"),
-            email: formData.get("email"),
-            role: formData.get("role"),
-            department: formData.get("department"),
-            salary: Number(formData.get("salary")) * 100,
-            status: formData.get("status")
-          });
-        }} className="space-y-4 py-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-name">Nombre</Label>
-              <Input id="edit-name" name="name" defaultValue={employee.name} required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-email">Email</Label>
-              <Input id="edit-email" name="email" defaultValue={employee.email || ""} type="email" />
-            </div>
+
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 min-h-0">
+          {/* Form Column */}
+          <div className="overflow-y-auto pr-2">
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              updateMutation.mutate({
+                name: formData.get("name") as string,
+                email: formData.get("email") as string,
+                role: formData.get("role") as string,
+                department: formData.get("department") as string,
+                salary: Number(formData.get("salary")) * 100,
+                status: formData.get("status") as any,
+              });
+            }} className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Nombre</Label>
+                  <Input name="name" defaultValue={employee.name} required />
+                </div>
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <Input name="email" defaultValue={employee.email || ""} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Puesto</Label>
+                  <Input name="role" defaultValue={employee.role} required />
+                </div>
+                <div className="space-y-2">
+                  <Label>Departamento</Label>
+                  <Select name="department" defaultValue={employee.department || "operations"}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">Administración</SelectItem>
+                      <SelectItem value="operations">Operaciones</SelectItem>
+                      <SelectItem value="sales">Comercial</SelectItem>
+                      <SelectItem value="logistics">Logística</SelectItem>
+                      <SelectItem value="it">Tecnología</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Salario (Mensual)</Label>
+                  <Input name="salary" type="number" defaultValue={(employee.salary || 0) / 100} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Estado</Label>
+                  <Select name="status" defaultValue={employee.status || "active"}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Activo</SelectItem>
+                      <SelectItem value="on_leave">En Permiso</SelectItem>
+                      <SelectItem value="inactive">Inactivo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button type="submit" disabled={updateMutation.isPending}>
+                  {updateMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Guardar Cambios
+                </Button>
+              </DialogFooter>
+            </form>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Departamento</Label>
-              <Select name="department" defaultValue={employee.department}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">Administración</SelectItem>
-                  <SelectItem value="operations">Operaciones</SelectItem>
-                  <SelectItem value="sales">Comercial</SelectItem>
-                  <SelectItem value="logistics">Logística</SelectItem>
-                  <SelectItem value="it">Tecnología</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Estado</Label>
-              <Select name="status" defaultValue={employee.status}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Activo</SelectItem>
-                  <SelectItem value="on_leave">Permiso</SelectItem>
-                  <SelectItem value="inactive">Inactivo</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+
+          {/* Dossier Column */}
+          <div className="h-full min-h-[400px]">
+            <EntityDossier
+              entityId={employee.id}
+              entityType="employee"
+              label="Documentos del Colaborador"
+              className="border-slate-800 bg-slate-900/50"
+            />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-role">Cargo</Label>
-              <Input id="edit-role" name="role" defaultValue={employee.role} required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-salary">Salario (MXN)</Label>
-              <Input id="edit-salary" name="salary" type="number" defaultValue={(employee.salary || 0) / 100} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button type="submit" disabled={updateMutation.isPending}>
-              {updateMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Guardar Cambios
-            </Button>
-          </DialogFooter>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -260,6 +282,7 @@ export default function Employees() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [deletingEmployee, setDeletingEmployee] = useState<Employee | null>(null);
+  const [enrollingFaceEmployee, setEnrollingFaceEmployee] = useState<Employee | null>(null);
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -565,6 +588,10 @@ export default function Employees() {
                               <Edit className="w-4 h-4 mr-2" />
                               Editar
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setEnrollingFaceEmployee(item)}>
+                              <Camera className="w-4 h-4 mr-2" />
+                              Enrolar Rostro (FaceID)
+                            </DropdownMenuItem>
                             <DropdownMenuItem className="text-red-500 focus:text-red-500" onClick={() => setDeletingEmployee(item)}>
                               <Trash2 className="w-4 h-4 mr-2" />
                               Dar de Baja
@@ -610,6 +637,13 @@ export default function Employees() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* FaceID Enrollment */}
+        <FaceEnrollmentDialog
+          employee={enrollingFaceEmployee}
+          open={!!enrollingFaceEmployee}
+          onOpenChange={(open) => !open && setEnrollingFaceEmployee(null)}
+        />
       </div>
     </AppLayout >
   );

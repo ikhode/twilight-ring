@@ -298,6 +298,79 @@ export const payments = pgTable("payments", {
   date: timestamp("date").defaultNow(),
 });
 
+// ============================================================================
+// CASH MANAGEMENT SYSTEM (Caja Chica)
+// ============================================================================
+
+export const cashRegisters = pgTable("cash_registers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  name: text("name").notNull(), // e.g., "Main Register", "Petty Cash HQ"
+  balance: integer("balance").notNull().default(0), // in cents
+  status: text("status").notNull().default("closed"), // "open", "closed"
+  currentSessionId: varchar("current_session_id"), // link to active session
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const cashSessions = pgTable("cash_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  registerId: varchar("register_id").notNull().references(() => cashRegisters.id, { onDelete: "cascade" }),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  openedBy: varchar("opened_by").notNull().references(() => users.id),
+  closedBy: varchar("closed_by").references(() => users.id),
+
+  startTime: timestamp("start_time").defaultNow(),
+  endTime: timestamp("end_time"),
+
+  startAmount: integer("start_amount").notNull(), // in cents
+  expectedEndAmount: integer("expected_end_amount"), // calculated
+  actualEndAmount: integer("actual_end_amount"), // declared
+  difference: integer("difference"), // actual - expected
+
+  status: text("status").notNull().default("open"), // "open", "closed"
+  notes: text("notes"),
+});
+
+export const cashTransactions = pgTable("cash_transactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  registerId: varchar("register_id").notNull().references(() => cashRegisters.id),
+  sessionId: varchar("session_id").notNull().references(() => cashSessions.id),
+
+  amount: integer("amount").notNull(), // in cents (always positive)
+  type: text("type").notNull(), // "in", "out"
+  category: text("category").notNull(), // "sales", "supplier", "payroll", "funding", "withdrawal"
+  description: text("description"),
+
+  performedBy: varchar("performed_by").notNull().references(() => users.id),
+  referenceId: varchar("reference_id"), // link to other entities
+
+  timestamp: timestamp("timestamp").defaultNow(),
+});
+
+export type CashRegister = typeof cashRegisters.$inferSelect;
+export type CashSession = typeof cashSessions.$inferSelect;
+export type CashTransaction = typeof cashTransactions.$inferSelect;
+
+export const insertCashRegisterSchema = createInsertSchema(cashRegisters);
+export const insertCashSessionSchema = createInsertSchema(cashSessions);
+export const insertCashTransactionSchema = createInsertSchema(cashTransactions);
+
+export type InsertCashRegister = z.infer<typeof insertCashRegisterSchema>;
+export type InsertCashSession = z.infer<typeof insertCashSessionSchema>;
+export type InsertCashTransaction = z.infer<typeof insertCashTransactionSchema>;
+
+
+export const purchases = pgTable("purchases", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  supplierId: varchar("supplier_id").references(() => suppliers.id),
+  totalAmount: integer("total_amount").notNull(), // in cents
+  status: text("status").notNull().default("completed"), // "pending", "completed", "cancelled"
+  date: timestamp("date").defaultNow(),
+  notes: text("notes"),
+});
+
 // Fleet/Logistics
 export const vehicles = pgTable("vehicles", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -376,17 +449,7 @@ export const sales = pgTable("sales", {
   date: timestamp("date").defaultNow(),
 });
 
-export const purchases = pgTable("purchases", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  supplierId: varchar("supplier_id").notNull().references(() => suppliers.id),
-  items: jsonb("items").notNull(), // array of { productId, quantity, cost }
-  totalCost: integer("total_cost").notNull(),
-  status: text("status").default("received"),
-  driverId: varchar("driver_id").references(() => employees.id),
-  vehicleId: varchar("vehicle_id").references(() => vehicles.id),
-  date: timestamp("date").defaultNow(),
-});
+
 
 // Employees & Payroll
 export const employees = pgTable("employees", {
@@ -600,12 +663,15 @@ export const pieceworkTickets = pgTable("piecework_tickets", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   employeeId: varchar("employee_id").notNull().references(() => employees.id), // The operator
+  creatorId: varchar("creator_id").references(() => users.id), // Who recorded it
   taskName: text("task_name").notNull(),
   quantity: integer("quantity").notNull(),
   unitPrice: integer("unit_price").notNull(), // in cents
   totalAmount: integer("total_amount").notNull(), // in cents (quantity * unitPrice)
   status: text("status").notNull().default("pending"), // "pending", "approved", "rejected", "paid"
   approvedBy: varchar("approved_by").references(() => users.id),
+  sourceLocation: text("source_location"), // Where product was taken from
+  destinationLocation: text("destination_location"), // Where product was sent
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -722,3 +788,29 @@ export const insertAiChatAgentSchema = createInsertSchema(aiChatAgents);
 export const insertChatConversationSchema = createInsertSchema(chatConversations);
 export const insertChatMessageSchema = createInsertSchema(chatMessages);
 
+// ============================================================================
+// INTELLIGENT DOCUMENT HUB (Business Documents)
+// ============================================================================
+
+export const businessDocuments = pgTable("business_documents", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  type: text("type").notNull(), // "invoice", "contract", "receipt", "other"
+  status: text("status").notNull().default("processing"), // "processing", "analyzed", "verified", "archived"
+  extractedData: jsonb("extracted_data").default({}), // Structured data from "OCR"
+  confidence: integer("confidence").default(0), // 0-100
+  fileUrl: text("file_url"),
+  uploadedBy: varchar("uploaded_by").references(() => users.id),
+  // Entity Linking (The "Dossier" feature)
+  relatedEntityId: varchar("related_entity_id"),
+  relatedEntityType: text("related_entity_type"), // "employee", "supplier", "customer", "transaction"
+  // Processing Metadata
+  processingError: text("processing_error"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type BusinessDocument = typeof businessDocuments.$inferSelect;
+export type InsertBusinessDocument = z.infer<typeof insertBusinessDocumentSchema>;
+export const insertBusinessDocumentSchema = createInsertSchema(businessDocuments);

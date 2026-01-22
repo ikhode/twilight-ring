@@ -41,6 +41,40 @@ router.post("/employees", async (req, res): Promise<void> => {
 });
 
 /**
+ * Actualiza la información de un empleado.
+ */
+router.patch("/employees/:id", async (req, res): Promise<void> => {
+    const orgId = await getOrgIdFromRequest(req);
+    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
+    const id = req.params.id;
+    const employee = await storage.getEmployee(id);
+    if (!employee || employee.organizationId !== orgId) {
+        return res.status(404).json({ error: "Employee not found or unauthorized" });
+    }
+
+    const updated = await storage.updateEmployee(id, req.body);
+    res.json(updated);
+});
+
+/**
+ * Elimina un empleado.
+ */
+router.delete("/employees/:id", async (req, res): Promise<void> => {
+    const orgId = await getOrgIdFromRequest(req);
+    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
+    const id = req.params.id;
+    const employee = await storage.getEmployee(id);
+    if (!employee || employee.organizationId !== orgId) {
+        return res.status(404).json({ error: "Employee not found or unauthorized" });
+    }
+
+    await storage.deleteEmployee(id);
+    res.status(204).end();
+});
+
+/**
  * Obtiene las solicitudes de adelanto de nómina de la organización.
  * 
  * @param {import("express").Request} req - Solicitud de Express

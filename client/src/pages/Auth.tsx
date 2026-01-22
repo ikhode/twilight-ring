@@ -27,13 +27,12 @@ import { useToast } from "@/hooks/use-toast";
 export default function Auth() {
     const [, setLocation] = useLocation();
     const [mode, setMode] = useState<"login" | "signup">("signup");
-    const [step, setStep] = useState(1); // For signup flow
     const [formData, setFormData] = useState({
         email: "",
         password: "",
         name: "",
         organizationName: "",
-        industry: "manufacturing",
+        industry: "other",
     });
 
     const industries = [
@@ -49,11 +48,6 @@ export default function Auth() {
     const { toast } = useToast();
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-
-        if (mode === "signup" && step === 1) {
-            setStep(2);
-            return;
-        }
 
         try {
             if (mode === 'login') {
@@ -142,16 +136,7 @@ export default function Auth() {
                         {mode === "login" ? "Bienvenido de vuelta al futuro" : "Únete a la evolución"}
                     </p>
 
-                    {mode === "signup" && (
-                        <div className="flex justify-center gap-2 mt-6">
-                            {[1, 2].map((i) => (
-                                <div
-                                    key={i}
-                                    className={`h-1 rounded-full transition-all duration-500 ${step === i ? "w-12 bg-primary shadow-[0_0_10px_rgba(59,130,246,0.5)]" : "w-4 bg-slate-800"}`}
-                                />
-                            ))}
-                        </div>
-                    )}
+
                 </motion.div>
 
                 {/* Auth Card */}
@@ -160,10 +145,7 @@ export default function Auth() {
                         {/* Mode Toggle */}
                         <div className="flex gap-2 mb-8 p-1 bg-slate-950 rounded-xl">
                             <button
-                                onClick={() => {
-                                    setMode("login");
-                                    setStep(1);
-                                }}
+                                onClick={() => setMode("login")}
                                 className={`flex-1 py-3 rounded-lg font-bold uppercase text-sm tracking-wider transition-all ${mode === "login"
                                     ? "bg-primary text-white"
                                     : "text-slate-500 hover:text-slate-300"
@@ -172,10 +154,7 @@ export default function Auth() {
                                 Ingresar
                             </button>
                             <button
-                                onClick={() => {
-                                    setMode("signup");
-                                    setStep(1);
-                                }}
+                                onClick={() => setMode("signup")}
                                 className={`flex-1 py-3 rounded-lg font-bold uppercase text-sm tracking-wider transition-all ${mode === "signup"
                                     ? "bg-primary text-white"
                                     : "text-slate-500 hover:text-slate-300"
@@ -239,14 +218,14 @@ export default function Auth() {
                                         <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
                                     </Button>
                                 </motion.form>
-                            ) : step === 1 ? (
+                            ) : (
                                 <motion.form
-                                    key="signup-step1"
+                                    key="signup"
                                     initial={{ opacity: 0, x: -20 }}
                                     animate={{ opacity: 1, x: 0 }}
                                     exit={{ opacity: 0, x: 20 }}
                                     onSubmit={handleSubmit}
-                                    className="space-y-6"
+                                    className="space-y-5"
                                 >
                                     <div className="space-y-2">
                                         <Label htmlFor="name" className="text-sm font-bold uppercase tracking-wider text-slate-400">
@@ -260,7 +239,7 @@ export default function Auth() {
                                                 placeholder="Juan Pérez"
                                                 value={formData.name}
                                                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                                className="pl-12 h-14 bg-slate-950 border-slate-800 focus:border-primary rounded-xl"
+                                                className="pl-12 h-12 bg-slate-950 border-slate-800 focus:border-primary rounded-xl"
                                                 required
                                             />
                                         </div>
@@ -278,7 +257,7 @@ export default function Auth() {
                                                 placeholder="tu@empresa.com"
                                                 value={formData.email}
                                                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                                className="pl-12 h-14 bg-slate-950 border-slate-800 focus:border-primary rounded-xl"
+                                                className="pl-12 h-12 bg-slate-950 border-slate-800 focus:border-primary rounded-xl"
                                                 required
                                             />
                                         </div>
@@ -296,7 +275,7 @@ export default function Auth() {
                                                 placeholder="••••••••"
                                                 value={formData.password}
                                                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                                className="pl-12 h-14 bg-slate-950 border-slate-800 focus:border-primary rounded-xl"
+                                                className="pl-12 h-12 bg-slate-950 border-slate-800 focus:border-primary rounded-xl"
                                                 required
                                             />
                                         </div>
@@ -314,7 +293,7 @@ export default function Auth() {
                                                 placeholder="Mi Empresa S.A."
                                                 value={formData.organizationName}
                                                 onChange={(e) => setFormData({ ...formData, organizationName: e.target.value })}
-                                                className="pl-12 h-14 bg-slate-950 border-slate-800 focus:border-primary rounded-xl"
+                                                className="pl-12 h-12 bg-slate-950 border-slate-800 focus:border-primary rounded-xl"
                                                 required
                                             />
                                         </div>
@@ -322,71 +301,11 @@ export default function Auth() {
 
                                     <Button
                                         type="submit"
-                                        className="w-full h-14 bg-primary hover:bg-primary/90 font-black uppercase tracking-wider rounded-xl group"
+                                        className="w-full h-12 bg-primary hover:bg-primary/90 font-black uppercase tracking-wider rounded-xl group"
                                     >
-                                        Continuar
+                                        Crear Cuenta
                                         <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
                                     </Button>
-                                </motion.form>
-                            ) : (
-                                <motion.form
-                                    key="signup-step2"
-                                    initial={{ opacity: 0, x: -20 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    exit={{ opacity: 0, x: 20 }}
-                                    onSubmit={handleSubmit}
-                                    className="space-y-6"
-                                >
-                                    <div className="text-center mb-6">
-                                        <Badge className="bg-primary/20 text-primary border-primary/30 mb-3">
-                                            <Sparkles className="w-3 h-3 mr-1" />
-                                            Paso 2 de 2
-                                        </Badge>
-                                        <h3 className="text-2xl font-black">Selecciona Tu Industria</h3>
-                                        <p className="text-sm text-slate-400 mt-2">
-                                            Configuraremos los módulos perfectos para ti
-                                        </p>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-3 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
-                                        {industries.map((industry) => {
-                                            const Icon = industry.icon;
-                                            return (
-                                                <button
-                                                    key={industry.id}
-                                                    type="button"
-                                                    onClick={() => setFormData({ ...formData, industry: industry.id })}
-                                                    className={`p-4 rounded-xl border-2 transition-all text-left flex flex-col gap-3 group ${formData.industry === industry.id
-                                                        ? "border-primary bg-primary/10 shadow-[0_0_20px_rgba(59,130,246,0.1)]"
-                                                        : "border-slate-800 bg-slate-950 hover:border-slate-700"
-                                                        }`}
-                                                >
-                                                    <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${industry.color} flex items-center justify-center group-hover:scale-110 transition-transform`}>
-                                                        <Icon className="w-5 h-5 text-white" />
-                                                    </div>
-                                                    <p className="text-xs font-black uppercase tracking-tight italic">{industry.name}</p>
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-
-                                    <div className="flex gap-3">
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            onClick={() => setStep(1)}
-                                            className="flex-1 h-14 border-slate-800 hover:bg-slate-800 rounded-xl"
-                                        >
-                                            Atrás
-                                        </Button>
-                                        <Button
-                                            type="submit"
-                                            className="flex-1 h-14 bg-primary hover:bg-primary/90 font-black uppercase tracking-wider rounded-xl group"
-                                        >
-                                            Crear Cuenta
-                                            <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                                        </Button>
-                                    </div>
                                 </motion.form>
                             )}
                         </AnimatePresence>

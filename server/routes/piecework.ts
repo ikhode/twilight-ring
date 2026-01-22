@@ -170,6 +170,43 @@ export function registerPieceworkRoutes(app: Express): void {
     });
 
     /**
+     * Registra un nuevo adelanto de nómina.
+     */
+    app.post("/api/piecework/advances", async (req: Request, res: Response): Promise<void> => {
+        try {
+            const orgId = await getOrgIdFromRequest(req);
+            if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+            const { employeeId, amount, status } = req.body;
+            const advanceStatus = status || "paid"; // Default to paid if creating from Cashier
+
+            const [advance] = await db.insert(payrollAdvances).values({
+                organizationId: orgId,
+                employeeId,
+                amount,
+                status: advanceStatus,
+                date: new Date()
+            }).returning();
+
+            // If paid immediately, record expense
+            if (advanceStatus === 'paid') {
+                await db.insert(expenses).values({
+                    organizationId: orgId,
+                    amount: amount,
+                    category: 'payroll',
+                    description: `Adelanto de Nómina (ID: ${advance.id.slice(0, 8)})`,
+                    date: new Date()
+                });
+            }
+
+            res.status(201).json(advance);
+        } catch (error) {
+            console.error("Create advance error:", error);
+            res.status(500).json({ message: "Internal server error" });
+        }
+    });
+
+    /**
      * Procesa el pago de tickets y adelantos (Payout).
      */
     app.post("/api/piecework/payout", async (req: Request, res: Response): Promise<void> => {

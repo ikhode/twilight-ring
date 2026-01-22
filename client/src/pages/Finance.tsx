@@ -32,6 +32,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { CashControl } from "@/components/finance/CashControl";
 
 export default function Finance() {
   const { session } = useAuth();
@@ -234,75 +235,7 @@ export default function Finance() {
           </TabsList>
 
           <TabsContent value="arqueo">
-            <Card>
-              <CardHeader>
-                <CardTitle className="font-display flex items-center gap-2">
-                  <Calculator className="w-5 h-5 text-primary" />
-                  Arqueo de Caja
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="space-y-4">
-                    <h4 className="font-semibold">Billetes</h4>
-                    {[500, 200, 100, 50, 20].map((denomination) => (
-                      <div key={denomination} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                        <span className="font-mono">${denomination}</span>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            className="w-16 h-8 text-center rounded border bg-background font-mono"
-                            defaultValue={0}
-                            min={0}
-                          />
-                          <span className="text-muted-foreground font-mono w-20 text-right">
-                            = $0
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="space-y-4">
-                    <h4 className="font-semibold">Monedas</h4>
-                    {[10, 5, 2, 1, 0.5].map((denomination) => (
-                      <div key={denomination} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                        <span className="font-mono">${denomination}</span>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            className="w-16 h-8 text-center rounded border bg-background font-mono"
-                            defaultValue={0}
-                            min={0}
-                          />
-                          <span className="text-muted-foreground font-mono w-20 text-right">
-                            = $0
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="p-6 rounded-xl bg-primary/10 border border-primary/20">
-                      <p className="text-sm text-muted-foreground mb-2">Total Contado</p>
-                      <p className="text-3xl font-bold font-mono">$0.00</p>
-                    </div>
-                    <div className="p-6 rounded-xl bg-muted/50">
-                      <p className="text-sm text-muted-foreground mb-2">Esperado en Sistema</p>
-                      <p className="text-3xl font-bold font-mono">{formatCurrency(balance)}</p>
-                    </div>
-                    <div className="p-6 rounded-xl bg-success/10 border border-success/20">
-                      <p className="text-sm text-muted-foreground mb-2">Diferencia</p>
-                      <p className="text-3xl font-bold font-mono text-success">$0.00</p>
-                    </div>
-                    <Button className="w-full" data-testid="button-save-arqueo">
-                      Guardar Arqueo
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <CashControl />
           </TabsContent>
 
           <TabsContent value="payroll">

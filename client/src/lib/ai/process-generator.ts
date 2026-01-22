@@ -1,20 +1,72 @@
 import { Node, Edge } from 'reactflow';
 import { flowTemplates } from '@/data/flowTemplates';
+import { allCognitiveTemplates } from '@/data/cognitiveTemplatesLibrary';
+import { peladeroCognitiveTemplate } from '@/data/cognitiveTemplates';
 
 export interface ProcessTemplate {
     nodes: Node[];
     edges: Edge[];
 }
 
+// Map industry enum values from signup to cognitive template IDs
+const industryToCognitiveTemplateMap: Record<string, string> = {
+    'retail': 'retail_cognitive',
+    'manufacturing': 'manufacturing_cognitive',
+    'services': 'services_cognitive',
+    'healthcare': 'healthcare_cognitive',
+    'logistics': 'logistics_cognitive',
+    'hospitality': 'hospitality_cognitive',
+    'technology': 'technology_cognitive',
+    'peladero': 'peladero_cognitive',
+    'other': 'retail_cognitive', // Default to retail as generic
+    // Legacy mappings
+    'construction': 'manufacturing_cognitive',
+    'education': 'services_cognitive',
+};
+
 export const processGenerator = {
     /**
-     * Generates a node graph based on industry keywords.
-     * Checks predefined templates first, then falls back to heuristics.
+     * Generates a cognitive workflow based on industry.
+     * Uses advanced templates with triggers, conditions, and actions.
      */
     generateFlow: (industry: string): ProcessTemplate => {
         const keywords = industry.toLowerCase();
 
-        // 1. Try to find a matching template
+        // 1. Try exact match with cognitive templates
+        const cognitiveTemplateId = industryToCognitiveTemplateMap[keywords];
+        if (cognitiveTemplateId) {
+            // Check if it's the peladero template
+            if (cognitiveTemplateId === 'peladero_cognitive') {
+                return {
+                    nodes: JSON.parse(JSON.stringify(peladeroCognitiveTemplate.nodes)),
+                    edges: JSON.parse(JSON.stringify(peladeroCognitiveTemplate.edges))
+                };
+            }
+
+            // Find in cognitive templates library
+            const cognitiveTemplate = allCognitiveTemplates.find(t => t.id === cognitiveTemplateId);
+            if (cognitiveTemplate) {
+                return {
+                    nodes: JSON.parse(JSON.stringify(cognitiveTemplate.nodes)),
+                    edges: JSON.parse(JSON.stringify(cognitiveTemplate.edges))
+                };
+            }
+        }
+
+        // 2. Try keyword search in cognitive templates
+        const matchedCognitiveTemplate = allCognitiveTemplates.find(t =>
+            keywords.includes(t.industry.toLowerCase()) ||
+            keywords.includes(t.name.toLowerCase())
+        );
+
+        if (matchedCognitiveTemplate) {
+            return {
+                nodes: JSON.parse(JSON.stringify(matchedCognitiveTemplate.nodes)),
+                edges: JSON.parse(JSON.stringify(matchedCognitiveTemplate.edges))
+            };
+        }
+
+        // 3. Fallback to simple templates if no cognitive match
         const matchedTemplate = flowTemplates.find(t =>
             keywords.includes(t.industry.toLowerCase()) ||
             keywords.includes(t.name.toLowerCase()) ||
@@ -22,14 +74,13 @@ export const processGenerator = {
         );
 
         if (matchedTemplate) {
-            // Clone to avoid reference issues if modified in UI
             return {
                 nodes: JSON.parse(JSON.stringify(matchedTemplate.nodes)),
                 edges: JSON.parse(JSON.stringify(matchedTemplate.edges))
             };
         }
 
-        // 2. Fallback to existing heuristics (kept for backward compatibility or custom inputs)
+        // 4. Fallback to heuristics (kept for backward compatibility or custom inputs)
         const nodes: Node[] = [];
         const edges: Edge[] = [];
 
@@ -101,7 +152,16 @@ export const processGenerator = {
             connect(n4, n5);
         }
         else {
-            // Generic Fallback
+            // Generic Fallback - use 'other' template
+            const otherTemplate = flowTemplates.find(t => t.id === 'other');
+            if (otherTemplate) {
+                return {
+                    nodes: JSON.parse(JSON.stringify(otherTemplate.nodes)),
+                    edges: JSON.parse(JSON.stringify(otherTemplate.edges))
+                };
+            }
+
+            // Ultimate fallback if template not found
             const n1 = addStep('Entrada (Inicio)', 'input');
             const n2 = addStep('Proceso Principal');
             const n3 = addStep('Control de Calidad');

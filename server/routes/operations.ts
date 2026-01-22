@@ -612,11 +612,89 @@ router.post("/sales", async (req, res): Promise<void> => {
             }
         }
 
+        // 5. Record Financial Income (Real Movement)
+        const totalAmount = items.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
+        await db.insert(payments).values({
+            organizationId: orgId,
+            amount: totalAmount,
+            type: "income",
+            method: "cash",
+            referenceId: "sale_batch_" + Date.now(),
+            date: new Date()
+        });
+
         res.json({ message: "Sales processed", stats });
 
     } catch (error) {
         console.error("Sales Error:", error);
         res.status(500).json({ message: "Error processing sales", error: String(error) });
+    }
+});
+
+/**
+ * Registra una compra de inventario.
+ * @route POST /api/operations/purchases
+ */
+router.post("/purchases", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const { items, supplierId, notes } = req.body;
+
+        if (!items || !Array.isArray(items)) {
+            return res.status(400).json({ message: "Invalid payload: items array required" });
+        }
+
+        const totalAmount = items.reduce((sum: number, item: any) => sum + (item.cost * item.quantity), 0);
+
+        // 1. Create Purchase Header
+        const [purchase] = await db.insert(purchases).values({
+            organizationId: orgId,
+            supplierId: supplierId || null,
+            totalAmount: totalAmount,
+            status: "completed",
+            notes: notes || "Compra de inventario",
+            date: new Date()
+        }).returning();
+
+        // Process items
+        for (const item of items) {
+            // 2. Update Stock
+            const [product] = await db.select().from(products).where(eq(products.id, item.productId));
+            if (product) {
+                await db.update(products)
+                    .set({ stock: product.stock + item.quantity })
+                    .where(eq(products.id, item.productId));
+
+                // 3. Record Inventory Movement
+                await db.insert(inventoryMovements).values({
+                    organizationId: orgId,
+                    productId: item.productId,
+                    quantity: item.quantity,
+                    type: "purchase",
+                    referenceId: purchase.id,
+                    beforeStock: product.stock,
+                    afterStock: product.stock + item.quantity,
+                    date: new Date()
+                });
+            }
+        }
+
+        // 4. Record Financial Expense (Real Movement)
+        await db.insert(expenses).values({
+            organizationId: orgId,
+            amount: totalAmount,
+            category: "inventory",
+            description: `Compra de Inventario #${purchase.id.slice(0, 8)}`,
+            supplierId: supplierId || null,
+            date: new Date()
+        });
+
+        res.json({ message: "Purchase processed", purchaseId: purchase.id });
+    } catch (error) {
+        console.error("Purchase error:", error);
+        res.status(500).json({ message: "Error processing purchase", error: String(error) });
     }
 });
 
@@ -896,6 +974,19 @@ router.get("/hr/payroll/advances", async (req, res): Promise<void> => {
     } catch (error) {
         console.error("Payroll advances error:", error);
         res.status(500).json({ message: "Error fetching payroll advances", error: String(error) });
+    }
+});
+
+// Suppliers Endpoint (for Purchases)
+router.get("/suppliers", async (req, res) => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        const list = await db.select().from(suppliers).where(eq(suppliers.organizationId, orgId));
+        res.json(list);
+    } catch (e) {
+        console.error("Suppliers error:", e);
+        res.status(500).json({ message: "Error fetching suppliers" });
     }
 });
 

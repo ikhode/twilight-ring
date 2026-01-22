@@ -31,6 +31,9 @@ import { registerNLQueryRoutes } from "./routes/nl-query";
 import { registerModuleMarketplaceRoutes } from "./routes/module-marketplace";
 import { registerSubscriptionRoutes } from "./routes/subscriptions";
 import { registerAutomationRoutes } from "./routes/automation";
+import { registerBusinessDocumentRoutes } from "./routes/business-documents";
+import { financeRoutes } from "./routes/finance";
+import { organizationRoutes } from "./routes/organization";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -73,10 +76,13 @@ export async function registerRoutes(
   app.use("/api/whatsapp", whatsappRoutes);
   app.use("/api/kiosks", kioskRoutes);
   app.use("/api/production", productionRoutes);
+  app.use("/api/finance", financeRoutes);
+  app.use("/api/organization", organizationRoutes);
 
   // AI Documentation & Chat
   registerChatRoutes(app);
   registerDocumentationRoutes(app);
+  registerBusinessDocumentRoutes(app); // Smart Inbox
   registerAdminRoutes(app);
   registerNLQueryRoutes(app);
 

@@ -37,6 +37,8 @@ export interface IStorage {
   getEmployee(id: string): Promise<schema.Employee | undefined>;
   createEmployee(employee: schema.InsertEmployee): Promise<schema.Employee>;
   updateEmployeeStatus(id: string, updates: { currentArea?: string; currentStatus?: string }): Promise<schema.Employee>;
+  updateEmployee(id: string, updates: Partial<schema.InsertEmployee>): Promise<schema.Employee>;
+  deleteEmployee(id: string): Promise<void>;
   updateEmployeeEmbedding(id: string, embedding: number[]): Promise<schema.Employee>;
   findEmployeeByFace(embedding: number[], orgId: string): Promise<schema.Employee | undefined>;
   logWorkSession(session: any): Promise<any>;
@@ -190,6 +192,19 @@ export class DrizzleStorage implements IStorage {
     return updated;
   }
 
+  async updateEmployee(id: string, updates: Partial<schema.InsertEmployee>): Promise<schema.Employee> {
+    const [updated] = await db
+      .update(schema.employees)
+      .set(updates)
+      .where(eq(schema.employees.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteEmployee(id: string): Promise<void> {
+    await db.delete(schema.employees).where(eq(schema.employees.id, id));
+  }
+
   async updateEmployeeEmbedding(id: string, embedding: number[]): Promise<schema.Employee> {
     // @ts-ignore
     const [updated] = await db
@@ -201,13 +216,16 @@ export class DrizzleStorage implements IStorage {
   }
 
   async findEmployeeByFace(embedding: number[], orgId: string): Promise<schema.Employee | undefined> {
-    // Using L2 distance operator <-> or cosine <=> 
-    // We start with L2 (<->) as it's common for 128d
     const vectorLiteral = `[${embedding.join(",")}]`;
+    // We use a threshold of 0.6 for Face Recognition distance.
+    // Anything above 0.6 is considered a non-match.
     const [match] = await db
       .select()
       .from(schema.employees)
-      .where(eq(schema.employees.organizationId, orgId))
+      .where(and(
+        eq(schema.employees.organizationId, orgId),
+        sql`${schema.employees.faceEmbedding} <-> ${vectorLiteral} <= 0.6`
+      ))
       .orderBy(sql`${schema.employees.faceEmbedding} <-> ${vectorLiteral}`)
       .limit(1);
 

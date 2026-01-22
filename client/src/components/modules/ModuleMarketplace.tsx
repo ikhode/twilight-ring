@@ -13,6 +13,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 import {
     Package,
     TrendingUp,
@@ -24,9 +25,11 @@ import {
     Search,
     Check,
     X,
-    Loader2
+    Loader2,
+    Sparkles
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useConfiguration } from "@/context/ConfigurationContext";
 import { useAuth } from "@/hooks/use-auth";
 import { motion, AnimatePresence } from "framer-motion";
 import * as LucideIcons from "lucide-react";
@@ -59,6 +62,11 @@ const CATEGORY_ICONS: Record<string, any> = {
 };
 
 export function ModuleMarketplace() {
+    const [isAiSearching, setIsAiSearching] = useState(false);
+    const [isAiFiltering, setIsAiFiltering] = useState(false);
+    const [aiRecommendedIds, setAiRecommendedIds] = useState<string[]>([]);
+    const [isModuleMarketplaceOpen, setIsModuleMarketplaceOpen] = useState(false);
+
     const [modules, setModules] = useState<Module[]>([]);
     const [filteredModules, setFilteredModules] = useState<Module[]>([]);
     const [selectedCategory, setSelectedCategory] = useState<string>("all");
@@ -68,18 +76,10 @@ export function ModuleMarketplace() {
     const [activating, setActivating] = useState<string | null>(null);
     const { toast } = useToast();
     const { session } = useAuth();
-
-    useEffect(() => {
-        if (session?.access_token) {
-            loadModules();
-        }
-    }, [session]);
-
-    useEffect(() => {
-        filterModules();
-    }, [modules, selectedCategory, searchQuery]);
+    const { toggleModule: contextToggleModule } = useConfiguration();
 
     const loadModules = async () => {
+        setIsLoading(true);
         try {
             const response = await fetch("/api/modules/catalog", {
                 headers: {
@@ -97,16 +97,62 @@ export function ModuleMarketplace() {
         }
     };
 
+    const handleAiSearch = async () => {
+        if (!searchQuery) return;
+
+        setIsAiSearching(true);
+        try {
+            const res = await fetch("/api/modules/recommend", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${session?.access_token}`
+                },
+                body: JSON.stringify({ description: searchQuery })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                setAiRecommendedIds(data.recommendedIds || []);
+                setIsAiFiltering(true);
+                toast({
+                    title: "Búsqueda Inteligente Completada",
+                    description: `Encontramos ${data.recommendedIds.length} módulos relevantes para tu descripción.`
+                });
+            }
+        } catch (error) {
+            console.error("AI Search failed", error);
+            toast({ title: "Error", description: "No se pudo completar la búsqueda inteligente", variant: "destructive" });
+        } finally {
+            setIsAiSearching(false);
+        }
+    };
+
+    const clearAiFilter = () => {
+        setIsAiFiltering(false);
+        setAiRecommendedIds([]);
+        setSearchQuery("");
+    };
+
     const filterModules = () => {
         let filtered = modules;
 
-        // Filter by category
+        // AI Filter Priority
+        if (isAiFiltering && aiRecommendedIds.length > 0) {
+            filtered = filtered.filter(m => aiRecommendedIds.includes(m.id));
+            // Sort by relevance (order in recommendedIds)
+            filtered.sort((a, b) => aiRecommendedIds.indexOf(a.id) - aiRecommendedIds.indexOf(b.id));
+            setFilteredModules(filtered);
+            return;
+        }
+
+        // Normal Filter by category
         if (selectedCategory !== "all") {
             filtered = filtered.filter(m => m.category === selectedCategory);
         }
 
-        // Filter by search
-        if (searchQuery) {
+        // Filter by search (Lexical)
+        if (searchQuery && !isAiFiltering) {
             const query = searchQuery.toLowerCase();
             filtered = filtered.filter(m =>
                 m.name.toLowerCase().includes(query) ||
@@ -117,6 +163,16 @@ export function ModuleMarketplace() {
 
         setFilteredModules(filtered);
     };
+
+    useEffect(() => {
+        if (session?.access_token) {
+            loadModules();
+        }
+    }, [session]);
+
+    useEffect(() => {
+        filterModules();
+    }, [modules, selectedCategory, searchQuery, isAiFiltering]);
 
     const toggleModule = async (module: Module) => {
         setActivating(module.id);
@@ -139,6 +195,9 @@ export function ModuleMarketplace() {
                 title: module.isActive ? "Módulo desactivado" : "Módulo activado",
                 description: module.name
             });
+
+            // Update global context for immediate sidebar reaction
+            contextToggleModule(module.id);
 
             // Reload modules
             await loadModules();
@@ -189,14 +248,37 @@ export function ModuleMarketplace() {
 
             {/* Search and Filters */}
             <div className="flex flex-col md:flex-row gap-4">
-                <div className="relative flex-1">
-                    <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        placeholder="Buscar módulos..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-10"
-                    />
+                <div className="relative flex-1 flex gap-2">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="Describe lo que necesitas (ej. 'Quiero controlar el efectivo y pagos a empleados')..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleAiSearch()}
+                            className="pl-10 pr-10"
+                        />
+                        {isAiFiltering && (
+                            <button
+                                onClick={clearAiFilter}
+                                className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
+                            >
+                                <X className="h-4 w-4" />
+                            </button>
+                        )}
+                    </div>
+                    <Button
+                        onClick={handleAiSearch}
+                        disabled={isAiSearching || !searchQuery}
+                        className={cn("gap-2", isAiFiltering ? "bg-purple-600 hover:bg-purple-700" : "")}
+                    >
+                        {isAiSearching ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                            <Sparkles className="h-4 w-4" />
+                        )}
+                        {isAiFiltering ? "Resultados IA" : "Búsqueda IA"}
+                    </Button>
                 </div>
             </div>
 

@@ -1,0 +1,161 @@
+import { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import { Loader2 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+
+interface TransactionModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    type: 'in' | 'out';
+}
+
+export function TransactionModal({ isOpen, onClose, type }: TransactionModalProps) {
+    const { toast } = useToast();
+    const queryClient = useQueryClient();
+    const [isLoading, setIsLoading] = useState(false);
+    const [formData, setFormData] = useState({
+        amount: "",
+        category: "",
+        description: ""
+    });
+
+    const categories = type === 'in'
+        ? [
+            { id: 'sales', label: 'Venta Mostrador' },
+            { id: 'funding', label: 'Fondeo de Caja' },
+            { id: 'devolution', label: 'Devolución' },
+            { id: 'collection', label: 'Cobranza' }
+        ]
+        : [
+            { id: 'supplier', label: 'Pago a Proveedor' },
+            { id: 'payroll', label: 'Adelanto de Nómina' },
+            { id: 'expense', label: 'Gasto General' },
+            { id: 'withdrawal', label: 'Retiro a Banco' },
+            { id: 'services', label: 'Pago de Servicios' }
+        ];
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!formData.amount || !formData.category) return;
+
+        setIsLoading(true);
+        try {
+            const res = await fetch('/api/finance/cash/transaction', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type,
+                    amount: Math.round(parseFloat(formData.amount) * 100), // convert to cents
+                    category: formData.category,
+                    description: formData.description
+                })
+            });
+
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.message || 'Error occurred');
+            }
+
+            await queryClient.invalidateQueries({ queryKey: ['/api/finance/cash/stats'] });
+
+            toast({
+                title: "Transacción Exitosa",
+                description: `Se registró el ${type === 'in' ? 'ingreso' : 'egreso'} correctamente.`
+            });
+            onClose();
+            setFormData({ amount: "", category: "", description: "" });
+
+        } catch (error: any) {
+            toast({
+                title: "Error",
+                description: error.message,
+                variant: "destructive"
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onClose}>
+            <DialogContent className="bg-slate-900 border-slate-800 text-white sm:max-w-[425px]">
+                <DialogHeader>
+                    <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                        {type === 'in' ? (
+                            <span className="text-emerald-500">Registrar Ingreso</span>
+                        ) : (
+                            <span className="text-red-500">Registrar Egreso</span>
+                        )}
+                    </DialogTitle>
+                </DialogHeader>
+
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="space-y-2">
+                        <Label>Monto</Label>
+                        <div className="relative">
+                            <span className="absolute left-3 top-2.5 text-slate-400">$</span>
+                            <Input
+                                type="number"
+                                step="0.01"
+                                placeholder="0.00"
+                                className="pl-7 bg-slate-950 border-slate-700"
+                                value={formData.amount}
+                                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                                required
+                            />
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label>Concepto / Categoría</Label>
+                        <Select
+                            value={formData.category}
+                            onValueChange={(val) => setFormData({ ...formData, category: val })}
+                        >
+                            <SelectTrigger className="bg-slate-950 border-slate-700">
+                                <SelectValue placeholder="Seleccionar..." />
+                            </SelectTrigger>
+                            <SelectContent className="bg-slate-900 border-slate-800">
+                                {categories.map(cat => (
+                                    <SelectItem key={cat.id} value={cat.id} className="text-white hover:bg-slate-800 focus:bg-slate-800">
+                                        {cat.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label>Descripción / Referencia</Label>
+                        <Textarea
+                            placeholder="Detalles adicionales..."
+                            className="bg-slate-950 border-slate-700 min-h-[80px]"
+                            value={formData.description}
+                            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                        />
+                    </div>
+
+                    <DialogFooter className="pt-4">
+                        <Button type="button" variant="ghost" onClick={onClose} disabled={isLoading}>
+                            Cancelar
+                        </Button>
+                        <Button
+                            type="submit"
+                            className={type === 'in' ? "bg-emerald-600 hover:bg-emerald-700" : "bg-red-600 hover:bg-red-700"}
+                            disabled={isLoading}
+                        >
+                            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Registrar
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+}

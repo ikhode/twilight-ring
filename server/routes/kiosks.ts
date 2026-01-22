@@ -104,6 +104,70 @@ router.post("/", async (req, res): Promise<void> => {
     }
 });
 
+// POST /api/kiosks/:id/provisioning - Generate a 6-digit provisioning token
+router.post("/:id/provisioning", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const kioskId = req.params.id;
+        // Generate 6-digit token
+        const token = Math.floor(100000 + Math.random() * 900000).toString();
+        const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
+
+        const [kiosk] = await db.update(terminals)
+            .set({
+                provisioningToken: token,
+                provisioningExpiresAt: expiresAt
+            })
+            .where(and(eq(terminals.id, kioskId), eq(terminals.organizationId, orgId)))
+            .returning();
+
+        res.json({ token, expiresAt });
+    } catch (error) {
+        console.error("Provisioning error:", error);
+        res.status(500).json({ message: "Internal Server Error" });
+    }
+});
+
+// POST /api/kiosks/bind - Bind a device using a token
+router.post("/bind", async (req, res): Promise<void> => {
+    try {
+        const { token, deviceId } = req.body;
+        if (!token || !deviceId) return res.status(400).json({ message: "Token and Device ID required" });
+
+        // Find terminal with matching token not expired
+        const [terminal] = await db.select().from(terminals)
+            .where(and(
+                eq(terminals.provisioningToken, token),
+                gt(terminals.provisioningExpiresAt, new Date())
+            ))
+            .limit(1);
+
+        if (!terminal) {
+            return res.status(401).json({ message: "Invalid or expired token" });
+        }
+
+        // Bind device
+        const [updated] = await db.update(terminals)
+            .set({
+                deviceId: deviceId,
+                linkedDeviceId: deviceId,
+                provisioningToken: null, // Consume token
+                provisioningExpiresAt: null,
+                status: "active",
+                lastActiveAt: new Date()
+            })
+            .where(eq(terminals.id, terminal.id))
+            .returning();
+
+        res.json(updated);
+    } catch (error) {
+        console.error("Binding error:", error);
+        res.status(500).json({ message: "Internal Server Error" });
+    }
+});
+
 // POST /api/kiosks/register - Public/Semi-public registration from the device itself
 /**
  * Realiza el registro automático de una terminal desde el propio dispositivo.

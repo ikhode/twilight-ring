@@ -381,24 +381,39 @@ export default function Kiosks() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="flex flex-col gap-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="bg-background/50 backdrop-blur-sm border-primary/20 hover:border-primary/50 text-xs font-bold"
+                          onClick={(e) => handleLinkDevice(kiosk, e)}
+                          disabled={generateProvisioningTokenMutation.isPending && selectedKiosk?.id === kiosk.id}
+                        >
+                          <Smartphone className="w-3.5 h-3.5 mr-1.5 text-primary" />
+                          {kiosk.deviceSalt ? "Re-vincular" : "Vincular"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="bg-primary hover:bg-primary/90 text-xs font-bold glow-sm"
+                          onClick={() => handleOpenKiosk(kiosk)}
+                        >
+                          <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
+                          Abrir
+                        </Button>
+                      </div>
                       <Button
-                        variant="outline"
+                        variant="secondary"
                         size="sm"
-                        className="bg-background/50 backdrop-blur-sm border-primary/20 hover:border-primary/50 text-xs font-bold"
-                        onClick={(e) => handleLinkDevice(kiosk, e)}
-                        disabled={generateProvisioningTokenMutation.isPending && selectedKiosk?.id === kiosk.id}
+                        className="w-full text-xs font-bold bg-muted/50 hover:bg-muted"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigator.clipboard.writeText(`${window.location.origin}/kiosk-terminal/${kiosk.id}`);
+                          toast({ title: "Enlace copiado", description: "URL del terminal copiada al portapapeles" });
+                        }}
                       >
-                        <Smartphone className="w-3.5 h-3.5 mr-1.5 text-primary" />
-                        {kiosk.deviceSalt ? "Re-vincular" : "Vincular"}
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="bg-primary hover:bg-primary/90 text-xs font-bold glow-sm"
-                        onClick={() => handleOpenKiosk(kiosk)}
-                      >
-                        <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
-                        Abrir
+                        <Link2 className="w-3.5 h-3.5 mr-1.5" />
+                        Copiar Enlace Directo
                       </Button>
                     </div>
 
@@ -457,13 +472,19 @@ export default function Kiosks() {
                   />
                 )}
               </div>
-              <div className="text-center space-y-2">
-                <p className="text-xs font-mono text-primary animate-pulse">
-                  TOKEN DE UN SOLO USO
-                </p>
-                <p className="text-[10px] text-slate-500 uppercase tracking-widest">
-                  Expira en 5 minutos
-                </p>
+              <div className="text-center space-y-4">
+                <div className="space-y-1">
+                  <p className="text-[10px] text-slate-500 uppercase tracking-widest">O ingresa el código:</p>
+                  <p className="text-5xl font-black font-mono tracking-[0.2em] text-primary">{provisioningToken}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-mono text-primary animate-pulse">
+                    TOKEN DE UN SOLO USO
+                  </p>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-widest">
+                    Expira en 15 minutos
+                  </p>
+                </div>
               </div>
 
               <div className="bg-primary/5 border border-primary/10 rounded-xl p-4 w-full flex items-start gap-3">

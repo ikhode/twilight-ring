@@ -82,26 +82,10 @@ export const ERP_MODULES: SystemModule[] = [
         category: 'hr'
     },
     {
-        id: 'tickets',
-        name: 'Mesa de Ayuda',
-        description: 'Tickets de soporte y mantenimiento',
-        icon: Ticket,
-        href: '/tickets',
-        category: 'support'
-    },
-    {
-        id: 'piecework',
-        name: 'Control de Destajo',
-        description: 'Registro de tareas y pagos unitarios',
-        icon: Ticket,
-        href: '/piecework',
-        category: 'hr'
-    },
-    {
         id: 'kiosks',
         name: 'Kioscos',
         description: 'Gestión de terminales y puntos de acceso',
-        icon: Monitor, // Need to import Monitor
+        icon: Monitor,
         href: '/kiosks',
         category: 'operations'
     },

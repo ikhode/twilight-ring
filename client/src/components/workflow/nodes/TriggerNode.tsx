@@ -33,6 +33,14 @@ export default function TriggerNode({ data }: { data: any }) {
                 </CardContent>
             </Card>
 
+            {/* Input handle - allows connections TO this trigger */}
+            <Handle
+                type="target"
+                position={Position.Top}
+                className="w-3 h-3 bg-primary border-4 border-slate-900 shadow-[0_0_10px_rgba(59,130,246,0.5)]"
+            />
+
+            {/* Output handle - allows connections FROM this trigger */}
             <Handle
                 type="source"
                 position={Position.Bottom}

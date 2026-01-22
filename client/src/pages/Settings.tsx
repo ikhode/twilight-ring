@@ -50,41 +50,63 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 
 export default function Settings() {
   const { toast } = useToast();
-  const { industry, setIndustry, enabledModules, toggleModule, theme, setTheme, themeColor, setThemeColor, universalConfig, updateUniversalConfig } = useConfiguration();
+  const { profile, session } = useAuth();
+  const { industry, theme, setTheme, themeColor, setThemeColor, universalConfig, updateUniversalConfig } = useConfiguration();
+  const [orgName, setOrgName] = useState(profile?.organization?.name || "Mi Empresa S.A.");
+
+  const updateOrgMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const res = await fetch("/api/organization", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify({ name })
+      });
+      if (!res.ok) throw new Error("Error al actualizar perfil");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Perfil Actualizado", description: "La información de la empresa se ha guardado correctamente." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  });
 
   return (
     <AppLayout title="Configuración OS" subtitle="Personaliza la estructura y adaptabilidad del sistema">
-      <Tabs defaultValue="generic" className="space-y-6">
-        {/* ... (TabsList remains same) */}
-        <TabsList className="flex flex-wrap h-auto gap-2">
-          <TabsTrigger value="generic" data-testid="tab-generic">
+      <Tabs defaultValue="generic" className="space-y-6 text-slate-200">
+        <TabsList className="flex flex-wrap h-auto gap-2 bg-slate-900/50 border-slate-800 p-1">
+          <TabsTrigger value="generic" data-testid="tab-generic" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
             <Layout className="w-4 h-4 mr-2" />
             Core Configuration
           </TabsTrigger>
-          <TabsTrigger value="org" data-testid="tab-org">
+          <TabsTrigger value="org" data-testid="tab-org" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
             <Building2 className="w-4 h-4 mr-2" />
             Perfil & Identidad
           </TabsTrigger>
-          <TabsTrigger value="subscription" data-testid="tab-subscription">
+          <TabsTrigger value="subscription" data-testid="tab-subscription" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
             <CreditCard className="w-4 h-4 mr-2" />
             Suscripción
           </TabsTrigger>
-          <TabsTrigger value="modules" data-testid="tab-modules">
+          <TabsTrigger value="modules" data-testid="tab-modules" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
             <Puzzle className="w-4 h-4 mr-2" />
             Módulos SaaS
           </TabsTrigger>
-          <TabsTrigger value="ethics" data-testid="tab-ethics">
+          <TabsTrigger value="ethics" data-testid="tab-ethics" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
             <Shield className="w-4 h-4 mr-2" />
             Gobernanza IA
           </TabsTrigger>
-          <TabsTrigger value="advanced" data-testid="tab-advanced">
+          <TabsTrigger value="advanced" data-testid="tab-advanced" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
             <Zap className="w-4 h-4 mr-2 text-primary" />
             Avanzado
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="generic" className="space-y-6">
-          {/* ...Generic Content... (Assuming no changes needed here for now) */}
+        <TabsContent value="generic" className="space-y-6 focus:outline-none">
+          {/* ...Generic Content... */}
           <Card className="border-primary/20 bg-primary/5">
             <CardHeader>
               <CardTitle className="font-display flex items-center gap-2">
@@ -97,7 +119,7 @@ export default function Settings() {
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div className="p-4 rounded-xl bg-card border shadow-sm space-y-3">
+                <div className="p-4 rounded-xl bg-slate-900/50 border shadow-sm space-y-3">
                   <div className="flex items-center justify-between">
                     <Label className="font-bold">Categorías de Producto</Label>
                     <Badge variant="outline">Core</Badge>
@@ -112,7 +134,7 @@ export default function Settings() {
                     <DialogTrigger asChild>
                       <Button variant="ghost" size="sm" className="w-full text-xs h-7">Configurar Categorías</Button>
                     </DialogTrigger>
-                    <DialogContent>
+                    <DialogContent className="bg-slate-950 border-slate-800 text-slate-200">
                       <DialogHeader>
                         <DialogTitle>Categorías de Producto</DialogTitle>
                         <DialogDescription>Define cómo clasificas tus productos o insumos.</DialogDescription>
@@ -122,6 +144,7 @@ export default function Settings() {
                           <Input
                             placeholder="Nueva categoría (ej. Bebidas)"
                             id="new-category"
+                            className="bg-slate-900 border-slate-800"
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') {
                                 const val = e.currentTarget.value;
@@ -146,7 +169,7 @@ export default function Settings() {
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {(universalConfig.productCategories || []).map(cat => (
-                            <div key={cat} className="flex items-center gap-1 bg-muted px-2 py-1 rounded text-sm">
+                            <div key={cat} className="flex items-center gap-1 bg-slate-900 px-2 py-1 rounded text-sm border border-slate-800">
                               {cat}
                               <X
                                 className="w-3 h-3 cursor-pointer hover:text-destructive"
@@ -164,7 +187,7 @@ export default function Settings() {
                   </Dialog>
                 </div>
 
-                <div className="p-4 rounded-xl bg-card border shadow-sm space-y-3">
+                <div className="p-4 rounded-xl bg-slate-900/50 border shadow-sm space-y-3">
                   <div className="flex items-center justify-between">
                     <Label className="font-bold">Tipos de Lugar</Label>
                     <Badge variant="outline">Configurable</Badge>
@@ -179,7 +202,7 @@ export default function Settings() {
                     <DialogTrigger asChild>
                       <Button variant="ghost" size="sm" className="w-full text-xs h-7">Configurar Tipos</Button>
                     </DialogTrigger>
-                    <DialogContent>
+                    <DialogContent className="bg-slate-950 border-slate-800 text-slate-200">
                       <DialogHeader>
                         <DialogTitle>Configurar Tipos de Lugar</DialogTitle>
                         <DialogDescription>Define las categorías de ubicaciones para tu operación.</DialogDescription>
@@ -189,6 +212,7 @@ export default function Settings() {
                           <Input
                             placeholder="Nuevo tipo (ej. Sucursal)"
                             id="new-place-type"
+                            className="bg-slate-900 border-slate-800"
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') {
                                 const val = e.currentTarget.value;
@@ -213,7 +237,7 @@ export default function Settings() {
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {(universalConfig.placeTypes || []).map(type => (
-                            <div key={type} className="flex items-center gap-1 bg-muted px-2 py-1 rounded text-sm">
+                            <div key={type} className="flex items-center gap-1 bg-slate-900 px-2 py-1 rounded text-sm border border-slate-800">
                               {type}
                               <X
                                 className="w-3 h-3 cursor-pointer hover:text-destructive"
@@ -231,26 +255,25 @@ export default function Settings() {
                   </Dialog>
                 </div>
 
-                <div className="p-4 rounded-xl bg-card border shadow-sm space-y-3">
+                <div className="p-4 rounded-xl bg-slate-900/50 border shadow-sm space-y-3">
                   <div className="flex items-center justify-between">
                     <Label className="font-bold">Atributos de Producto</Label>
                     <Badge variant="outline">Dinámico</Badge>
                   </div>
                   <p className="text-xs text-muted-foreground">Campos extra según la industria (peso, color, caducidad, serie).</p>
-                  <Button variant="ghost" size="sm" className="w-full text-xs h-7">Gestionar Campos</Button>
                   <Dialog>
                     <DialogTrigger asChild>
                       <Button variant="ghost" size="sm" className="w-full text-xs h-7">Gestionar Campos</Button>
                     </DialogTrigger>
-                    <DialogContent>
+                    <DialogContent className="bg-slate-950 border-slate-800 text-slate-200">
                       <DialogHeader>
                         <DialogTitle>Atributos de Producto</DialogTitle>
                         <DialogDescription>Define campos personalizados para tus productos.</DialogDescription>
                       </DialogHeader>
                       <div className="space-y-4 py-4">
                         <div className="flex gap-2 items-center">
-                          <Input id="new-attr-name" placeholder="Nombre (ej. Color)" className="flex-1" />
-                          <select id="new-attr-type" className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                          <Input id="new-attr-name" placeholder="Nombre (ej. Color)" className="flex-1 bg-slate-900 border-slate-800" />
+                          <select id="new-attr-type" className="h-10 rounded-md border border-slate-800 bg-slate-900 px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-1 focus:ring-primary">
                             <option value="text">Texto</option>
                             <option value="number">Número</option>
                             <option value="date">Fecha</option>
@@ -268,7 +291,7 @@ export default function Settings() {
                         </div>
                         <div className="space-y-2">
                           {(universalConfig.productAttributes || []).map((attr, idx) => (
-                            <div key={idx} className="flex items-center justify-between bg-muted px-3 py-2 rounded text-sm">
+                            <div key={idx} className="flex items-center justify-between bg-slate-900 px-3 py-2 rounded text-sm border border-slate-800">
                               <span>{attr.name} <span className="text-xs text-muted-foreground">({attr.type})</span></span>
                               <Trash2 className="w-4 h-4 cursor-pointer hover:text-destructive" onClick={() => {
                                 updateUniversalConfig({
@@ -283,26 +306,25 @@ export default function Settings() {
                   </Dialog>
                 </div>
 
-                <div className="p-4 rounded-xl bg-card border shadow-sm space-y-3">
+                <div className="p-4 rounded-xl bg-slate-900/50 border shadow-sm space-y-3">
                   <div className="flex items-center justify-between">
                     <Label className="font-bold">Flujos de Proceso</Label>
                     <Badge variant="outline">Flexible</Badge>
                   </div>
                   <p className="text-xs text-muted-foreground">Configura qué productos se consumen y cuáles se producen.</p>
-                  <Button variant="ghost" size="sm" className="w-full text-xs h-7">Diseñar Workflows</Button>
                   <Dialog>
                     <DialogTrigger asChild>
                       <Button variant="ghost" size="sm" className="w-full text-xs h-7">Diseñar Workflows</Button>
                     </DialogTrigger>
-                    <DialogContent>
+                    <DialogContent className="bg-slate-950 border-slate-800 text-slate-200">
                       <DialogHeader>
                         <DialogTitle>Flujos de Proceso</DialogTitle>
                         <DialogDescription>Define los flujos de transformación de tu operación.</DialogDescription>
                       </DialogHeader>
                       <div className="space-y-4 py-4">
                         <div className="flex gap-2 items-center">
-                          <Input id="new-flow-name" placeholder="Proceso (ej. Empaquetado)" className="flex-1" />
-                          <select id="new-flow-type" className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                          <Input id="new-flow-name" placeholder="Proceso (ej. Empaquetado)" className="flex-1 bg-slate-900 border-slate-800" />
+                          <select id="new-flow-type" className="h-10 rounded-md border border-slate-800 bg-slate-900 px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-1 focus:ring-primary">
                             <option value="production">Producción</option>
                             <option value="logistics">Logística</option>
                             <option value="qa">Calidad</option>
@@ -320,7 +342,7 @@ export default function Settings() {
                         </div>
                         <div className="space-y-2">
                           {(universalConfig.processFlows || []).map((flow, idx) => (
-                            <div key={idx} className="flex items-center justify-between bg-muted px-3 py-2 rounded text-sm">
+                            <div key={idx} className="flex items-center justify-between bg-slate-900 px-3 py-2 rounded text-sm border border-slate-800">
                               <span>{flow.name} <span className="text-xs text-muted-foreground">({flow.type})</span></span>
                               <Trash2 className="w-4 h-4 cursor-pointer hover:text-destructive" onClick={() => {
                                 updateUniversalConfig({
@@ -339,9 +361,9 @@ export default function Settings() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="org" className="space-y-6">
+        <TabsContent value="org" className="space-y-6 focus:outline-none">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card>
+            <Card className="bg-slate-900 border-slate-800">
               <CardHeader>
                 <CardTitle className="font-display flex items-center gap-2">
                   <Building2 className="w-5 h-5 text-primary" />
@@ -352,7 +374,11 @@ export default function Settings() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label>Nombre de la Empresa</Label>
-                  <Input defaultValue="Mi Empresa S.A." className="bg-slate-950 border-slate-800" />
+                  <Input
+                    value={orgName}
+                    onChange={(e) => setOrgName(e.target.value)}
+                    className="bg-slate-950 border-slate-800 text-white"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Industria Principal</Label>
@@ -361,8 +387,12 @@ export default function Settings() {
                     <Badge variant="outline" className="text-primary border-primary/30">Activo</Badge>
                   </div>
                 </div>
-                <Button className="w-full bg-primary/20 hover:bg-primary/30 text-primary border border-primary/20">
-                  Guardar Perfil
+                <Button
+                  onClick={() => updateOrgMutation.mutate(orgName)}
+                  disabled={updateOrgMutation.isPending}
+                  className="w-full bg-primary/20 hover:bg-primary/30 text-primary border border-primary/20 py-6"
+                >
+                  {updateOrgMutation.isPending ? "Guardando..." : "Guardar Perfil"}
                 </Button>
               </CardContent>
             </Card>

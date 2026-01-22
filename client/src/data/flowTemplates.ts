@@ -1,5 +1,5 @@
 import { Node, Edge } from 'reactflow';
-import { ShoppingBag, Wrench, Factory, Truck, Utensils, Laptop } from 'lucide-react';
+import { ShoppingBag, Wrench, Factory, Truck, Utensils, Laptop, Heart, Sparkles, Building2, Palmtree } from 'lucide-react';
 
 export interface FlowTemplate {
     id: string;
@@ -112,25 +112,115 @@ export const flowTemplates: FlowTemplate[] = [
         ]
     },
     {
-        id: 'restaurant',
-        name: 'Restaurante / F&B',
-        description: 'Flujo para negocios de comida y hospitalidad.',
+        id: 'hospitality',
+        name: 'Hospitalidad / F&B',
+        description: 'Flujo para restaurantes, hoteles y servicios de hospitalidad.',
         icon: Utensils,
-        industry: 'Restaurante',
+        industry: 'Hospitalidad',
         nodes: [
-            createNode('f1', 'Recepción de Insumos', 250, 50, 'input'),
-            createNode('f2', 'Mise en Place / Prep', 250, 150),
-            createNode('f3', 'Comanda de Cliente', 250, 250),
-            createNode('f4', 'Cocina / Bar', 250, 350),
-            createNode('f5', 'Servicio a Mesa', 250, 450),
-            createNode('f6', 'Cobro y Cierre', 250, 550, 'output')
+            createNode('h1', 'Recepción de Insumos', 250, 50, 'input'),
+            createNode('h2', 'Mise en Place / Prep', 250, 150),
+            createNode('h3', 'Reserva / Comanda', 250, 250),
+            createNode('h4', 'Preparación / Servicio', 250, 350),
+            createNode('h5', 'Entrega al Cliente', 250, 450),
+            createNode('h6', 'Cobro y Cierre', 250, 550, 'output')
         ],
         edges: [
-            createEdge('f1', 'f2'),
-            createEdge('f2', 'f3'),
-            createEdge('f3', 'f4'),
-            createEdge('f4', 'f5'),
-            createEdge('f5', 'f6')
+            createEdge('h1', 'h2'),
+            createEdge('h2', 'h3'),
+            createEdge('h3', 'h4'),
+            createEdge('h4', 'h5'),
+            createEdge('h5', 'h6')
+        ]
+    },
+    {
+        id: 'healthcare',
+        name: 'Salud / Healthcare',
+        description: 'Gestión de pacientes, consultas y procedimientos médicos.',
+        icon: Heart,
+        industry: 'Salud',
+        nodes: [
+            createNode('hc1', 'Registro de Paciente', 250, 50, 'input'),
+            createNode('hc2', 'Triage / Valoración', 250, 150),
+            createNode('hc3', 'Consulta Médica', 250, 250),
+            createNode('hc4', 'Tratamiento / Procedimiento', 250, 350),
+            createNode('hc5', 'Facturación y Alta', 250, 450),
+            createNode('hc6', 'Seguimiento', 250, 550, 'output')
+        ],
+        edges: [
+            createEdge('hc1', 'hc2'),
+            createEdge('hc2', 'hc3'),
+            createEdge('hc3', 'hc4'),
+            createEdge('hc4', 'hc5'),
+            createEdge('hc5', 'hc6')
+        ]
+    },
+    {
+        id: 'technology',
+        name: 'Tecnología / SaaS',
+        description: 'Flujo para empresas de software, SaaS y tecnología.',
+        icon: Laptop,
+        industry: 'Tecnología',
+        nodes: [
+            createNode('t1', 'Lead / Prospecto', 250, 50, 'input'),
+            createNode('t2', 'Demo / Trial', 250, 150),
+            createNode('t3', 'Onboarding / Setup', 250, 250),
+            createNode('t4', 'Activación / Go-Live', 250, 350),
+            createNode('t5', 'Soporte / Success', 250, 450),
+            createNode('t6', 'Renovación / Upsell', 250, 550, 'output')
+        ],
+        edges: [
+            createEdge('t1', 't2'),
+            createEdge('t2', 't3'),
+            createEdge('t3', 't4'),
+            createEdge('t4', 't5'),
+            createEdge('t5', 't6')
+        ]
+    },
+    {
+        id: 'other',
+        name: 'Genérico / Otro',
+        description: 'Plantilla flexible para cualquier tipo de negocio.',
+        icon: Sparkles,
+        industry: 'Otro',
+        nodes: [
+            createNode('o1', 'Solicitud / Intake', 250, 50, 'input'),
+            createNode('o2', 'Procesamiento', 250, 150),
+            createNode('o3', 'Revisión de Calidad', 250, 250),
+            createNode('o4', 'Entrega / Output', 250, 350),
+            createNode('o5', 'Cierre y Feedback', 250, 450, 'output')
+        ],
+        edges: [
+            createEdge('o1', 'o2'),
+            createEdge('o2', 'o3'),
+            createEdge('o3', 'o4'),
+            createEdge('o4', 'o5')
+        ]
+    },
+    {
+        id: 'peladero',
+        name: 'Peladero / Coco',
+        description: 'Procesamiento de coco: compra, producción, inventario y venta.',
+        icon: Palmtree,
+        industry: 'Peladero',
+        nodes: [
+            createNode('p1', 'Compra de Coco', 250, 50, 'input'),
+            createNode('p2', 'Recepción e Inventario MP', 250, 150),
+            createNode('p3', 'Producción (Destopado/Pelado)', 250, 250),
+            createNode('p4', 'Control de Calidad', 250, 350),
+            createNode('p5', 'Inventario PT', 250, 450),
+            createNode('p6', 'Cotización', 250, 550),
+            createNode('p7', 'Venta', 250, 650),
+            createNode('p8', 'Facturación y Cobranza', 250, 750, 'output')
+        ],
+        edges: [
+            createEdge('p1', 'p2'),
+            createEdge('p2', 'p3'),
+            createEdge('p3', 'p4'),
+            createEdge('p4', 'p5'),
+            createEdge('p5', 'p6'),
+            createEdge('p6', 'p7'),
+            createEdge('p7', 'p8')
         ]
     }
 ];

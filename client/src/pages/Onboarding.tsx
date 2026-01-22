@@ -35,22 +35,38 @@ import {
     Edit3,
     Zap,
     Settings2,
-    Check
+    Check,
+    GitBranch,
+    Undo,
+    Redo,
+    RotateCcw,
+    Tablet
 } from 'lucide-react';
 import { processGenerator } from '@/lib/ai/process-generator';
 import 'd3-transition'; // Ensure d3-selection prototype is extended with .interrupt()
 import { useLocation } from 'wouter';
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from 'framer-motion';
+import AIWorkflowGenerator from '@/components/workflow/AIWorkflowGenerator';
 import { flowTemplates } from '@/data/flowTemplates';
+
+// Import custom node components
+import TriggerNode from '@/components/workflow/nodes/TriggerNode';
+import ActionNode from '@/components/workflow/nodes/ActionNode';
+import ConditionNode from '@/components/workflow/nodes/ConditionNode';
+
+const nodeTypes = {
+    trigger: TriggerNode,
+    action: ActionNode,
+    condition: ConditionNode,
+};
 
 export default function Onboarding() {
     const [, setLocation] = useLocation();
     const [step, setStep] = useState<'intake' | 'architect' | 'finalizing'>('intake');
     const [industry, setIndustry] = useState('');
-    const [messages, setMessages] = useState<{ role: 'ai' | 'user', text: string }[]>([
-        { role: 'ai', text: 'Hola. Soy el Arquitecto de Procesos (Nexus). Para configurar tu sistema de forma cognitiva, dime: ¿A qué industria pertenece tu empresa?' }
-    ]);
+    const [organizationData, setOrganizationData] = useState<{ id: string; name: string; industry: string } | null>(null);
+    const [messages, setMessages] = useState<{ role: 'ai' | 'user', text: string }[]>([]);
 
     // React Flow State
     const [nodes, setNodes] = useState<Node[]>([]);
@@ -60,6 +76,90 @@ export default function Onboarding() {
     // Editing State
     const [editingNode, setEditingNode] = useState<Node | null>(null);
     const [editLabel, setEditLabel] = useState('');
+
+    // Fetch organization data on mount
+    useEffect(() => {
+        const fetchOrganization = async () => {
+            try {
+                const { supabase } = await import('@/lib/supabase');
+                const { data: { session } } = await supabase.auth.getSession();
+
+                if (!session) {
+                    setLocation('/login');
+                    return;
+                }
+
+                const res = await fetch('/api/config', {
+                    headers: {
+                        'Authorization': `Bearer ${session.access_token}`
+                    }
+                });
+
+                if (res.ok) {
+                    const config = await res.json();
+                    // Config returns industry directly, not wrapped in organization
+                    const industryValue = config.industry;
+
+                    // Get organization name from user profile
+                    const profileRes = await fetch(`/api/auth/profile/${session.user.id}`, {
+                        headers: {
+                            'Authorization': `Bearer ${session.access_token}`
+                        }
+                    });
+
+                    let orgName = 'tu empresa';
+                    if (profileRes.ok) {
+                        const profile = await profileRes.json();
+                        orgName = profile.organization?.name || 'tu empresa';
+                    }
+
+                    setOrganizationData({
+                        id: '', // Not needed for display
+                        name: orgName,
+                        industry: industryValue
+                    });
+                    setIndustry(industryValue);
+
+                    // Set personalized welcome message based on industry
+                    const industryName = getIndustryDisplayName(industryValue);
+                    setMessages([
+                        {
+                            role: 'ai',
+                            text: `Hola. Soy el Arquitecto de Procesos Nexus. Veo que tu empresa "${orgName}" pertenece al sector ${industryName}. He preparado una arquitectura de procesos optimizada para tu industria. Puedes personalizarla o elegir otra plantilla si lo prefieres.`
+                        }
+                    ]);
+
+                    // Auto-load the appropriate template
+                    const { nodes: genNodes, edges: genEdges } = processGenerator.generateFlow(industryValue);
+                    setNodes(genNodes);
+                    setEdges(genEdges);
+                }
+            } catch (error) {
+                console.error('Error fetching organization:', error);
+                // Fallback to original flow if fetch fails
+                setMessages([
+                    { role: 'ai', text: 'Hola. Soy el Arquitecto de Procesos (Nexus). Para configurar tu sistema de forma cognitiva, dime: ¿A qué industria pertenece tu empresa?' }
+                ]);
+            }
+        };
+
+        fetchOrganization();
+    }, [setLocation]);
+
+    // Helper to get display name for industry
+    const getIndustryDisplayName = (industryKey: string): string => {
+        const displayNames: Record<string, string> = {
+            'retail': 'Retail/Comercio',
+            'manufacturing': 'Manufactura',
+            'services': 'Servicios Profesionales',
+            'healthcare': 'Salud',
+            'logistics': 'Logística y Transporte',
+            'hospitality': 'Hospitalidad',
+            'technology': 'Tecnología/SaaS',
+            'other': 'Otro'
+        };
+        return displayNames[industryKey] || industryKey;
+    };
 
     useEffect(() => {
         if (step === 'architect') {
@@ -121,6 +221,10 @@ export default function Onboarding() {
 
     const { toast } = useToast();
 
+    // History State
+    const [history, setHistory] = useState<{ nodes: Node[], edges: Edge[] }[]>([]);
+    const [historyIndex, setHistoryIndex] = useState(-1);
+
     // Node Actions
     const onAddNode = () => {
         const newNode: Node = {
@@ -137,34 +241,83 @@ export default function Onboarding() {
                 padding: '10px'
             }
         };
-        setNodes((nds) => nds.concat(newNode));
+        const newNodes = nodes.concat(newNode);
+        setNodes(newNodes);
+        addToHistory(newNodes, edges);
         toast({ title: "Nodo añadido", description: "Se ha creado un nuevo paso en el proceso." });
     };
 
     const onNodeClick = (_: React.MouseEvent, node: Node) => {
         setEditingNode(node);
-        setEditLabel(node.data.label);
+        // Handle both simple (label) and cognitive (name) nodes
+        setEditLabel(node.data.name || node.data.label || '');
     };
 
     const handleSaveEdit = () => {
         if (!editingNode) return;
-        setNodes((nds) =>
-            nds.map((n) => {
-                if (n.id === editingNode.id) {
-                    return { ...n, data: { ...n.data, label: editLabel } };
+        const newNodes = nodes.map((n) => {
+            if (n.id === editingNode.id) {
+                // Determine which property to update
+                const isCognitive = 'name' in n.data || n.type === 'trigger' || n.type === 'action' || n.type === 'condition';
+                if (isCognitive) {
+                    return { ...n, data: { ...n.data, name: editLabel } };
                 }
-                return n;
-            })
-        );
+                return { ...n, data: { ...n.data, label: editLabel } };
+            }
+            return n;
+        });
+        setNodes(newNodes);
+        addToHistory(newNodes, edges);
         setEditingNode(null);
         toast({ title: "Proceso actualizado", description: "El nombre del paso ha sido modificado." });
     };
 
     const onDeleteNode = (id: string) => {
-        setNodes((nds) => nds.filter((n) => n.id !== id));
-        setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id));
+        const newNodes = nodes.filter((n) => n.id !== id);
+        const newEdges = edges.filter((e) => e.source !== id && e.target !== id);
+        setNodes(newNodes);
+        setEdges(newEdges);
+        addToHistory(newNodes, newEdges);
         setEditingNode(null);
         toast({ title: "Nodo eliminado", description: "El paso ha sido removido del flujo." });
+    };
+
+    // History Helpers
+    const addToHistory = (n: Node[], e: Edge[]) => {
+        const newHistory = history.slice(0, historyIndex + 1);
+        newHistory.push({ nodes: n, edges: e });
+        setHistory(newHistory);
+        setHistoryIndex(newHistory.length - 1);
+    };
+
+    const handleUndo = () => {
+        if (historyIndex > 0) {
+            const prevIndex = historyIndex - 1;
+            const prevState = history[prevIndex];
+            setNodes(prevState.nodes);
+            setEdges(prevState.edges);
+            setHistoryIndex(prevIndex);
+        }
+    };
+
+    const handleRedo = () => {
+        if (historyIndex < history.length - 1) {
+            const nextIndex = historyIndex + 1;
+            const nextState = history[nextIndex];
+            setNodes(nextState.nodes);
+            setEdges(nextState.edges);
+            setHistoryIndex(nextIndex);
+        }
+    };
+
+    const handleReset = () => {
+        if (industry) {
+            const { nodes: genNodes, edges: genEdges } = processGenerator.generateFlow(industry);
+            setNodes(genNodes);
+            setEdges(genEdges);
+            addToHistory(genNodes, genEdges);
+            toast({ title: "Plantilla reiniciada", description: "El flujo ha sido restaurado al original." });
+        }
     };
 
     const handleDeploy = async () => {
@@ -183,7 +336,6 @@ export default function Onboarding() {
                     'Authorization': `Bearer ${sbSession.access_token}`
                 },
                 body: JSON.stringify({
-                    industry,
                     nodes,
                     edges
                 })
@@ -275,13 +427,13 @@ export default function Onboarding() {
                                         </Button>
                                     </div>
 
-                                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4">
+                                    <div className="grid grid-cols-3 gap-2">
                                         {flowTemplates.map((template) => (
                                             <Button
                                                 key={template.id}
                                                 variant="outline"
                                                 onClick={() => handleTemplateSelect(template)}
-                                                className="h-auto py-3 px-1 flex flex-col items-center gap-1.5 bg-slate-900/50 border-white/5 hover:border-primary/50 hover:bg-primary/10 transition-all group"
+                                                className="h-auto py-3 px-2 flex flex-col items-center gap-1.5 bg-slate-900/50 border-white/5 hover:border-primary/50 hover:bg-primary/10 transition-all group"
                                             >
                                                 <template.icon className="w-5 h-5 text-slate-500 group-hover:text-primary transition-colors" />
                                                 <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 group-hover:text-white text-center leading-tight">
@@ -290,6 +442,38 @@ export default function Onboarding() {
                                             </Button>
                                         ))}
                                     </div>
+
+                                    {/* Divider */}
+                                    <div className="relative my-6">
+                                        <div className="absolute inset-0 flex items-center">
+                                            <div className="w-full border-t border-slate-800"></div>
+                                        </div>
+                                        <div className="relative flex justify-center text-xs uppercase">
+                                            <span className="bg-slate-900 px-4 text-slate-500 font-bold tracking-wider">
+                                                O genera uno personalizado
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* AI Workflow Generator */}
+                                    <AIWorkflowGenerator
+                                        onWorkflowGenerated={(genNodes, genEdges) => {
+                                            setNodes(genNodes);
+                                            setEdges(genEdges);
+                                            setStep('architect');
+                                        }}
+                                    />
+
+                                    {/* Continue button when organization is loaded */}
+                                    {organizationData && nodes.length > 0 && (
+                                        <Button
+                                            onClick={() => setStep('architect')}
+                                            className="w-full h-12 bg-primary hover:bg-primary/90 text-white font-black uppercase tracking-wider rounded-xl group mt-6"
+                                        >
+                                            Continuar con esta Arquitectura
+                                            <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                        </Button>
+                                    )}
                                 </CardContent>
                             </Card>
                         </motion.div>
@@ -329,8 +513,8 @@ export default function Onboarding() {
                                 </div>
                             </div>
 
-                            {/* React Flow Container - Ensuring fixed height is respected */}
-                            <div className="relative w-full bg-slate-950/20 border-t border-white/5 overflow-hidden" style={{ height: '800px', minHeight: '800px' }}>
+                            {/* React Flow Container - Full available height */}
+                            <div className="relative w-full bg-slate-950/20 border-t border-white/5 overflow-hidden" style={{ height: 'calc(100vh - 200px)', minHeight: '600px' }}>
                                 {showFlow ? (
                                     <ReactFlow
                                         nodes={nodes}
@@ -339,44 +523,152 @@ export default function Onboarding() {
                                         onEdgesChange={onEdgesChange}
                                         onConnect={onConnect}
                                         onNodeClick={onNodeClick}
+                                        nodeTypes={nodeTypes}
                                         fitView
                                         className="h-full w-full"
                                     >
                                         <Background variant={"dots" as any} color="#334155" gap={24} size={1} />
                                         <Controls className="!bg-slate-900 !border-slate-800 !fill-white !shadow-2xl" />
 
-                                        <Panel position="top-right" className="bg-slate-900/80 backdrop-blur-md border border-white/10 p-3 rounded-2xl flex flex-col gap-2 shadow-2xl">
-                                            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 px-1 mb-1">Herramientas</p>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                className="bg-slate-800/50 border-white/5 hover:bg-primary/20 hover:border-primary/30 text-[10px] font-black uppercase tracking-widest text-white h-9 px-4 rounded-xl transition-all"
-                                                onClick={onAddNode}
-                                            >
-                                                <Plus className="w-3.5 h-3.5 mr-2 text-primary" />
-                                                Añadir Paso
-                                            </Button>
-                                            <div className="h-px bg-white/5 my-1" />
-                                            <div className="space-y-2 mt-2">
-                                                <p className="text-[8px] font-black uppercase tracking-widest text-slate-600 px-1">Biblioteca Core</p>
-                                                <div className="grid grid-cols-2 gap-2">
-                                                    {["Ventas", "Inventario", "RRHH", "Calidad"].map(p => (
-                                                        <Button key={p} variant="secondary" className="h-7 text-[8px] font-bold uppercase tracking-tighter bg-slate-800/30 hover:bg-primary/20 hover:text-white border-transparent" onClick={() => {
-                                                            const newNode: Node = {
-                                                                id: `node-${Date.now()}`,
-                                                                data: { label: p },
-                                                                position: { x: 100, y: 100 },
-                                                                style: { background: '#0f172a', color: '#fff', border: '1px solid #334155', borderRadius: '12px', fontSize: '10px', fontWeight: 'bold', padding: '8px' }
-                                                            };
-                                                            setNodes(nds => [...nds, newNode]);
-                                                        }}>{p}</Button>
+                                        <Panel position="top-right" className="bg-slate-900/90 backdrop-blur-md border border-white/10 p-4 rounded-2xl flex flex-col gap-3 shadow-2xl max-w-xs">
+                                            <div className="flex items-center justify-between mb-1">
+                                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 px-1">Caja de Herramientas</p>
+                                                <div className="flex gap-1">
+                                                    <Button variant="ghost" size="icon" className="h-6 w-6 rounded-lg hover:bg-white/10" onClick={handleUndo} disabled={historyIndex <= 0}>
+                                                        <Undo className="w-3.5 h-3.5 text-slate-400" />
+                                                    </Button>
+                                                    <Button variant="ghost" size="icon" className="h-6 w-6 rounded-lg hover:bg-white/10" onClick={handleRedo} disabled={historyIndex >= history.length - 1}>
+                                                        <Redo className="w-3.5 h-3.5 text-slate-400" />
+                                                    </Button>
+                                                    <Button variant="ghost" size="icon" className="h-6 w-6 rounded-lg hover:bg-white/10 hover:text-red-400" onClick={handleReset} title="Reiniciar Plantilla">
+                                                        <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
+                                                    </Button>
+                                                </div>
+                                            </div>
+
+                                            {/* Triggers */}
+                                            <div className="space-y-2">
+                                                <p className="text-[8px] font-black uppercase tracking-widest text-primary px-1 flex items-center gap-1">
+                                                    <Zap className="w-3 h-3" />
+                                                    Triggers (Disparadores)
+                                                </p>
+                                                <div className="grid grid-cols-2 gap-1.5">
+                                                    {['Nueva Orden', 'Pago Recibido', 'Stock Bajo', 'Nuevo Cliente'].map(name => (
+                                                        <Button
+                                                            key={name}
+                                                            variant="outline"
+                                                            className="h-8 text-[8px] font-bold uppercase tracking-tight bg-primary/10 hover:bg-primary/20 border-primary/30 text-white px-2"
+                                                            onClick={() => {
+                                                                const newNode: Node = {
+                                                                    id: `trigger-${Date.now()}`,
+                                                                    type: 'trigger',
+                                                                    data: { name, icon: 'zap' },
+                                                                    position: { x: Math.random() * 400, y: Math.random() * 400 }
+                                                                };
+                                                                setNodes(nds => [...nds, newNode]);
+                                                            }}
+                                                        >
+                                                            {name}
+                                                        </Button>
                                                     ))}
                                                 </div>
                                             </div>
-                                            <div className="h-px bg-white/5 my-1" />
-                                            <div className="flex items-center gap-2 px-2 py-1">
-                                                <Settings2 className="w-3 h-3 text-slate-600" />
-                                                <span className="text-[9px] font-bold text-slate-600 uppercase tracking-tighter italic">Selecciona un nodo para editar</span>
+
+                                            <div className="h-px bg-white/5" />
+
+                                            {/* Conditions */}
+                                            <div className="space-y-2">
+                                                <p className="text-[8px] font-black uppercase tracking-widest text-orange-500 px-1 flex items-center gap-1">
+                                                    <GitBranch className="w-3 h-3" />
+                                                    Conditions (Decisiones)
+                                                </p>
+                                                <div className="grid grid-cols-2 gap-1.5">
+                                                    {['¿Stock OK?', '¿Precio OK?', '¿Aprobado?', '¿Disponible?'].map(name => (
+                                                        <Button
+                                                            key={name}
+                                                            variant="outline"
+                                                            className="h-8 text-[8px] font-bold uppercase tracking-tight bg-orange-500/10 hover:bg-orange-500/20 border-orange-500/30 text-white px-2"
+                                                            onClick={() => {
+                                                                const newNode: Node = {
+                                                                    id: `condition-${Date.now()}`,
+                                                                    type: 'condition',
+                                                                    data: { name },
+                                                                    position: { x: Math.random() * 400, y: Math.random() * 400 }
+                                                                };
+                                                                setNodes(nds => [...nds, newNode]);
+                                                            }}
+                                                        >
+                                                            {name}
+                                                        </Button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            <div className="h-px bg-white/5" />
+
+                                            {/* Actions */}
+                                            <div className="space-y-2">
+                                                <p className="text-[8px] font-black uppercase tracking-widest text-slate-400 px-1 flex items-center gap-1">
+                                                    <Sparkles className="w-3 h-3" />
+                                                    Actions (Acciones)
+                                                </p>
+                                                <div className="grid grid-cols-2 gap-1.5">
+                                                    {['Registrar', 'Notificar', 'Actualizar', 'Generar', 'Validar', 'Enviar'].map(name => (
+                                                        <Button
+                                                            key={name}
+                                                            variant="outline"
+                                                            className="h-8 text-[8px] font-bold uppercase tracking-tight bg-slate-800/50 hover:bg-slate-700 border-slate-700 text-white px-2"
+                                                            onClick={() => {
+                                                                const newNode: Node = {
+                                                                    id: `action-${Date.now()}`,
+                                                                    type: 'action',
+                                                                    data: { name },
+                                                                    position: { x: Math.random() * 400, y: Math.random() * 400 }
+                                                                };
+                                                                setNodes(nds => [...nds, newNode]);
+                                                            }}
+                                                        >
+                                                            {name}
+                                                        </Button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            <div className="h-px bg-white/5" />
+
+                                            {/* Devices */}
+                                            <div className="space-y-2">
+                                                <p className="text-[8px] font-black uppercase tracking-widest text-emerald-500 px-1 flex items-center gap-1">
+                                                    <Tablet className="w-3 h-3" />
+                                                    Devices (Dispositivos)
+                                                </p>
+                                                <div className="grid grid-cols-2 gap-1.5">
+                                                    {['Kiosk Point', 'Terminal', 'IoT Sensor', 'Scanner'].map(name => (
+                                                        <Button
+                                                            key={name}
+                                                            variant="outline"
+                                                            className="h-8 text-[8px] font-bold uppercase tracking-tight bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/30 text-white px-2"
+                                                            onClick={() => {
+                                                                const newNode: Node = {
+                                                                    id: `device-${Date.now()}`,
+                                                                    type: 'device',
+                                                                    data: { name, icon: 'tablet' },
+                                                                    position: { x: Math.random() * 400, y: Math.random() * 400 }
+                                                                };
+                                                                setNodes(nds => [...nds, newNode]);
+                                                            }}
+                                                        >
+                                                            {name}
+                                                        </Button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            <div className="h-px bg-white/5" />
+
+                                            <div className="flex items-center gap-2 px-2 py-1 bg-slate-800/30 rounded-lg">
+                                                <Settings2 className="w-3 h-3 text-slate-500" />
+                                                <span className="text-[8px] font-bold text-slate-500 uppercase tracking-tight">Click en nodo para editar</span>
                                             </div>
                                         </Panel>
                                     </ReactFlow>

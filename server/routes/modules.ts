@@ -186,5 +186,28 @@ export function registerModuleRoutes(app: Express) {
             res.status(500).json({ message: "Internal server error" });
         }
     });
+
+    // Intelligent Module Recommendation
+    app.post("/api/modules/recommend", async (req: Request, res: Response) => {
+        try {
+            const { description } = req.body;
+
+            if (!description) {
+                return res.status(400).json({ message: "Description required" });
+            }
+
+            // Get all modules to provide context
+            const allModules = await db.query.modules.findMany();
+
+            // Get recommendations
+            const { moduleRecommender } = await import("../services/module-recommender");
+            const recommendedIds = await moduleRecommender.recommendModules(description, allModules);
+
+            res.json({ recommendedIds });
+        } catch (error) {
+            console.error("Recommendation error:", error);
+            res.status(500).json({ message: "Internal server error" });
+        }
+    });
 }
 

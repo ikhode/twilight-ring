@@ -77,6 +77,7 @@ import { AuthProvider } from "@/hooks/use-auth";
 import { RealtimeProvider } from "@/lib/realtime";
 import { Copilot } from "@/components/ai/Copilot";
 import { ConfigurationProvider } from "@/context/ConfigurationContext";
+import { NexusGuide } from "@/components/tutorial/NexusGuide";
 
 function App() {
   return (
@@ -86,6 +87,7 @@ function App() {
           <RealtimeProvider>
             <TooltipProvider>
               <Toaster />
+              <NexusGuide />
               <Copilot />
               <Router />
             </TooltipProvider>
