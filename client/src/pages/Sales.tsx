@@ -184,7 +184,10 @@ function POSView() {
           status: "paid"
         })
       });
-      if (!res.ok) throw new Error("Payment failed");
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Payment failed");
+      }
       return res.json();
     },
     onSuccess: (data) => {
@@ -200,8 +203,8 @@ function POSView() {
         description: `Se procesaron ${data.stats.success} items.`
       });
     },
-    onError: () => {
-      toast({ title: "Error", description: "No se pudo completar la venta.", variant: "destructive" });
+    onError: (error) => {
+      toast({ title: "Error", description: error.message || "No se pudo completar la venta.", variant: "destructive" });
     }
   });
 
@@ -333,9 +336,20 @@ function POSView() {
               {filteredProducts.map((product) => (
                 <button
                   key={product.id}
+                  disabled={product.stock <= 0}
                   onClick={() => addToCart(product)}
-                  className="p-4 rounded-xl border border-border bg-card hover:bg-muted/50 hover:border-primary/50 transition-all text-left group"
+                  className={cn(
+                    "p-4 rounded-xl border border-border bg-card transition-all text-left group relative overflow-hidden",
+                    product.stock > 0 ? "hover:bg-muted/50 hover:border-primary/50" : "opacity-60 cursor-not-allowed grayscale bg-muted/20"
+                  )}
                 >
+                  {product.stock <= 0 && (
+                    <div className="absolute inset-0 bg-background/50 flex items-center justify-center z-10">
+                      <span className="bg-muted text-muted-foreground text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-widest transform -rotate-12 border border-border">
+                        Sin Stock
+                      </span>
+                    </div>
+                  )}
                   <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center mb-3 group-hover:bg-primary/15 transition-colors">
                     <Package className="w-6 h-6 text-muted-foreground group-hover:text-primary" />
                   </div>
@@ -348,11 +362,12 @@ function POSView() {
                     variant="secondary"
                     className={cn(
                       "mt-2 text-[10px]",
-                      product.status === "critical" && "bg-destructive/15 text-destructive",
-                      product.status === "low" && "bg-warning/15 text-warning"
+                      product.stock <= 0 && "bg-muted text-muted-foreground",
+                      product.stock > 0 && product.status === "critical" && "bg-destructive/15 text-destructive",
+                      product.stock > 0 && product.status === "low" && "bg-warning/15 text-warning"
                     )}
                   >
-                    Stock: {product.stock}
+                    {product.stock <= 0 ? "Agotado" : `Stock: ${product.stock}`}
                   </Badge>
                 </button>
               ))}
@@ -554,7 +569,13 @@ function SalesHistory() {
     { key: "product", header: "Producto", render: (it: any) => it.product?.name || "Desconocido" },
     { key: "quantity", header: "Cant.", render: (it: any) => it.quantity },
     { key: "totalPrice", header: "Total", render: (it: any) => <span className="font-bold text-green-600">{formatCurrency(it.totalPrice / 100)}</span> },
-    { key: "status", header: "Estado", render: (it: any) => <StatusBadge status={it.status} /> }
+    {
+      key: "status", header: "Estado", render: (it: any) => (
+        <Badge variant={it.status === "paid" ? "default" : "secondary"}>
+          {it.status === "paid" ? "Pagado" : "Pendiente"}
+        </Badge>
+      )
+    }
   ];
 
   return (

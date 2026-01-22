@@ -79,6 +79,7 @@ export default function Production() {
       const res = await fetch('/api/piecework/tickets', {
         headers: { Authorization: `Bearer ${session?.access_token}` }
       });
+      if (!res.ok) throw new Error("Failed to fetch tickets");
       return res.json();
     },
     enabled: !!session?.access_token

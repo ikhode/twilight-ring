@@ -46,7 +46,8 @@ router.post("/", async (req, res): Promise<void> => {
                     totalPrice: item.price * item.quantity, // Price is unit price in cents
                     driverId: driverId || null,
                     vehicleId: vehicleId || null,
-                    status: status || "paid",
+                    paymentStatus: "paid", // Default to paid for now
+                    deliveryStatus: "delivered", // Default to delivered for POS
                     date: new Date()
                 }).returning();
 
@@ -88,9 +89,11 @@ router.post("/", async (req, res): Promise<void> => {
                 referenceId: `BATCH-${Date.now()}`,
                 date: new Date()
             });
+            res.json({ message: "Sales processed", stats });
+        } else {
+            // If nothing succeeded, it means everything failed (likely due to stock)
+            res.status(400).json({ message: "No se pudieron procesar los items. Verifique el stock.", stats });
         }
-
-        res.json({ message: "Sales processed", stats });
 
     } catch (error) {
         console.error("Sales Error:", error);

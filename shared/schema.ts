@@ -370,7 +370,8 @@ export const purchases = pgTable("purchases", {
   organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   supplierId: varchar("supplier_id").references(() => suppliers.id),
   totalAmount: integer("total_amount").notNull(), // in cents
-  status: text("status").notNull().default("completed"), // "pending", "completed", "cancelled"
+  paymentStatus: text("payment_status").notNull().default("pending"), // "pending", "paid", "refunded"
+  deliveryStatus: text("delivery_status").notNull().default("pending"), // "pending", "received", "partial", "returned", "cancelled"
   date: timestamp("date").defaultNow(),
   notes: text("notes"),
 });
@@ -448,7 +449,8 @@ export const sales = pgTable("sales", {
   customerId: varchar("customer_id").references(() => customers.id),
   quantity: integer("quantity").notNull(),
   totalPrice: integer("total_price").notNull(),
-  status: text("status").notNull().default("paid"), // "draft", "paid", "cancelled"
+  paymentStatus: text("payment_status").notNull().default("pending"), // "pending", "paid", "refunded"
+  deliveryStatus: text("delivery_status").notNull().default("delivered"), // "pending", "shipped", "delivered", "returned"
   driverId: varchar("driver_id").references(() => employees.id),
   vehicleId: varchar("vehicle_id").references(() => vehicles.id),
   date: timestamp("date").defaultNow(),
@@ -634,16 +636,7 @@ export const whatsappConversations = pgTable("whatsapp_conversations", {
 });
 
 
-export const salesRelations = relations(sales, ({ one }) => ({
-  product: one(products, {
-    fields: [sales.productId],
-    references: [products.id],
-  }),
-  customer: one(customers, {
-    fields: [sales.customerId],
-    references: [customers.id],
-  }),
-}));
+
 
 export const whatsappMessages = pgTable("whatsapp_messages", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

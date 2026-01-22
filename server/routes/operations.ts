@@ -46,7 +46,7 @@ router.get("/finance/summary", async (req, res): Promise<void> => {
             db.query.sales.findMany({ where: withPeriod(eq(sales.organizationId, orgId), sales.date) }),
             db.query.payments.findMany({ where: withPeriod(eq(payments.organizationId, orgId), payments.date) }),
             db.query.payrollAdvances.findMany({ where: withPeriod(eq(payrollAdvances.organizationId, orgId), payrollAdvances.date) }),
-            db.query.sales.findMany({ where: and(eq(sales.organizationId, orgId), eq(sales.status, 'pending')) }),
+            db.query.sales.findMany({ where: and(eq(sales.organizationId, orgId), eq(sales.deliveryStatus, 'pending')) }),
             db.query.purchases.findMany({ where: and(eq(purchases.organizationId, orgId), eq(purchases.status, 'pending')) }),
             db.query.cashRegisters.findMany({ where: eq(cashRegisters.organizationId, orgId) })
         ]);
@@ -154,8 +154,13 @@ router.get("/finance/summary", async (req, res): Promise<void> => {
             .sort((a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime())
             .slice(0, 10);
 
+        // Inventory Valuation
+        const allProducts = await db.query.products.findMany({ where: eq(products.organizationId, orgId) });
+        const inventoryValue = allProducts.reduce((sum, p) => sum + (p.stock * p.cost), 0);
+
         res.json({
             balance: currentBalance,
+            inventoryValue,
             income: totalIncome,
             expenses: expenseSum + manualPaymentExpenseSum,
             cognitive: {
@@ -1040,7 +1045,7 @@ router.get("/inventory/products/:id/history", async (req, res): Promise<void> =>
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
 
-        const productId = parseInt(req.params.id);
+        const productId = req.params.id;
         const movements = await db.query.inventoryMovements.findMany({
             where: and(
                 eq(inventoryMovements.organizationId, orgId),
@@ -1053,6 +1058,51 @@ router.get("/inventory/products/:id/history", async (req, res): Promise<void> =>
     } catch (error) {
         console.error("History error:", error);
         res.status(500).json({ message: "Error fetching movement history" });
+    }
+});
+
+/**
+ * Ajusta manualmente el stock de un producto.
+ */
+router.patch("/inventory/products/:id", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const productId = req.params.id;
+        const { stock } = req.body;
+        const newStock = parseInt(stock);
+
+        if (isNaN(newStock) || newStock < 0) {
+            return res.status(400).json({ message: "Invalid stock value" });
+        }
+
+        const [product] = await db.select().from(products).where(and(eq(products.id, productId), eq(products.organizationId, orgId)));
+        if (!product) return res.status(404).json({ message: "Product not found" });
+
+        // Update Stock
+        await db.update(products)
+            .set({ stock: newStock })
+            .where(eq(products.id, productId));
+
+        // Record Adjustment in History
+        await db.insert(inventoryMovements).values({
+            organizationId: orgId,
+            productId: productId,
+            quantity: newStock - product.stock, // Difference
+            type: "adjustment",
+            referenceId: `MANUAL-${Date.now()}`,
+            beforeStock: product.stock,
+            afterStock: newStock,
+            date: new Date(),
+            notes: "Ajuste manual de inventario"
+        });
+
+        res.json({ message: "Stock updated", stock: newStock });
+
+    } catch (error) {
+        console.error("Stock adjust error:", error);
+        res.status(500).json({ message: "Error updating stock" });
     }
 });
 

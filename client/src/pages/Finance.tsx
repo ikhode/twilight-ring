@@ -91,6 +91,13 @@ export default function Finance() {
             variant="primary"
           />
           <StatCard
+            title="Valor Inventario"
+            value={isLoading ? "..." : formatCurrency((summary?.inventoryValue || 0) / 100)}
+            description="Costo total stock"
+            icon={PiggyBank}
+            variant="default"
+          />
+          <StatCard
             title="Supervivencia (Runway)"
             value={summary?.cognitive?.runway || "Calculando..."}
             description={`Gasto mensual: ${formatCurrency((summary?.cognitive?.burnRate || 0) / 100)}`}
