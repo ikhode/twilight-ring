@@ -106,6 +106,15 @@ export const industryTemplates = {
         "employees",
         "analytics",
     ],
+    peladero: [
+        "production",
+        "inventory",
+        "sales",
+        "finance",
+        "employees",
+        "piecework",
+        "analytics",
+    ],
     other: [
         "finance",
         "employees",

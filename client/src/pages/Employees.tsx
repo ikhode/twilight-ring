@@ -35,7 +35,8 @@ import {
   Activity,
   Loader2,
   Edit,
-  Trash2
+  Trash2,
+  Camera
 } from "lucide-react";
 import {
   DropdownMenu,

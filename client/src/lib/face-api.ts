@@ -1,8 +1,8 @@
-
-import * as faceapi from 'face-api.js';
+import * as tf from '@tensorflow/tfjs';
+import * as faceapi from '@vladmandic/face-api';
 
 /**
- * Utility class for facial recognition operations using face-api.js
+ * Utility class for facial recognition operations using @vladmandic/face-api
  */
 export class FaceApiService {
     private static instance: FaceApiService;
@@ -27,12 +27,16 @@ export class FaceApiService {
 
         this.loadingPromise = (async () => {
             try {
-                console.log('[FaceID] Loading models...');
+                console.log('[FaceID] Waiting for TensorFlow.js to be ready...');
+                await tf.ready();
+                console.log('[FaceID] TensorFlow.js is ready. Backend:', tf.getBackend());
+
+                console.log('[FaceID] Loading models using @vladmandic/face-api...');
                 // Path relative to public root
                 const MODEL_URL = '/models';
 
                 await Promise.all([
-                    faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+                    faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
                     faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
                     faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
                 ]);
@@ -58,8 +62,9 @@ export class FaceApiService {
     ): Promise<Float32Array | null> {
         await this.loadModels();
 
+        // SSD Mobilenet V1 is more robust than TinyFaceDetector for initial enrollment
         const detection = await faceapi
-            .detectSingleFace(input, new faceapi.TinyFaceDetectorOptions())
+            .detectSingleFace(input, new faceapi.SsdMobilenetv1Options())
             .withFaceLandmarks()
             .withFaceDescriptor();
 

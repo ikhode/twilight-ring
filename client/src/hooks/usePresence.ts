@@ -14,18 +14,22 @@ export interface PresenceState {
  * Hook to track and display users present on a specific page
  * Uses Supabase Presence for real-time user tracking
  */
-export function usePresence(page: string) {
+export function usePresence(page: string, customIdentity?: { id: string; email: string; name: string }) {
     const { user, profile } = useAuth();
     const [onlineUsers, setOnlineUsers] = useState<PresenceState[]>([]);
     const [isTracking, setIsTracking] = useState(false);
 
     useEffect(() => {
-        if (!user) return;
+        // If we are in a kiosk and have a custom employee identity, we track even without a Supabase session
+        if (!user && !customIdentity) return;
+
+        const trackId = customIdentity?.id || user?.id;
+        if (!trackId) return;
 
         const channel = supabase.channel('online-users', {
             config: {
                 presence: {
-                    key: user.id,
+                    key: trackId,
                 },
             },
         });
@@ -48,9 +52,9 @@ export function usePresence(page: string) {
                 if (status === 'SUBSCRIBED') {
                     setIsTracking(true);
                     await channel.track({
-                        user_id: user.id,
-                        email: user.email || '',
-                        name: profile?.name || user.email?.split('@')[0] || 'Unknown',
+                        user_id: trackId,
+                        email: customIdentity?.email || user?.email || '',
+                        name: customIdentity?.name || profile?.name || user?.email?.split('@')[0] || 'Unknown',
                         page,
                         online_at: new Date().toISOString(),
                     });
@@ -62,7 +66,7 @@ export function usePresence(page: string) {
             supabase.removeChannel(channel);
             setIsTracking(false);
         };
-    }, [user, profile, page]);
+    }, [user, profile, page, customIdentity?.id, customIdentity?.email, customIdentity?.name]);
 
     return { onlineUsers, isTracking };
 }

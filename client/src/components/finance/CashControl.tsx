@@ -11,8 +11,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 
-export function CashControl() {
+interface CashControlProps {
+    employeeId?: string; // Optional: when used in Kiosk
+}
+
+export function CashControl({ employeeId: propEmployeeId }: CashControlProps) {
+    const { session } = useAuth();
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const [modalOpen, setModalOpen] = useState(false);
@@ -25,15 +31,45 @@ export function CashControl() {
     const [sessionAmount, setSessionAmount] = useState("");
     const [sessionNotes, setSessionNotes] = useState("");
 
+    const getAuthHeaders = () => {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+
+        // 1. Supabase Auth
+        if (session?.access_token) {
+            headers['Authorization'] = `Bearer ${session.access_token}`;
+        }
+
+        // 2. Terminal Bridge Auth
+        const deviceId = localStorage.getItem("kiosk_device_id");
+        const salt = localStorage.getItem("kiosk_device_salt");
+        const employeeId = propEmployeeId || localStorage.getItem("last_auth_employee_id");
+
+        if (deviceId && salt) {
+            headers['X-Device-Auth'] = `${deviceId}:${salt}`;
+        }
+        if (employeeId) {
+            headers['X-Employee-ID'] = employeeId;
+        }
+
+        return headers;
+    };
+
     const { data: stats, isLoading } = useQuery({
-        queryKey: ['/api/finance/cash/stats']
+        queryKey: ['/api/finance/cash/stats'],
+        queryFn: async () => {
+            const res = await fetch('/api/finance/cash/stats', {
+                headers: getAuthHeaders()
+            });
+            if (!res.ok) throw new Error("Unauthorized");
+            return res.json();
+        }
     });
 
     const handleOpenSession = async () => {
         try {
             const res = await fetch('/api/finance/cash/open', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({
                     startAmount: Math.round(parseFloat(sessionAmount || "0") * 100),
                     notes: sessionNotes
@@ -53,7 +89,7 @@ export function CashControl() {
         try {
             const res = await fetch('/api/finance/cash/close', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({
                     declaredAmount: Math.round(parseFloat(sessionAmount || "0") * 100),
                     notes: sessionNotes
@@ -185,6 +221,7 @@ export function CashControl() {
                 isOpen={modalOpen}
                 onClose={() => setModalOpen(false)}
                 type={modalType}
+                employeeId={propEmployeeId}
             />
 
             {/* Open Session Dialog */}

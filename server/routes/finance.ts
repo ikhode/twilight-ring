@@ -2,29 +2,26 @@ import { Router, Request, Response } from "express";
 import { db } from "../storage";
 import { cashRegisters, cashSessions, cashTransactions, users } from "../../shared/schema";
 import { eq, and, desc } from "drizzle-orm";
-import { supabaseAdmin } from "../supabase";
+import { getAuthenticatedUser } from "../auth_util";
 
 const router = Router();
 
-// Helper to get authenticated user
-async function getUser(req: Request) {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) return null;
-    const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-    if (error || !user) return null;
-    return user;
+// Helper to get authenticated user and organization ID
+async function getContext(req: Request) {
+    const user = await getAuthenticatedUser(req);
+    const orgId = await getOrgIdFromRequest(req);
+    return { user, orgId };
 }
 
 // GET /api/finance/cash/stats - Get current register status
 router.get("/cash/stats", async (req: Request, res: Response) => {
     try {
-        const user = await getUser(req);
-        if (!user) return res.status(401).json({ message: "Unauthorized" });
+        const { user, orgId } = await getContext(req);
+        if (!user || !orgId) return res.status(401).json({ message: "Unauthorized" });
 
-        // Get the main register for the org (or specific one if passed)
-        // For MVP we assume one main register per org
+        // Get the main register for the org
         const register = await db.query.cashRegisters.findFirst({
+            where: eq(cashRegisters.organizationId, orgId),
             with: {
                 currentSession: true
             }
@@ -38,7 +35,10 @@ router.get("/cash/stats", async (req: Request, res: Response) => {
 
         // Get recent transactions
         const transactions = await db.query.cashTransactions.findMany({
-            where: eq(cashTransactions.registerId, register.id),
+            where: and(
+                eq(cashTransactions.organizationId, orgId),
+                eq(cashTransactions.registerId, register.id)
+            ),
             orderBy: [desc(cashTransactions.timestamp)],
             limit: 10,
             with: {
@@ -60,18 +60,20 @@ router.get("/cash/stats", async (req: Request, res: Response) => {
 // POST /api/finance/cash/open - Open a new session
 router.post("/cash/open", async (req: Request, res: Response) => {
     try {
-        const user = await getUser(req);
-        if (!user) return res.status(401).json({ message: "Unauthorized" });
+        const { user, orgId } = await getContext(req);
+        if (!user || !orgId) return res.status(401).json({ message: "Unauthorized" });
 
         const { startAmount, notes } = req.body;
 
         // 1. Get Register
-        let register = await db.query.cashRegisters.findFirst();
+        let register = await db.query.cashRegisters.findFirst({
+            where: eq(cashRegisters.organizationId, orgId)
+        });
 
         // MVP: Create if missing
         if (!register) {
             const [newRegister] = await db.insert(cashRegisters).values({
-                organizationId: "caccf1d1-e8b7-4392-a878-04bd8474bec3", // Fixed for demo
+                organizationId: orgId,
                 name: "Caja Principal",
                 status: "closed",
                 balance: 0
@@ -114,12 +116,14 @@ router.post("/cash/open", async (req: Request, res: Response) => {
 // POST /api/finance/cash/close - Close session
 router.post("/cash/close", async (req: Request, res: Response) => {
     try {
-        const user = await getUser(req);
-        if (!user) return res.status(401).json({ message: "Unauthorized" });
+        const { user, orgId } = await getContext(req);
+        if (!user || !orgId) return res.status(401).json({ message: "Unauthorized" });
 
         const { declaredAmount, notes } = req.body;
 
-        const register = await db.query.cashRegisters.findFirst();
+        const register = await db.query.cashRegisters.findFirst({
+            where: eq(cashRegisters.organizationId, orgId)
+        });
         if (!register || register.status !== 'open' || !register.currentSessionId) {
             return res.status(400).json({ message: "Register is not open" });
         }
@@ -159,12 +163,14 @@ router.post("/cash/close", async (req: Request, res: Response) => {
 // POST /api/finance/cash/transaction - Record movement
 router.post("/cash/transaction", async (req: Request, res: Response) => {
     try {
-        const user = await getUser(req);
-        if (!user) return res.status(401).json({ message: "Unauthorized" });
+        const { user, orgId } = await getContext(req);
+        if (!user || !orgId) return res.status(401).json({ message: "Unauthorized" });
 
         const { type, amount, category, description } = req.body;
 
-        const register = await db.query.cashRegisters.findFirst();
+        const register = await db.query.cashRegisters.findFirst({
+            where: eq(cashRegisters.organizationId, orgId)
+        });
         if (!register || register.status !== 'open' || !register.currentSessionId) {
             return res.status(400).json({ message: "Register is closed. Open a session first." });
         }

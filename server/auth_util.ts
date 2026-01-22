@@ -1,31 +1,92 @@
 import { Request } from "express";
 import { db } from "./storage";
-import { userOrganizations } from "../shared/schema";
-import { eq } from "drizzle-orm";
+import { userOrganizations, terminals, users, employees } from "../shared/schema";
+import { eq, and } from "drizzle-orm";
 import { supabaseAdmin } from "./supabase";
 
+/**
+ * Gets the organization ID from either Supabase Auth or Terminal Auth.
+ */
 export async function getOrgIdFromRequest(req: Request): Promise<string | null> {
+    const user = await getAuthenticatedUser(req);
+    if (!user) return null;
+
+    // Get user's organization
+    const userOrg = await db.query.userOrganizations.findFirst({
+        where: eq(userOrganizations.userId, user.id),
+    });
+
+    return userOrg ? userOrg.organizationId : null;
+}
+
+/**
+ * Enhanced authentication bridge that supports both Supabase standard auth
+ * and Terminal-based biometric auth for kiosk operations.
+ */
+export async function getAuthenticatedUser(req: Request) {
+    // 1. Try Supabase Auth (Standard)
     const authHeader = req.headers.authorization;
-    if (!authHeader) return null;
-    const token = authHeader.replace("Bearer ", "");
-
-    // Validate token with Supabase
-    try {
-        const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-
-        if (error || !user) {
-            // Quietly handle invalid token errors (common during dev/resets)
-            return null;
+    if (authHeader) {
+        try {
+            const token = authHeader.replace("Bearer ", "");
+            const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+            if (!error && user) return user;
+        } catch (e) {
+            console.error("[Auth] Supabase token error:", e);
         }
-
-        // Get user's organization
-        const userOrg = await db.query.userOrganizations.findFirst({
-            where: eq(userOrganizations.userId, user.id),
-        });
-
-        return userOrg ? userOrg.organizationId : null;
-    } catch (e) {
-        // Return null for malformed tokens instead of throwing
-        return null;
     }
+
+    // 2. Try Terminal Auth (Kiosk Bridge)
+    const deviceAuth = req.headers["x-device-auth"] as string; // format: "deviceId:salt"
+    const employeeId = req.headers["x-employee-id"] as string;
+
+    if (deviceAuth && employeeId) {
+        try {
+            const [deviceId, salt] = deviceAuth.split(":");
+
+            // Verify Terminal Identity
+            const [terminal] = await db.select().from(terminals)
+                .where(eq(terminals.deviceId, deviceId))
+                .limit(1);
+
+            if (terminal) {
+                // Security check: If terminal has a salt, it MUST match.
+                // If it doesn't have a salt, we allow it (matching heartbeat behavior).
+                if (terminal.deviceSalt && terminal.deviceSalt !== salt) {
+                    console.error(`[AuthBridge] Security breach: salt mismatch for terminal ${terminal.id}`);
+                    return null;
+                }
+
+                // Verify Employee belongs to this terminal's organization
+                const [employee] = await db.select().from(employees)
+                    .where(and(eq(employees.id, employeeId), eq(employees.organizationId, terminal.organizationId)))
+                    .limit(1);
+
+                if (employee) {
+                    // Map to a system user (admin) for DB audit fields
+                    const adminRel = await db.query.userOrganizations.findFirst({
+                        where: and(
+                            eq(userOrganizations.organizationId, terminal.organizationId),
+                            eq(userOrganizations.role, "admin")
+                        ),
+                        with: { user: true }
+                    });
+
+                    if (adminRel?.user) return adminRel.user;
+
+                    // Fallback to any user in the org
+                    const anyRel = await db.query.userOrganizations.findFirst({
+                        where: eq(userOrganizations.organizationId, terminal.organizationId),
+                        with: { user: true }
+                    });
+
+                    return anyRel?.user || null;
+                }
+            }
+        } catch (e) {
+            console.error("[AuthBridge] Bridge error:", e);
+        }
+    }
+
+    return null;
 }

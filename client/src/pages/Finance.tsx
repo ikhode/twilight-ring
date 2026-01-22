@@ -68,27 +68,25 @@ export default function Finance() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <StatCard
             title="Caja Actual"
-            value={formatCurrency(balance)}
+            value={formatCurrency(balance / 100)}
             icon={Wallet}
             variant="primary"
           />
           <StatCard
             title="Ingresos"
-            value={formatCurrency(income)}
+            value={formatCurrency(income / 100)}
             icon={TrendingUp}
-            trend={12.5}
             variant="success"
           />
           <StatCard
             title="Egresos"
-            value={formatCurrency(expenses)}
+            value={formatCurrency(expenses / 100)}
             icon={TrendingDown}
-            trend={-5.2}
             variant="destructive"
           />
           <StatCard
             title="Balance Neto"
-            value={formatCurrency(balance)}
+            value={formatCurrency(balance / 100)}
             icon={PiggyBank}
             variant="success"
           />
@@ -106,9 +104,9 @@ export default function Finance() {
                   <ArrowUpRight className="w-4 h-4 text-success" />
                 </div>
                 <p className="text-2xl font-bold font-mono text-success">
-                  {formatCurrency(0)}
+                  {formatCurrency((summary?.accountsReceivable?.total || 0) / 100)}
                 </p>
-                <p className="text-xs text-muted-foreground mt-1">4 facturas pendientes</p>
+                <p className="text-xs text-muted-foreground mt-1">{summary?.accountsReceivable?.count || 0} facturas pendientes</p>
               </div>
 
               <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20">
@@ -117,9 +115,9 @@ export default function Finance() {
                   <ArrowDownRight className="w-4 h-4 text-destructive" />
                 </div>
                 <p className="text-2xl font-bold font-mono text-destructive">
-                  {formatCurrency(0)}
+                  {formatCurrency((summary?.accountsPayable?.total || 0) / 100)}
                 </p>
-                <p className="text-xs text-muted-foreground mt-1">2 facturas pendientes</p>
+                <p className="text-xs text-muted-foreground mt-1">{summary?.accountsPayable?.count || 0} facturas pendientes</p>
               </div>
 
               <div className="p-4 rounded-xl bg-primary/10 border border-primary/20">
@@ -206,7 +204,7 @@ export default function Finance() {
                         )}
                       >
                         {item.amount >= 0 ? "+" : ""}
-                        {formatCurrency(item.amount)}
+                        {formatCurrency(item.amount / 100)}
                       </span>
                     ),
                   },

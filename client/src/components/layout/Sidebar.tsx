@@ -21,7 +21,7 @@ interface SidebarProps {
 
 export function Sidebar({ className, onLinkClick }: SidebarProps) {
   const [location] = useLocation();
-  const { user, profile } = useAuth();
+  const { user, profile, signOut } = useAuth();
   const { enabledModules } = useConfiguration();
   const [items, setItems] = useState<NavItem[]>([]);
   const [collapsed, setCollapsed] = useState(false);
@@ -135,7 +135,12 @@ export function Sidebar({ className, onLinkClick }: SidebarProps) {
             </div>
           )}
           {!collapsed && (
-            <Button variant="ghost" size="icon" className="w-8 h-8 text-slate-500 hover:text-red-400 transition-colors">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => signOut()}
+              className="w-8 h-8 text-slate-500 hover:text-red-400 transition-colors"
+            >
               <LogOut className="w-4 h-4" />
             </Button>
           )}

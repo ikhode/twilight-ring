@@ -65,6 +65,7 @@ export default function Onboarding() {
     const [, setLocation] = useLocation();
     const [step, setStep] = useState<'intake' | 'architect' | 'finalizing'>('intake');
     const [industry, setIndustry] = useState('');
+    const [industryId, setIndustryId] = useState('');
     const [organizationData, setOrganizationData] = useState<{ id: string; name: string; industry: string } | null>(null);
     const [messages, setMessages] = useState<{ role: 'ai' | 'user', text: string }[]>([]);
 
@@ -119,6 +120,7 @@ export default function Onboarding() {
                         industry: industryValue
                     });
                     setIndustry(industryValue);
+                    setIndustryId(industryValue);
 
                     // Set personalized welcome message based on industry
                     const industryName = getIndustryDisplayName(industryValue);
@@ -212,6 +214,7 @@ export default function Onboarding() {
             const { nodes: genNodes, edges: genEdges } = processGenerator.generateFlow(template.id);
             setNodes(genNodes);
             setEdges(genEdges);
+            setIndustryId(template.id);
 
             setTimeout(() => {
                 setStep('architect');
@@ -337,7 +340,8 @@ export default function Onboarding() {
                 },
                 body: JSON.stringify({
                     nodes,
-                    edges
+                    edges,
+                    industry: industryId
                 })
             });
 

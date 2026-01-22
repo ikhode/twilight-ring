@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -13,9 +14,11 @@ interface TransactionModalProps {
     isOpen: boolean;
     onClose: () => void;
     type: 'in' | 'out';
+    employeeId?: string; // Optional: when used in Kiosk
 }
 
-export function TransactionModal({ isOpen, onClose, type }: TransactionModalProps) {
+export function TransactionModal({ isOpen, onClose, type, employeeId: propEmployeeId }: TransactionModalProps) {
+    const { session } = useAuth();
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const [isLoading, setIsLoading] = useState(false);
@@ -46,9 +49,28 @@ export function TransactionModal({ isOpen, onClose, type }: TransactionModalProp
 
         setIsLoading(true);
         try {
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+
+            // 1. Supabase Auth
+            if (session?.access_token) {
+                headers['Authorization'] = `Bearer ${session.access_token}`;
+            }
+
+            // 2. Terminal Bridge Auth
+            const deviceId = localStorage.getItem("kiosk_device_id");
+            const salt = localStorage.getItem("kiosk_device_salt");
+            const employeeId = propEmployeeId || localStorage.getItem("last_auth_employee_id");
+
+            if (deviceId && salt) {
+                headers['X-Device-Auth'] = `${deviceId}:${salt}`;
+            }
+            if (employeeId) {
+                headers['X-Employee-ID'] = employeeId;
+            }
+
             const res = await fetch('/api/finance/cash/transaction', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers,
                 body: JSON.stringify({
                     type,
                     amount: Math.round(parseFloat(formData.amount) * 100), // convert to cents

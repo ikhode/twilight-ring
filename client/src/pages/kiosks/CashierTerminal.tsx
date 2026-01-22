@@ -43,11 +43,35 @@ import { CashControl } from "@/components/finance/CashControl";
 // ... existing imports
 
 export default function CashierTerminal({ sessionContext, onLogout }: CashierTerminalProps) {
+    const { session } = useAuth();
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const [scanCode, setScanCode] = useState("");
     const [employeeId, setEmployeeId] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<'payouts' | 'general'>('payouts');
+
+    const getAuthHeaders = () => {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+
+        // 1. Supabase Auth
+        if (session?.access_token) {
+            headers['Authorization'] = `Bearer ${session.access_token}`;
+        }
+
+        // 2. Terminal Bridge Auth
+        const deviceId = localStorage.getItem("kiosk_device_id");
+        const salt = localStorage.getItem("kiosk_device_salt");
+        const terminalAuthEmployeeId = sessionContext.driver?.id || localStorage.getItem("last_auth_employee_id");
+
+        if (deviceId && salt) {
+            headers['X-Device-Auth'] = `${deviceId}:${salt}`;
+        }
+        if (terminalAuthEmployeeId) {
+            headers['X-Employee-ID'] = terminalAuthEmployeeId;
+        }
+
+        return headers;
+    };
 
     // Mock employee search for now, replacing with real search if endpoint exists
     const handleEmployeeSearch = () => {
@@ -60,7 +84,9 @@ export default function CashierTerminal({ sessionContext, onLogout }: CashierTer
         queryKey: ["/api/piecework/tickets/unpaid", employeeId],
         queryFn: async () => {
             if (!employeeId) return [];
-            const res = await fetch(`/api/piecework/tickets?employeeId=${employeeId}&status=pending`);
+            const res = await fetch(`/api/piecework/tickets?employeeId=${employeeId}&status=pending`, {
+                headers: getAuthHeaders()
+            });
             if (!res.ok) throw new Error("Failed to fetch tickets");
             return res.json();
         },
@@ -72,7 +98,9 @@ export default function CashierTerminal({ sessionContext, onLogout }: CashierTer
         queryKey: ["/api/piecework/advances", employeeId],
         queryFn: async () => {
             if (!employeeId) return [];
-            const res = await fetch(`/api/piecework/advances?employeeId=${employeeId}&status=pending`);
+            const res = await fetch(`/api/piecework/advances?employeeId=${employeeId}&status=pending`, {
+                headers: getAuthHeaders()
+            });
             if (!res.ok) throw new Error("Failed to fetch advances");
             return res.json();
         },
@@ -83,7 +111,7 @@ export default function CashierTerminal({ sessionContext, onLogout }: CashierTer
         mutationFn: async () => {
             const res = await fetch("/api/piecework/payout", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({
                     ticketIds: unpaidTickets.map((t: any) => t.id),
                     advanceIds: advances.map((a: any) => a.id)
@@ -152,7 +180,7 @@ export default function CashierTerminal({ sessionContext, onLogout }: CashierTer
 
             {activeTab === 'general' ? (
                 <div className="flex-1 min-h-0 overflow-y-auto">
-                    <CashControl />
+                    <CashControl employeeId={sessionContext.driver?.id} />
                 </div>
             ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
@@ -237,6 +265,7 @@ export default function CashierTerminal({ sessionContext, onLogout }: CashierTer
                                             queryClient.invalidateQueries({ queryKey: ["/api/piecework/advances"] });
                                             queryClient.invalidateQueries({ queryKey: ["/api/operations/finance/summary"] });
                                         }}
+                                        getAuthHeaders={getAuthHeaders}
                                     />
                                 </CardContent>
                             </Card>
@@ -308,7 +337,7 @@ export default function CashierTerminal({ sessionContext, onLogout }: CashierTer
     );
 }
 
-function NewAdvanceDialog({ employeeId, onSuccess }: { employeeId: string, onSuccess: () => void }) {
+function NewAdvanceDialog({ employeeId, onSuccess, getAuthHeaders }: { employeeId: string, onSuccess: () => void, getAuthHeaders: () => Record<string, string> }) {
     const [open, setOpen] = useState(false);
     const [amount, setAmount] = useState("");
     const { toast } = useToast();
@@ -317,7 +346,7 @@ function NewAdvanceDialog({ employeeId, onSuccess }: { employeeId: string, onSuc
         mutationFn: async () => {
             const res = await fetch("/api/piecework/advances", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({
                     employeeId,
                     amount: parseFloat(amount) * 100, // cents

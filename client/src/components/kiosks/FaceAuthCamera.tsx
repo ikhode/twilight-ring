@@ -15,15 +15,17 @@ export function FaceAuthCamera({ onAuthenticated, terminalId }: FaceAuthCameraPr
     const [status, setStatus] = useState<'idle' | 'scanning' | 'verifying' | 'success' | 'error'>('idle');
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+    const statusRef = useRef(status);
+    useEffect(() => {
+        statusRef.current = status;
+    }, [status]);
+
     // Auto-scan loop
     useEffect(() => {
-        let intervalId: NodeJS.Timeout;
-
         const scan = async () => {
-            if (!webcamRef.current || status === 'verifying' || status === 'success') return;
+            if (!webcamRef.current || statusRef.current === 'verifying' || statusRef.current === 'success') return;
 
             try {
-                setStatus('scanning');
                 const imageSrc = webcamRef.current.getScreenshot();
                 if (!imageSrc) return;
 
@@ -33,7 +35,7 @@ export function FaceAuthCamera({ onAuthenticated, terminalId }: FaceAuthCameraPr
 
                 const descriptor = await faceApiService.getFaceDescriptor(img);
 
-                if (descriptor) {
+                if (descriptor && (statusRef.current as any) !== 'verifying' && (statusRef.current as any) !== 'success') {
                     setStatus('verifying');
                     // Send descriptor to backend
                     const res = await fetch('/api/kiosks/identify', {
@@ -60,9 +62,9 @@ export function FaceAuthCamera({ onAuthenticated, terminalId }: FaceAuthCameraPr
             }
         };
 
-        intervalId = setInterval(scan, 2000); // Scan every 2 seconds
+        const intervalId = setInterval(scan, 2000); // Scan every 2 seconds
         return () => clearInterval(intervalId);
-    }, [status, terminalId, onAuthenticated]);
+    }, [terminalId, onAuthenticated]);
 
     return (
         <div className="relative w-full max-w-sm mx-auto overflow-hidden">

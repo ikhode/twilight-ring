@@ -27,11 +27,13 @@ router.get("/finance/summary", async (req, res): Promise<void> => {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
 
-        const [totalExpenses, totalSales, totalPayments, totalAdvances] = await Promise.all([
+        const [totalExpenses, totalSales, totalPayments, totalAdvances, pendingSales, pendingPurchases] = await Promise.all([
             db.query.expenses.findMany({ where: eq(expenses.organizationId, orgId) }),
             db.query.sales.findMany({ where: eq(sales.organizationId, orgId) }),
             db.query.payments.findMany({ where: eq(payments.organizationId, orgId) }),
-            db.query.payrollAdvances.findMany({ where: eq(payrollAdvances.organizationId, orgId) })
+            db.query.payrollAdvances.findMany({ where: eq(payrollAdvances.organizationId, orgId) }),
+            db.query.sales.findMany({ where: and(eq(sales.organizationId, orgId), eq(sales.status, 'pending')) }),
+            db.query.purchases.findMany({ where: and(eq(purchases.organizationId, orgId), eq(purchases.status, 'pending')) })
         ]);
 
         const expenseSum = totalExpenses.reduce((acc, curr) => acc + curr.amount, 0);
@@ -83,6 +85,14 @@ router.get("/finance/summary", async (req, res): Promise<void> => {
             payroll: {
                 total: payrollSum,
                 count: totalAdvances.length
+            },
+            accountsReceivable: {
+                total: pendingSales.reduce((acc, curr) => acc + curr.totalPrice, 0),
+                count: pendingSales.length
+            },
+            accountsPayable: {
+                total: pendingPurchases.reduce((acc, curr) => acc + (curr as any).totalAmount, 0), // Use totalAmount from purchases
+                count: pendingPurchases.length
             },
             recentTransactions: allTransactions
         });
@@ -201,6 +211,11 @@ router.post("/fleet/vehicles/:id/maintenance", async (req, res): Promise<void> =
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
 
         const data = req.body;
+
+        // Security: Verify vehicle belongs to org
+        const [vehicle] = await db.select().from(vehicles).where(and(eq(vehicles.id, vehicleId), eq(vehicles.organizationId, orgId))).limit(1);
+        if (!vehicle) return res.status(404).json({ message: "Vehicle not found" });
+
         const [log] = await db.insert(maintenanceLogs).values({
             ...data,
             vehicleId,
@@ -356,8 +371,12 @@ router.get("/fleet/routes/driver/:driverId", async (req, res): Promise<void> => 
     // Get active route for a driver
     try {
         const { driverId } = req.params;
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
         const activeRoute = await db.query.routes.findFirst({
             where: and(
+                eq(routes.organizationId, orgId),
                 eq(routes.driverId, driverId),
                 eq(routes.status, "active") // Or pending
             ),
@@ -389,11 +408,13 @@ router.post("/fleet/routes/:id/location", async (req, res): Promise<void> => {
     try {
         const { id } = req.params;
         const { lat, lng } = req.body;
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
 
         await db.update(routes).set({
             currentLocationLat: lat,
             currentLocationLng: lng
-        }).where(eq(routes.id, id));
+        }).where(and(eq(routes.id, id), eq(routes.organizationId, orgId)));
 
         res.json({ success: true });
     } catch (err) {
@@ -412,6 +433,19 @@ router.post("/fleet/routes/stops/:id/complete", async (req, res): Promise<void> 
     try {
         const { id } = req.params;
         const { signature, photo, lat, lng } = req.body;
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        // Verify stop belongs to org's route
+        const [stopInfo] = await db.select({ routeOrgId: routes.organizationId })
+            .from(routeStops)
+            .innerJoin(routes, eq(routes.id, routeStops.routeId))
+            .where(eq(routeStops.id, id))
+            .limit(1);
+
+        if (!stopInfo || stopInfo.routeOrgId !== orgId) {
+            return res.status(404).json({ message: "Route stop not found or unauthorized" });
+        }
 
         await db.update(routeStops).set({
             status: "completed",
@@ -424,6 +458,7 @@ router.post("/fleet/routes/stops/:id/complete", async (req, res): Promise<void> 
 
         res.json({ success: true });
     } catch (err) {
+        console.error("Complete stop error:", err);
         res.status(500).json({ message: "Error completing stop" });
     }
 });

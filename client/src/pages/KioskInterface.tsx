@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +29,7 @@ import {
   Lock,
   Unlock,
   MapPin,
+  RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLocation, useParams } from "wouter";
@@ -125,7 +126,11 @@ export default function KioskInterface(): JSX.Element {
   }, [id, deviceId, queryClient]);
 
   // Use Presence instead of polling for heartbeat
-  usePresence(`kiosk-${id}`);
+  usePresence(`kiosk-${id}`, authenticatedEmployee ? {
+    id: authenticatedEmployee.id,
+    email: authenticatedEmployee.email || `${authenticatedEmployee.id}@kiosk.local`,
+    name: authenticatedEmployee.name
+  } : undefined);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -210,14 +215,14 @@ export default function KioskInterface(): JSX.Element {
       { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
     );
 
-    return (): void => {
+    return () => {
       navigator.geolocation.clearWatch(watchId);
       setCurrentCoords(null);
     };
   }, [isRouteActive]);
 
   // Wake Lock Logic
-  useEffect((): void => {
+  useEffect(() => {
     /**
      * Solicita un bloqueo de pantalla (Wake Lock) para mantener el dispositivo activo.
      */
@@ -323,7 +328,34 @@ export default function KioskInterface(): JSX.Element {
           terminal: kioskInfo as Terminal,
           driver: authenticatedEmployee
         }}
-        onLogout={() => setAuthenticatedEmployee(null)}
+        onLogout={() => {
+          setAuthenticatedEmployee(null);
+          localStorage.removeItem("last_auth_employee_id");
+        }}
+      />
+    );
+  }
+
+  // 1.5 Worker Activity (Mapped to Production)
+  if (kioskInfo?.capabilities?.includes("worker-activity")) {
+    if (!authenticatedEmployee) {
+      return (
+        <KioskLoginView
+          terminal={kioskInfo}
+          onAuthenticated={setAuthenticatedEmployee}
+        />
+      );
+    }
+    return (
+      <ProductionTerminal
+        sessionContext={{
+          terminal: kioskInfo as Terminal,
+          driver: authenticatedEmployee
+        }}
+        onLogout={() => {
+          setAuthenticatedEmployee(null);
+          localStorage.removeItem("last_auth_employee_id");
+        }}
       />
     );
   }
@@ -343,7 +375,10 @@ export default function KioskInterface(): JSX.Element {
     return (
       <CashierTerminal
         sessionContext={{ terminal: kioskInfo as Terminal, driver: authenticatedEmployee }}
-        onLogout={() => setAuthenticatedEmployee(null)}
+        onLogout={() => {
+          setAuthenticatedEmployee(null);
+          localStorage.removeItem("last_auth_employee_id");
+        }}
       />
     );
   }
@@ -584,6 +619,7 @@ export default function KioskInterface(): JSX.Element {
               terminal={kioskInfo}
               onAuthenticated={(emp) => {
                 setAuthenticatedEmployee(emp);
+                localStorage.setItem("last_auth_employee_id", emp.id);
                 if (pendingCapability) {
                   setActiveView(pendingCapability as any);
                   setPendingCapability(null);

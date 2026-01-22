@@ -1,8 +1,9 @@
 import { Router, Request, Response } from "express";
 import { db } from "../storage";
-import { organizations, processes, processSteps, users, userOrganizations } from "../../shared/schema";
-import { eq, and } from "drizzle-orm";
+import { organizations, processes, processSteps, users, userOrganizations, organizationModules } from "../../shared/schema";
+import { eq, and, inArray } from "drizzle-orm";
 import { supabaseAdmin } from "../supabase";
+import { industryTemplates } from "../seed";
 
 // Need to duplicate logic since we can't import client-side code directly in Node if it uses React types
 // For now, we'll trust the client sends the nodes, OR we re-generate here.
@@ -25,7 +26,7 @@ router.post("/complete", async (req: Request, res: Response) => {
         const organizationId = await getOrgId(req);
         if (!organizationId) return res.status(401).json({ message: "Unauthorized" });
 
-        const { nodes, edges } = req.body;
+        const { nodes, edges, industry: selectedIndustry } = req.body;
 
         // Fetch organization to get industry
         const org = await db.query.organizations.findFirst({
@@ -37,16 +38,39 @@ router.post("/complete", async (req: Request, res: Response) => {
         const industry = org.industry; // Use the industry from signup
 
         // 1. Update Organization Profile - mark onboarding as completed
+        const finalIndustry = selectedIndustry || org.industry;
+
         await db.update(organizations)
             .set({
+                industry: finalIndustry as any,
                 onboardingStatus: 'completed',
                 meta: {
                     ...(org.meta as object || {}),
                     onboarding_completed_at: new Date().toISOString(),
-                    workflow_customized: nodes && nodes.length > 0
+                    workflow_customized: nodes && nodes.length > 0,
+                    selected_industry: finalIndustry
                 }
             })
             .where(eq(organizations.id, organizationId));
+
+        // 2. Enable modules based on industry template if not already enabled
+        const templateModules = industryTemplates[finalIndustry as keyof typeof industryTemplates] || industryTemplates.other;
+
+        // Get already enabled modules
+        const existingModules = await db.query.organizationModules.findMany({
+            where: eq(organizationModules.organizationId, organizationId)
+        });
+        const existingModuleIds = existingModules.map(m => m.moduleId);
+
+        for (const moduleId of templateModules) {
+            if (!existingModuleIds.includes(moduleId)) {
+                await db.insert(organizationModules).values({
+                    organizationId,
+                    moduleId,
+                    enabled: true,
+                });
+            }
+        }
 
         // 2. Create the Main Process
         const [proc] = await db.insert(processes).values({
