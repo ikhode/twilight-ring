@@ -23,7 +23,8 @@ import {
   Printer,
   ShoppingBag,
   LineChart,
-  History
+  History,
+  Receipt
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
