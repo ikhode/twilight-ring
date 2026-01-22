@@ -19,6 +19,29 @@ export function registerCPERoutes(app: Express) {
         }
     });
 
+    // Get a single process by ID
+    app.get("/api/cpe/processes/:id", async (req: Request, res: Response) => {
+        try {
+            const orgId = await getOrgIdFromRequest(req);
+            if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+            const process = await db.query.processes.findFirst({
+                where: and(
+                    eq(processes.id, req.params.id),
+                    eq(processes.organizationId, orgId)
+                )
+            });
+
+            if (!process) {
+                return res.status(404).json({ message: "Process not found" });
+            }
+
+            res.json(process);
+        } catch (error) {
+            res.status(500).json({ message: "Error fetching process", error });
+        }
+    });
+
     // Create a new process
     app.post("/api/cpe/processes", async (req: Request, res: Response) => {
         try {

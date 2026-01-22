@@ -62,7 +62,8 @@ export function CashControl({ employeeId: propEmployeeId }: CashControlProps) {
             });
             if (!res.ok) throw new Error("Unauthorized");
             return res.json();
-        }
+        },
+        enabled: !!session?.access_token || !!localStorage.getItem("kiosk_device_id")
     });
 
     const handleOpenSession = async () => {

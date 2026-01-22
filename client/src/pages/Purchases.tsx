@@ -11,8 +11,177 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
     ShoppingCart, Plus, Minus, Trash2, CreditCard,
-    Search, Package, TrendingDown, Store
+    Search, Package, TrendingDown, Store, Loader2
 } from "lucide-react";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+    DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CognitiveButton } from "@/components/cognitive/CognitiveButton";
+
+function CreateSupplierDialog() {
+    const { session } = useAuth();
+    const queryClient = useQueryClient();
+    const { toast } = useToast();
+    const [open, setOpen] = useState(false);
+    const [formData, setFormData] = useState({ name: "", contact: "", phone: "" });
+
+    const createMutation = useMutation({
+        mutationFn: async (data: typeof formData) => {
+            const res = await fetch("/api/crm/suppliers", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${session?.access_token}`
+                },
+                body: JSON.stringify({
+                    name: data.name,
+                    contactInfo: { contact: data.contact },
+                })
+            });
+            if (!res.ok) throw new Error("Failed to create supplier");
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/operations/suppliers"] });
+            setOpen(false);
+            setFormData({ name: "", contact: "", phone: "" });
+            toast({ title: "Proveedor creado", description: "El proveedor se ha registrado exitosamente." });
+        },
+        onError: () => {
+            toast({ variant: "destructive", title: "Error", description: "No se pudo crear el proveedor." });
+        }
+    });
+
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2">
+                    <Plus className="w-4 h-4" /> Nuevo Proveedor
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Registrar Nuevo Proveedor</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                        <Label>Razón Social</Label>
+                        <Input value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="Ej. Distribuidora S.A." />
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Contacto</Label>
+                        <Input value={formData.contact} onChange={e => setFormData({ ...formData, contact: e.target.value })} placeholder="Nombre del agente" />
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+                    <Button onClick={() => createMutation.mutate(formData)} disabled={createMutation.isPending}>
+                        {createMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                        Crear Proveedor
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function CreateProductDialog() {
+    const { session } = useAuth();
+    const queryClient = useQueryClient();
+    const { toast } = useToast();
+    const [open, setOpen] = useState(false);
+    const [formData, setFormData] = useState({
+        name: "",
+        sku: "",
+        category: "Materia Prima",
+        productType: "purchase", // Default to purchase for this page
+        stock: 0,
+        unit: "pza",
+        price: 0,
+        cost: 0,
+    });
+
+    const createMutation = useMutation({
+        mutationFn: async (data: any) => {
+            const res = await fetch("/api/operations/inventory/products", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${session?.access_token}`
+                },
+                body: JSON.stringify({
+                    ...data,
+                    price: Math.round(data.price * 100),
+                    cost: Math.round(data.cost * 100)
+                })
+            });
+            if (!res.ok) throw new Error("Failed");
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/operations/inventory/products"] });
+            setOpen(false);
+            setFormData({ name: "", sku: "", category: "Materia Prima", productType: "purchase", stock: 0, unit: "pza", price: 0, cost: 0 });
+            toast({ title: "Producto Creado", description: "El producto se ha registrado correctamente." });
+        },
+        onError: () => {
+            toast({ title: "Error", description: "No se pudo crear el producto.", variant: "destructive" });
+        }
+    });
+
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2">
+                    <Plus className="w-4 h-4" /> Nuevo Insumo
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Alta de Nuevo Insumo / Producto</DialogTitle>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="name" className="text-right">Nombre</Label>
+                        <Input id="name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="col-span-3" />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="productType" className="text-right">Tipo</Label>
+                        <Select onValueChange={(v) => setFormData({ ...formData, productType: v })} defaultValue={formData.productType}>
+                            <SelectTrigger className="col-span-3">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="both">Compra y Venta</SelectItem>
+                                <SelectItem value="purchase">Materia Prima (Compra)</SelectItem>
+                                <SelectItem value="sale">Producto Terminado (Venta)</SelectItem>
+                                <SelectItem value="internal">Insumo Interno / Producido</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    {(formData.productType === "both" || formData.productType === "purchase") && (
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="cost" className="text-right">Costo Est.</Label>
+                            <Input id="cost" type="number" step="0.01" value={formData.cost} onChange={(e) => setFormData({ ...formData, cost: parseFloat(e.target.value) || 0 })} className="col-span-3" />
+                        </div>
+                    )}
+                </div>
+                <DialogFooter>
+                    <Button onClick={() => createMutation.mutate(formData)} disabled={createMutation.isPending}>
+                        {createMutation.isPending ? "Guardando..." : "Confirmar Registro"}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 interface CartItem {
     id: number;
@@ -96,11 +265,13 @@ export default function Purchases() {
         }
     });
 
-    const filteredProducts = Array.isArray(dbProducts) ? dbProducts.filter(
-        (p: any) =>
-            p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            p.sku?.toLowerCase().includes(searchQuery.toLowerCase())
-    ) : [];
+    const filteredProducts = Array.isArray(dbProducts) ? dbProducts
+        .filter((p: any) => p.productType === "purchase" || p.productType === "both")
+        .filter(
+            (p: any) =>
+                p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                p.sku?.toLowerCase().includes(searchQuery.toLowerCase())
+        ) : [];
 
     const addToCart = (product: any) => {
         setCart((prev) => {
@@ -134,7 +305,10 @@ export default function Purchases() {
                     <Card>
                         <CardHeader className="pb-3">
                             <div className="flex items-center justify-between">
-                                <CardTitle className="font-display">Catálogo de Productos</CardTitle>
+                                <div className="flex items-center gap-4">
+                                    <CardTitle className="font-display">Catálogo de Productos</CardTitle>
+                                    <CreateProductDialog />
+                                </div>
                                 <div className="relative">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                                     <Input
@@ -169,10 +343,13 @@ export default function Purchases() {
                 <div className="space-y-6">
                     <Card className="sticky top-20">
                         <CardHeader className="pb-3">
-                            <CardTitle className="font-display flex items-center gap-2">
-                                <ShoppingCart className="w-5 h-5 text-primary" />
-                                Orden de Compra
-                            </CardTitle>
+                            <div className="flex items-center justify-between">
+                                <CardTitle className="font-display flex items-center gap-2">
+                                    <ShoppingCart className="w-5 h-5 text-primary" />
+                                    Orden de Compra
+                                </CardTitle>
+                                <CreateSupplierDialog />
+                            </div>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="space-y-2">

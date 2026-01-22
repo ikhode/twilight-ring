@@ -34,6 +34,8 @@ import { registerAutomationRoutes } from "./routes/automation";
 import { registerBusinessDocumentRoutes } from "./routes/business-documents";
 import { financeRoutes } from "./routes/finance";
 import { organizationRoutes } from "./routes/organization";
+import { attendanceRoutes } from "./routes/attendance";
+import salesRoutes from "./routes/sales";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -68,6 +70,7 @@ export async function registerRoutes(
   app.use("/api/operations", operationsRoutes);
   app.use("/api/crm", crmRoutes);
   app.use("/api/hr", hrRoutes);
+  app.use("/api/hr/attendance", attendanceRoutes);
   app.use("/api/analytics", analyticsRoutes);
   app.use("/api/cognitive", cognitiveRoutes);
   app.use("/api/trust", trustRoutes);
@@ -78,6 +81,7 @@ export async function registerRoutes(
   app.use("/api/production", productionRoutes);
   app.use("/api/finance", financeRoutes);
   app.use("/api/organization", organizationRoutes);
+  app.use("/api/sales", salesRoutes);
 
   // AI Documentation & Chat
   registerChatRoutes(app);

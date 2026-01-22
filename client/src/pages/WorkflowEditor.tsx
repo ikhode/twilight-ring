@@ -80,10 +80,20 @@ function WorkflowEditor() {
     // Fetch Catalog & Suggestions
     const { data: catalog } = useQuery({
         queryKey: ["/api/automation/catalog"],
+        queryFn: async () => {
+            const res = await fetch("/api/automation/catalog");
+            if (!res.ok) throw new Error("Failed to fetch catalog");
+            return res.json();
+        }
     });
 
     const { data: suggestions } = useQuery({
         queryKey: ["/api/automation/suggestions"],
+        queryFn: async () => {
+            const res = await fetch("/api/automation/suggestions");
+            if (!res.ok) throw new Error("Failed to fetch suggestions");
+            return res.json();
+        }
     });
 
     // Initial flow with placeholders
@@ -92,14 +102,16 @@ function WorkflowEditor() {
     const processId = searchParams.get("processId");
 
     const { data: existingProcess, isLoading: isLoadingProcess } = useQuery({
-        queryKey: [`/api/cpe/processes/${processId}`],
+        queryKey: ["/api/cpe/processes", processId],
         queryFn: async () => {
             if (!processId) return null;
-            const res = await fetch(`/api/cpe/processes/${processId}`);
+            const res = await fetch(`/api/cpe/processes/${processId}`, {
+                headers: { Authorization: `Bearer ${session?.access_token}` }
+            });
             if (!res.ok) throw new Error("Failed to load process");
             return res.json();
         },
-        enabled: !!processId
+        enabled: !!processId && !!session?.access_token
     });
 
     // Initial flow initialization

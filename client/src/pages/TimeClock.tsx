@@ -14,10 +14,24 @@ import {
   Loader2,
   Scan,
   Shield,
+  Bath,
+  Activity,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
+import { FaceAuthCamera } from "@/components/kiosks/FaceAuthCamera";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
-type ClockAction = "entry" | "exit" | "break_start" | "break_end";
+type ClockAction = "entry" | "exit" | "break_start" | "break_end" | "lunch_start" | "lunch_end" | "restroom_start" | "restroom_end" | "activity_start" | "activity_end";
 
 interface ClockRecord {
   id: number;
@@ -27,62 +41,81 @@ interface ClockRecord {
 }
 
 export default function TimeClock() {
+  const { session } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [isScanning, setIsScanning] = useState(false);
-  const [scanResult, setScanResult] = useState<{
-    success: boolean;
-    employee?: string;
-    action?: ClockAction;
-  } | null>(null);
-  const [recentRecords, setRecentRecords] = useState<ClockRecord[]>([
-    { id: 1, employee: "María García", action: "entry", time: "08:15" },
-    { id: 2, employee: "José Hernández", action: "entry", time: "07:58" },
-    { id: 3, employee: "Carlos Mendoza", action: "entry", time: "08:02" },
-    { id: 4, employee: "Ana López", action: "break_start", time: "10:30" },
-  ]);
+  const [authenticatedEmployee, setAuthenticatedEmployee] = useState<any>(null);
+  const [isActivityDialogOpen, setIsActivityDialogOpen] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  const simulateFaceRecognition = (action: ClockAction) => {
-    setIsScanning(true);
-    setScanResult(null);
+  const { data: recentRecords = [] } = useQuery({
+    queryKey: ["/api/hr/attendance/recent"],
+    enabled: !!session?.access_token
+  });
 
-    setTimeout(() => {
-      const success = Math.random() > 0.1;
-      const employees = ["Carlos Mendoza", "María García", "José Hernández", "Ana López"];
-      const randomEmployee = employees[Math.floor(Math.random() * employees.length)];
+  const { data: availableProcesses = [] } = useQuery({
+    queryKey: ["/api/cpe/processes"],
+    enabled: !!authenticatedEmployee
+  });
 
-      setScanResult({
-        success,
-        employee: success ? randomEmployee : undefined,
-        action: success ? action : undefined,
+  const attendanceMutation = useMutation({
+    mutationFn: async (payload: { action: ClockAction; area?: string; notes?: string }) => {
+      const res = await fetch("/api/hr/attendance/log", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify({
+          employeeId: authenticatedEmployee.id,
+          ...payload
+        })
       });
-      setIsScanning(false);
+      if (!res.ok) throw new Error("Failed to log attendance");
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/hr/attendance/recent"] });
+      toast({
+        title: "Registro Exitoso",
+        description: `Estado actualizado a: ${data.status}`
+      });
+      setAuthenticatedEmployee(null);
+      setIsActivityDialogOpen(false);
+    },
+    onError: (error) => {
+      toast({
+        title: "Error de Registro",
+        description: (error as Error).message,
+        variant: "destructive"
+      });
+    }
+  });
 
-      if (success) {
-        setRecentRecords((prev) => [
-          {
-            id: Date.now(),
-            employee: randomEmployee,
-            action,
-            time: currentTime.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),
-          },
-          ...prev.slice(0, 4),
-        ]);
-      }
-
-      setTimeout(() => setScanResult(null), 3000);
-    }, 2000);
+  const handleAction = (action: ClockAction, area?: string) => {
+    if (action === "activity_start" && !area) {
+      setIsActivityDialogOpen(true);
+      return;
+    }
+    attendanceMutation.mutate({ action, area });
   };
 
-  const actionLabels: Record<ClockAction, { label: string; icon: typeof LogIn; color: string }> = {
-    entry: { label: "Entrada", icon: LogIn, color: "text-success" },
-    exit: { label: "Salida", icon: LogOut, color: "text-destructive" },
-    break_start: { label: "Inicio Descanso", icon: Coffee, color: "text-warning" },
-    break_end: { label: "Fin Descanso", icon: Coffee, color: "text-primary" },
+  const actionLabels: Record<ClockAction, { label: string; icon: any; color: string; variant?: "success" | "destructive" | "warning" | "primary" }> = {
+    entry: { label: "Entrada", icon: LogIn, color: "text-success", variant: "success" },
+    exit: { label: "Salida", icon: LogOut, color: "text-destructive", variant: "destructive" },
+    break_start: { label: "Inicio Descanso", icon: Coffee, color: "text-warning", variant: "warning" },
+    break_end: { label: "Fin Descanso", icon: Coffee, color: "text-primary", variant: "primary" },
+    lunch_start: { label: "Inicio Comida", icon: Coffee, color: "text-warning", variant: "warning" },
+    lunch_end: { label: "Fin Comida", icon: Coffee, color: "text-primary", variant: "primary" },
+    restroom_start: { label: "Entrada Baño", icon: Bath, color: "text-warning", variant: "warning" },
+    restroom_end: { label: "Salida Baño", icon: Bath, color: "text-primary", variant: "primary" },
+    activity_start: { label: "Iniciar Actividad", icon: Activity, color: "text-primary", variant: "primary" },
+    activity_end: { label: "Fin Actividad", icon: CheckCircle2, color: "text-success", variant: "success" },
   };
 
   return (
@@ -124,119 +157,114 @@ export default function TimeClock() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card className="glass-card overflow-hidden">
             <CardContent className="p-6">
-              <div className="relative aspect-[4/3] rounded-xl bg-gradient-to-br from-muted to-muted/50 overflow-hidden mb-6">
-                <div className="absolute inset-0 flex items-center justify-center">
-                  {isScanning ? (
-                    <div className="text-center space-y-4">
-                      <div className="relative">
-                        <div className="w-32 h-32 rounded-full border-4 border-primary animate-pulse" />
-                        <Scan className="absolute inset-0 m-auto w-16 h-16 text-primary animate-pulse" />
-                      </div>
-                      <div className="flex items-center gap-2 text-primary">
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        <span className="font-medium">Escaneando rostro...</span>
-                      </div>
-                    </div>
-                  ) : scanResult ? (
-                    <div className="text-center space-y-4 animate-in">
-                      {scanResult.success ? (
-                        <>
-                          <div className="w-24 h-24 rounded-full bg-success/20 flex items-center justify-center glow-success">
-                            <CheckCircle2 className="w-12 h-12 text-success" />
-                          </div>
-                          <div>
-                            <p className="text-xl font-bold text-success">¡Registro Exitoso!</p>
-                            <p className="text-lg font-display mt-1">{scanResult.employee}</p>
-                            <Badge className="mt-2 bg-success/20 text-success border-success/30">
-                              {actionLabels[scanResult.action!].label}
-                            </Badge>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="w-24 h-24 rounded-full bg-destructive/20 flex items-center justify-center">
-                            <XCircle className="w-12 h-12 text-destructive" />
-                          </div>
-                          <div>
-                            <p className="text-xl font-bold text-destructive">No Reconocido</p>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              Intente nuevamente o contacte al administrador
-                            </p>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="text-center space-y-4">
-                      <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center border-2 border-dashed border-muted-foreground/30">
-                        <Camera className="w-10 h-10 text-muted-foreground" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-muted-foreground">Cámara lista</p>
-                        <p className="text-sm text-muted-foreground/70">
-                          Seleccione una acción para iniciar
-                        </p>
-                      </div>
-                    </div>
-                  )}
+              {!authenticatedEmployee ? (
+                <div className="space-y-6">
+                  <FaceAuthCamera
+                    terminalId="Attendance-Kiosk-1"
+                    onAuthenticated={(emp) => setAuthenticatedEmployee(emp)}
+                  />
                 </div>
+              ) : (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+                  <div className="flex items-center gap-4 p-4 rounded-2xl bg-primary/10 border border-primary/20">
+                    <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center">
+                      <User className="w-8 h-8 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold opacity-50 uppercase tracking-widest">Bienvenido/a</p>
+                      <p className="text-2xl font-display font-black">{authenticatedEmployee.name}</p>
+                      <Badge variant="outline" className="mt-1">{authenticatedEmployee.role}</Badge>
+                    </div>
+                  </div>
 
-                <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
-                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-background/80 backdrop-blur-sm">
-                    <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
-                    <span className="text-xs font-medium">Cámara activa</span>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      size="lg"
+                      onClick={() => handleAction("entry")}
+                      disabled={attendanceMutation.isPending}
+                      className="h-20 text-lg font-black uppercase bg-success hover:bg-success/90 glow-success"
+                    >
+                      <LogIn className="w-6 h-6 mr-2" />
+                      Entrada
+                    </Button>
+                    <Button
+                      size="lg"
+                      onClick={() => handleAction("exit")}
+                      disabled={attendanceMutation.isPending}
+                      className="h-20 text-lg font-black uppercase bg-destructive hover:bg-destructive/90"
+                    >
+                      <LogOut className="w-6 h-6 mr-2" />
+                      Salida
+                    </Button>
+
+                    <div className="col-span-2 grid grid-cols-3 gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => handleAction("restroom_start")}
+                        disabled={attendanceMutation.isPending}
+                        className="h-16 flex-col gap-1 border-warning/30 text-warning hover:bg-warning/10"
+                      >
+                        <Bath className="w-5 h-5" />
+                        <span className="text-[10px] font-black uppercase">Baño (Ent)</span>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => handleAction("lunch_start")}
+                        disabled={attendanceMutation.isPending}
+                        className="h-16 flex-col gap-1 border-warning/30 text-warning hover:bg-warning/10"
+                      >
+                        <Coffee className="w-5 h-5" />
+                        <span className="text-[10px] font-black uppercase">Comida (Ent)</span>
+                      </Button>
+                      <Button
+                        variant="default"
+                        onClick={() => handleAction("activity_start")}
+                        disabled={attendanceMutation.isPending}
+                        className="h-16 flex-col gap-1 bg-primary hover:bg-primary/90"
+                      >
+                        <Activity className="w-5 h-5" />
+                        <span className="text-[10px] font-black uppercase">Nueva Actividad</span>
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        onClick={() => handleAction("restroom_end")}
+                        disabled={attendanceMutation.isPending}
+                        className="h-16 flex-col gap-1 border-primary/30 text-primary hover:bg-primary/10"
+                      >
+                        <Bath className="w-5 h-5" />
+                        <span className="text-[10px] font-black uppercase">Baño (Sal)</span>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => handleAction("lunch_end")}
+                        disabled={attendanceMutation.isPending}
+                        className="h-16 flex-col gap-1 border-primary/30 text-primary hover:bg-primary/10"
+                      >
+                        <Coffee className="w-5 h-5" />
+                        <span className="text-[10px] font-black uppercase">Comida (Sal)</span>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => handleAction("activity_end")}
+                        disabled={attendanceMutation.isPending}
+                        className="h-16 flex-col gap-1 border-destructive/30 text-destructive hover:bg-destructive/10"
+                      >
+                        <CheckCircle2 className="w-5 h-5" />
+                        <span className="text-[10px] font-black uppercase">Fin Actividad</span>
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-background/80 backdrop-blur-sm">
-                    <Shield className="w-3 h-3 text-primary" />
-                    <span className="text-xs font-medium">Face ID</span>
-                  </div>
+
+                  <Button
+                    variant="ghost"
+                    className="w-full text-xs opacity-50"
+                    onClick={() => setAuthenticatedEmployee(null)}
+                  >
+                    Cancelar / No soy yo
+                  </Button>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <Button
-                  size="lg"
-                  onClick={() => simulateFaceRecognition("entry")}
-                  disabled={isScanning}
-                  className="h-16 text-lg font-semibold bg-success hover:bg-success/90 glow-success"
-                  data-testid="button-clock-entry"
-                >
-                  <LogIn className="w-6 h-6 mr-2" />
-                  Entrada
-                </Button>
-                <Button
-                  size="lg"
-                  onClick={() => simulateFaceRecognition("exit")}
-                  disabled={isScanning}
-                  className="h-16 text-lg font-semibold bg-destructive hover:bg-destructive/90"
-                  data-testid="button-clock-exit"
-                >
-                  <LogOut className="w-6 h-6 mr-2" />
-                  Salida
-                </Button>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  onClick={() => simulateFaceRecognition("break_start")}
-                  disabled={isScanning}
-                  className="h-14 font-semibold border-warning text-warning hover:bg-warning/10"
-                  data-testid="button-clock-break-start"
-                >
-                  <Coffee className="w-5 h-5 mr-2" />
-                  Iniciar Descanso
-                </Button>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  onClick={() => simulateFaceRecognition("break_end")}
-                  disabled={isScanning}
-                  className="h-14 font-semibold border-primary text-primary hover:bg-primary/10"
-                  data-testid="button-clock-break-end"
-                >
-                  <Coffee className="w-5 h-5 mr-2" />
-                  Fin Descanso
-                </Button>
-              </div>
+              )}
             </CardContent>
           </Card>
 
@@ -247,36 +275,25 @@ export default function TimeClock() {
                 Registros Recientes
               </h3>
               <div className="space-y-3">
-                {recentRecords.map((record) => {
-                  const ActionIcon = actionLabels[record.action].icon;
+                {recentRecords.map((record: any) => {
+                  const action = actionLabels[record.notes?.includes("activity") ? "activity_start" : "entry"]; // Placeholder logic
+                  const ActionIcon = action.icon;
                   return (
                     <div
                       key={record.id}
                       className="flex items-center gap-4 p-4 rounded-xl bg-muted/50 hover:bg-muted transition-colors animate-in"
-                      data-testid={`record-${record.id}`}
                     >
-                      <div
-                        className={cn(
-                          "w-10 h-10 rounded-lg flex items-center justify-center",
-                          record.action === "entry"
-                            ? "bg-success/20"
-                            : record.action === "exit"
-                              ? "bg-destructive/20"
-                              : "bg-warning/20"
-                        )}
-                      >
-                        <ActionIcon
-                          className={cn("w-5 h-5", actionLabels[record.action].color)}
-                        />
+                      <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-primary/10">
+                        <ActionIcon className={cn("w-5 h-5", action.color)} />
                       </div>
                       <div className="flex-1">
-                        <p className="font-medium">{record.employee}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {actionLabels[record.action].label}
+                        <p className="font-medium">{record.employee?.name}</p>
+                        <p className="text-xs text-muted-foreground font-black uppercase tracking-widest">
+                          {record.area} {record.status === "active" ? "• EN CURSO" : ""}
                         </p>
                       </div>
                       <span className="text-lg font-mono font-semibold tabular-nums">
-                        {record.time}
+                        {new Date(record.startedAt).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}
                       </span>
                     </div>
                   );
@@ -291,6 +308,34 @@ export default function TimeClock() {
           <p className="text-xs mt-1">ID: KIOSK-001 | Última sincronización: Hace 30 segundos</p>
         </div>
       </div>
+      <Dialog open={isActivityDialogOpen} onOpenChange={setIsActivityDialogOpen}>
+        <DialogContent className="sm:max-w-md bg-slate-950 border-slate-800">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black uppercase tracking-widest text-primary italic">Seleccionar Actividad</DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="h-[400px] pr-4">
+            <div className="space-y-2 py-4">
+              {availableProcesses.map((process: any) => (
+                <button
+                  key={process.id}
+                  onClick={() => handleAction("activity_start", process.name)}
+                  className="w-full flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/5 hover:border-primary/50 transition-all group"
+                >
+                  <div className="text-left">
+                    <p className="font-bold text-white group-hover:text-primary transition-colors">{process.name}</p>
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{process.type}</p>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-slate-600 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                </button>
+              ))}
+              {availableProcesses.length === 0 && (
+                <p className="text-center py-8 text-slate-500 font-bold uppercase text-xs">No hay procesos disponibles para este empleado</p>
+              )}
+            </div>
+
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

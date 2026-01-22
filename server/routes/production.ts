@@ -1,119 +1,111 @@
-import { Router } from "express";
-import { storage } from "../storage";
+import { db } from "../storage";
+import { processInstances, processEvents, inventoryMovements, products } from "../../shared/schema";
+import { eq, sql, and } from "drizzle-orm";
 import { getOrgIdFromRequest } from "../auth_util";
-
+import { Router } from "express";
 
 const router = Router();
 
+
+
+
 /**
- * Registra el proceso de 'Destope' para un lote de producción.
- * @param {import("express").Request} req - Solicitud de Express
- * @param {import("express").Response} res - Respuesta de Express
- * @returns {Promise<void>}
+ * Crea una nueva instancia de proceso (Lote de producción).
  */
-router.post("/destope", async (req, res): Promise<void> => {
+router.post("/instances", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
 
-        const { instanceId, employeeId, quantity, notes } = req.body;
+        const { processId, metadata } = req.body;
 
-        const event = await storage.createProcessEvent({
-            instanceId,
-            eventType: "destope",
-            description: `Se realizó el destope de ${quantity} unidades.`,
-            metadata: { quantity, employeeId, notes },
-            timestamp: new Date()
-        });
+        const [instance] = await db.insert(processInstances).values({
+            processId,
+            status: "active",
+            startedAt: new Date(),
+            aiContext: metadata || {}
+        }).returning();
 
-        res.status(201).json(event);
+        res.status(201).json(instance);
     } catch (error) {
-        console.error("Destope error:", error);
-        res.status(500).json({ message: "Failed to record destope" });
+        res.status(500).json({ message: "Failed to create instance" });
     }
 });
 
 /**
- * Registra el proceso de 'Deshuace' para un lote de producción.
- * @param {import("express").Request} req - Solicitud de Express
- * @param {import("express").Response} res - Respuesta de Express
- * @returns {Promise<void>}
+ * Registra un evento de proceso (Trazabilidad y Merma).
  */
-router.post("/deshuace", async (req, res): Promise<void> => {
+router.post("/events", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
 
-        const { instanceId, employeeId, quantity, notes } = req.body;
+        const { instanceId, stepId, eventType, data, userId } = req.body;
 
-        const event = await storage.createProcessEvent({
+        // 1. Log the event
+        const [event] = await db.insert(processEvents).values({
             instanceId,
-            eventType: "deshuace",
-            description: `Se realizó el deshuace de ${quantity} unidades.`,
-            metadata: { quantity, employeeId, notes },
+            stepId,
+            eventType,
+            data: data || {},
+            userId,
             timestamp: new Date()
-        });
+        }).returning();
+
+        // 2. Automatic Inventory Adjustment for Waste (Merma)
+        if (eventType === "anomaly" && data?.mermaType) {
+            const productToDiscount = data.productId;
+            const quantity = data.quantity; // Assuming negative for discount
+
+            if (productToDiscount && quantity) {
+                // Update product stock
+                await db.update(products)
+                    .set({ stock: sql`${products.stock} - ${quantity}` })
+                    .where(and(eq(products.id, productToDiscount), eq(products.organizationId, orgId)));
+
+                // Log movement
+                await db.insert(inventoryMovements).values({
+                    organizationId: orgId,
+                    productId: productToDiscount,
+                    quantity: -quantity,
+                    type: "production",
+                    referenceId: instanceId,
+                    notes: `Merma registrada: ${data.reason || 'Sin motivo'}`
+                });
+            }
+        }
 
         res.status(201).json(event);
     } catch (error) {
-        console.error("Deshuace error:", error);
-        res.status(500).json({ message: "Failed to record deshuace" });
+        res.status(500).json({ message: "Failed to log event" });
     }
 });
 
 /**
- * Registra el proceso de 'Secado' para un lote de producción.
- * @param {import("express").Request} req - Solicitud de Express
- * @param {import("express").Response} res - Respuesta de Express
- * @returns {Promise<void>}
- */
-router.post("/secado", async (req, res): Promise<void> => {
-    try {
-        const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
-
-        const { instanceId, employeeId, temperature, duration, notes } = req.body;
-
-        const event = await storage.createProcessEvent({
-            instanceId,
-            eventType: "secado",
-            description: `Se completó ciclo de secado: ${temperature}°C por ${duration} min.`,
-            metadata: { temperature, duration, employeeId, notes },
-            timestamp: new Date()
-        });
-
-        res.status(201).json(event);
-    } catch (error) {
-        console.error("Secado error:", error);
-        res.status(500).json({ message: "Failed to record secado" });
-    }
-});
-
-/**
- * Obtiene el resumen de producción filtrado por tipo de proceso.
- * @param {import("express").Request} req - Solicitud de Express
- * @param {import("express").Response} res - Respuesta de Express
- * @returns {Promise<void>}
+ * Obtiene el resumen de producción (OEE y Eficiencia).
  */
 router.get("/summary", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
 
-        // For now, return recent events of production type
-        // In a real app we would aggregate data here
-        const processes = await storage.getProcesses(orgId);
-        const productionProcesses = processes.filter(p => p.type === "production");
+        const allInstances = await db.query.processInstances.findMany({
+            where: (pi, { eq }) => sql`${pi.processId} IN (SELECT id FROM processes WHERE organization_id = ${orgId})`,
+            orderBy: (pi, { desc }) => [desc(pi.startedAt)],
+            limit: 50
+        });
 
-        const summary = {
-            activeCount: productionProcesses.filter(p => p.status === "active").length,
-            totalCount: productionProcesses.length,
-            recentEvents: [] // Placeholder
-        };
+        const activeCount = allInstances.filter(i => i.status === "active").length;
+        const completedCount = allInstances.filter(i => i.status === "completed").length;
 
-        res.json(summary);
+        res.json({
+            activeCount,
+            completedCount,
+            totalCount: allInstances.length,
+            efficiency: completedCount > 0 ? 92 : 0, // Mocked OEE for now
+            recentInstances: allInstances.slice(0, 5)
+        });
     } catch (error) {
-        console.error("Production summary error:", error);
         res.status(500).json({ message: "Failed to fetch production summary" });
     }
 });

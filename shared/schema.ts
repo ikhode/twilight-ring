@@ -259,9 +259,12 @@ export const products = pgTable("products", {
   name: text("name").notNull(),
   sku: text("sku").unique(),
   category: text("category").notNull(),
-  price: integer("price").notNull(), // in cents
-  cost: integer("cost").notNull(), // in cents
+  productType: text("product_type").notNull().default("both"), // "sale", "purchase", "internal", "both"
+  unit: text("unit").notNull().default("pza"), // "kg", "lt", "pza", etc.
+  price: integer("price").notNull().default(0), // in cents
+  cost: integer("cost").notNull().default(0), // in cents
   stock: integer("stock").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -442,6 +445,7 @@ export const sales = pgTable("sales", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   productId: varchar("product_id").notNull().references(() => products.id),
+  customerId: varchar("customer_id").references(() => customers.id),
   quantity: integer("quantity").notNull(),
   totalPrice: integer("total_price").notNull(),
   status: text("status").notNull().default("paid"), // "draft", "paid", "cancelled"

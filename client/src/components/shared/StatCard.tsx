@@ -7,6 +7,7 @@ interface StatCardProps {
   icon: LucideIcon;
   trend?: number;
   trendLabel?: string;
+  description?: string;
   variant?: "default" | "primary" | "success" | "warning" | "destructive";
   className?: string;
 }
@@ -17,6 +18,7 @@ export function StatCard({
   icon: Icon,
   trend,
   trendLabel,
+  description,
   variant = "default",
   className,
 }: StatCardProps) {
@@ -49,6 +51,9 @@ export function StatCard({
         <div className="space-y-2">
           <p className="text-sm font-medium text-muted-foreground">{title}</p>
           <div className="text-2xl font-display font-bold tracking-tight">{value}</div>
+          {description && (
+            <p className="text-xs text-muted-foreground font-medium">{description}</p>
+          )}
           {trend !== undefined && (
             <div className="flex items-center gap-1.5">
               {trend >= 0 ? (

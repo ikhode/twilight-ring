@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,10 +28,13 @@ import {
   Layers,
   DollarSign,
   ArrowUpDown,
-  Filter,
-  Download,
+  Archive,
   BarChart3,
   CheckCircle2,
+  Filter,
+  Download,
+  ChevronRight,
+  History as HistoryIcon
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
@@ -48,6 +51,8 @@ export default function Inventory() {
   const { universalConfig } = useConfiguration();
   const [searchQuery, setSearchQuery] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
+  const [selectedProductForHistory, setSelectedProductForHistory] = useState<any>(null);
 
   // Fallback to defaults if no universal categories are defined
   const categories = universalConfig.productCategories?.length > 0
@@ -58,6 +63,17 @@ export default function Inventory() {
     queryKey: ["/api/operations/inventory/products"],
     queryFn: async () => {
       const res = await fetch("/api/operations/inventory/products", {
+        headers: { Authorization: `Bearer ${session?.access_token}` }
+      });
+      return res.json();
+    },
+    enabled: !!session?.access_token
+  });
+
+  const { data: alerts = [], isLoading: isAlertsLoading } = useQuery({
+    queryKey: ["/api/operations/inventory/alerts"],
+    queryFn: async () => {
+      const res = await fetch("/api/operations/inventory/alerts", {
         headers: { Authorization: `Bearer ${session?.access_token}` }
       });
       return res.json();
@@ -85,18 +101,28 @@ export default function Inventory() {
     name: "",
     sku: "",
     category: categories[0],
+    productType: "both", // "sale", "purchase", "internal", "both"
     stock: 0,
     unit: "pza",
     price: 0,
     cost: 0,
   });
 
+  // Auto-generate SKU
+  useEffect(() => {
+    if (newProduct.name && !newProduct.sku) {
+      const generatedSku = `PROD-${newProduct.name.substring(0, 3).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
+      setNewProduct(prev => ({ ...prev, sku: generatedSku }));
+    }
+  }, [newProduct.name]);
+
   const filteredProducts = useMemo(() => {
     return products.filter(
       (p) =>
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.category.toLowerCase().includes(searchQuery.toLowerCase())
+        (p.isActive !== false) &&
+        (p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          p.category.toLowerCase().includes(searchQuery.toLowerCase()))
     );
   }, [products, searchQuery]);
 
@@ -126,10 +152,36 @@ export default function Inventory() {
       queryClient.invalidateQueries({ queryKey: ["/api/operations/inventory/products"] });
       setIsAddDialogOpen(false);
       toast({ title: "Producto Creado", description: "El producto se ha registrado correctamente." });
-      setNewProduct({ name: "", sku: "", category: categories[0], stock: 0, unit: "pza", price: 0, cost: 0 });
+      setNewProduct({ name: "", sku: "", category: categories[0], productType: "both", stock: 0, unit: "pza", price: 0, cost: 0 });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo crear el producto. Verifique si el SKU ya existe.",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const archiveProductMutation = useMutation({
+    mutationFn: async (productId: string) => {
+      const res = await fetch(`/api/operations/inventory/products/${productId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify({ isActive: false })
+      });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/operations/inventory/products"] });
+      toast({ title: "Producto Archivado", description: "El producto se ha desactivado correctamente." });
     },
     onError: () => {
-      toast({ title: "Error", description: "No se pudo crear el producto.", variant: "destructive" });
+      toast({ title: "Error", description: "No se pudo archivar el producto.", variant: "destructive" });
     }
   });
 
@@ -237,17 +289,56 @@ export default function Inventory() {
                         </Select>
                       </div>
                       <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="stock" className="text-right">Cantidad</Label>
-                        <Input id="stock" type="number" value={newProduct.stock} onChange={(e) => setNewProduct({ ...newProduct, stock: parseInt(e.target.value) || 0 })} className="col-span-3" />
+                        <Label htmlFor="productType" className="text-right">Tipo</Label>
+                        <Select onValueChange={(v) => setNewProduct({ ...newProduct, productType: v })} defaultValue={newProduct.productType}>
+                          <SelectTrigger className="col-span-3">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="both">Compra y Venta</SelectItem>
+                            <SelectItem value="purchase">Materia Prima (Compra)</SelectItem>
+                            <SelectItem value="sale">Producto Terminado (Venta)</SelectItem>
+                            <SelectItem value="internal">Insumo Interno / Producido</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {(newProduct.productType === "both" || newProduct.productType === "sale") && (
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="price" className="text-right">Precio Venta</Label>
+                          <Input id="price" type="number" step="0.01" value={newProduct.price} onChange={(e) => setNewProduct({ ...newProduct, price: parseFloat(e.target.value) || 0 })} className="col-span-3" />
+                        </div>
+                      )}
+
+                      {(newProduct.productType === "both" || newProduct.productType === "purchase") && (
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="cost" className="text-right">Costo Unit.</Label>
+                          <Input id="cost" type="number" step="0.01" value={newProduct.cost} onChange={(e) => setNewProduct({ ...newProduct, cost: parseFloat(e.target.value) || 0 })} className="col-span-3" />
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="unit" className="text-right">UOM</Label>
+                        <Select onValueChange={(v) => setNewProduct({ ...newProduct, unit: v })} defaultValue={newProduct.unit}>
+                          <SelectTrigger className="col-span-3">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pza">Pieza (pza)</SelectItem>
+                            <SelectItem value="kg">Kilogramo (kg)</SelectItem>
+                            <SelectItem value="lt">Litro (lt)</SelectItem>
+                            <SelectItem value="g">Gramo (g)</SelectItem>
+                            <SelectItem value="ml">Mililitro (ml)</SelectItem>
+                            <SelectItem value="m">Metro (m)</SelectItem>
+                            <SelectItem value="paq">Paquete (paq)</SelectItem>
+                            <SelectItem value="caja">Caja</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
 
                       <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="price" className="text-right">Precio Venta</Label>
-                        <Input id="price" type="number" step="0.01" value={newProduct.price} onChange={(e) => setNewProduct({ ...newProduct, price: parseFloat(e.target.value) || 0 })} className="col-span-3" />
-                      </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="cost" className="text-right">Costo Unit.</Label>
-                        <Input id="cost" type="number" step="0.01" value={newProduct.cost} onChange={(e) => setNewProduct({ ...newProduct, cost: parseFloat(e.target.value) || 0 })} className="col-span-3" />
+                        <Label htmlFor="stock" className="text-right">Stock Inicial</Label>
+                        <Input id="stock" type="number" value={newProduct.stock} onChange={(e) => setNewProduct({ ...newProduct, stock: parseInt(e.target.value) || 0 })} className="col-span-3" />
                       </div>
                     </div>
                     <DialogFooter>
@@ -358,12 +449,50 @@ export default function Inventory() {
                         variant="outline"
                         size="sm"
                         data-testid={`button-adjust-stock-${item.id}`}
+                        onClick={() => {
+                          const newStock = prompt("Ingrese el nuevo stock:", item.stock.toString());
+                          if (newStock !== null) {
+                            const val = parseInt(newStock);
+                            if (!isNaN(val)) {
+                              // Using re-use of mutation or creating a specific one. 
+                              // For now, let's use the archive logic pattern but for stock.
+                              fetch(`/api/operations/inventory/products/${item.id}`, {
+                                method: 'PATCH',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                  'Authorization': `Bearer ${session?.access_token}`
+                                },
+                                body: JSON.stringify({ stock: val })
+                              }).then(() => queryClient.invalidateQueries({ queryKey: ["/api/operations/inventory/products"] }));
+                            }
+                          }
+                        }}
                       >
                         <ArrowUpDown className="w-4 h-4 mr-1" />
                         Ajustar
                       </Button>
-                      <Button variant="ghost" size="sm" data-testid={`button-history-${item.id}`}>
-                        <BarChart3 className="w-4 h-4" />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => {
+                          if (confirm("¿Está seguro de que desea archivar este producto?")) {
+                            archiveProductMutation.mutate(item.id);
+                          }
+                        }}
+                      >
+                        <Archive className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        data-testid={`button-history-${item.id}`}
+                        onClick={() => {
+                          setSelectedProductForHistory(item);
+                          setIsHistoryDialogOpen(true);
+                        }}
+                      >
+                        <HistoryIcon className="w-4 h-4" />
                       </Button>
                     </div>
                   ),
@@ -375,6 +504,12 @@ export default function Inventory() {
           </CardContent>
         </Card>
 
+        <MovementHistoryDialog
+          isOpen={isHistoryDialogOpen}
+          onOpenChange={setIsHistoryDialogOpen}
+          product={selectedProductForHistory}
+        />
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card>
             <CardHeader>
@@ -385,45 +520,43 @@ export default function Inventory() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {products
-                  .filter((p) => p.status === "low" || p.status === "critical")
-                  .map((product) => (
-                    <div
-                      key={product.id}
-                      className={cn(
-                        "flex items-center justify-between p-4 rounded-lg border-l-4",
-                        product.status === "critical"
-                          ? "bg-destructive/10 border-destructive"
-                          : "bg-warning/10 border-warning"
-                      )}
-                      data-testid={`low-stock-${product.id}`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <Package
-                          className={cn(
-                            "w-5 h-5",
-                            product.status === "critical"
-                              ? "text-destructive"
-                              : "text-warning"
-                          )}
-                        />
-                        <div>
-                          <p className="font-medium">{product.name}</p>
-                          <p className="text-xs text-muted-foreground">{product.sku}</p>
-                        </div>
+                {alerts.length > 0 ? alerts.map((product: any) => (
+                  <div
+                    key={product.id}
+                    className={cn(
+                      "flex items-center justify-between p-4 rounded-xl border border-white/5 transition-all hover:bg-white/5",
+                      product.stock < 20
+                        ? "bg-destructive/10 border-l-4 border-l-destructive"
+                        : "bg-warning/10 border-l-4 border-l-warning"
+                    )}
+                    data-testid={`low-stock-${product.id}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={cn(
+                        "w-10 h-10 rounded-lg flex items-center justify-center",
+                        product.stock < 20 ? "bg-destructive/20 text-destructive" : "bg-warning/20 text-warning"
+                      )}>
+                        <AlertTriangle className="w-5 h-5" />
                       </div>
-                      <div className="text-right">
-                        <p className="font-semibold font-mono">
-                          {product.stock.toLocaleString()} {product.unit}
-                        </p>
-                        <Button variant="link" size="sm" className="h-auto p-0 text-xs">
-                          Reordenar
-                        </Button>
+                      <div>
+                        <p className="font-bold text-sm">{product.name}</p>
+                        <p className="text-[10px] text-muted-foreground font-mono">{product.sku}</p>
                       </div>
                     </div>
-                  ))}
-                {products.filter((p) => p.status === "low" || p.status === "critical").length === 0 && (
-                  <p className="text-sm text-muted-foreground text-center py-4">No hay productos con stock bajo.</p>
+                    <div className="text-right">
+                      <p className="font-bold font-mono text-lg">
+                        {product.stock.toLocaleString()} <span className="text-[10px] text-muted-foreground">{product.unit}</span>
+                      </p>
+                      <Badge variant="outline" className="text-[9px] uppercase border-primary/30 text-primary">
+                        Sugerido: +{product.recommendedReorder}
+                      </Badge>
+                    </div>
+                  </div>
+                )) : (
+                  <div className="text-center py-12 rounded-xl bg-muted/20 border border-dashed border-white/5">
+                    <CheckCircle2 className="w-10 h-10 text-success/30 mx-auto mb-3" />
+                    <p className="text-sm text-muted-foreground italic font-display">Niveles de stock saludables.</p>
+                  </div>
                 )}
               </div>
             </CardContent>
@@ -467,5 +600,96 @@ export default function Inventory() {
         </div>
       </div>
     </AppLayout>
+  );
+}
+
+function MovementHistoryDialog({ isOpen, onOpenChange, product }: { isOpen: boolean, onOpenChange: (v: boolean) => void, product: any }) {
+  const { session } = useAuth();
+  const { data: movements, isLoading } = useQuery({
+    queryKey: [product?.id ? `/api/operations/inventory/products/${product.id}/history` : null],
+    queryFn: async () => {
+      const res = await fetch(`/api/operations/inventory/products/${product.id}/history`, {
+        headers: { Authorization: `Bearer ${session?.access_token}` }
+      });
+      if (!res.ok) throw new Error("Failed to fetch history");
+      return res.json();
+    },
+    enabled: !!session?.access_token && !!product?.id && isOpen
+  });
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl border-primary/20 bg-slate-950">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 font-display text-xl">
+            <HistoryIcon className="w-5 h-5 text-primary animate-pulse" />
+            Trazabilidad: {product?.name}
+          </DialogTitle>
+          <DialogDescription>
+            Registro histórico de movimientos y ajustes de stock para {product?.sku}.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-4">
+          {isLoading ? (
+            <div className="text-center py-12 space-y-4">
+              <div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin mx-auto" />
+              <p className="text-sm text-muted-foreground animate-pulse">Analizando serie de tiempo...</p>
+            </div>
+          ) : movements?.length > 0 ? (
+            <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+              {movements.map((m: any) => (
+                <div key={m.id} className="group flex items-center justify-between p-4 rounded-xl bg-slate-900/50 border border-white/5 hover:border-primary/20 transition-all duration-300">
+                  <div className="flex items-center gap-4">
+                    <div className={cn(
+                      "w-10 h-10 rounded-xl flex items-center justify-center shadow-lg",
+                      m.type === 'in' || m.quantity > 0
+                        ? "bg-success/20 text-success border border-success/30"
+                        : "bg-destructive/20 text-destructive border border-destructive/30"
+                    )}>
+                      {m.type === 'in' || m.quantity > 0 ? <Plus className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-bold text-white font-display">
+                          {m.reason || (m.quantity > 0 ? 'Entrada / Compra' : 'Salida / Venta')}
+                        </p>
+                        <Badge variant="outline" className="text-[10px] uppercase h-4">
+                          {m.type || 'ajuste'}
+                        </Badge>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1 font-mono">
+                        <HistoryIcon className="w-3 h-3" />
+                        {new Date(m.date || m.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className={cn(
+                      "font-mono font-bold text-lg",
+                      m.quantity > 0 ? "text-success" : "text-destructive"
+                    )}>
+                      {m.quantity > 0 ? '+' : ''}{m.quantity} {product?.unit}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground italic opacity-70">
+                      Muelle: {m.source || 'Interno / Almacén'}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-16 rounded-2xl bg-slate-900/30 border border-dashed border-white/10">
+              <HistoryIcon className="w-12 h-12 text-muted-foreground/20 mx-auto mb-4" />
+              <p className="text-sm text-muted-foreground italic font-display">Sin registros de auditoría para este lote.</p>
+            </div>
+          )}
+        </div>
+        <DialogFooter className="border-t border-white/5 pt-4 mt-2">
+          <Button variant="ghost" className="hover:bg-white/5" onClick={() => onOpenChange(false)}>
+            Cerrar Expediente
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
