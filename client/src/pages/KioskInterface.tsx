@@ -127,29 +127,29 @@ export default function KioskInterface(): JSX.Element {
   // Use Presence instead of polling for heartbeat
   usePresence(`kiosk-${id}`);
 
-  useEffect((): void => {
-    const timer = setInterval((): void => setCurrentTime(new Date()), 1000);
-    return (): void => clearInterval(timer);
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
   }, []);
 
   // Set default capability if only one is available, or show launcher
-  useEffect((): void => {
+  useEffect(() => {
     if (kioskInfo?.capabilities && kioskInfo.capabilities.length > 0) {
       if (kioskInfo.capabilities.length === 1) {
         const firstCap = kioskInfo.capabilities[0];
         // Definiendo el estado de manera asíncrona para evitar advertencias de ESLint sobre setState en efectos
-        setTimeout((): void => {
+        setTimeout(() => {
           setActiveCapability((prev) => (prev !== firstCap ? firstCap : prev));
           setActiveView((prev) => (prev !== "main" ? "main" : prev));
         }, 0);
       } else {
-        setTimeout((): void => {
+        setTimeout(() => {
           setActiveView((prev) => (prev !== "launcher" ? "launcher" : prev));
         }, 0);
       }
     } else if (kioskInfo?.capabilities) {
-      setTimeout((): void => {
-        setActiveView((prev) => (prev !== "main" ? "main" : prev));
+      setTimeout(() => {
+        setActiveView((prev) => (prev !== "launcher" ? "launcher" : prev));
       }, 0);
     }
   }, [kioskInfo?.capabilities]);
