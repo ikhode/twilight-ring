@@ -241,7 +241,7 @@ export default function Production() {
                   {processes?.map((p: any) => (
                     <Card key={p.id}>
                       <CardHeader className="pb-2"><CardTitle className="text-base">{p.name}</CardTitle></CardHeader>
-                      <CardContent><p className="text-sm text-muted-foreground mb-4">{p.description}</p><Button variant="outline" size="sm">Configurar</Button></CardContent>
+                      <CardContent><p className="text-sm text-muted-foreground mb-4">{p.description}</p><Button variant="outline" size="sm" onClick={() => toast({ title: "Configuración", description: "La configuración avanzada de procesos estará disponible pronto." })}>Configurar</Button></CardContent>
                     </Card>
                   ))}
                 </div>

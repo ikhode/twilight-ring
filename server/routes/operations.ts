@@ -47,7 +47,7 @@ router.get("/finance/summary", async (req, res): Promise<void> => {
             db.query.payments.findMany({ where: withPeriod(eq(payments.organizationId, orgId), payments.date) }),
             db.query.payrollAdvances.findMany({ where: withPeriod(eq(payrollAdvances.organizationId, orgId), payrollAdvances.date) }),
             db.query.sales.findMany({ where: and(eq(sales.organizationId, orgId), eq(sales.deliveryStatus, 'pending')) }),
-            db.query.purchases.findMany({ where: and(eq(purchases.organizationId, orgId), eq(purchases.status, 'pending')) }),
+            db.query.purchases.findMany({ where: and(eq(purchases.organizationId, orgId), eq(purchases.paymentStatus, 'pending')) }),
             db.query.cashRegisters.findMany({ where: eq(cashRegisters.organizationId, orgId) })
         ]);
 

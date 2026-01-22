@@ -79,3 +79,48 @@ export const pieceworkTicketsRelations = relations(schema.pieceworkTickets, ({ o
         references: [schema.employees.id],
     }),
 }));
+
+// Cash Management Relations
+export const cashRegistersRelations = relations(schema.cashRegisters, ({ one, many }) => ({
+    organization: one(schema.organizations, {
+        fields: [schema.cashRegisters.organizationId],
+        references: [schema.organizations.id],
+    }),
+    currentSession: one(schema.cashSessions, {
+        fields: [schema.cashRegisters.currentSessionId],
+        references: [schema.cashSessions.id],
+    }),
+    sessions: many(schema.cashSessions),
+    transactions: many(schema.cashTransactions),
+}));
+
+export const cashSessionsRelations = relations(schema.cashSessions, ({ one, many }) => ({
+    register: one(schema.cashRegisters, {
+        fields: [schema.cashSessions.registerId],
+        references: [schema.cashRegisters.id],
+    }),
+    opener: one(schema.users, {
+        fields: [schema.cashSessions.openedBy],
+        references: [schema.users.id],
+    }),
+    closer: one(schema.users, {
+        fields: [schema.cashSessions.closedBy],
+        references: [schema.users.id],
+    }),
+    transactions: many(schema.cashTransactions),
+}));
+
+export const cashTransactionsRelations = relations(schema.cashTransactions, ({ one }) => ({
+    register: one(schema.cashRegisters, {
+        fields: [schema.cashTransactions.registerId],
+        references: [schema.cashRegisters.id],
+    }),
+    session: one(schema.cashSessions, {
+        fields: [schema.cashTransactions.sessionId],
+        references: [schema.cashSessions.id],
+    }),
+    performer: one(schema.users, {
+        fields: [schema.cashTransactions.performedBy],
+        references: [schema.users.id],
+    }),
+}));
