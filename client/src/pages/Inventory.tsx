@@ -204,14 +204,14 @@ export default function Inventory() {
                       intent="register_inventory"
                     >
                       <Plus className="w-4 h-4" />
-                      Registrar Entrada
+                      Nuevo Producto
                     </CognitiveButton>
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>Nueva Entrada de Inventario</DialogTitle>
+                      <DialogTitle>Alta de Nuevo Producto / Insumo</DialogTitle>
                       <DialogDescription>
-                        Registre el ingreso utilizando las categorías definidas.
+                        Ingrese los detalles para registrar un nuevo item en el catálogo.
                       </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">

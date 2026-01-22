@@ -8,6 +8,18 @@ import { supabaseAdmin } from "./supabase";
  * Gets the organization ID from either Supabase Auth or Terminal Auth.
  */
 export async function getOrgIdFromRequest(req: Request): Promise<string | null> {
+    // 1. Try Terminal Auth (Kiosk Bridge) - Priority for kiosks
+    const deviceAuth = req.headers["x-device-auth"] as string;
+    if (deviceAuth) {
+        const [deviceId] = deviceAuth.split(":");
+        const [terminal] = await db.select({ organizationId: terminals.organizationId })
+            .from(terminals)
+            .where(eq(terminals.deviceId, deviceId))
+            .limit(1);
+        if (terminal) return terminal.organizationId;
+    }
+
+    // 2. Standard Auth
     const user = await getAuthenticatedUser(req);
     if (!user) return null;
 

@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import { db } from "../storage";
 import { cashRegisters, cashSessions, cashTransactions, users } from "../../shared/schema";
 import { eq, and, desc } from "drizzle-orm";
-import { getAuthenticatedUser } from "../auth_util";
+import { getAuthenticatedUser, getOrgIdFromRequest } from "../auth_util";
 
 const router = Router();
 
