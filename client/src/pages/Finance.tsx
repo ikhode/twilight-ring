@@ -51,6 +51,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { CashControl } from "@/components/finance/CashControl";
+import { Link } from "wouter";
 
 export default function Finance() {
   const { session } = useAuth();
@@ -403,7 +404,9 @@ export default function Finance() {
                     Gestiona la nómina de tus empleados, adelantos, tickets de producción
                     y pagos automáticos.
                   </p>
-                  <Button data-testid="button-generate-payroll">Generar Nómina</Button>
+                  <Link href="/finance/payroll">
+                    <Button data-testid="button-generate-payroll">Generar Nómina</Button>
+                  </Link>
                 </div>
               </CardContent>
             </Card>

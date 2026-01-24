@@ -77,190 +77,123 @@ const createEdge = (source: string, target: string, sourceHandle?: string): Edge
 export const peladeroCognitiveTemplate: CognitiveWorkflowTemplate = {
     id: 'peladero_cognitive',
     name: 'Peladero Cognitivo',
-    description: 'Procesamiento de coco con IA: compra, producción, QC, venta y finanzas',
+    description: 'Procesamiento integral de coco: Destopado (Estopa), Perforado (Agua), Deshuesado (Copra/Pulpa)',
     industry: 'Peladero',
-    icon: null, // Se asigna en runtime
+    icon: null,
     nodes: [
-        // TRIGGER: Nueva Compra de Coco
+        // 1. COMPRA
         createCognitiveNode('t1', 'trigger', 'Nueva Compra de Coco', 400, 50, {
-            description: 'Se registra una nueva compra de materia prima',
+            description: 'Compra de MP (Cualquier calidad)',
             icon: 'package'
         }),
-
-        // CONDITION: Validar Precio en Rango
-        createCognitiveNode('c1', 'condition', '¿Precio en Rango?', 400, 200, {
-            description: 'Valida que el precio esté entre mínimo y máximo configurado'
-        }),
-
-        // ACTION: Solicitar Aprobación (si precio fuera de rango)
-        createCognitiveNode('a1', 'action', 'Solicitar Aprobación', 200, 350, {
-            description: 'Envía notificación al administrador para aprobar compra',
-            actionId: 'send_notification'
-        }),
-
-        // ACTION: Registrar Compra
-        createCognitiveNode('a2', 'action', 'Registrar Compra', 600, 350, {
-            description: 'Registra la compra en el sistema',
+        createCognitiveNode('a1', 'action', 'Registrar Compra', 400, 200, {
+            description: 'Registro de entrada de materia prima',
             actionId: 'create_purchase'
         }),
 
-        // ACTION: Actualizar Inventario MP
-        createCognitiveNode('a3', 'action', 'Actualizar Inventario MP', 400, 500, {
-            description: 'Incrementa inventario de materia prima',
-            actionId: 'update_inventory'
+        // 2. DESTOPADO (Obligatorio)
+        createCognitiveNode('t2', 'trigger', 'Inicio Destopado', 400, 350, {
+            description: 'Proceso obligatorio post-compra',
+            icon: 'hammer'
+        }),
+        createCognitiveNode('a2', 'action', 'Registrar MO Destopado', 250, 500, {
+            description: 'Pago por pieza destopada al operario',
+            actionId: 'create_labor_ticket_piece'
+        }),
+        createCognitiveNode('a3', 'action', 'Generar Subproducto: Estopa', 550, 500, {
+            description: 'Registro de Estopa (Venta por volumen/peso)',
+            actionId: 'record_byproduct_estopa'
+        }),
+        createCognitiveNode('a4', 'action', 'Salida: Coco sin Estopa', 400, 650, {
+            description: 'Producto intermedio para inventario temporal',
+            actionId: 'update_inventory_wip'
         }),
 
-        // TRIGGER: Iniciar Producción
-        createCognitiveNode('t2', 'trigger', 'Iniciar Producción', 400, 650, {
-            description: 'Operador inicia proceso de destopado/pelado',
-            icon: 'zap'
+        // 3. PERFORADO
+        createCognitiveNode('t3', 'trigger', 'Inicio Perforado', 400, 800, {
+            description: 'Transporte a banda de perforado',
+            icon: 'droplet'
+        }),
+        createCognitiveNode('a5', 'action', 'Recolectar Agua de Coco', 250, 950, {
+            description: 'Almacenamiento en bidones (Venta por Litro)',
+            actionId: 'record_byproduct_water'
+        }),
+        createCognitiveNode('a6', 'action', 'Salida: Coco Perforado', 550, 950, {
+            description: 'Coco listo para deshuesado',
+            actionId: 'update_inventory_wip_2'
         }),
 
-        // ACTION: Registrar Ticket Mano de Obra
-        createCognitiveNode('a4', 'action', 'Registrar Ticket MO', 400, 800, {
-            description: 'Crea ticket de mano de obra con operador y kilos',
-            actionId: 'create_labor_ticket'
+        // 4. DESHUESADO Y PELADO
+        createCognitiveNode('t4', 'trigger', 'Inicio Desh/Pelado', 400, 1100, {
+            description: 'Proceso manual final',
+            icon: 'user-cog'
+        }),
+        createCognitiveNode('a7', 'action', 'Registrar MO Proceso', 250, 1250, {
+            description: 'Pago por proceso (Deshuesado/Pelado)',
+            actionId: 'create_labor_ticket_process'
+        }),
+        createCognitiveNode('a8', 'action', 'Generar Subproducto: Copra', 550, 1250, {
+            description: 'Registro de Copra (Comercializable)',
+            actionId: 'record_byproduct_copra'
+        }),
+        createCognitiveNode('a9', 'action', 'Generar Producto: Pulpa', 400, 1400, {
+            description: 'Registro de Pulpa (Venta por Kg)',
+            actionId: 'record_finished_goods'
         }),
 
-        // ACTION: Procesar (Destopado/Pelado)
-        createCognitiveNode('a5', 'action', 'Procesar Coco', 400, 950, {
-            description: 'Ejecuta proceso de transformación',
-            actionId: 'process_coconut'
+        // 5. VENTA
+        createCognitiveNode('t5', 'trigger', 'Venta/Despacho', 400, 1550, {
+            description: 'Comercialización de Productos y Subproductos',
+            icon: 'shopping-cart'
         }),
-
-        // CONDITION: Control de Calidad
-        createCognitiveNode('c2', 'condition', '¿Calidad Aprobada?', 400, 1100, {
-            description: 'Valida que el producto cumpla estándares de calidad'
+        createCognitiveNode('c1', 'condition', '¿Producto o Subproducto?', 400, 1700, {
+            description: 'Selección de inventario a vender'
         }),
-
-        // ACTION: Rechazar/Reprocesar
-        createCognitiveNode('a6', 'action', 'Rechazar Producto', 200, 1250, {
-            description: 'Marca producto como rechazado y registra merma',
-            actionId: 'reject_product'
-        }),
-
-        // ACTION: Actualizar Inventario PT
-        createCognitiveNode('a7', 'action', 'Actualizar Inventario PT', 600, 1250, {
-            description: 'Incrementa inventario de producto terminado',
-            actionId: 'update_finished_goods'
-        }),
-
-        // TRIGGER: Solicitud de Cotización
-        createCognitiveNode('t3', 'trigger', 'Solicitud Cotización', 400, 1400, {
-            description: 'Cliente solicita cotización',
-            icon: 'users'
-        }),
-
-        // CONDITION: Verificar Stock
-        createCognitiveNode('c3', 'condition', '¿Stock Disponible?', 400, 1550, {
-            description: 'Verifica que haya inventario suficiente'
-        }),
-
-        // ACTION: Notificar Sin Stock
-        createCognitiveNode('a8', 'action', 'Notificar Sin Stock', 200, 1700, {
-            description: 'Informa al cliente que no hay disponibilidad',
-            actionId: 'send_email'
-        }),
-
-        // ACTION: Generar Cotización
-        createCognitiveNode('a9', 'action', 'Generar Cotización', 600, 1700, {
-            description: 'Crea cotización con precios actuales',
-            actionId: 'create_quote'
-        }),
-
-        // TRIGGER: Cotización Aprobada
-        createCognitiveNode('t4', 'trigger', 'Cotización Aprobada', 400, 1850, {
-            description: 'Cliente acepta la cotización',
-            icon: 'check-circle'
-        }),
-
-        // CONDITION: Forma de Pago
-        createCognitiveNode('c4', 'condition', '¿Pago en Efectivo?', 400, 2000, {
-            description: 'Determina si es pago de contado o crédito'
-        }),
-
-        // CONDITION: Validar Crédito (si es crédito)
-        createCognitiveNode('c5', 'condition', '¿Crédito Disponible?', 200, 2150, {
-            description: 'Verifica límite de crédito del cliente'
-        }),
-
-        // ACTION: Rechazar Venta
-        createCognitiveNode('a10', 'action', 'Rechazar Venta', 50, 2300, {
-            description: 'Informa que no hay crédito disponible',
-            actionId: 'send_notification'
-        }),
-
-        // ACTION: Registrar Venta
-        createCognitiveNode('a11', 'action', 'Registrar Venta', 400, 2300, {
-            description: 'Crea registro de venta en el sistema',
-            actionId: 'create_sale'
-        }),
-
-        // ACTION: Generar Factura
-        createCognitiveNode('a12', 'action', 'Generar Factura', 400, 2450, {
-            description: 'Crea factura (API SAT)',
+        createCognitiveNode('a10', 'action', 'Facturar y Despachar', 400, 1850, {
+            description: 'Venta de Pulpa, Agua, Estopa o Copra',
             actionId: 'create_invoice'
-        }),
-
-        // TRIGGER: Pago Recibido
-        createCognitiveNode('t5', 'trigger', 'Pago Recibido', 400, 2600, {
-            description: 'Se registra un pago del cliente',
-            icon: 'banknote'
-        }),
-
-        // ACTION: Registrar Cobranza
-        createCognitiveNode('a13', 'action', 'Registrar Cobranza', 400, 2750, {
-            description: 'Actualiza cuentas por cobrar',
-            actionId: 'record_payment'
-        }),
-
-        // ACTION: Actualizar Flujo de Caja
-        createCognitiveNode('a14', 'action', 'Actualizar Caja', 400, 2900, {
-            description: 'Registra movimiento en flujo de caja',
-            actionId: 'update_cash_flow'
-        }),
+        })
     ],
     edges: [
-        // Flujo principal
-        createEdge('t1', 'c1'),
-        createEdge('c1', 'a1', 'no'),
-        createEdge('c1', 'a2', 'yes'),
-        createEdge('a1', 'a3'),
-        createEdge('a2', 'a3'),
-        createEdge('a3', 't2'),
-        createEdge('t2', 'a4'),
-        createEdge('a4', 'a5'),
-        createEdge('a5', 'c2'),
-        createEdge('c2', 'a6', 'no'),
-        createEdge('c2', 'a7', 'yes'),
-        createEdge('a7', 't3'),
-        createEdge('t3', 'c3'),
-        createEdge('c3', 'a8', 'no'),
-        createEdge('c3', 'a9', 'yes'),
-        createEdge('a9', 't4'),
-        createEdge('t4', 'c4'),
-        createEdge('c4', 'c5', 'no'),
-        createEdge('c4', 'a11', 'yes'),
-        createEdge('c5', 'a10', 'no'),
-        createEdge('c5', 'a11', 'yes'),
-        createEdge('a11', 'a12'),
-        createEdge('a12', 't5'),
-        createEdge('t5', 'a13'),
-        createEdge('a13', 'a14'),
+        // Flujo Compra
+        createEdge('t1', 'a1'),
+        createEdge('a1', 't2'),
+
+        // Flujo Destopado
+        createEdge('t2', 'a2'),
+        createEdge('t2', 'a3'),
+        createEdge('a2', 'a4'),
+        createEdge('a3', 'a4'),
+        createEdge('a4', 't3'),
+
+        // Flujo Perforado
+        createEdge('t3', 'a5'),
+        createEdge('t3', 'a6'),
+        createEdge('a5', 'ta4'), // Virtual link logic, represented by flow
+        createEdge('a6', 't4'),
+
+        // Flujo Deshuesado
+        createEdge('t4', 'a7'),
+        createEdge('t4', 'a8'),
+        createEdge('a7', 'a9'),
+        createEdge('a8', 'a9'),
+        createEdge('a9', 't5'),
+
+        // Flujo Venta
+        createEdge('t5', 'c1'),
+        createEdge('c1', 'a10', 'yes'),
+        createEdge('c1', 'a10', 'no')
     ],
     mlModels: [
-        'Predicción de Demanda',
-        'Optimización de Precios',
-        'Predicción de Merma',
-        'Detección de Anomalías en Producción'
+        'Predicción Litros Agua/Coco',
+        'Rendimiento Pulpa vs Desecho',
+        'Optimización MO Destopado'
     ],
     kpis: [
-        'Kilos Procesados/Día',
-        '% Merma',
-        'Costo por Kilo',
-        'Margen Bruto',
-        'Rotación de Inventario',
-        'Días Promedio de Cobro'
+        'Litros Agua Recolectada',
+        'Kilos Estopa Generada',
+        'Eficiencia Destopado/Hora',
+        'Rendimiento Copra'
     ]
 };
 

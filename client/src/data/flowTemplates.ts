@@ -200,18 +200,18 @@ export const flowTemplates: FlowTemplate[] = [
     {
         id: 'peladero',
         name: 'Peladero / Coco',
-        description: 'Procesamiento de coco: compra, producción, inventario y venta.',
+        description: 'Flujo detallado: Destopado, Perforado y Deshuesado con gestión de subproductos.',
         icon: Palmtree,
         industry: 'Peladero',
         nodes: [
-            createNode('p1', 'Compra de Coco', 250, 50, 'input'),
-            createNode('p2', 'Recepción e Inventario MP', 250, 150),
-            createNode('p3', 'Producción (Destopado/Pelado)', 250, 250),
-            createNode('p4', 'Control de Calidad', 250, 350),
-            createNode('p5', 'Inventario PT', 250, 450),
-            createNode('p6', 'Cotización', 250, 550),
-            createNode('p7', 'Venta', 250, 650),
-            createNode('p8', 'Facturación y Cobranza', 250, 750, 'output')
+            createNode('p1', 'Compra de Coco (MP)', 250, 50, 'input'),
+            createNode('p2', 'Destopado (+ Estopa)', 250, 150),
+            createNode('p3', 'Coco s/Estopa (Almacén)', 250, 250),
+            createNode('p4', 'Perforado (+ Agua)', 250, 350),
+            createNode('p5', 'Coco Perforado', 250, 450),
+            createNode('p6', 'Deshuesado/Pelado (+ Copra)', 250, 550),
+            createNode('p7', 'Pulpa (Producto Final)', 250, 650),
+            createNode('p8', 'Venta y Facturación', 250, 750, 'output')
         ],
         edges: [
             createEdge('p1', 'p2'),

@@ -17,6 +17,7 @@ import Production from "@/pages/Production";
 import Sales from "@/pages/Sales";
 import Logistics from "@/pages/Logistics";
 import Finance from "@/pages/Finance";
+import PayrollManager from "@/pages/finance/PayrollManager";
 import CRM from "@/pages/CRM";
 import Purchases from "@/pages/Purchases";
 import Tickets from "@/pages/Tickets";
@@ -53,6 +54,7 @@ function Router() {
       <Route path="/sales" component={Sales} />
       <Route path="/logistics" component={Logistics} />
       <Route path="/finance" component={Finance} />
+      <Route path="/finance/payroll" component={PayrollManager} />
       <Route path="/crm" component={CRM} />
       <Route path="/purchases" component={Purchases} />
       <Route path="/tickets" component={Tickets} />

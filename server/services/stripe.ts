@@ -1,13 +1,13 @@
 import Stripe from 'stripe';
 
-const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || 'sk_test_51SrhzjLCGTOKhYSGDBeyeBJKyPHEu9Ztjgs2Ban0qgThVaUKdlh62ci0Xc5SSFb2YDcsRwugKepmVW3jfCO06lX400JHhb1vXL';
 
 if (!STRIPE_SECRET_KEY) {
     console.warn("⚠️ STRIPE_SECRET_KEY missing. Payments will fail.");
 }
 
-export const stripe = new Stripe(STRIPE_SECRET_KEY || 'sk_test_placeholder', {
-    apiVersion: '2025-01-27.acacia' as any, // Use latest stable
+export const stripe = new Stripe(STRIPE_SECRET_KEY, {
+    apiVersion: '2025-01-27.acacia' as any, // User preferred
 });
 
 // Plan prices (In a real app, these would come from Stripe Dashboard as Price IDs)

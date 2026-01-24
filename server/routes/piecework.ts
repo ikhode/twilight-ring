@@ -159,8 +159,11 @@ export function registerPieceworkRoutes(app: Express): void {
 
             const [ticket] = await db.insert(pieceworkTickets).values(parsed.data).returning();
 
-            // Record Inventory Movement Logic (Optional: Deduction of material?)
-            // For now we just record the ticket.
+            // Increment Employee Balance (Company owes money)
+            // Use sql increment for atomicity
+            await db.update(employees)
+                .set({ balance: sql`${employees.balance} + ${parsed.data.totalAmount}` })
+                .where(eq(employees.id, parsed.data.employeeId));
 
             res.status(201).json(ticket);
         } catch (error) {
@@ -187,6 +190,11 @@ export function registerPieceworkRoutes(app: Express): void {
                 status: advanceStatus,
                 date: new Date()
             }).returning();
+
+            // Decrement Employee Balance (Employee owes money / reduces payable)
+            await db.update(employees)
+                .set({ balance: sql`${employees.balance} - ${amount}` })
+                .where(eq(employees.id, employeeId));
 
             // If paid immediately, record expense
             if (advanceStatus === 'paid') {

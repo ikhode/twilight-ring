@@ -142,6 +142,20 @@ export default function Production() {
     },
   });
 
+  const deleteProcessMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/cpe/processes/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${session?.access_token}` }
+      });
+      if (!res.ok) throw new Error("Error al eliminar");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/cpe/processes"] });
+      toast({ title: "Proceso Eliminado" });
+    }
+  });
+
   const approveMutation = useMutation({
     mutationFn: async (id: number) => {
       await fetch(`/api/piecework/tickets/${id}/approve`, { method: 'POST', headers: { Authorization: `Bearer ${session?.access_token}` } });
@@ -239,9 +253,36 @@ export default function Production() {
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   {processes?.map((p: any) => (
-                    <Card key={p.id}>
-                      <CardHeader className="pb-2"><CardTitle className="text-base">{p.name}</CardTitle></CardHeader>
-                      <CardContent><p className="text-sm text-muted-foreground mb-4">{p.description}</p><Button variant="outline" size="sm" onClick={() => toast({ title: "Configuración", description: "La configuración avanzada de procesos estará disponible pronto." })}>Configurar</Button></CardContent>
+                    <Card key={p.id} className="relative group">
+                      <CardHeader className="pb-2">
+                        <div className="flex justify-between items-start">
+                          <CardTitle className="text-base">{p.name}</CardTitle>
+                          <Badge variant="outline" className="text-[10px]">{p.type}</Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{p.description || "Sin descripción"}</p>
+                        <div className="flex gap-2">
+                          <Link href={`/workflows?processId=${p.id}`}>
+                            <Button variant="outline" size="sm" className="w-full">
+                              <Workflow className="w-3 h-3 mr-2" />
+                              Editor Visual
+                            </Button>
+                          </Link>
+                          <Button
+                            variant="destructive"
+                            size="icon"
+                            className="w-9 h-9 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => {
+                              if (confirm("¿Eliminar este proceso permanentemente?")) {
+                                deleteProcessMutation.mutate(p.id);
+                              }
+                            }}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </CardContent>
                     </Card>
                   ))}
                 </div>

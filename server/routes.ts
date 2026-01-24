@@ -37,6 +37,7 @@ import { organizationRoutes } from "./routes/organization";
 import { attendanceRoutes } from "./routes/attendance";
 import salesRoutes from "./routes/sales";
 import purchasesRoutes from "./routes/purchases";
+import { requireModule } from "./middleware/moduleGuard";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -62,28 +63,44 @@ export async function registerRoutes(
   registerAuthRoutes(app);
   registerModuleRoutes(app);
   registerAIRoutes(app);
-  registerCPERoutes(app);
-  registerPieceworkRoutes(app); // Fixed: Was missing
   registerSubscriptionRoutes(app);
   registerAutomationRoutes(app);
+
+  // Core / Unprotected or Base
   app.use("/api/onboarding", onboardingRoutes);
   app.use("/api/dashboard", dashboardRoutes);
-  app.use("/api/operations", operationsRoutes);
-  app.use("/api/crm", crmRoutes);
-  app.use("/api/hr", hrRoutes);
-  app.use("/api/hr/attendance", attendanceRoutes);
-  app.use("/api/analytics", analyticsRoutes);
-  app.use("/api/cognitive", cognitiveRoutes);
-  app.use("/api/trust", trustRoutes);
+  app.use("/api/organization", organizationRoutes);
   app.use("/api/config", configRoutes);
   app.use("/api/search", searchRoutes);
-  app.use("/api/whatsapp", whatsappRoutes);
-  app.use("/api/kiosks", kioskRoutes);
-  app.use("/api/production", productionRoutes);
-  app.use("/api/finance", financeRoutes);
-  app.use("/api/organization", organizationRoutes);
-  app.use("/api/sales", salesRoutes);
-  app.use("/api/purchases", purchasesRoutes);
+  app.use("/api/whatsapp", whatsappRoutes); // Core Comms
+
+  // --- PROTECTED MODULES ---
+
+  // Operations / Production
+  app.use("/api/production", requireModule("production"), productionRoutes);
+  app.use("/api/operations", requireModule("production"), operationsRoutes); // Assuming shared
+  registerCPERoutes(app); // Note: Should ideally be wrapped too if feasible, or checked internally
+  registerPieceworkRoutes(app);
+
+  // CRM / Sales
+  app.use("/api/crm", requireModule("sales"), crmRoutes);
+  app.use("/api/sales", requireModule("sales"), salesRoutes);
+
+  // HR
+  app.use("/api/hr", requireModule("hr"), hrRoutes);
+  app.use("/api/hr/attendance", requireModule("hr"), attendanceRoutes);
+
+  // Finance
+  app.use("/api/finance", requireModule("finance"), financeRoutes);
+  app.use("/api/purchases", requireModule("finance"), purchasesRoutes); // Purchases typically finance
+
+  // Analytics
+  app.use("/api/analytics", requireModule("analytics"), analyticsRoutes);
+
+  // Specialized
+  app.use("/api/cognitive", cognitiveRoutes); // Core AI?
+  app.use("/api/trust", trustRoutes);
+  app.use("/api/kiosks", kioskRoutes); // Core logic usually
 
   // AI Documentation & Chat
   registerChatRoutes(app);

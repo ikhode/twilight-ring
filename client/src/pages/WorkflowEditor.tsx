@@ -279,23 +279,37 @@ function WorkflowEditor() {
     const saveMutation = useMutation({
         mutationFn: async () => {
             const payload = {
-                id: processId, // Pass ID if updating
-                name: existingProcess?.name || "Nuevo Flujo de Automatización",
-                workflowData: { nodes, edges }
+                name: existingProcess?.name || "Nuevo Flujo",
+                description: existingProcess?.description || "Sin descripción",
+                workflowData: { nodes, edges },
+                type: "production" // Force type to production for now
             };
 
-            const res = await fetch("/api/automations/save", {
-                method: "POST",
+            const url = processId
+                ? `/api/cpe/processes/${processId}`
+                : "/api/cpe/processes";
+
+            const method = processId ? "PUT" : "POST";
+
+            const res = await fetch(url, {
+                method,
                 headers: {
                     "Content-Type": "application/json",
                     Authorization: `Bearer ${session?.access_token}`
                 },
                 body: JSON.stringify(payload)
             });
+
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.message || "Failed to save");
+            }
+
             return res.json();
         },
-        onSuccess: () => {
-            toast({ title: "Flujo Guardado", description: "Los cambios se han sincronizado con la nube." });
+        onSuccess: (data) => {
+            toast({ title: "Flujo Guardado", description: "Los cambios se han sincronizado." });
+            // If created new, we might want to redirect, but for now just toast.
         }
     });
 

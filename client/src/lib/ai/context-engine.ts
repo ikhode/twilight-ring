@@ -15,6 +15,7 @@ export interface NavItem {
 const coreModules = [
     { id: 'dashboard', title: 'Panel Principal', icon: LayoutDashboard, href: '/dashboard' },
     { id: 'settings', title: 'Configuración', icon: Settings, href: '/settings' },
+    { id: 'marketplace', title: 'Marketplace', icon: Network, href: '/marketplace' }, // Added Marketplace
     { id: 'trustnet', title: 'TrustNet', icon: Network, href: '/trust' }, // Icon will be dynamic in sidebar if needed, but using Settings as fallback or import Network
 ];
 

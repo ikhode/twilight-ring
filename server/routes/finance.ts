@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import { db } from "../storage";
-import { cashRegisters, cashSessions, cashTransactions, users } from "../../shared/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { cashRegisters, cashSessions, cashTransactions, users, employees } from "../../shared/schema";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { getAuthenticatedUser, getOrgIdFromRequest } from "../auth_util";
 
 const router = Router();
@@ -202,6 +202,61 @@ router.post("/cash/transaction", async (req: Request, res: Response) => {
 
     } catch (error) {
         console.error("Transaction error:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+// POST /api/finance/payout - Pay employee balance
+router.post("/payout", async (req: Request, res: Response) => {
+    try {
+        const { user, orgId } = await getContext(req);
+        if (!user || !orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const { employeeId, amount, notes } = req.body;
+
+        if (!employeeId || !amount || amount <= 0) {
+            return res.status(400).json({ message: "Invalid payment details" });
+        }
+
+        // 1. Check Register
+        const register = await db.query.cashRegisters.findFirst({
+            where: eq(cashRegisters.organizationId, orgId)
+        });
+
+        if (!register || register.status !== 'open' || !register.currentSessionId) {
+            return res.status(400).json({ message: "Register is closed. Cannot pay." });
+        }
+
+        if (register.balance < amount) {
+            return res.status(400).json({ message: "Insufficient funds in register" });
+        }
+
+        // 2. Decrement Register Balance (Money Out)
+        await db.update(cashRegisters)
+            .set({ balance: sql`${cashRegisters.balance} - ${amount}` })
+            .where(eq(cashRegisters.id, register.id));
+
+        // 3. Decrement Employee Balance (Liability Reduced)
+        await db.update(employees)
+            .set({ balance: sql`${employees.balance} - ${amount}` })
+            .where(eq(employees.id, employeeId));
+
+        // 4. Record Transaction
+        await db.insert(cashTransactions).values({
+            organizationId: orgId,
+            registerId: register.id,
+            sessionId: register.currentSessionId,
+            type: "out",
+            category: "payroll",
+            amount,
+            description: notes || "Pago de Nómina / Destajo",
+            performedBy: user.id
+        });
+
+        res.json({ success: true, message: "Payout successful" });
+
+    } catch (error) {
+        console.error("Payout error:", error);
         res.status(500).json({ message: "Internal server error" });
     }
 });

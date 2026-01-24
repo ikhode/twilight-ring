@@ -175,5 +175,58 @@ export function registerCPERoutes(app: Express) {
             res.status(500).json({ message: "Error creating process event", error });
         }
     });
+    // Upate a process (Workflow Editor Save)
+    app.put("/api/cpe/processes/:id", async (req: Request, res: Response) => {
+        try {
+            const orgId = await getOrgIdFromRequest(req);
+            if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+            const { name, description, workflowData } = req.body;
+
+            // Verify ownership
+            const existing = await db.query.processes.findFirst({
+                where: and(eq(processes.id, req.params.id), eq(processes.organizationId, orgId))
+            });
+
+            if (!existing) return res.status(404).json({ message: "Process not found" });
+
+            const [updated] = await db.update(processes)
+                .set({
+                    name,
+                    description,
+                    workflowData,
+                    updatedAt: new Date()
+                })
+                .where(eq(processes.id, req.params.id))
+                .returning();
+
+            res.json(updated);
+        } catch (error) {
+            console.error("Update process error:", error);
+            res.status(500).json({ message: "Error updating process", error });
+        }
+    });
+
+    // Delete a process
+    app.delete("/api/cpe/processes/:id", async (req: Request, res: Response) => {
+        try {
+            const orgId = await getOrgIdFromRequest(req);
+            if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+            // Verify ownership and delete
+            const result = await db.delete(processes)
+                .where(and(eq(processes.id, req.params.id), eq(processes.organizationId, orgId)))
+                .returning();
+
+            if (result.length === 0) {
+                return res.status(404).json({ message: "Process not found" });
+            }
+
+            res.json({ success: true, deletedId: result[0].id });
+        } catch (error) {
+            console.error("Delete process error:", error);
+            res.status(500).json({ message: "Error deleting process", error });
+        }
+    });
 }
 
