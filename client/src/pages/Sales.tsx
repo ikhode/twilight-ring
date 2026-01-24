@@ -194,7 +194,7 @@ function POSView() {
       setCart([]);
       setSelectedDriver("");
       setSelectedVehicle("");
-      queryClient.invalidateQueries({ queryKey: ["/api/operations/inventory/products"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/inventory/products"] });
       queryClient.invalidateQueries({ queryKey: ["/api/sales/stats"] }); // Refresh trends
       queryClient.invalidateQueries({ queryKey: ["/api/finance/summary"] }); // Refresh finance
 
@@ -220,9 +220,9 @@ function POSView() {
 
   // Queries
   const { data: dbProducts } = useQuery({
-    queryKey: ["/api/operations/inventory/products"],
+    queryKey: ["/api/inventory/products"],
     queryFn: async () => {
-      const res = await fetch("/api/operations/inventory/products", {
+      const res = await fetch("/api/inventory/products", {
         headers: { Authorization: `Bearer ${session?.access_token}` }
       });
       return res.json();
@@ -259,7 +259,7 @@ function POSView() {
 
   useSupabaseRealtime({
     table: 'products',
-    queryKey: ["/api/operations/inventory/products"],
+    queryKey: ["/api/inventory/products"],
   });
 
   const products = useMemo(() => {

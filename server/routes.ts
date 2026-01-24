@@ -37,6 +37,7 @@ import { organizationRoutes } from "./routes/organization";
 import { attendanceRoutes } from "./routes/attendance";
 import salesRoutes from "./routes/sales";
 import purchasesRoutes from "./routes/purchases";
+import inventoryRoutes from "./routes/inventory";
 import { requireModule } from "./middleware/moduleGuard";
 
 export async function registerRoutes(
@@ -76,10 +77,20 @@ export async function registerRoutes(
 
   // --- PROTECTED MODULES ---
 
+
+  // --- PROTECTED MODULES ---
+
+
+  // ... existing imports ...
+
+  // In registerRoutes function:
+
   // Operations / Production
   app.use("/api/production", requireModule("production"), productionRoutes);
-  app.use("/api/operations", requireModule("production"), operationsRoutes); // Assuming shared
-  registerCPERoutes(app); // Note: Should ideally be wrapped too if feasible, or checked internally
+  app.use("/api/operations", requireModule("production"), operationsRoutes);
+  app.use("/api/inventory", requireModule("inventory"), inventoryRoutes); // Protected Inventory Logic
+
+  registerCPERoutes(app);
   registerPieceworkRoutes(app);
 
   // CRM / Sales

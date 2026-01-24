@@ -60,9 +60,9 @@ export default function Inventory() {
     : ["Materia Prima", "Producto Terminado", "Subproducto"];
 
   const { data: dbProducts, isLoading } = useQuery({
-    queryKey: ["/api/operations/inventory/products"],
+    queryKey: ["/api/inventory/products"],
     queryFn: async () => {
-      const res = await fetch("/api/operations/inventory/products", {
+      const res = await fetch("/api/inventory/products", {
         headers: { Authorization: `Bearer ${session?.access_token}` }
       });
       return res.json();
@@ -71,9 +71,9 @@ export default function Inventory() {
   });
 
   const { data: alerts = [], isLoading: isAlertsLoading } = useQuery({
-    queryKey: ["/api/operations/inventory/alerts"],
+    queryKey: ["/api/inventory/alerts"],
     queryFn: async () => {
-      const res = await fetch("/api/operations/inventory/alerts", {
+      const res = await fetch("/api/inventory/alerts", {
         headers: { Authorization: `Bearer ${session?.access_token}` }
       });
       return res.json();
@@ -84,7 +84,7 @@ export default function Inventory() {
   // Setup Realtime subscription for automatic product updates
   useSupabaseRealtime({
     table: 'products',
-    queryKey: ["/api/operations/inventory/products"],
+    queryKey: ["/api/inventory/products"],
   });
 
   const products = useMemo(() => {
@@ -137,7 +137,7 @@ export default function Inventory() {
 
   const createProductMutation = useMutation({
     mutationFn: async (productData: any) => {
-      const res = await fetch("/api/operations/inventory/products", {
+      const res = await fetch("/api/inventory/products", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -149,7 +149,7 @@ export default function Inventory() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/operations/inventory/products"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/inventory/products"] });
       setIsAddDialogOpen(false);
       toast({ title: "Producto Creado", description: "El producto se ha registrado correctamente." });
       setNewProduct({ name: "", sku: "", category: categories[0], productType: "both", stock: 0, unit: "pza", price: 0, cost: 0 });
@@ -165,7 +165,7 @@ export default function Inventory() {
 
   const archiveProductMutation = useMutation({
     mutationFn: async (productId: string) => {
-      const res = await fetch(`/api/operations/inventory/products/${productId}`, {
+      const res = await fetch(`/api/inventory/products/${productId}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -177,7 +177,7 @@ export default function Inventory() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/operations/inventory/products"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/inventory/products"] });
       toast({ title: "Producto Archivado", description: "El producto se ha desactivado correctamente." });
     },
     onError: () => {
@@ -456,14 +456,14 @@ export default function Inventory() {
                             if (!isNaN(val)) {
                               // Using re-use of mutation or creating a specific one. 
                               // For now, let's use the archive logic pattern but for stock.
-                              fetch(`/api/operations/inventory/products/${item.id}`, {
+                              fetch(`/api/inventory/products/${item.id}`, {
                                 method: 'PATCH',
                                 headers: {
                                   'Content-Type': 'application/json',
                                   'Authorization': `Bearer ${session?.access_token}`
                                 },
                                 body: JSON.stringify({ stock: val })
-                              }).then(() => queryClient.invalidateQueries({ queryKey: ["/api/operations/inventory/products"] }));
+                              }).then(() => queryClient.invalidateQueries({ queryKey: ["/api/inventory/products"] }));
                             }
                           }
                         }}
@@ -606,9 +606,9 @@ export default function Inventory() {
 function MovementHistoryDialog({ isOpen, onOpenChange, product }: { isOpen: boolean, onOpenChange: (v: boolean) => void, product: any }) {
   const { session } = useAuth();
   const { data: movements, isLoading } = useQuery({
-    queryKey: [product?.id ? `/api/operations/inventory/products/${product.id}/history` : null],
+    queryKey: [product?.id ? `/api/inventory/products/${product.id}/history` : null],
     queryFn: async () => {
-      const res = await fetch(`/api/operations/inventory/products/${product.id}/history`, {
+      const res = await fetch(`/api/inventory/products/${product.id}/history`, {
         headers: { Authorization: `Bearer ${session?.access_token}` }
       });
       if (!res.ok) throw new Error("Failed to fetch history");

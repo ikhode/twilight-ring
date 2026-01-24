@@ -1,12 +1,12 @@
 import Stripe from 'stripe';
 
-const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || 'sk_test_51SrhzjLCGTOKhYSGDBeyeBJKyPHEu9Ztjgs2Ban0qgThVaUKdlh62ci0Xc5SSFb2YDcsRwugKepmVW3jfCO06lX400JHhb1vXL';
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 
 if (!STRIPE_SECRET_KEY) {
-    console.warn("⚠️ STRIPE_SECRET_KEY missing. Payments will fail.");
+    console.warn("⚠️ STRIPE_SECRET_KEY missing. Payments will fail. Set this in your .env file.");
 }
 
-export const stripe = new Stripe(STRIPE_SECRET_KEY, {
+export const stripe = new Stripe(STRIPE_SECRET_KEY || 'sk_test_placeholder', {
     apiVersion: '2025-01-27.acacia' as any, // User preferred
 });
 

@@ -115,7 +115,7 @@ function PurchasesTable({ data }: { data: any[] }) {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/purchases"] });
-            queryClient.invalidateQueries({ queryKey: ["/api/operations/inventory/products"] }); // Update stock
+            queryClient.invalidateQueries({ queryKey: ["/api/inventory/products"] }); // Update stock
             toast({ title: "Recepción Exitosa", description: "Inventario actualizado correctamente." });
         },
         onError: () => {
@@ -180,7 +180,7 @@ function CreateProductDialog() {
 
     const createMutation = useMutation({
         mutationFn: async (data: any) => {
-            const res = await fetch("/api/operations/inventory/products", {
+            const res = await fetch("/api/inventory/products", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -196,7 +196,7 @@ function CreateProductDialog() {
             return res.json();
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["/api/operations/inventory/products"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/inventory/products"] });
             setOpen(false);
             setFormData({ name: "", sku: "", category: "Materia Prima", productType: "purchase", stock: 0, unit: "pza", price: 0, cost: 0 });
             toast({ title: "Producto Creado", description: "El producto se ha registrado correctamente." });
@@ -329,8 +329,8 @@ function CreatePurchaseDialog() {
     const [selectedSupplier, setSelectedSupplier] = useState<string>("");
 
     const { data: dbProducts = [] } = useQuery({
-        queryKey: ["/api/operations/inventory/products"],
-        queryFn: async () => (await fetch("/api/operations/inventory/products", { headers: { Authorization: `Bearer ${session?.access_token}` } })).json(),
+        queryKey: ["/api/inventory/products"],
+        queryFn: async () => (await fetch("/api/inventory/products", { headers: { Authorization: `Bearer ${session?.access_token}` } })).json(),
         enabled: open
     });
 
