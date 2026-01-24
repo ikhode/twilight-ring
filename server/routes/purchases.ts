@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "../storage";
 import {
     purchases, products, inventoryMovements, suppliers,
-    insertPurchaseSchema
+    insertPurchaseSchema, insertSupplierSchema
 } from "../../shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { getOrgIdFromRequest } from "../auth_util";
@@ -167,5 +167,89 @@ async function receiveItem(orgId: string, purchase: any) {
         notes: `Recepción Compra #${purchase.id.slice(0, 8)}`
     });
 }
+
+/**
+ * --- NEW FEATURES ---
+ */
+
+// Supplier Management
+router.get("/suppliers", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const allSuppliers = await db.query.suppliers.findMany({
+            where: eq(suppliers.organizationId, orgId)
+        });
+        res.json(allSuppliers);
+    } catch (error) {
+        res.status(500).json({ message: "Failed to fetch suppliers" });
+    }
+});
+
+router.post("/suppliers", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const parsed = insertSupplierSchema.safeParse({ ...req.body, organizationId: orgId });
+        if (!parsed.success) return res.status(400).json(parsed.error);
+
+        const [supplier] = await db.insert(suppliers).values(parsed.data).returning();
+        res.status(201).json(supplier);
+    } catch (error) {
+        res.status(500).json({ message: "Failed to create supplier" });
+    }
+});
+
+router.put("/suppliers/:id", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        const { id } = req.params;
+
+        const [updated] = await db.update(suppliers)
+            .set(req.body)
+            .where(and(eq(suppliers.id, id), eq(suppliers.organizationId, orgId)))
+            .returning();
+
+        if (!updated) return res.status(404).json({ message: "Supplier not found" });
+        res.json(updated);
+    } catch (error) {
+        res.status(500).json({ message: "Failed to update supplier" });
+    }
+});
+
+// Cost Analysis (Simple Average Cost History)
+router.get("/history/cost-analysis", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        // Get purchases grouped by product to see cost evolution
+        // For MVP, we just return the purchase history as raw data for the frontend to chart
+        const history = await db.query.purchases.findMany({
+            where: and(
+                eq(purchases.organizationId, orgId),
+                eq(purchases.deliveryStatus, "received")
+            ),
+            with: { product: true },
+            orderBy: [desc(purchases.date)],
+            limit: 50
+        });
+
+        const analysis = history.map(p => ({
+            date: p.date,
+            product: p.product?.name,
+            quantity: p.quantity,
+            totalCost: p.totalAmount,
+            unitCost: p.quantity > 0 ? Math.round(p.totalAmount / p.quantity) : 0
+        }));
+
+        res.json(analysis);
+    } catch (error) {
+        res.status(500).json({ message: "Failed to generate cost analysis" });
+    }
+});
 
 export default router;

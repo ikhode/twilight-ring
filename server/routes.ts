@@ -5,7 +5,6 @@ import { registerAuthRoutes } from "./routes/auth";
 import { registerModuleRoutes } from "./routes/modules";
 import { registerAIRoutes } from "./routes/ai";
 import { registerCPERoutes } from "./routes/cpe";
-import { registerPieceworkRoutes } from "./routes/piecework";
 import { seedModules } from "./seed";
 import { seedCPE } from "./seed_cpe";
 import { seedAuth } from "./seed_auth";
@@ -35,6 +34,7 @@ import { registerBusinessDocumentRoutes } from "./routes/business-documents";
 import { financeRoutes } from "./routes/finance";
 import { organizationRoutes } from "./routes/organization";
 import { attendanceRoutes } from "./routes/attendance";
+import { pieceworkRoutes } from "./routes/piecework";
 import salesRoutes from "./routes/sales";
 import purchasesRoutes from "./routes/purchases";
 import inventoryRoutes from "./routes/inventory";
@@ -91,7 +91,8 @@ export async function registerRoutes(
   app.use("/api/inventory", requireModule("inventory"), inventoryRoutes); // Protected Inventory Logic
 
   registerCPERoutes(app);
-  registerPieceworkRoutes(app);
+  // Piecework
+  app.use("/api/piecework", requireModule("piecework"), pieceworkRoutes);
 
   // CRM / Sales
   app.use("/api/crm", requireModule("sales"), crmRoutes);
@@ -103,7 +104,7 @@ export async function registerRoutes(
 
   // Finance
   app.use("/api/finance", requireModule("finance"), financeRoutes);
-  app.use("/api/purchases", requireModule("finance"), purchasesRoutes); // Purchases typically finance
+  app.use("/api/purchases", requireModule("purchases"), purchasesRoutes); // Purchases typically finance
 
   // Analytics
   app.use("/api/analytics", requireModule("analytics"), analyticsRoutes);
