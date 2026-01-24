@@ -43,18 +43,47 @@ export function requireModule(moduleRoute: string) {
                 )
                 .limit(1);
 
-            // 4. Verification Logic
-            // If no config exists, is it enabled by default? 
-            // Current schema says: `enabled: boolean("enabled").notNull().default(true)`
-            // BUT if the row doesn't exist in `organizationModules`, we treat it as DISABLED or ENABLED depending on policy.
-            // Usually, if it's not in the table, the user hasn't installed/activated it.
-
-            // Strict Mode: Must exist AND be enabled.
             if (!config || !config.enabled) {
                 return res.status(403).json({
                     message: `Module '${targetModule.name}' is disabled for this organization.`,
                     code: "MODULE_DISABLED"
                 });
+            }
+
+            // 4. Check Dependencies
+            if (targetModule.dependencies && Array.isArray(targetModule.dependencies) && targetModule.dependencies.length > 0) {
+                // Find IDs for dependency routes (assuming dependencies are stored as route names e.g. "inventory")
+                // We need to check if THESE modules are enabled for the org.
+
+                // This is a bit complex efficiently. Let's process one by one or batch.
+                // Assuming dependencies is string[] of routes.
+                const deps = targetModule.dependencies as string[];
+
+                for (const depRoute of deps) {
+                    // Find module ID
+                    const [depModule] = await db.select().from(modules).where(eq(modules.route, depRoute)).limit(1);
+                    if (depModule) {
+                        const [depConfig] = await db
+                            .select()
+                            .from(organizationModules)
+                            .where(
+                                and(
+                                    eq(organizationModules.organizationId, user.organizationId),
+                                    eq(organizationModules.moduleId, depModule.id),
+                                    eq(organizationModules.enabled, true)
+                                )
+                            )
+                            .limit(1);
+
+                        if (!depConfig) {
+                            return res.status(424).json({
+                                message: `Module '${targetModule.name}' requires '${depModule.name}' to be enabled.`,
+                                code: "DEPENDENCY_MISSING",
+                                dependency: depRoute
+                            });
+                        }
+                    }
+                }
             }
 
             // 5. Pass

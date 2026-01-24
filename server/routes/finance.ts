@@ -1,8 +1,13 @@
 import { Router, Request, Response } from "express";
 import { db } from "../storage";
-import { cashRegisters, cashSessions, cashTransactions, users, employees } from "../../shared/schema";
+import {
+    cashRegisters, cashSessions, cashTransactions, users, employees,
+    expenses, payments, sales, payrollAdvances, purchases, products,
+    budgets, bankReconciliations
+} from "../../shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { getAuthenticatedUser, getOrgIdFromRequest } from "../auth_util";
+import { requireModule } from "../middleware/moduleGuard";
 
 const router = Router();
 
@@ -258,6 +263,153 @@ router.post("/payout", async (req: Request, res: Response) => {
     } catch (error) {
         console.error("Payout error:", error);
         res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+/**
+ * --- MIGRATED & NEW FEATURES ---
+ */
+
+// GET /api/finance/summary
+router.get("/summary", async (req, res): Promise<void> => {
+    try {
+        const { orgId } = await getContext(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const { startDate, endDate } = req.query;
+        const start = startDate ? new Date(startDate as string) : null;
+        const end = endDate ? new Date(endDate as string) : null;
+
+        const withPeriod = (condition: any, tableDateField: any) => {
+            if (!start && !end) return condition;
+            const filters = [condition];
+            if (start) filters.push(sql`${tableDateField} >= ${start}`);
+            if (end) filters.push(sql`${tableDateField} <= ${end}`);
+            return and(...filters);
+        };
+
+        const [totalExpenses, totalSales, totalPayments, totalAdvances, pendingSales, pendingPurchases, registers] = await Promise.all([
+            db.query.expenses.findMany({ where: withPeriod(eq(expenses.organizationId, orgId), expenses.date) }),
+            db.query.sales.findMany({ where: withPeriod(eq(sales.organizationId, orgId), sales.date) }),
+            db.query.payments.findMany({ where: withPeriod(eq(payments.organizationId, orgId), payments.date) }),
+            db.query.payrollAdvances.findMany({ where: withPeriod(eq(payrollAdvances.organizationId, orgId), payrollAdvances.date) }),
+            db.query.sales.findMany({ where: and(eq(sales.organizationId, orgId), eq(sales.deliveryStatus, 'pending')) }),
+            db.query.purchases.findMany({ where: and(eq(purchases.organizationId, orgId), eq(purchases.paymentStatus, 'pending')) }),
+            db.query.cashRegisters.findMany({ where: eq(cashRegisters.organizationId, orgId) })
+        ]);
+
+        const expenseSum = totalExpenses.reduce((acc, curr) => acc + curr.amount, 0);
+        const salesSum = totalSales.reduce((acc, curr) => acc + curr.totalPrice, 0);
+        const payrollSum = totalAdvances.reduce((acc, curr) => acc + curr.amount, 0);
+        const manualIncomeSum = totalPayments.filter(p => p.type === 'income').reduce((acc, curr) => acc + curr.amount, 0);
+        const manualPaymentExpenseSum = totalPayments.filter(p => p.type === 'expense').reduce((acc, curr) => acc + curr.amount, 0);
+
+        const totalIncome = salesSum + manualIncomeSum;
+        const totalOutflow = expenseSum + payrollSum + manualPaymentExpenseSum;
+        const cashInRegisters = registers.reduce((acc, curr) => acc + curr.balance, 0);
+
+        // Simplified Logic for Summary
+        const currentBalance = totalIncome - totalOutflow + cashInRegisters; // Rough approximation
+
+        res.json({
+            balance: currentBalance,
+            income: totalIncome,
+            expenses: totalOutflow,
+            cashInRegisters
+        });
+
+    } catch (error) {
+        console.error("Finance summary error:", error);
+        res.status(500).json({ message: "Error fetching summary" });
+    }
+});
+
+// POST /api/finance/transaction
+router.post("/transaction", async (req, res): Promise<void> => {
+    try {
+        const { orgId } = await getContext(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const { type, amount, category, description, method } = req.body;
+
+        if (type === 'expense') {
+            const [rec] = await db.insert(expenses).values({
+                organizationId: orgId,
+                amount,
+                category,
+                description: description || "Gasto Manual",
+                date: new Date()
+            }).returning();
+            res.json(rec);
+        } else {
+            const [rec] = await db.insert(payments).values({
+                organizationId: orgId,
+                amount,
+                type: 'income',
+                method: method || 'cash',
+                date: new Date(),
+                referenceId: description
+            }).returning();
+            res.json(rec);
+        }
+    } catch (error) {
+        res.status(500).json({ message: "Transaction failed" });
+    }
+});
+
+// NEW: Budgets
+router.post("/budgets", async (req, res): Promise<void> => {
+    try {
+        const { orgId } = await getContext(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const { category, amountLimit, period } = req.body;
+        const [budget] = await db.insert(budgets).values({
+            organizationId: orgId,
+            category,
+            amountLimit,
+            period
+        }).returning();
+        res.json(budget);
+    } catch (error) {
+        res.status(500).json({ message: "Failed to set budget" });
+    }
+});
+
+router.get("/budgets", async (req, res): Promise<void> => {
+    try {
+        const { orgId } = await getContext(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const allBudgets = await db.query.budgets.findMany({
+            where: eq(budgets.organizationId, orgId)
+        });
+        res.json(allBudgets);
+    } catch (error) {
+        res.status(500).json({ message: "Failed to fetch budgets" });
+    }
+});
+
+// NEW: Reconciliation (Mock)
+router.post("/reconcile", async (req, res): Promise<void> => {
+    try {
+        const { orgId } = await getContext(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        // In a real app, parse uploaded CSV/OFX statement
+        // Here we just create a record
+        const [rec] = await db.insert(bankReconciliations).values({
+            organizationId: orgId,
+            statementDate: new Date(),
+            status: "completed",
+            totalMatched: 15,
+            totalDiscrepancy: 0,
+            notes: "Simulación de conciliación exitosa"
+        }).returning();
+
+        res.json(rec);
+    } catch (error) {
+        res.status(500).json({ message: "Reconciliation failed" });
     }
 });
 

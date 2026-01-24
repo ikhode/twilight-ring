@@ -65,3 +65,48 @@ export type PayrollAdvance = typeof payrollAdvances.$inferSelect;
 
 export const insertEmployeeSchema = createInsertSchema(employees);
 export const insertPayrollAdvanceSchema = createInsertSchema(payrollAdvances);
+
+// 1. Employee Documents (Confidential)
+export const employeeDocs = pgTable("employee_docs", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: varchar("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    type: text("type").notNull(), // "contract", "id", "certification", "other"
+    fileUrl: text("file_url").notNull(),
+    uploadedAt: timestamp("uploaded_at").defaultNow(),
+    expiresAt: timestamp("expires_at"), // For renewable docs
+});
+
+// 2. Performance Reviews (Evaluations)
+export const performanceReviews = pgTable("performance_reviews", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: varchar("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    reviewerId: varchar("reviewer_id").references(() => users.id),
+    score: integer("score").notNull(), // 0-100 or 1-5 scale
+    feedback: text("feedback").notNull(),
+    period: text("period").notNull(), // "Q1 2024", "Annual 2023"
+    status: text("status").default("draft"), // "draft", "completed", "acknowledged"
+    createdAt: timestamp("created_at").defaultNow(),
+    acknowledgedAt: timestamp("acknowledged_at"),
+});
+
+// 3. Work History (Timeline)
+export const workHistory = pgTable("work_history", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: varchar("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    eventType: text("event_type").notNull(), // "hired", "promotion", "demotion", "area_change", "salary_change"
+    description: text("description").notNull(),
+    previousValue: text("previous_value"),
+    newValue: text("new_value"),
+    date: timestamp("date").defaultNow(),
+});
+
+export type EmployeeDoc = typeof employeeDocs.$inferSelect;
+export type PerformanceReview = typeof performanceReviews.$inferSelect;
+export type WorkHistory = typeof workHistory.$inferSelect;
+
+export const insertEmployeeDocSchema = createInsertSchema(employeeDocs);
+export const insertPerformanceReviewSchema = createInsertSchema(performanceReviews);

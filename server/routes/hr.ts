@@ -3,7 +3,7 @@ import { storage, db } from "../storage";
 import { getOrgIdFromRequest } from "../auth_util";
 import { supabaseAdmin } from "../supabase";
 import { insertEmployeeSchema, users, userOrganizations, employees } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 
 const router = Router();
 
@@ -156,10 +156,120 @@ router.post("/invite", async (req, res): Promise<void> => {
 
         res.json({ message: "Invitation sent", userId });
 
-    } catch (error) {
         const err = error as Error; // Fixed 'any'
         console.error("Invite error:", err);
         res.status(500).json({ error: err.message });
+    }
+});
+
+/**
+ * --- NEW FEATURES (Enforced) ---
+ */
+
+// Documents
+router.post("/employees/:id/documents", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+        const { id: employeeId } = req.params;
+        const { name, type, fileUrl, expiresAt } = req.body;
+
+        // In a real app, 'fileUrl' comes from storage upload (S3/Supabase Storage) pre-step
+        const [doc] = await db.insert(require("@shared/schema").employeeDocs).values({
+            organizationId: orgId,
+            employeeId,
+            name,
+            type,
+            fileUrl,
+            expiresAt: expiresAt ? new Date(expiresAt) : null
+        }).returning();
+
+        res.status(201).json(doc);
+    } catch (error) {
+        res.status(500).json({ message: "Failed to add document" });
+    }
+});
+
+router.get("/employees/:id/documents", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+        const { id: employeeId } = req.params;
+
+        const docs = await db.select().from(require("@shared/schema").employeeDocs)
+            .where(and(eq(require("@shared/schema").employeeDocs.employeeId, employeeId), eq(require("@shared/schema").employeeDocs.organizationId, orgId)));
+
+        res.json(docs);
+    } catch (error) {
+        res.status(500).json({ message: "Failed to fetch documents" });
+    }
+});
+
+// Performance Reviews
+router.post("/employees/:id/reviews", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+        const { id: employeeId } = req.params;
+        const { score, feedback, period } = req.body;
+
+        const [review] = await db.insert(require("@shared/schema").performanceReviews).values({
+            organizationId: orgId,
+            employeeId,
+            score,
+            feedback,
+            period,
+            status: "completed"
+        }).returning();
+
+        res.status(201).json(review);
+    } catch (error) {
+        res.status(500).json({ message: "Failed to create review" });
+    }
+});
+
+// Work History
+router.get("/employees/:id/history", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+        const { id: employeeId } = req.params;
+
+        const history = await db.select().from(require("@shared/schema").workHistory)
+            .where(and(eq(require("@shared/schema").workHistory.employeeId, employeeId), eq(require("@shared/schema").workHistory.organizationId, orgId)))
+            .orderBy(desc(require("@shared/schema").workHistory.date));
+
+        res.json(history);
+    } catch (error) {
+        res.status(500).json({ message: "Failed to fetch history" });
+    }
+});
+
+// Org Chart
+router.get("/org-chart", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
+        const allEmployees = await storage.getEmployees(orgId);
+
+        // Simple heuristic for Org Chart: Group by Department
+        // In a real app with 'reports_to', we would build a tree.
+        const tree = allEmployees.reduce((acc: any, emp: any) => {
+            const dept = emp.department || "General";
+            if (!acc[dept]) acc[dept] = [];
+            acc[dept].push({
+                id: emp.id,
+                name: emp.name,
+                role: emp.role,
+                avatar: emp.avatar // if exists
+            });
+            return acc;
+        }, {});
+
+        res.json(tree);
+    } catch (error) {
+        res.status(500).json({ message: "Failed to generate org chart" });
     }
 });
 
