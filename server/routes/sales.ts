@@ -30,7 +30,7 @@ router.post("/", async (req, res): Promise<void> => {
         for (const item of items) {
             try {
                 // 1. Verify Stock
-                const [product] = await db.select().from(products).where(eq(products.id, item.productId));
+                const [product] = await db.select().from(products).where(and(eq(products.id, item.productId), eq(products.organizationId, orgId)));
                 if (!product || product.stock < item.quantity) {
                     console.warn(`Skipping item ${item.productId}: Insufficient stock`);
                     stats.errors++;

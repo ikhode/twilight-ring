@@ -50,7 +50,7 @@ export interface IStorage {
   createAnalyticsMetric(metric: schema.InsertAnalyticsMetric): Promise<schema.AnalyticsMetric>;
   getMetricModels(orgId: string): Promise<schema.MetricModel[]>;
   updateMetricModel(id: string, updates: Partial<schema.InsertMetricModel>): Promise<schema.MetricModel | undefined>;
-  getDailySalesStats(orgId: string): Promise<{ date: string; value: number }[]>;
+  getDailySalesStats(orgId: string): Promise<{ date: string; value: number; count: number }[]>;
 
   // Piecework
   getPieceworkTickets(orgId: string): Promise<any[]>;
@@ -278,7 +278,7 @@ export class DrizzleStorage implements IStorage {
     return updated;
   }
 
-  async getDailySalesStats(orgId: string): Promise<{ date: string; value: number }[]> {
+  async getDailySalesStats(orgId: string): Promise<{ date: string; value: number; count: number }[]> {
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
@@ -287,6 +287,7 @@ export class DrizzleStorage implements IStorage {
       .select({
         date: sql`DATE(${schema.sales.date})`.mapWith(String),
         value: sql<number>`SUM(${schema.sales.totalPrice})`.mapWith(Number),
+        count: sql<number>`COUNT(${schema.sales.id})`.mapWith(Number),
       })
       .from(schema.sales)
       .where(
@@ -297,7 +298,8 @@ export class DrizzleStorage implements IStorage {
 
     return salesData.map(item => ({
       date: item.date,
-      value: item.value || 0
+      value: item.value || 0,
+      count: item.count || 0
     }));
   }
 

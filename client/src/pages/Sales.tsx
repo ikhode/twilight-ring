@@ -602,14 +602,15 @@ function SalesMetrics() {
   });
 
   const salesToday = metrics?.metrics?.length > 0 ? metrics.metrics[metrics.metrics.length - 1].value : 0;
-  const transactions = Math.floor(salesToday / 1500) || 0;
-  const avgTicket = transactions > 0 ? salesToday / transactions : 0;
+  // Use real count from backend (tags.count) or default to 0
+  const transactionCount = metrics?.metrics?.length > 0 ? (metrics.metrics[metrics.metrics.length - 1].tags?.count || 0) : 0;
+  const avgTicket = transactionCount > 0 ? salesToday / transactionCount : 0;
 
   return (
     <>
-      <StatCard title="Ventas Hoy" value={formatCurrency(salesToday)} icon={DollarSign} trend={metrics?.hasEnoughData ? 12.5 : 0} variant="success" />
-      <StatCard title="Transacciones" value={transactions.toString()} icon={Receipt} variant="primary" />
-      <StatCard title="Ticket Promedio" value={formatCurrency(avgTicket)} icon={TrendingUp} trend={metrics?.hasEnoughData ? 5.2 : 0} />
+      <StatCard title="Ventas Hoy" value={formatCurrency(salesToday / 100)} icon={DollarSign} trend={metrics?.hasEnoughData ? 12.5 : 0} variant="success" />
+      <StatCard title="Transacciones" value={transactionCount.toString()} icon={Receipt} variant="primary" />
+      <StatCard title="Ticket Promedio" value={formatCurrency(avgTicket / 100)} icon={TrendingUp} trend={metrics?.hasEnoughData ? 5.2 : 0} />
     </>
   );
 }

@@ -701,7 +701,7 @@ router.post("/purchases", async (req, res): Promise<void> => {
         // Process items
         for (const item of items) {
             // 2. Update Stock
-            const [product] = await db.select().from(products).where(eq(products.id, item.productId));
+            const [product] = await db.select().from(products).where(and(eq(products.id, item.productId), eq(products.organizationId, orgId)));
             if (product) {
                 await db.update(products)
                     .set({ stock: product.stock + item.quantity })

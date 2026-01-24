@@ -369,6 +369,8 @@ export const purchases = pgTable("purchases", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   supplierId: varchar("supplier_id").references(() => suppliers.id),
+  productId: varchar("product_id").references(() => products.id),
+  quantity: integer("quantity").notNull().default(1),
   totalAmount: integer("total_amount").notNull(), // in cents
   paymentStatus: text("payment_status").notNull().default("pending"), // "pending", "paid", "refunded"
   deliveryStatus: text("delivery_status").notNull().default("pending"), // "pending", "received", "partial", "returned", "cancelled"

@@ -36,7 +36,7 @@ router.get("/dashboard", async (req, res): Promise<void> => {
                 date: s.date, // already formatted YYYY-MM-DD
                 predictedValue: hasEnoughData ? Math.round(avg * 1.1) : null,
                 confidence: hasEnoughData ? 85 : 0,
-                tags: {}
+                tags: { count: s.count }
             };
         });
 

@@ -36,6 +36,7 @@ import { financeRoutes } from "./routes/finance";
 import { organizationRoutes } from "./routes/organization";
 import { attendanceRoutes } from "./routes/attendance";
 import salesRoutes from "./routes/sales";
+import purchasesRoutes from "./routes/purchases";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -82,6 +83,7 @@ export async function registerRoutes(
   app.use("/api/finance", financeRoutes);
   app.use("/api/organization", organizationRoutes);
   app.use("/api/sales", salesRoutes);
+  app.use("/api/purchases", purchasesRoutes);
 
   // AI Documentation & Chat
   registerChatRoutes(app);
