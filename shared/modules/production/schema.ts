@@ -102,6 +102,7 @@ export const insertProcessEventSchema = createInsertSchema(processEvents);
 export const insertProcessSchema = createInsertSchema(processes);
 export const insertRcaReportSchema = createInsertSchema(rcaReports);
 export const insertPieceworkTicketSchema = createInsertSchema(pieceworkTickets);
+export const insertProductionTaskSchema = createInsertSchema(productionTasks);
 
 // Types
 export type Process = typeof processes.$inferSelect;
@@ -113,3 +114,4 @@ export type PieceworkTicket = typeof pieceworkTickets.$inferSelect;
 
 export type InsertProcessEvent = z.infer<typeof insertProcessEventSchema>;
 export type InsertRcaReport = z.infer<typeof insertRcaReportSchema>;
+export type InsertProductionTask = z.infer<typeof insertProductionTaskSchema>;

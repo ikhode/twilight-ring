@@ -120,6 +120,32 @@ export const sharedInsights = pgTable("shared_insights", {
     anonymizedContext: jsonb("anonymized_context").default({}),
     verificationScore: integer("verification_score").default(0),
     createdAt: timestamp("created_at").defaultNow(),
+
+});
+
+export const budgets = pgTable("budgets", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    category: text("category").notNull(),
+    amount: integer("amount").notNull(), // in cents
+    period: text("period").notNull(), // "monthly", "yearly"
+    year: integer("year").notNull(),
+    month: integer("month"), // 1-12, null if yearly
+    spent: integer("spent").default(0), // Track spending against budget
+    createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const bankReconciliations = pgTable("bank_reconciliations", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    accountName: text("account_name").notNull(),
+    statementDate: timestamp("statement_date").notNull(),
+    statementBalance: integer("statement_balance").notNull(), // in cents
+    bookBalance: integer("book_balance").notNull(), // in cents
+    difference: integer("difference").generatedAlwaysAs(sql`statement_balance - book_balance`),
+    status: text("status").notNull().default("draft"), // "draft", "reconciled"
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow(),
 });
 
 
@@ -134,6 +160,8 @@ export type AnalyticsMetric = typeof analyticsMetrics.$inferSelect;
 export type InsertAnalyticsMetric = z.infer<typeof insertAnalyticsMetricSchema>;
 export type MetricModel = typeof metricModels.$inferSelect;
 export type InsertMetricModel = z.infer<typeof insertMetricModelSchema>;
+export type Budget = typeof budgets.$inferSelect;
+export type BankReconciliation = typeof bankReconciliations.$inferSelect;
 
 
 export const insertCashRegisterSchema = createInsertSchema(cashRegisters);
@@ -143,8 +171,12 @@ export const insertExpenseSchema = createInsertSchema(expenses);
 export const insertPaymentSchema = createInsertSchema(payments);
 export const insertAnalyticsMetricSchema = createInsertSchema(analyticsMetrics);
 export const insertMetricModelSchema = createInsertSchema(metricModels);
+export const insertBudgetSchema = createInsertSchema(budgets);
+export const insertBankReconciliationSchema = createInsertSchema(bankReconciliations);
 
 
 export type InsertCashRegister = z.infer<typeof insertCashRegisterSchema>;
 export type InsertCashSession = z.infer<typeof insertCashSessionSchema>;
 export type InsertCashTransaction = z.infer<typeof insertCashTransactionSchema>;
+export type InsertBudget = z.infer<typeof insertBudgetSchema>;
+export type InsertBankReconciliation = z.infer<typeof insertBankReconciliationSchema>;
