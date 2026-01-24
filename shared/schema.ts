@@ -7,3 +7,4 @@ export * from "./modules/logistics/schema";
 export * from "./modules/commerce/schema";
 export * from "./modules/production/schema";
 export * from "./modules/finance/schema";
+export * from "./modules/analytics/schema";
