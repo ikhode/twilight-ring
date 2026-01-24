@@ -11,9 +11,25 @@ export function requireModule(moduleRoute: string) {
     return async (req: Request, res: Response, next: NextFunction) => {
         // 1. Skip check if no user/org context (should rely on auth middleware being first)
         // Assuming auth middleware populates req.user
-        const user = (req as any).user;
+        // 1. Ensure User Context
+        let user = (req as any).user;
+        if (!user) {
+            const { getAuthenticatedUser } = await import("../auth_util");
+            user = await getAuthenticatedUser(req);
+            if (user) (req as any).user = user;
+        }
+
         if (!user || !user.organizationId) {
-            return res.status(401).json({ message: "Unauthorized: No organization context" });
+            // Try to recover org ID if user exists but org is missing (e.g. from session)
+            if (user && !user.organizationId) {
+                const { getOrgIdFromRequest } = await import("../auth_util");
+                const orgId = await getOrgIdFromRequest(req);
+                if (orgId) user.organizationId = orgId;
+            }
+
+            if (!user || !user.organizationId) {
+                return res.status(401).json({ message: "Unauthorized: No organization context" });
+            }
         }
 
         try {

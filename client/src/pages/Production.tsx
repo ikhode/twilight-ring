@@ -343,7 +343,7 @@ export default function Production() {
                 <DialogContent>
                   <DialogHeader><DialogTitle>Registrar Trabajo</DialogTitle></DialogHeader>
                   <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); createTicketMutation.mutate({ employeeId: fd.get('employeeId'), taskName: fd.get('task'), quantity: Number(fd.get('quantity')), unitPrice: Number(fd.get('price')) * 100, status: 'pending' }); }} className="space-y-4 py-4">
-                    <Select name="employeeId" required><SelectTrigger><SelectValue placeholder="Empleado" /></SelectTrigger><SelectContent>{employees?.map((emp: any) => (<SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>))}</SelectContent></Select>
+                    <Select name="employeeId" required><SelectTrigger><SelectValue placeholder="Empleado" /></SelectTrigger><SelectContent>{employees && Array.isArray(employees) && employees.map((emp: any) => (<SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>))}</SelectContent></Select>
                     <div className="grid grid-cols-2 gap-4"><Input name="quantity" type="number" placeholder="Cantidad" /><Input name="price" type="number" placeholder="Precio ($)" /></div>
                     <Button type="submit" className="w-full">Guardar Ticket</Button>
                   </form>

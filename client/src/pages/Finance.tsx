@@ -52,13 +52,16 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { CashControl } from "@/components/finance/CashControl";
 import { Link } from "wouter";
+import { useConfiguration } from "@/context/ConfigurationContext";
 
 export default function Finance() {
   const { session } = useAuth();
+  const { toast } = useToast();
+  const { enabledModules } = useConfiguration();
   const { data: summary, isLoading } = useQuery({
-    queryKey: ["/api/operations/finance/summary"],
+    queryKey: ["/api/finance/summary"],
     queryFn: async () => {
-      const res = await fetch("/api/operations/finance/summary", {
+      const res = await fetch("/api/finance/summary", {
         headers: { Authorization: `Bearer ${session?.access_token}` }
       });
       return res.json();
@@ -110,7 +113,6 @@ export default function Finance() {
             value={`${summary?.cognitive?.growth || 0}%`}
             icon={TrendingUpIcon}
             variant="success"
-            allowTrend
           />
           <StatCard
             title="Balance Neto (30d)"
@@ -286,12 +288,14 @@ export default function Finance() {
               <div className="flex items-center justify-between">
                 <CardTitle className="font-display">Movimientos</CardTitle>
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" asChild>
-                    <a href="/purchases">
-                      <Plus className="w-4 h-4 mr-1" />
-                      Nueva Compra
-                    </a>
-                  </Button>
+                  {enabledModules.includes("purchases") && (
+                    <Button variant="outline" size="sm" asChild>
+                      <a href="/purchases">
+                        <Plus className="w-4 h-4 mr-1" />
+                        Nueva Compra
+                      </a>
+                    </Button>
+                  )}
                   <Button variant="outline" size="sm">
                     <Filter className="w-4 h-4 mr-1" />
                     Filtrar

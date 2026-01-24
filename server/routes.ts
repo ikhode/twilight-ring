@@ -86,28 +86,28 @@ export async function registerRoutes(
   // In registerRoutes function:
 
   // Operations / Production
-  app.use("/api/production", requireModule("production"), productionRoutes);
-  app.use("/api/operations", requireModule("production"), operationsRoutes);
-  app.use("/api/inventory", requireModule("inventory"), inventoryRoutes); // Protected Inventory Logic
+  app.use("/api/production", requireModule("/production"), productionRoutes);
+  app.use("/api/operations", requireModule("/production"), operationsRoutes);
+  app.use("/api/inventory", requireModule("/inventory"), inventoryRoutes); // Protected Inventory Logic
 
   registerCPERoutes(app);
   // Piecework
-  app.use("/api/piecework", requireModule("piecework"), pieceworkRoutes);
+  app.use("/api/piecework", requireModule("/piecework"), pieceworkRoutes);
 
   // CRM / Sales
-  app.use("/api/crm", requireModule("sales"), crmRoutes);
-  app.use("/api/sales", requireModule("sales"), salesRoutes);
+  app.use("/api/crm", requireModule("/sales"), crmRoutes);
+  app.use("/api/sales", requireModule("/sales"), salesRoutes);
 
   // HR
-  app.use("/api/hr", requireModule("hr"), hrRoutes);
-  app.use("/api/hr/attendance", requireModule("hr"), attendanceRoutes);
+  app.use("/api/hr", requireModule("/hr"), hrRoutes);
+  app.use("/api/hr/attendance", requireModule("/hr"), attendanceRoutes);
 
   // Finance
-  app.use("/api/finance", requireModule("finance"), financeRoutes);
-  app.use("/api/purchases", requireModule("purchases"), purchasesRoutes); // Purchases typically finance
+  app.use("/api/finance", requireModule("/finance"), financeRoutes);
+  app.use("/api/purchases", requireModule("/purchases"), purchasesRoutes); // Purchases typically finance
 
   // Analytics
-  app.use("/api/analytics", requireModule("analytics"), analyticsRoutes);
+  app.use("/api/analytics", requireModule("/analytics"), analyticsRoutes);
 
   // Specialized
   app.use("/api/cognitive", cognitiveRoutes); // Core AI?

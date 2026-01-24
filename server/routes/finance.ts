@@ -13,7 +13,7 @@ const router = Router();
 
 // Helper to get authenticated user and organization ID
 async function getContext(req: Request) {
-    const user = await getAuthenticatedUser(req);
+    const user = (req as any).user || await getAuthenticatedUser(req);
     const orgId = await getOrgIdFromRequest(req);
     return { user, orgId };
 }

@@ -33,6 +33,7 @@ export default function Purchases() {
         queryKey: ["/api/purchases"],
         queryFn: async () => {
             const res = await fetch("/api/purchases", { headers: { Authorization: `Bearer ${session?.access_token}` } });
+            if (!res.ok) return [];
             return res.json();
         },
         enabled: !!session?.access_token
