@@ -24,4 +24,3 @@ export const analyticsSnapshots = pgTable("analytics_snapshots", {
 
 export const insertCustomReportSchema = createInsertSchema(customReports);
 export const insertAnalyticsSnapshotSchema = createInsertSchema(analyticsSnapshots);
-export const insertAnalyticsMetricSchema = createInsertSchema(analyticsSnapshots); // Fallback if used elsewhere
