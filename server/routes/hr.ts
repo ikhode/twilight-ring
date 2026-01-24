@@ -156,7 +156,8 @@ router.post("/invite", async (req, res): Promise<void> => {
 
         res.json({ message: "Invitation sent", userId });
 
-        const err = error as Error; // Fixed 'any'
+    } catch (error) {
+        const err = error as Error;
         console.error("Invite error:", err);
         res.status(500).json({ error: err.message });
     }
