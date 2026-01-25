@@ -30,6 +30,7 @@ import {
   Unlock,
   MapPin,
   RefreshCw,
+  Truck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLocation, useParams } from "wouter";
