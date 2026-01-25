@@ -10,10 +10,21 @@ import { copilotService, ChatMessage } from '@/lib/ai/copilot-service';
 
 import { useConfiguration } from "@/context/ConfigurationContext";
 
+import { useNLPEngine } from "@/lib/ai/nlp-engine";
+import { useCognitiveEngine } from "@/lib/cognitive/engine";
+
 export function Copilot() {
     const { role, industry } = useConfiguration();
+    const { context } = useCognitiveEngine();
+    const { findAnswer, loadModel, isModelLoading } = useNLPEngine();
+
     const [isOpen, setIsOpen] = useState(false);
-    // ... (keep state)
+
+    // Load model on mount or open
+    useEffect(() => {
+        if (isOpen) loadModel();
+    }, [isOpen]);
+
     const [messages, setMessages] = useState<ChatMessage[]>([
         {
             id: 'welcome',
@@ -49,33 +60,52 @@ export function Copilot() {
         setIsProcessing(true);
 
         try {
-            const response = await copilotService.processQuery(userMsg.text, {
-                currentPath: location,
-                userRole: role,
-                industry: industry
-            });
+            // Build Context String from Cognitive Engine
+            const contextString = `
+                User Role: ${role}. 
+                Industry: ${industry}. 
+                Active Modules: ${context.activeModules.join(", ")}.
+                Current Page: ${location}.
+                User Organization ID: ${context.organizationId}.
+            `;
+
+            // Use BERT Model
+            const answers = await findAnswer(contextString, userMsg.text);
+
+            let responseText = "No estoy seguro de entender.";
+            if (answers && answers.length > 0) {
+                responseText = answers[0].text;
+            } else {
+                // Fallback to basic logic or "I don't know"
+                // For now, simpler fallback response
+                responseText = `He procesado tu pregunta: "${userMsg.text}". (BERT Confidence: Low)`;
+            }
 
             const aiMsg: ChatMessage = {
                 id: (Date.now() + 1).toString(),
                 sender: 'ai',
-                text: response.text,
+                text: responseText,
                 timestamp: new Date()
             };
 
             setMessages(prev => [...prev, aiMsg]);
 
+
             // Execute action if present
+            // Execute action if present (Disabled for NLP v1)
+            /*
             const action = response.action;
             if (action) {
                 if (action.type === 'navigate') {
                     setTimeout(() => {
                         setLocation(String(action.payload));
-                    }, 1000); // Small delay for user to read the message first
+                    }, 1000); 
                 }
             }
+            */
 
             // Auto-speak response if voice was used (optional)
-            // copilotService.speak(response.text); 
+            // copilotService.speak(aiMsg.text); 
         } catch (error) {
             console.error("Copilot error:", error);
         } finally {

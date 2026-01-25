@@ -9,10 +9,11 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
-import { useConfiguration } from "@/hooks/use-configuration";
+import { useConfiguration } from "@/context/ConfigurationContext";
 import { Activity, Settings, Users, AlertTriangle, Truck, Package, ShoppingBag, Clock, Save, Building } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { NeuralMaintenanceForecast } from "@/components/operations/NeuralMaintenanceForecast";
 
 export default function Operations() {
     const { session } = useAuth();
@@ -148,31 +149,36 @@ export default function Operations() {
                         <TabsTrigger value="config">Configuración de Sede</TabsTrigger>
                     </TabsList>
 
+                    {/* ... inside the dashboard TabsContent ... */}
                     <TabsContent value="dashboard" className="space-y-4">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Actividad Reciente</CardTitle>
-                                <CardDescription>Eventos operativos importantes.</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="space-y-4">
-                                    {dashboard?.activity?.map((act: any, idx: number) => (
-                                        <div key={idx} className="flex items-center justify-between border-b pb-2 last:border-0 last:pb-0">
-                                            <div className="flex items-center gap-3">
-                                                <div className={`p-2 rounded-full ${act.type === 'alert' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
-                                                    <Activity className="w-4 h-4" />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <NeuralMaintenanceForecast />
+                            {/* Existing Activity Card */}
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Actividad Reciente</CardTitle>
+                                    <CardDescription>Eventos operativos importantes.</CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="space-y-4">
+                                        {dashboard?.activity?.map((act: any, idx: number) => (
+                                            <div key={idx} className="flex items-center justify-between border-b pb-2 last:border-0 last:pb-0">
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`p-2 rounded-full ${act.type === 'alert' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+                                                        <Activity className="w-4 h-4" />
+                                                    </div>
+                                                    <span>{act.message}</span>
                                                 </div>
-                                                <span>{act.message}</span>
+                                                <span className="text-sm text-muted-foreground">{act.time}</span>
                                             </div>
-                                            <span className="text-sm text-muted-foreground">{act.time}</span>
-                                        </div>
-                                    ))}
-                                    {(!dashboard?.activity || dashboard.activity.length === 0) && (
-                                        <p className="text-muted-foreground text-center py-4">No hay actividad reciente.</p>
-                                    )}
-                                </div>
-                            </CardContent>
-                        </Card>
+                                        ))}
+                                        {(!dashboard?.activity || dashboard.activity.length === 0) && (
+                                            <p className="text-muted-foreground text-center py-4">No hay actividad reciente.</p>
+                                        )}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
                     </TabsContent>
 
                     <TabsContent value="suppliers">

@@ -14,12 +14,16 @@ interface AppLayoutProps {
 
 import { AliveBackground } from "./AliveBackground";
 
+import { NeuralSearch } from "@/components/cognitive/NeuralSearch";
+
 export function AppLayout({ children, title, subtitle }: AppLayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
     <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+      <NeuralSearch />
       <div className="min-h-screen bg-[#020617] text-white overflow-hidden">
+
         <AliveBackground />
 
         {/* Desktop Sidebar */}

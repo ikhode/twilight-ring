@@ -30,7 +30,7 @@ import { Customer, Supplier } from "../../../shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { useConfiguration } from "@/hooks/use-configuration";
+import { useConfiguration } from "@/context/ConfigurationContext";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { CognitiveButton, AliveValue } from "@/components/cognitive";
@@ -234,7 +234,8 @@ export default function CRM() {
   });
 
   // Module Enforcement
-  const isEnabled = useConfiguration().getModuleStatus("crm");
+  const { enabledModules } = useConfiguration();
+  const isEnabled = enabledModules.includes("crm");
 
   if (!isEnabled) {
     return (
