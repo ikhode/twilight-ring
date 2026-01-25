@@ -43,6 +43,7 @@ import { Zap } from "lucide-react";
 
 import { useToast } from "@/hooks/use-toast";
 import { useConfiguration, IndustryType } from "@/context/ConfigurationContext";
+import { ERP_MODULES } from "@/lib/modules";
 
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -50,7 +51,11 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 export default function Settings() {
   const { toast } = useToast();
   const { profile, session } = useAuth();
-  const { theme, setTheme, themeColor, setThemeColor, universalConfig, updateUniversalConfig } = useConfiguration();
+  const {
+    theme, setTheme, themeColor, setThemeColor,
+    universalConfig, updateUniversalConfig,
+    enabledModules, toggleModule, aiConfig, setAiConfig
+  } = useConfiguration();
   const [orgName, setOrgName] = useState(profile?.organization?.name || "Mi Empresa S.A.");
   const [industryState, setIndustryState] = useState(profile?.organization?.industry || "generic");
 
@@ -86,8 +91,90 @@ export default function Settings() {
   return (
     <AppLayout title="Configuración OS" subtitle="Personaliza la estructura y adaptabilidad del sistema">
       <Tabs defaultValue="generic" className="space-y-6 text-slate-200">
-        {/* ... (TabsList remains same) ... */}
-        {/* ... (TabsContent generic remains same) ... */}
+        <TabsList className="bg-slate-900/50 border border-slate-800 p-1 flex-wrap h-auto gap-1">
+          <TabsTrigger value="generic" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary gap-2">
+            <Globe className="w-4 h-4" /> General
+          </TabsTrigger>
+          <TabsTrigger value="org" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary gap-2">
+            <Building2 className="w-4 h-4" /> Organización
+          </TabsTrigger>
+          <TabsTrigger value="subscription" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary gap-2">
+            <CreditCard className="w-4 h-4" /> Suscripción
+          </TabsTrigger>
+          <TabsTrigger value="ethics" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary gap-2">
+            <Shield className="w-4 h-4" /> Ética AI
+          </TabsTrigger>
+          <TabsTrigger value="advanced" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary gap-2">
+            <Terminal className="w-4 h-4" /> Avanzado
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="generic" className="space-y-6 focus:outline-none">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card className="bg-slate-900 border-slate-800">
+              <CardHeader>
+                <CardTitle className="font-display flex items-center gap-2">
+                  <Database className="w-5 h-5 text-primary" />
+                  Módulos Activos
+                </CardTitle>
+                <CardDescription>Habilita o deshabilita las capas de inteligencia del OS</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {ERP_MODULES.map((mod) => (
+                    <div key={mod.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-950/50 border border-slate-800">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-slate-900 rounded-lg text-slate-400">
+                          {React.createElement(mod.icon as any, { className: "w-4 h-4" })}
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-white uppercase italic">{mod.label}</p>
+                          <p className="text-[10px] text-slate-500">Integrado en el flujo cognitivo</p>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={enabledModules.includes(mod.id)}
+                        onCheckedChange={() => toggleModule(mod.id)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-slate-900 border-slate-800">
+              <CardHeader>
+                <CardTitle className="font-display flex items-center gap-2">
+                  <Zap className="w-5 h-5 text-primary" />
+                  AI Guardian & Copilots
+                </CardTitle>
+                <CardDescription>Configura los agentes autónomos del sistema</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950/50 border border-slate-800">
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-bold text-white uppercase italic tracking-widest">Optimización Autónoma</p>
+                    <p className="text-[10px] text-slate-500 italic">Guardian toma decisiones en tiempo real</p>
+                  </div>
+                  <Switch
+                    checked={aiConfig.guardianEnabled}
+                    onCheckedChange={(val) => setAiConfig({ guardianEnabled: val })}
+                  />
+                </div>
+                <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950/50 border border-slate-800">
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-black text-white uppercase italic tracking-widest">Adaptive UI</p>
+                    <p className="text-[10px] text-slate-500 italic">La interfaz cambia según el contexto del usuario</p>
+                  </div>
+                  <Switch
+                    checked={aiConfig.adaptiveUiEnabled}
+                    onCheckedChange={(val) => setAiConfig({ adaptiveUiEnabled: val })}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
 
         <TabsContent value="org" className="space-y-6 focus:outline-none">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

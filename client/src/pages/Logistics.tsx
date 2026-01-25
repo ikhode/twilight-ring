@@ -22,6 +22,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
+import { useConfiguration } from "@/context/ConfigurationContext";
 import { MapContainer, TileLayer, Marker, Popup, useMap, Tooltip as LeafletTooltip } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -199,6 +200,7 @@ function DriverLinkDialog() {
 export default function Logistics() {
     const { session } = useAuth();
     const { toast } = useToast();
+    const { universalConfig } = useConfiguration();
     const queryClient = useQueryClient();
     const [isAddOpen, setIsAddOpen] = useState(false);
 
@@ -749,30 +751,36 @@ export default function Logistics() {
                                     ))}
 
                                     <div>
-                                        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">En Ruta ({salesOrders.length > 0 ? '1' : '0'})</h4>
-                                        {vehiclesData.length > 0 ? (
-                                            <div className="p-3 rounded-lg bg-slate-800/80 border border-slate-700 flex items-center justify-between group hover:border-primary/50 transition-colors cursor-pointer">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="relative">
-                                                        <div className="w-10 h-10 rounded-lg bg-slate-700 flex items-center justify-center">
-                                                            <Truck className="w-5 h-5 text-slate-300" />
+                                        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">En Ruta ({activeRoutes.length})</h4>
+                                        {activeRoutes.length > 0 ? (
+                                            <div className="space-y-3">
+                                                {activeRoutes.map((route: any) => (
+                                                    <div key={route.id} className="p-3 rounded-lg bg-slate-800/80 border border-slate-700 flex items-center justify-between group hover:border-primary/50 transition-colors cursor-pointer">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="relative">
+                                                                <div className="w-10 h-10 rounded-lg bg-slate-700 flex items-center justify-center">
+                                                                    <Truck className="w-5 h-5 text-slate-300" />
+                                                                </div>
+                                                                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-slate-900 flex items-center justify-center">
+                                                                    <Activity className="w-2.5 h-2.5 text-black" />
+                                                                </div>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-sm font-bold text-white">{route.vehicle?.plate}</p>
+                                                                <p className="text-[10px] text-slate-400">{route.driver?.name || "Conductor Asignado"}</p>
+                                                            </div>
                                                         </div>
-                                                        <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-slate-900 flex items-center justify-center">
-                                                            <Activity className="w-2.5 h-2.5 text-black" />
+                                                        <div className="text-right">
+                                                            <p className="text-xs font-bold text-green-400">En Tiempo</p>
+                                                            <p className="text-[10px] text-slate-500">
+                                                                Paradas: {route.stops?.filter((s: any) => s.status === 'completed').length || 0}/{route.stops?.length || 0}
+                                                            </p>
                                                         </div>
                                                     </div>
-                                                    <div>
-                                                        <p className="text-sm font-bold text-white">{vehiclesData[0].plate}</p>
-                                                        <p className="text-[10px] text-slate-400">{employees[0]?.name || "Conductor Asignado"}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="text-right">
-                                                    <p className="text-xs font-bold text-green-400">En Tiempo</p>
-                                                    <p className="text-[10px] text-slate-500">ETA 14:30</p>
-                                                </div>
+                                                ))}
                                             </div>
                                         ) : (
-                                            <p className="text-xs text-slate-600 italic">Sin vehículos activos.</p>
+                                            <p className="text-xs text-slate-600 italic px-2">Sin rutas activas.</p>
                                         )}
                                     </div>
 
