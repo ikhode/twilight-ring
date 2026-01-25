@@ -47,13 +47,13 @@ export function DataTable<T extends { id: string | number }>({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {data.length === 0 ? (
+          {(!Array.isArray(data) || data.length === 0) ? (
             <TableRow>
               <TableCell
                 colSpan={columns.length}
                 className="h-24 text-center text-muted-foreground"
               >
-                {emptyMessage}
+                {!Array.isArray(data) ? "Error al cargar datos" : emptyMessage}
               </TableCell>
             </TableRow>
           ) : (

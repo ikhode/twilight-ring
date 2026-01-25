@@ -263,7 +263,7 @@ export default function CashierTerminal({ sessionContext, onLogout }: CashierTer
                                         employeeId={employeeId}
                                         onSuccess={() => {
                                             queryClient.invalidateQueries({ queryKey: ["/api/piecework/advances"] });
-                                            queryClient.invalidateQueries({ queryKey: ["/api/operations/finance/summary"] });
+                                            queryClient.invalidateQueries({ queryKey: ["/api/finance/summary"] });
                                         }}
                                         getAuthHeaders={getAuthHeaders}
                                     />

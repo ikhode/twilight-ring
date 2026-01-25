@@ -97,11 +97,36 @@ export function ModuleMarketplace() {
         }
     };
 
+    const clientSideKeywordMatch = (query: string): string[] => {
+        const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2);
+        const scores = new Map<string, number>();
+
+        modules.forEach(m => {
+            let score = 0;
+            const text = `${m.name} ${m.description} ${m.longDescription} ${m.tags.join(' ')} ${m.features.join(' ')}`.toLowerCase();
+
+            terms.forEach(term => {
+                if (text.includes(term)) score += 1;
+                // Boost for tag matches
+                if (m.tags.some(t => t.includes(term))) score += 2;
+                // Boost for name matches
+                if (m.name.toLowerCase().includes(term)) score += 3;
+            });
+
+            if (score > 0) scores.set(m.id, score);
+        });
+
+        return Array.from(scores.entries())
+            .sort((a, b) => b[1] - a[1])
+            .map(([id]) => id);
+    };
+
     const handleAiSearch = async () => {
         if (!searchQuery) return;
 
         setIsAiSearching(true);
         try {
+            // First try API
             const res = await fetch("/api/modules/recommend", {
                 method: "POST",
                 headers: {
@@ -113,16 +138,35 @@ export function ModuleMarketplace() {
 
             if (res.ok) {
                 const data = await res.json();
-                setAiRecommendedIds(data.recommendedIds || []);
+                if (data.recommendedIds && data.recommendedIds.length > 0) {
+                    setAiRecommendedIds(data.recommendedIds);
+                    setIsAiFiltering(true);
+                    toast({
+                        title: "Búsqueda Inteligente Completada",
+                        description: `Encontramos ${data.recommendedIds.length} módulos relevantes para tu descripción.`
+                    });
+                    return;
+                }
+            }
+            throw new Error("No API results");
+        } catch (error) {
+            console.log("Falling back to client-side search");
+            // Fallback to client-side
+            const fallbackIds = clientSideKeywordMatch(searchQuery);
+            if (fallbackIds.length > 0) {
+                setAiRecommendedIds(fallbackIds);
                 setIsAiFiltering(true);
                 toast({
-                    title: "Búsqueda Inteligente Completada",
-                    description: `Encontramos ${data.recommendedIds.length} módulos relevantes para tu descripción.`
+                    title: "Búsqueda Local Completada",
+                    description: `Encontramos ${fallbackIds.length} módulos que coinciden con tus palabras clave.`
+                });
+            } else {
+                toast({
+                    title: "Sin resultados",
+                    description: "No pudimos encontrar módulos que coincidan con tu búsqueda.",
+                    variant: "destructive"
                 });
             }
-        } catch (error) {
-            console.error("AI Search failed", error);
-            toast({ title: "Error", description: "No se pudo completar la búsqueda inteligente", variant: "destructive" });
         } finally {
             setIsAiSearching(false);
         }

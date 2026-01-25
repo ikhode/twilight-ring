@@ -80,7 +80,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 // Restore persistent selection or default to first
                 const savedOrgId = localStorage.getItem("nexus_active_org");
                 const savedOrg = orgs.find((o: any) => o.id === savedOrgId);
-                const active = savedOrg || orgs[0] || null;
+                let active = savedOrg || orgs[0] || null;
+
+                // Self-Healing: Fix corrupted names (if name is stringified JSON)
+                if (active && active.name?.trim().startsWith("{") && active.name?.includes("name")) {
+                    try {
+                        const parsed = JSON.parse(active.name);
+                        if (parsed.name) {
+                            active = { ...active, name: parsed.name };
+                            // Ideally we would PATCH this back to server, but for now just fix display
+                        }
+                    } catch (e) {
+                        // Ignore parse error, maybe it's just a name starting with {
+                    }
+                }
 
                 setOrganization(active);
                 if (active) localStorage.setItem("nexus_active_org", active.id);

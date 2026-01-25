@@ -311,11 +311,46 @@ router.get("/summary", async (req, res): Promise<void> => {
         // Simplified Logic for Summary
         const currentBalance = totalIncome - totalOutflow + cashInRegisters; // Rough approximation
 
+        // --- NEW: Fetch Recent Transactions for History ---
+        const [recentExpenses, recentPayments] = await Promise.all([
+            db.query.expenses.findMany({
+                where: eq(expenses.organizationId, orgId),
+                orderBy: [desc(expenses.date)],
+                limit: 10
+            }),
+            db.query.payments.findMany({
+                where: eq(payments.organizationId, orgId),
+                orderBy: [desc(payments.date)],
+                limit: 10
+            })
+        ]);
+
+        const recentTransactions = [
+            ...recentExpenses.map(e => ({
+                id: e.id,
+                description: e.description || e.category,
+                amount: -e.amount, // Expense is negative for display flow
+                date: e.date?.toISOString().split('T')[0],
+                type: 'expense',
+                status: 'completed'
+            })),
+            ...recentPayments.map(p => ({
+                id: p.id,
+                description: p.referenceId || "Ingreso/Pago",
+                amount: p.type === 'income' ? p.amount : -p.amount,
+                date: p.date?.toISOString().split('T')[0],
+                type: p.type === 'income' ? 'sale' : 'expense', // Map 'income' -> 'sale' visual style for green
+                status: 'completed'
+            }))
+        ].sort((a, b) => new Date(b.date as string).getTime() - new Date(a.date as string).getTime()).slice(0, 10);
+
+
         res.json({
             balance: currentBalance,
             income: totalIncome,
             expenses: totalOutflow,
-            cashInRegisters
+            cashInRegisters,
+            recentTransactions
         });
 
     } catch (error) {
@@ -332,10 +367,16 @@ router.post("/transaction", async (req, res): Promise<void> => {
 
         const { type, amount, category, description, method } = req.body;
 
+        if (!amount || isNaN(Number(amount))) {
+            return res.status(400).json({ message: "Amount is required and must be a number" });
+        }
+
         if (type === 'expense') {
+            if (!category) return res.status(400).json({ message: "Category is required for expenses" });
+
             const [rec] = await db.insert(expenses).values({
                 organizationId: orgId,
-                amount,
+                amount: Number(amount),
                 category,
                 description: description || "Gasto Manual",
                 date: new Date()
@@ -344,7 +385,7 @@ router.post("/transaction", async (req, res): Promise<void> => {
         } else {
             const [rec] = await db.insert(payments).values({
                 organizationId: orgId,
-                amount,
+                amount: Number(amount),
                 type: 'income',
                 method: method || 'cash',
                 date: new Date(),
@@ -353,7 +394,8 @@ router.post("/transaction", async (req, res): Promise<void> => {
             res.json(rec);
         }
     } catch (error) {
-        res.status(500).json({ message: "Transaction failed" });
+        console.error("Transaction error:", error);
+        res.status(500).json({ message: "Transaction failed: " + (error as Error).message });
     }
 });
 
@@ -400,15 +442,17 @@ router.post("/reconcile", async (req, res): Promise<void> => {
         // Here we just create a record
         const [rec] = await db.insert(bankReconciliations).values({
             organizationId: orgId,
+            accountName: "Main Account", // Default
             statementDate: new Date(),
+            statementBalance: 0,
+            bookBalance: 0,
             status: "completed",
-            totalMatched: 15,
-            totalDiscrepancy: 0,
             notes: "Simulación de conciliación exitosa"
         }).returning();
 
         res.json(rec);
     } catch (error) {
+        console.error("Reconciliation error:", error);
         res.status(500).json({ message: "Reconciliation failed" });
     }
 });

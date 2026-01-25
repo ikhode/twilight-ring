@@ -10,7 +10,7 @@ import { getOrgIdFromRequest } from "../auth_util";
 import { requireModule } from "../middleware/moduleGuard";
 
 const router = Router();
-router.use(requireModule("sales"));
+router.use(requireModule("/sales"));
 
 /**
  * Registra una venta, actualiza inventario, genera movimiento y registra el pago.

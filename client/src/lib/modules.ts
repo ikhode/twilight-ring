@@ -12,6 +12,8 @@ import {
     Monitor,
     Shield,
     FileText,
+    CheckCircle,
+    ShoppingBag,
     Search
 } from "lucide-react";
 
@@ -104,6 +106,14 @@ export const ERP_MODULES: SystemModule[] = [
         icon: FileText,
         href: '/documents',
         category: 'operations'
+    },
+    {
+        id: 'purchases',
+        name: 'Compras',
+        description: 'Gestión de abastecimiento y proveedores',
+        icon: ShoppingBag,
+        href: '/purchases',
+        category: 'finance'
     },
 
     {

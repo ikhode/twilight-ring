@@ -85,6 +85,7 @@ export function TransactionModal({ isOpen, onClose, type, employeeId: propEmploy
             }
 
             await queryClient.invalidateQueries({ queryKey: ['/api/finance/cash/stats'] });
+            await queryClient.invalidateQueries({ queryKey: ['/api/finance/summary'] });
 
             toast({
                 title: "Transacción Exitosa",

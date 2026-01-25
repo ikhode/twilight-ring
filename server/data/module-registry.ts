@@ -307,7 +307,7 @@ export const MODULE_REGISTRY: ModuleMetadata[] = [
             "Historial de anomalías"
         ],
         pricing: "premium",
-        dependencies: ["cpe", "operations", "finance"],
+        dependencies: ["operations"], // Relaxed from ["cpe", "operations", "finance"]
         requiredRole: "manager",
         tags: ["ia", "anomalías", "seguridad"]
     },
@@ -327,7 +327,7 @@ export const MODULE_REGISTRY: ModuleMetadata[] = [
             "Recomendaciones personalizadas"
         ],
         pricing: "premium",
-        dependencies: ["cpe", "analytics"],
+        dependencies: ["operations"], // Relaxed from ["cpe", "analytics"]
         requiredRole: "manager",
         tags: ["ia", "decisiones", "predicciones"]
     },
@@ -347,7 +347,7 @@ export const MODULE_REGISTRY: ModuleMetadata[] = [
             "Optimización automática"
         ],
         pricing: "included", // Core logic requires this
-        dependencies: ["operations", "finance"],
+        dependencies: ["operations"], // Core logic requires this
         requiredRole: "admin",
         tags: ["core", "ia", "motor", "tfjs"]
     },
@@ -367,7 +367,7 @@ export const MODULE_REGISTRY: ModuleMetadata[] = [
             "Fuentes citadas"
         ],
         pricing: "premium",
-        dependencies: ["admin", "cpe"],
+        dependencies: ["operations"], // Relaxed from ["admin", "cpe"]
         requiredRole: "user",
         tags: ["chat", "ia", "documentación"]
     },

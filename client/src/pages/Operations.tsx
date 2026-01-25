@@ -15,6 +15,37 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/use-auth";
+import { useTensorFlow } from "@/hooks/use-tensorflow";
+import { useEffect, useState } from "react";
+
+function NeuralForecast({ data }: { data: number[] }) {
+    const { predictTrend, isReady } = useTensorFlow();
+    const [prediction, setPrediction] = useState<{ next: number, trend: string } | null>(null);
+
+    useEffect(() => {
+        if (isReady && data.length > 0) {
+            predictTrend(data).then(res => {
+                if (res) {
+                    setPrediction({
+                        next: Math.round(res.nextValue),
+                        trend: res.trend
+                    });
+                }
+            });
+        }
+    }, [isReady, data, predictTrend]);
+
+    if (!prediction) return <span className="text-[10px] text-slate-600 animate-pulse">Calculating...</span>;
+
+    return (
+        <div className="flex items-center gap-2 text-[10px] text-slate-400 bg-slate-800/50 px-2 py-1 rounded w-fit">
+            <Zap className="w-3 h-3 text-purple-400" />
+            <span>
+                AI Forecast: <span className="text-white font-mono">${prediction.next.toLocaleString()}</span>
+            </span>
+        </div>
+    );
+}
 
 export default function Operations() {
     const { enabledModules, universalConfig } = useConfiguration();
@@ -22,7 +53,7 @@ export default function Operations() {
     const modules = enabledModules || [];
 
     // Helper to check if module is active
-    const has = (id: string) => modules.some(m => m.id === id);
+    const has = (id: string) => modules.some(m => m === id);
 
     return (
         <div className="p-8 space-y-8 min-h-screen bg-slate-950/50">
@@ -153,9 +184,12 @@ export default function Operations() {
                             <CardContent>
                                 <div className="space-y-1">
                                     <div className="text-2xl font-bold text-white">$ 24,500</div>
-                                    <p className="text-xs text-green-400 flex items-center">
-                                        +12% vs ayer
-                                    </p>
+                                    <div className="flex flex-col gap-1">
+                                        <p className="text-xs text-green-400 flex items-center">
+                                            +12% vs ayer
+                                        </p>
+                                        <NeuralForecast data={[21000, 22500, 21800, 23000, 24500]} />
+                                    </div>
                                 </div>
                                 <div className="mt-4 pt-4 border-t border-slate-800">
                                     <div className="text-xs text-slate-500 mb-2">Últimas órdenes</div>

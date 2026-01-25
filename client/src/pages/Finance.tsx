@@ -70,8 +70,8 @@ export default function Finance() {
   });
 
   // Realtime subscriptions for financial data
-  useSupabaseRealtime({ table: 'payments', queryKey: ["/api/operations/finance/summary"] });
-  useSupabaseRealtime({ table: 'expenses', queryKey: ["/api/operations/finance/summary"] });
+  useSupabaseRealtime({ table: 'payments', queryKey: ["/api/finance/summary"] });
+  useSupabaseRealtime({ table: 'expenses', queryKey: ["/api/finance/summary"] });
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat("es-MX", {
@@ -481,7 +481,7 @@ function NewTransactionDialog() {
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch("/api/operations/finance/transaction", {
+      const res = await fetch("/api/finance/transaction", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -502,7 +502,7 @@ function NewTransactionDialog() {
       toast({ title: "Transacción Registrada" });
       setOpen(false);
       setData({ type: "expense", amount: "", category: "general", description: "" });
-      queryClient.invalidateQueries({ queryKey: ["/api/operations/finance/summary"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/finance/summary"] });
     },
     onError: (error) => {
       console.error(error);

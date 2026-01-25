@@ -1,5 +1,5 @@
 import { pgTable, text, varchar, timestamp, boolean, integer, jsonb, customType } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
+import { sql, relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { organizations, users } from "../../core/schema";
@@ -108,3 +108,44 @@ export const insertProductSchema = createInsertSchema(products);
 export const insertInventoryMovementSchema = createInsertSchema(inventoryMovements);
 export const insertSaleSchema = createInsertSchema(sales);
 export const insertPurchaseSchema = createInsertSchema(purchases);
+
+// Relations
+// -----------------------------------------------------------------------------
+export const productsRelations = relations(products, ({ many }) => ({
+    purchases: many(purchases),
+    movements: many(inventoryMovements),
+    sales: many(sales),
+}));
+
+export const suppliersRelations = relations(suppliers, ({ many }) => ({
+    purchases: many(purchases),
+}));
+
+export const purchasesRelations = relations(purchases, ({ one }) => ({
+    product: one(products, {
+        fields: [purchases.productId],
+        references: [products.id],
+    }),
+    supplier: one(suppliers, {
+        fields: [purchases.supplierId],
+        references: [suppliers.id],
+    }),
+}));
+
+export const inventoryMovementsRelations = relations(inventoryMovements, ({ one }) => ({
+    product: one(products, {
+        fields: [inventoryMovements.productId],
+        references: [products.id],
+    })
+}));
+
+export const salesRelations = relations(sales, ({ one }) => ({
+    product: one(products, {
+        fields: [sales.productId],
+        references: [products.id],
+    }),
+    customer: one(customers, {
+        fields: [sales.customerId],
+        references: [customers.id],
+    })
+}));
