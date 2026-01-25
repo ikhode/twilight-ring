@@ -45,6 +45,59 @@ interface Ticket {
   amount: number;
 }
 
+function TaskSelector({ tasks, inventory, isError }: { tasks: any[], inventory: any[], isError: boolean }) {
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const selectedTask = tasks?.find(t => t.id === selectedTaskId);
+
+  return (
+    <div className="space-y-2">
+      <div className="space-y-2">
+        <Label>Proceso / Tarea</Label>
+        <Select name="taskId" required onValueChange={setSelectedTaskId}>
+          <SelectTrigger>
+            <SelectValue placeholder={isError ? "Error al cargar procesos" : "Seleccionar Proceso"} />
+          </SelectTrigger>
+          <SelectContent>
+            {Array.isArray(tasks) && tasks.length > 0 ? (
+              tasks.map((task: any) => (
+                <SelectItem key={task.id} value={task.id}>
+                  {task.name} (${(task.unitPrice / 100).toFixed(2)})
+                </SelectItem>
+              ))
+            ) : (
+              <div className="p-2 text-xs text-slate-500 italic">
+                {isError ? "Módulo de Destajo no disponible" : "No hay tareas configuradas"}
+              </div>
+            )}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {selectedTask?.isRecipe && selectedTask.recipeData?.inputSelectionMode === 'single' && (
+        <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
+          <Label className="text-amber-500">¿Qué material se procesó?</Label>
+          <Select name="selectedInputId" required>
+            <SelectTrigger className="border-amber-500/50 bg-amber-500/10">
+              <SelectValue placeholder="Seleccionar Origen" />
+            </SelectTrigger>
+            <SelectContent>
+              {selectedTask.recipeData.inputs?.map((input: any) => {
+                const item = inventory.find(i => i.id === input.itemId);
+                return (
+                  <SelectItem key={input.itemId} value={input.itemId}>
+                    {item?.name || 'Desconocido'} (x{input.quantity})
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
+          <p className="text-[10px] text-muted-foreground">Esta tarea tiene múltiples orígenes posibles. Selecciona cuál se utilizó.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Production() {
   const { session } = useAuth();
   const { toast } = useToast();
@@ -142,6 +195,25 @@ export default function Production() {
     },
   });
 
+  const [isRatesOpen, setIsRatesOpen] = useState(false);
+
+  const createTaskMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await fetch("/api/piecework/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error("Error creating task");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/piecework/tasks"] });
+      toast({ title: "Tarifa Guardada" });
+      // Keep dialog open for bulk entry, or rely on user to close
+    },
+  });
+
   const deleteProcessMutation = useMutation({
     mutationFn: async (id: string) => {
       const res = await fetch(`/api/cpe/processes/${id}`, {
@@ -168,6 +240,21 @@ export default function Production() {
       await fetch(`/api/piecework/tickets/${id}/pay`, { method: 'POST', headers: { Authorization: `Bearer ${session?.access_token}` } });
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['/api/piecework/tickets'] }); }
+  });
+
+  const { data: pieceworkTasks = [], isError: isPieceworkError } = useQuery({
+    queryKey: ["/api/piecework/tasks"],
+    queryFn: async () => {
+      const res = await fetch("/api/piecework/tasks", {
+        headers: { Authorization: `Bearer ${session?.access_token}` }
+      });
+      if (!res.ok) {
+        if (res.status === 403) return []; // Gracefully handle disabled module
+        throw new Error("Failed to fetch tasks");
+      }
+      return res.json();
+    },
+    enabled: !!session?.access_token
   });
 
   const createTicketMutation = useMutation({
@@ -200,11 +287,25 @@ export default function Production() {
     pending: tickets.filter((t) => t.status === "pending").length,
     approved: tickets.filter((t) => t.status === "approved").length,
     paid: tickets.filter((t) => t.status === "paid").length,
-    totalAmount: tickets.reduce((acc, t) => acc + t.amount, 0),
+    totalAmount: tickets.reduce((acc, t) => acc + (t.totalAmount || 0), 0),
   };
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(amount);
+
+  const { data: inventory = [] } = useQuery({
+    queryKey: ["/api/inventory/products"],
+    queryFn: async () => {
+      const res = await fetch("/api/inventory/products", {
+        headers: { Authorization: `Bearer ${session?.access_token}` }
+      });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!session?.access_token
+  });
+
+  const [isRecipeMode, setIsRecipeMode] = useState(false);
 
   return (
     <AppLayout title="Producción" subtitle="Control de procesos y destajo">
@@ -220,6 +321,8 @@ export default function Production() {
               Tickets de Destajo
             </TabsTrigger>
           </TabsList>
+
+          {/* ... existing tabs content ... */}
 
           <TabsContent value="processes-cpe" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -295,9 +398,14 @@ export default function Production() {
                     <DialogTrigger asChild><Button className="gap-2 bg-emerald-600"><Play className="w-4 h-4" />Nuevo Lote</Button></DialogTrigger>
                     <DialogContent>
                       <DialogHeader><DialogTitle>Iniciar Lote</DialogTitle></DialogHeader>
-                      <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); createInstanceMutation.mutate({ processId: fd.get("processId"), metadata: { loteName: fd.get("loteName") } }); }} className="space-y-4 py-4">
-                        <Select name="processId" required><SelectTrigger><SelectValue placeholder="Proceso" /></SelectTrigger><SelectContent>{processes?.map((p: any) => (<SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>))}</SelectContent></Select>
-                        <Input name="loteName" placeholder="ID Lote" />
+                      <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); createInstanceMutation.mutate({ processId: fd.get("processId") }); }} className="space-y-4 py-4">
+                        <div className="space-y-2">
+                          <Label>Proceso a Ejecutar</Label>
+                          <Select name="processId" required><SelectTrigger><SelectValue placeholder="Seleccionar Proceso" /></SelectTrigger><SelectContent>{processes?.map((p: any) => (<SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>))}</SelectContent></Select>
+                        </div>
+                        <div className="p-3 bg-slate-900/50 rounded text-xs text-muted-foreground">
+                          El sistema generará automáticamente un ID de Lote único para trazabilidad.
+                        </div>
                         <Button type="submit" className="w-full">Iniciar</Button>
                       </form>
                     </DialogContent>
@@ -338,25 +446,176 @@ export default function Production() {
           <TabsContent value="tickets" className="space-y-6">
             <div className="flex items-center justify-between">
               <div><h2 className="text-lg font-bold font-display">Gestión de Destajo</h2><p className="text-sm text-muted-foreground">Registro de actividades por pieza.</p></div>
-              <Dialog open={isTicketCreateOpen} onOpenChange={setIsTicketCreateOpen}>
-                <DialogTrigger asChild><Button className="gap-2"><Plus className="w-4 h-4" />Nuevo Ticket</Button></DialogTrigger>
-                <DialogContent>
-                  <DialogHeader><DialogTitle>Registrar Trabajo</DialogTitle></DialogHeader>
-                  <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); createTicketMutation.mutate({ employeeId: fd.get('employeeId'), taskName: fd.get('task'), quantity: Number(fd.get('quantity')), unitPrice: Number(fd.get('price')) * 100, status: 'pending' }); }} className="space-y-4 py-4">
-                    <Select name="employeeId" required><SelectTrigger><SelectValue placeholder="Empleado" /></SelectTrigger><SelectContent>{employees && Array.isArray(employees) && employees.map((emp: any) => (<SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>))}</SelectContent></Select>
-                    <div className="grid grid-cols-2 gap-4"><Input name="quantity" type="number" placeholder="Cantidad" /><Input name="price" type="number" placeholder="Precio ($)" /></div>
-                    <Button type="submit" className="w-full">Guardar Ticket</Button>
-                  </form>
-                </DialogContent>
-              </Dialog>
+              <div className="flex gap-2">
+                <Dialog open={isRatesOpen} onOpenChange={setIsRatesOpen}>
+                  <DialogTrigger asChild><Button variant="outline" className="gap-2"><DollarSign className="w-4 h-4" />Configurar Tarifas</Button></DialogTrigger>
+                  <DialogContent className="max-w-xl">
+                    <DialogHeader><DialogTitle>Nueva Tarifa & Receta</DialogTitle></DialogHeader>
+                    <form onSubmit={(e) => {
+                      e.preventDefault();
+                      const fd = new FormData(e.currentTarget);
+                      const isRecipe = fd.get("isRecipe") === "on";
+
+                      const payload: any = {
+                        name: fd.get("name"),
+                        unitPrice: Number(fd.get("price")) * 100, // to cents
+                        unit: fd.get("unit") || "pza",
+                        isRecipe,
+                        recipeData: {}
+                      };
+
+                      if (isRecipe) {
+                        // Collect all inputs from the form (handling dynamic list)
+                        const inputItems = fd.getAll("inputItem");
+                        const inputQtys = fd.getAll("inputQty");
+                        const inputs = inputItems.map((item, idx) => ({
+                          itemId: item,
+                          quantity: Number(inputQtys[idx])
+                        })).filter(i => i.itemId && i.quantity);
+
+                        payload.recipeData = {
+                          inputs,
+                          inputSelectionMode: fd.get("inputSelectionMode") || "all", // 'all' (composite) or 'single' (alternatives)
+                          outputs: fd.get("outputItem") ? [{ itemId: fd.get("outputItem"), quantity: Number(fd.get("outputQty")) }] : []
+                        };
+                      }
+
+                      createTaskMutation.mutate(payload);
+                      (e.target as HTMLFormElement).reset();
+                      setIsRecipeMode(false);
+                    }} className="space-y-4 py-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2"><Label>Nombre de la Tarea</Label><Input name="name" placeholder="Ej. Pelado" required /></div>
+                        <div className="space-y-2"><Label>Pago por Unidad ($)</Label><Input name="price" type="number" step="0.01" placeholder="0.00" required /></div>
+                      </div>
+
+                      <div className="flex items-center space-x-2 py-2">
+                        <div className="flex items-center gap-2">
+                          <input type="checkbox" name="isRecipe" id="isRecipe" className="w-4 h-4 rounded border-slate-700 bg-slate-900"
+                            onChange={(e) => setIsRecipeMode(e.target.checked)}
+                          />
+                          <Label htmlFor="isRecipe" className="cursor-pointer">Activar Control de Inventario (Receta)</Label>
+                        </div>
+                      </div>
+
+                      {isRecipeMode && (
+                        <div className="p-4 rounded-lg bg-slate-900/50 border border-slate-800 space-y-4">
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                              <Label className="text-xs uppercase text-amber-500 font-bold">Consumo (Input)</Label>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] text-muted-foreground mr-1">Modo:</span>
+                                <select name="inputSelectionMode" className="text-[10px] bg-slate-800 border-none rounded p-1">
+                                  <option value="all">Compuesto (Requiere Todos)</option>
+                                  <option value="single">Alternativo (Seleccionar Uno)</option>
+                                </select>
+                              </div>
+                            </div>
+                            {/* Support up to 2 inputs UI-wise for MVP simplicity, or user can assume 1st one if only 1 added */}
+                            <div className="space-y-2">
+                              {[0, 1].map((idx) => (
+                                <div key={idx} className="flex gap-2">
+                                  <div className="flex-1">
+                                    <Select name="inputItem">
+                                      <SelectTrigger h-8 text-xs><SelectValue placeholder={`Opción ${idx + 1} (Opcional)`} /></SelectTrigger>
+                                      <SelectContent>
+                                        {inventory.map((i: any) => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <Input name="inputQty" type="number" step="0.01" placeholder="Cant." className="w-24 h-8" />
+                                </div>
+                              ))}
+                              <p className="text-[10px] text-slate-500 italic">* Para recetas alternativas (ej. Coco Bueno vs Desecho), selecciona "Alternativo" arriba.</p>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs uppercase text-emerald-500 font-bold">Producción (Output)</Label>
+                            <div className="flex gap-2">
+                              <div className="flex-1">
+                                <Select name="outputItem">
+                                  <SelectTrigger><SelectValue placeholder="Seleccionar Producto Final" /></SelectTrigger>
+                                  <SelectContent>
+                                    {inventory.map((i: any) => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <Input name="outputQty" type="number" step="0.01" placeholder="Cant." className="w-24" />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      <Button type="submit" className="w-full" disabled={createTaskMutation.isPending}>{createTaskMutation.isPending ? "Guardando..." : "Guardar Tarifa"}</Button>
+                    </form>
+                    <div className="mt-4 pt-4 border-t border-slate-800">
+                      <p className="text-xs font-bold uppercase text-slate-500 mb-2">Tarifas Activas</p>
+                      <div className="space-y-1 max-h-40 overflow-y-auto">
+                        {Array.isArray(pieceworkTasks) && pieceworkTasks.map((t: any) => (
+                          <div key={t.id} className="flex justify-between items-center text-sm p-2 rounded bg-slate-900/50">
+                            <div className="flex items-center gap-2">
+                              <span>{t.name}</span>
+                              {t.isRecipe && <Badge variant="outline" className="text-[9px] h-4">RECETA</Badge>}
+                            </div>
+                            <span className="font-mono">${(t.unitPrice / 100).toFixed(2)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+                <Dialog open={isTicketCreateOpen} onOpenChange={setIsTicketCreateOpen}>
+                  <DialogTrigger asChild><Button className="gap-2"><Plus className="w-4 h-4" />Nuevo Ticket</Button></DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader><DialogTitle>Registrar Trabajo</DialogTitle></DialogHeader>
+                    <form onSubmit={(e) => {
+                      e.preventDefault();
+                      const fd = new FormData(e.currentTarget);
+                      const taskId = fd.get('taskId');
+                      const task = pieceworkTasks.find((t: any) => t.id === taskId);
+                      let recipeInputId = undefined;
+                      if (task?.recipeData?.inputSelectionMode === 'single') {
+                        recipeInputId = fd.get('selectedInputId');
+                      }
+                      createTicketMutation.mutate({
+                        employeeId: fd.get('employeeId'),
+                        taskName: task?.name || 'Proceso General',
+                        quantity: Number(fd.get('quantity')),
+                        unitPrice: task ? task.unitPrice : Number(fd.get('price')) * 100,
+                        status: 'pending',
+                        selectedInputId: recipeInputId
+                      });
+                    }} className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label>Empleado</Label>
+                        <Select name="employeeId" required><SelectTrigger><SelectValue placeholder="Seleccionar Empleado" /></SelectTrigger><SelectContent>{employees && Array.isArray(employees) && employees.map((emp: any) => (<SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>))}</SelectContent></Select>
+                      </div>
+
+                      <TaskSelector
+                        tasks={pieceworkTasks}
+                        inventory={inventory}
+                        isError={isPieceworkError}
+                      />
+
+                      <div className="space-y-2">
+                        <Label>Cantidad</Label>
+                        <Input name="quantity" type="number" placeholder="0" required />
+                      </div>
+                      <Button type="submit" className="w-full" disabled={createTicketMutation.isPending}>
+                        {createTicketMutation.isPending ? "Registrando..." : "Guardar Ticket"}
+                      </Button>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <StatCard title="Pendientes" value={ticketStats.pending} icon={Clock} variant="warning" />
               <StatCard title="Aprobados" value={ticketStats.approved} icon={CheckCircle2} variant="success" />
               <StatCard title="Pagados" value={ticketStats.paid} icon={DollarSign} variant="primary" />
-              <StatCard title="Total" value={formatCurrency(ticketStats.totalAmount)} icon={DollarSign} />
+              <StatCard title="Total" value={formatCurrency(ticketStats.totalAmount / 100)} icon={DollarSign} />
             </div>
-            <Card className="mt-6"><CardContent className="pt-6"><DataTable columns={[{ key: "id", header: "ID" }, { key: "employee", header: "Empleado" }, { key: "status", header: "Estado" }, { key: "amount", header: "Monto", render: (i) => formatCurrency(i.amount) }, { key: "actions", header: "Acciones", render: (i) => i.status === 'pending' ? <Button size="sm" onClick={() => approveMutation.mutate(i.id)}>Aprobar</Button> : null }]} data={tickets} /></CardContent></Card>
+            <Card className="mt-6"><CardContent className="pt-6"><DataTable columns={[{ key: "id", header: "ID", render: (i) => i.id.slice(0, 8) }, { key: "employee", header: "Empleado", render: (i) => i.employeeName }, { key: "taskName", header: "Proceso" }, { key: "quantity", header: "Cant." }, { key: "status", header: "Estado" }, { key: "totalAmount", header: "Monto", render: (i) => formatCurrency(i.totalAmount / 100) }, { key: "actions", header: "Acciones", render: (i) => i.status === 'pending' ? <Button size="sm" onClick={() => approveMutation.mutate(i.id)}>Aprobar</Button> : null }]} data={tickets} /></CardContent></Card>
           </TabsContent>
         </Tabs>
       </div>

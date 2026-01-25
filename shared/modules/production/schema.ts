@@ -76,6 +76,10 @@ export const productionTasks = pgTable("production_tasks", {
     unitPrice: integer("unit_price").notNull(), // in cents
     unit: text("unit").notNull().default("pza"), // "pza", "par", "kg"
     active: boolean("active").notNull().default(true),
+    // Recipe Fields
+    isRecipe: boolean("is_recipe").default(false),
+    // Structure: { inputs: [{ itemId: string, quantity: number }], outputs: [{ itemId: string, quantity: number }] }
+    recipeData: jsonb("recipe_data").default({}),
     createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -88,6 +92,7 @@ export const pieceworkTickets = pgTable("piecework_tickets", {
     quantity: integer("quantity").notNull(),
     unitPrice: integer("unit_price").notNull(), // in cents
     totalAmount: integer("total_amount").notNull(), // in cents (quantity * unitPrice)
+    batchId: varchar("batch_id"), // Optional link to specific production batch
     status: text("status").notNull().default("pending"), // "pending", "approved", "rejected", "paid"
     approvedBy: varchar("approved_by").references(() => users.id),
     sourceLocation: text("source_location"), // Where product was taken from

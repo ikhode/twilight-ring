@@ -5,6 +5,8 @@ import { insertPieceworkTicketSchema, insertProductionTaskSchema } from "../../s
 import {
     pieceworkTickets,
     productionTasks,
+    products,
+    payrollAdvances,
     payrollAdvances,
     employees,
     expenses,
@@ -168,11 +170,72 @@ router.post("/tickets", async (req: Request, res: Response): Promise<void> => {
 
         const [ticket] = await db.insert(pieceworkTickets).values(parsed.data).returning();
 
-        // Increment Employee Balance (Company owes money)
-        // Use sql increment for atomicity
+        // Increment Employee Balance
         await db.update(employees)
             .set({ balance: sql`${employees.balance} + ${parsed.data.totalAmount}` })
             .where(eq(employees.id, parsed.data.employeeId));
+
+        // --- RECIPE PROCESSING ---
+        // Find task definition to check for active recipe
+        const [taskDef] = await db.select().from(productionTasks).where(and(
+            eq(productionTasks.organizationId, orgId),
+            eq(productionTasks.name, parsed.data.taskName)
+        )).limit(1);
+
+        if (taskDef && taskDef.isRecipe && taskDef.recipeData) {
+            const recipe = taskDef.recipeData as any;
+            const ticketQty = parsed.data.quantity;
+            const selectedInputId = req.body.selectedInputId; // New: Specific input to consume
+
+            // 1. Inputs (Consumption)
+            if (recipe.inputs && Array.isArray(recipe.inputs)) {
+                // If selective mode is active and we have a selection, filter inputs
+                // Otherwise use all inputs (composite mode)
+                const inputsToProcess = (selectedInputId)
+                    ? recipe.inputs.filter((i: any) => i.itemId === selectedInputId)
+                    : recipe.inputs;
+
+                for (const input of inputsToProcess) {
+                    const requiredQty = input.quantity * ticketQty;
+
+                    // Check Inventory (Optional: could block or allow negative)
+                    // For now we allow negative but log warning in console
+
+                    await db.update(products)
+                        .set({ stock: sql`${products.stock} - ${requiredQty}` })
+                        .where(and(eq(products.id, input.itemId), eq(products.organizationId, orgId)));
+
+                    await db.insert(inventoryMovements).values({
+                        organizationId: orgId,
+                        productId: input.itemId,
+                        quantity: -requiredQty,
+                        type: "production_input",
+                        referenceId: ticket.id,
+                        notes: `Consumo: ${taskDef.name} (Ticket ${ticket.id.slice(0, 6)})`
+                    });
+                }
+            }
+
+            // 2. Outputs (Production)
+            if (recipe.outputs && Array.isArray(recipe.outputs)) {
+                for (const output of recipe.outputs) {
+                    const producedQty = output.quantity * ticketQty;
+
+                    await db.update(products)
+                        .set({ stock: sql`${products.stock} + ${producedQty}` })
+                        .where(and(eq(products.id, output.itemId), eq(products.organizationId, orgId)));
+
+                    await db.insert(inventoryMovements).values({
+                        organizationId: orgId,
+                        productId: output.itemId,
+                        quantity: producedQty,
+                        type: "production_output",
+                        referenceId: ticket.id,
+                        notes: `Producción: ${taskDef.name} (Ticket ${ticket.id.slice(0, 6)})`
+                    });
+                }
+            }
+        }
 
         res.status(201).json(ticket);
     } catch (error) {
