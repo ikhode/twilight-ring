@@ -147,7 +147,7 @@ function DriverLinkDialog() {
                             <Select onValueChange={setSelectedDriver}>
                                 <SelectTrigger><SelectValue placeholder="Seleccionar Conductor" /></SelectTrigger>
                                 <SelectContent>
-                                    {drivers.filter((d: any) => d.role === 'driver' || true).map((d: any) => (
+                                    {(drivers || []).filter((d: any) => d.role === 'driver' || true).map((d: any) => (
                                         <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
                                     ))}
                                 </SelectContent>

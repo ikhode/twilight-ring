@@ -16,13 +16,13 @@ import { useCognitiveEngine } from "@/lib/cognitive/engine";
 export function Copilot() {
     const { role, industry } = useConfiguration();
     const { context } = useCognitiveEngine();
-    const { findAnswer, loadModel, isModelLoading } = useNLPEngine();
+    const { findAnswer, loadQnAModel, isQnALoading } = useNLPEngine();
 
     const [isOpen, setIsOpen] = useState(false);
 
     // Load model on mount or open
     useEffect(() => {
-        if (isOpen) loadModel();
+        if (isOpen) loadQnAModel();
     }, [isOpen]);
 
     const [messages, setMessages] = useState<ChatMessage[]>([

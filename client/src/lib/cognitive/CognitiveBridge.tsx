@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useConfiguration } from "@/context/ConfigurationContext";
 import { useCognitiveEngine } from "./engine";
+import { useTensorBridge } from "./tensor-bridge";
 
 /**
  * CognitiveBridge
@@ -17,23 +18,49 @@ export function CognitiveBridge() {
     const { enabledModules } = useConfiguration();
     const { setContext } = useCognitiveEngine();
 
+    // Tensor Actions
+    const { setSalesTensor, setInventoryTensor } = useTensorBridge();
+
+    // 1. Context Sync (Metadata)
     useEffect(() => {
-        // Inyectar contexto al motor
         setContext({
             activeModules: enabledModules,
             userRole: profile?.role || "guest",
             organizationId: profile?.organizationId?.toString() || null,
-            // En un futuro, aquí inyectaríamos la industria desde la config de la org
             industry: "generic"
         });
-
-        console.log("🧠 Cognitive Context Synced:", {
-            modules: enabledModules.length,
-            role: profile?.role
-        });
-
     }, [enabledModules, user, profile, setContext]);
 
-    // Este componente no renderiza nada visualmente, es un componente lógico.
+    // 2. Tensor Sync (Data Plane)
+    // In a real scenario, this would subscribe to useQuery or Realtime streams.
+    // For this refactor demonstrating the architecture, we will simulate the "Link".
+    useEffect(() => {
+        if (enabledModules.includes("sales")) {
+            // Simulating connecting to the Sales Firehose
+            // [Day, Orders, Revenue]
+            const mockSalesData = [
+                [1, 120, 5000],
+                [2, 135, 6200],
+                [3, 110, 4800],
+                [4, 150, 7000],
+                [5, 180, 8500]
+            ];
+            setSalesTensor(mockSalesData);
+            console.log("🧠 Tensor Bridge: Sales Stream Linked");
+        }
+
+        if (enabledModules.includes("inventory")) {
+            // [ItemId, StockLevel, ReorderPoint]
+            const mockInventoryData = [
+                [101, 50, 20],
+                [102, 12, 15], // Low stock
+                [103, 200, 50]
+            ];
+            setInventoryTensor(mockInventoryData);
+            console.log("🧠 Tensor Bridge: Inventory Stream Linked");
+        }
+
+    }, [enabledModules, setSalesTensor, setInventoryTensor]);
+
     return null;
 }

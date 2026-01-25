@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useTensorBridge } from './tensor-bridge';
 
 export type SystemMode = 'observation' | 'analysis' | 'intervention' | 'idle';
 
@@ -15,7 +16,10 @@ export interface CognitiveState {
         organizationId: string | null;
         industry?: string;
     };
+    tensors: ReturnType<typeof useTensorBridge.getState>; // Expose full tensor state
+
     setContext: (ctx: Partial<CognitiveState['context']>) => void;
+    syncTensors: () => void;
 
     // Actions
     setConfidence: (score: number) => void;
@@ -45,19 +49,22 @@ export const useCognitiveEngine = create<CognitiveState>((set) => ({
         userRole: null,
         organizationId: null
     },
+    // We bind the live tensor state here for easy access, 
+    // though components should likely use useTensorBridge directly for subscriptions.
+    tensors: useTensorBridge.getState(),
 
-    setContext: (ctx) => set((state) => ({
-        context: { ...state.context, ...ctx }
-    })),
+    setContext: (ctx) => set((state) => ({ context: { ...state.context, ...ctx } })),
+
+    syncTensors: () => {
+        set({ tensors: useTensorBridge.getState() });
+    },
 
     setConfidence: (score) => set({ systemConfidence: score }),
     setIntent: (intent) => set({ currentIntent: intent }),
     setMode: (mode) => set({ activeMode: mode }),
-
     addSuggestion: (suggestion) => set((state) => ({
         suggestions: [...state.suggestions, suggestion]
     })),
-
     removeSuggestion: (id) => set((state) => ({
         suggestions: state.suggestions.filter(s => s.id !== id)
     })),
