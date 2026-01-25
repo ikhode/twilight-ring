@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { KioskSession } from "@/types/kiosk";
 import { cn } from "@/lib/utils";
+import { getKioskHeaders } from "@/lib/kiosk-auth";
 
 interface ProductionTerminalProps {
     sessionContext: KioskSession;
@@ -62,13 +63,22 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
     // Fetch available tasks/rates from DB
     const { data: tasks = [] } = useQuery<Task[]>({
         queryKey: ["/api/piecework/tasks"],
+        queryFn: async () => {
+            const res = await fetch("/api/piecework/tasks", {
+                headers: getKioskHeaders({ employeeId: sessionContext.driver?.id })
+            });
+            if (!res.ok) return [];
+            return res.json();
+        }
     });
 
     // Fetch recent tickets for this employee
     const { data: recentTickets = [] } = useQuery<Ticket[]>({
         queryKey: ["/api/piecework/tickets", sessionContext.driver?.id],
         queryFn: async () => {
-            const res = await fetch(`/api/piecework/tickets?employeeId=${sessionContext.driver?.id}`);
+            const res = await fetch(`/api/piecework/tickets?employeeId=${sessionContext.driver?.id}`, {
+                headers: getKioskHeaders({ employeeId: sessionContext.driver?.id })
+            });
             if (!res.ok) throw new Error("Failed to fetch history");
             return res.json();
         },
@@ -81,7 +91,7 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
 
             const res = await fetch("/api/piecework/tickets", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: getKioskHeaders({ employeeId: sessionContext.driver?.id }),
                 body: JSON.stringify({
                     employeeId: sessionContext.driver?.id,
                     taskName: selectedTask.name,

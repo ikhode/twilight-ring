@@ -124,3 +124,49 @@ export const cashTransactionsRelations = relations(schema.cashTransactions, ({ o
         references: [schema.users.id],
     }),
 }));
+
+export const purchaseRelations = relations(schema.purchases, ({ one }) => ({
+    product: one(schema.products, {
+        fields: [schema.purchases.productId],
+        references: [schema.products.id],
+    }),
+    supplier: one(schema.suppliers, {
+        fields: [schema.purchases.supplierId],
+        references: [schema.suppliers.id],
+    }),
+    driver: one(schema.employees, {
+        fields: [schema.purchases.driverId],
+        references: [schema.employees.id],
+    }),
+    vehicle: one(schema.vehicles, {
+        fields: [schema.purchases.vehicleId],
+        references: [schema.vehicles.id],
+    }),
+}));
+
+export const routesRelations = relations(schema.routes, ({ one, many }) => ({
+    vehicle: one(schema.vehicles, {
+        fields: [schema.routes.vehicleId],
+        references: [schema.vehicles.id],
+    }),
+    driver: one(schema.employees, {
+        fields: [schema.routes.driverId],
+        references: [schema.employees.id],
+    }),
+    stops: many(schema.routeStops),
+}));
+
+export const routeStopsRelations = relations(schema.routeStops, ({ one }) => ({
+    route: one(schema.routes, {
+        fields: [schema.routeStops.routeId],
+        references: [schema.routes.id],
+    }),
+    order: one(schema.sales, {
+        fields: [schema.routeStops.orderId],
+        references: [schema.sales.id],
+    }),
+    purchase: one(schema.purchases, {
+        fields: [schema.routeStops.purchaseId],
+        references: [schema.purchases.id],
+    }),
+}));

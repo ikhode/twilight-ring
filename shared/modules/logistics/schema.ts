@@ -4,7 +4,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { organizations, users } from "../../core/schema";
 import { employees } from "../hr/schema";
-import { sales } from "../commerce/schema"; // Dependent on Commerce
+import { sales, purchases } from "../commerce/schema"; // Dependent on Commerce
 
 // Fleet/Logistics
 export const vehicles = pgTable("vehicles", {
@@ -59,6 +59,8 @@ export const routeStops = pgTable("route_stops", {
     id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
     routeId: varchar("route_id").notNull().references(() => routes.id, { onDelete: "cascade" }),
     orderId: varchar("order_id").references(() => sales.id, { onDelete: "cascade" }), // Link to delivery
+    purchaseId: varchar("purchase_id").references(() => purchases.id, { onDelete: "cascade" }), // Link to collection
+    stopType: text("stop_type").notNull().default("delivery"), // "delivery", "collection"
     sequence: integer("sequence").notNull(),
     status: text("status").notNull().default("pending"), // "pending", "arrived", "completed", "failed"
     locationLat: customType<{ data: number }>({ dataType() { return "real"; } })("location_lat"),
@@ -125,48 +127,4 @@ export const insertFuelLogSchema = createInsertSchema(fuelLogs);
 export const insertMaintenanceLogSchema = createInsertSchema(maintenanceLogs);
 export const insertTerminalSchema = createInsertSchema(terminals);
 
-// Relations
-import { relations } from "drizzle-orm";
-
-export const vehiclesRelations = relations(vehicles, ({ many }) => ({
-    fuelLogs: many(fuelLogs),
-    maintenanceLogs: many(maintenanceLogs),
-    routes: many(routes),
-}));
-
-export const maintenanceLogsRelations = relations(maintenanceLogs, ({ one }) => ({
-    vehicle: one(vehicles, {
-        fields: [maintenanceLogs.vehicleId],
-        references: [vehicles.id],
-    }),
-}));
-
-export const fuelLogsRelations = relations(fuelLogs, ({ one }) => ({
-    vehicle: one(vehicles, {
-        fields: [fuelLogs.vehicleId],
-        references: [vehicles.id],
-    }),
-}));
-
-export const routesRelations = relations(routes, ({ one, many }) => ({
-    vehicle: one(vehicles, {
-        fields: [routes.vehicleId],
-        references: [vehicles.id],
-    }),
-    driver: one(employees, {
-        fields: [routes.driverId],
-        references: [employees.id],
-    }),
-    stops: many(routeStops),
-}));
-
-export const routeStopsRelations = relations(routeStops, ({ one }) => ({
-    route: one(routes, {
-        fields: [routeStops.routeId],
-        references: [routes.id],
-    }),
-    order: one(sales, {
-        fields: [routeStops.orderId],
-        references: [sales.id],
-    }),
-}));
+// End of File

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "../storage";
 import {
-    vehicles, fuelLogs, maintenanceLogs, routes, routeStops,
+    vehicles, fuelLogs, maintenanceLogs, routes, routeStops, sales, purchases,
     insertVehicleSchema, insertRouteSchema, insertRouteStopSchema
 } from "../../shared/schema";
 import { eq, and, desc } from "drizzle-orm";
@@ -122,24 +122,93 @@ router.get("/fleet/routes/active", async (req, res): Promise<void> => {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
 
-        // Mock return for now as per previous implementation logic
-        res.json([]);
+        const activeRoutes = await db.query.routes.findMany({
+            where: and(eq(routes.organizationId, orgId), eq(routes.status, "active")),
+            with: {
+                stops: {
+                    with: {
+                        order: { with: { customer: true, product: true } },
+                        purchase: { with: { supplier: true, product: true } }
+                    }
+                },
+                vehicle: true,
+                driver: true
+            }
+        });
+        res.json(activeRoutes);
     } catch (error) {
+        console.error("Fetch active routes error:", error);
         res.status(500).json({ message: "Error fetching routes" });
     }
 });
 
 /**
- * Genera una nueva ruta optimizada (Simulación).
+ * Genera una nueva ruta optimizada.
  */
 router.post("/fleet/routes/generate", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
 
-        // Logic would go here. For now returning success mock.
-        res.json({ success: true, message: "Route generated" });
+        const { vehicleId, driverId } = req.body;
+
+        // 1. Find pending deliveries (sales)
+        const pendingSales = await db.query.sales.findMany({
+            where: and(eq(sales.organizationId, orgId), eq(sales.deliveryStatus, "pending"))
+        });
+
+        // 2. Find pending collections (purchases - pickup)
+        const pendingCollections = await db.query.purchases.findMany({
+            where: and(
+                eq(purchases.organizationId, orgId),
+                eq(purchases.deliveryStatus, "pending"),
+                eq(purchases.logisticsMethod, "pickup")
+            )
+        });
+
+        if (pendingSales.length === 0 && pendingCollections.length === 0) {
+            return res.status(400).json({ message: "No tasks found for new route" });
+        }
+
+        // 3. Create Route
+        const [newRoute] = await db.insert(routes).values({
+            organizationId: orgId,
+            vehicleId,
+            driverId,
+            status: "active",
+            startTime: new Date()
+        }).returning();
+
+        // 4. Create Stops
+        let sequence = 1;
+
+        // Add deliveries
+        for (const sale of pendingSales) {
+            await db.insert(routeStops).values({
+                routeId: newRoute.id,
+                orderId: sale.id,
+                stopType: "delivery",
+                sequence: sequence++,
+                status: "pending"
+            });
+            // Mark sale as 'shipped'
+            await db.update(sales).set({ deliveryStatus: "shipped" }).where(eq(sales.id, sale.id));
+        }
+
+        // Add collections
+        for (const purchase of pendingCollections) {
+            await db.insert(routeStops).values({
+                routeId: newRoute.id,
+                purchaseId: purchase.id,
+                stopType: "collection",
+                sequence: sequence++,
+                status: "pending"
+            });
+        }
+
+        res.status(201).json(newRoute);
     } catch (error) {
+        console.error("Generate route error:", error);
         res.status(500).json({ message: "Error generating route" });
     }
 });

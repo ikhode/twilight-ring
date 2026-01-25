@@ -26,6 +26,7 @@ interface ConfigurationContextType {
         productAttributes: { name: string; type: string }[];
         processFlows: { name: string; type: string }[];
         productCategories: string[];
+        cedisAddress: string;
     };
     updateUniversalConfig: (config: any) => void;
 }
@@ -53,6 +54,14 @@ export function ConfigurationProvider({ children }: { children: React.ReactNode 
         adaptiveUiEnabled: true
     });
     const [themeColor, setThemeColorState] = useState<string>("#3b82f6");
+
+    const [universalConfig, setUniversalConfig] = useState({
+        placeTypes: [] as string[],
+        productAttributes: [] as { name: string; type: string }[],
+        processFlows: [] as { name: string; type: string }[],
+        productCategories: [] as string[],
+        cedisAddress: "",
+    });
 
     // Fetch Config from Backend
     const { data: remoteConfig } = useQuery({
@@ -111,15 +120,6 @@ export function ConfigurationProvider({ children }: { children: React.ReactNode 
         document.documentElement.style.setProperty('--primary', c);
         mutation.mutate({ themeColor: c });
     };
-
-    const [universalConfig, setUniversalConfig] = useState({
-        placeTypes: [] as string[],
-        productAttributes: [] as { name: string; type: string }[],
-        processFlows: [] as { name: string; type: string }[],
-        productCategories: [] as string[],
-    });
-
-    // ... (rest of useEffects) ...
 
     const updateUniversalConfig = (config: any) => {
         setUniversalConfig(prev => {

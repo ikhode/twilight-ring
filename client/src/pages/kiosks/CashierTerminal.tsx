@@ -19,6 +19,7 @@ import {
     Plus
 } from "lucide-react";
 import { KioskSession } from "@/types/kiosk";
+import { getKioskHeaders } from "@/lib/kiosk-auth";
 
 interface CashierTerminalProps {
     sessionContext: KioskSession;
@@ -51,26 +52,10 @@ export default function CashierTerminal({ sessionContext, onLogout }: CashierTer
     const [activeTab, setActiveTab] = useState<'payouts' | 'general'>('payouts');
 
     const getAuthHeaders = () => {
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-
-        // 1. Supabase Auth
-        if (session?.access_token) {
-            headers['Authorization'] = `Bearer ${session.access_token}`;
-        }
-
-        // 2. Terminal Bridge Auth
-        const deviceId = localStorage.getItem("kiosk_device_id");
-        const salt = localStorage.getItem("kiosk_device_salt");
-        const terminalAuthEmployeeId = sessionContext.driver?.id || localStorage.getItem("last_auth_employee_id");
-
-        if (deviceId && salt) {
-            headers['X-Device-Auth'] = `${deviceId}:${salt}`;
-        }
-        if (terminalAuthEmployeeId) {
-            headers['X-Employee-ID'] = terminalAuthEmployeeId;
-        }
-
-        return headers;
+        return getKioskHeaders({
+            employeeId: sessionContext.driver?.id || localStorage.getItem("last_auth_employee_id"),
+            supabaseToken: session?.access_token
+        });
     };
 
     // Mock employee search for now, replacing with real search if endpoint exists

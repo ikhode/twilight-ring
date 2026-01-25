@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FaceAuthCamera } from "@/components/kiosks/FaceAuthCamera";
+import { getKioskHeaders } from "@/lib/kiosk-auth";
 
 // Cognitive UI Components
 const PulseDot = ({ color = "bg-primary" }: { color?: string }) => (
@@ -158,7 +159,10 @@ export default function DriverTerminal() {
             if (!driverIdentity?.id) return null;
 
             const res = await fetch(`/api/logistics/fleet/routes/driver/${driverIdentity.id}`, {
-                headers: { Authorization: `Bearer ${session?.access_token}` }
+                headers: getKioskHeaders({
+                    employeeId: driverIdentity.id,
+                    supabaseToken: session?.access_token
+                })
             });
             if (!res.ok) return null;
             return res.json();
@@ -170,10 +174,10 @@ export default function DriverTerminal() {
         mutationFn: async ({ stopId, signature, isPaid, paymentAmount, paymentMethod }: any) => {
             await fetch(`/api/logistics/fleet/routes/stops/${stopId}/complete`, {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${session?.access_token}`
-                },
+                headers: getKioskHeaders({
+                    employeeId: driverIdentity?.id,
+                    supabaseToken: session?.access_token
+                }),
                 body: JSON.stringify({
                     signature,
                     lat: 19.4326,

@@ -247,9 +247,21 @@ export default function Logistics() {
     });
 
     const { data: salesOrders = [] } = useQuery({
-        queryKey: ["/api/operations/sales/orders"],
+        queryKey: ["/api/sales"],
         queryFn: async () => {
-            const res = await fetch("/api/operations/sales/orders", {
+            const res = await fetch("/api/sales", {
+                headers: { Authorization: `Bearer ${session?.access_token}` }
+            });
+            if (!res.ok) return [];
+            return res.json();
+        },
+        enabled: !!session?.access_token
+    });
+
+    const { data: purchaseOrders = [] } = useQuery({
+        queryKey: ["/api/purchases"],
+        queryFn: async () => {
+            const res = await fetch("/api/purchases", {
                 headers: { Authorization: `Bearer ${session?.access_token}` }
             });
             if (!res.ok) return [];
@@ -286,9 +298,11 @@ export default function Logistics() {
 
     // Realtime subscriptions
     useSupabaseRealtime({ table: 'vehicles', queryKey: ["/api/logistics/fleet/vehicles"] });
-    useSupabaseRealtime({ table: 'sales', queryKey: ["/api/operations/sales/orders"] });
+    useSupabaseRealtime({ table: 'sales', queryKey: ["/api/sales"] });
+    useSupabaseRealtime({ table: 'purchases', queryKey: ["/api/purchases"] });
     useSupabaseRealtime({ table: 'routes', queryKey: ["/api/logistics/fleet/routes/active"] });
     useSupabaseRealtime({ table: 'terminals', queryKey: ["/api/kiosks"] });
+    useSupabaseRealtime({ table: 'ai_insights', queryKey: ["/api/cognitive/insights"] });
 
     const { data: employees = [] } = useQuery({
         queryKey: ["/api/hr/employees"],
@@ -302,10 +316,25 @@ export default function Logistics() {
     const { data: activeRoutes = [] } = useQuery({
         queryKey: ["/api/logistics/fleet/routes/active"],
         queryFn: async () => {
-            // Mock fetching active routes - In real app create specific endpoint
-            // For now we'll just check if we can simulate the "Active" state
-            return [];
-        }
+            const res = await fetch("/api/logistics/fleet/routes/active", {
+                headers: { Authorization: `Bearer ${session?.access_token}` }
+            });
+            if (!res.ok) return [];
+            return res.json();
+        },
+        enabled: !!session?.access_token
+    });
+
+    const { data: aiInsights = [] } = useQuery({
+        queryKey: ["/api/cognitive/insights"],
+        queryFn: async () => {
+            const res = await fetch("/api/cognitive/insights", {
+                headers: { Authorization: `Bearer ${session?.access_token}` }
+            });
+            if (!res.ok) return [];
+            return res.json();
+        },
+        enabled: !!session?.access_token
     });
 
     const generateRouteMutation = useMutation({
@@ -345,9 +374,10 @@ export default function Logistics() {
                                     <CardContent className="p-4 pt-0 text-2xl font-black text-white">{vehiclesData.length}</CardContent>
                                 </Card>
                                 <Card className="bg-slate-900/50 border-slate-800">
-                                    <CardHeader className="p-4 pb-2"><CardTitle className="text-xs text-slate-400">Entregas Hoy</CardTitle></CardHeader>
+                                    <CardHeader className="p-4 pb-2"><CardTitle className="text-xs text-slate-400">Logística Pendiente (E/R)</CardTitle></CardHeader>
                                     <CardContent className="p-4 pt-0 text-2xl font-black text-white">
-                                        {salesOrders.filter((s: any) => new Date(s.date).toDateString() === new Date().toDateString()).length}
+                                        {salesOrders.filter((s: any) => s.deliveryStatus !== 'delivered').length +
+                                            purchaseOrders.filter((p: any) => p.logisticsMethod === 'pickup' && p.deliveryStatus !== 'received').length}
                                     </CardContent>
                                 </Card>
                                 <Card className="bg-slate-900/50 border-slate-800">
@@ -372,39 +402,35 @@ export default function Logistics() {
                                 </CardHeader>
                                 <CardContent className="p-0 overflow-y-auto custom-scrollbar flex-1">
                                     <div className="divide-y divide-white/5">
-                                        {/* Using Maintenance and Sales as "Events" for now as we don't have Vision Events */}
-                                        {salesOrders.length === 0 && maintenanceLogs.length === 0 ? (
+                                        {salesOrders.length === 0 && purchaseOrders.length === 0 && maintenanceLogs.length === 0 ? (
                                             <div className="p-6 text-center text-slate-500 text-xs">
-                                                No hay actividad reciente detectada por el sistema.
+                                                No hay actividad logística reciente.
                                             </div>
                                         ) : (
                                             <>
-                                                {salesOrders.slice(0, 5).map((order: any) => (
-                                                    <div key={order.id} className="p-4 flex items-start gap-3 hover:bg-white/5 transition-colors">
-                                                        <div className="p-2 rounded-lg bg-slate-800 border border-slate-700">
-                                                            <Package className="w-4 h-4 text-blue-400" />
+                                                {[
+                                                    ...salesOrders.map((s: any) => ({ ...s, logType: 'sale' })),
+                                                    ...purchaseOrders.filter((p: any) => p.logisticsMethod === 'pickup').map((p: any) => ({ ...p, logType: 'pickup' })),
+                                                    ...maintenanceLogs.map((m: any) => ({ ...m, logType: 'maintenance' }))
+                                                ].sort((a, b) => new Date(b.date || b.createdAt).getTime() - new Date(a.date || a.createdAt).getTime()).slice(0, 10).map((item: any) => (
+                                                    <div key={item.id} className="p-4 flex items-start gap-3 hover:bg-white/5 transition-colors">
+                                                        <div className={cn(
+                                                            "p-2 rounded-lg bg-slate-800 border",
+                                                            item.logType === 'sale' ? "border-blue-500/30" :
+                                                                item.logType === 'pickup' ? "border-purple-500/30" : "border-orange-500/30"
+                                                        )}>
+                                                            {item.logType === 'sale' ? <Package className="w-4 h-4 text-blue-400" /> :
+                                                                item.logType === 'pickup' ? <History className="w-4 h-4 text-purple-400" /> :
+                                                                    <Truck className="w-4 h-4 text-orange-400" />}
                                                         </div>
                                                         <div>
                                                             <p className="text-xs font-bold text-slate-200">
-                                                                Orden de Venta: {order.product?.name || "Producto"}
+                                                                {item.logType === 'sale' ? `Venta: ${item.product?.name || 'Entrega'}` :
+                                                                    item.logType === 'pickup' ? `Recolección: ${item.supplier?.name || item.product?.name || 'Pickup'}` :
+                                                                        `Mantenimiento: ${item.vehicle?.plate}`}
                                                             </p>
-                                                            <p className="text-[10px] text-slate-500 mt-1">
-                                                                {new Date(order.date).toLocaleTimeString()} • {order.quantity} unidades
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                                {maintenanceLogs.slice(0, 5).map((log: any) => (
-                                                    <div key={log.id} className="p-4 flex items-start gap-3 hover:bg-white/5 transition-colors">
-                                                        <div className="p-2 rounded-lg bg-slate-800 border border-slate-700">
-                                                            <Truck className="w-4 h-4 text-orange-400" />
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-xs font-bold text-slate-200">
-                                                                Mantenimiento: {log.vehicle?.plate || "Vehículo"}
-                                                            </p>
-                                                            <p className="text-[10px] text-slate-500 mt-1">
-                                                                {new Date(log.date).toLocaleDateString()} • {log.type}
+                                                            <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-tighter">
+                                                                {new Date(item.date || item.createdAt).toLocaleString()} • {item.quantity || item.type || ""} {item.quantity ? 'unids' : ''}
                                                             </p>
                                                         </div>
                                                     </div>
@@ -587,31 +613,36 @@ export default function Logistics() {
                                             maxZoom={20}
                                         />
 
-                                        {/* Mock Nodes Visualization */}
-                                        <Marker position={[19.42, -99.12]} icon={L.divIcon({ className: '', html: '<div class="w-3 h-3 bg-blue-500 rounded-full border border-black shadow-[0_0_10px_blue]"></div>' })}>
-                                            <LeafletTooltip direction="top" offset={[0, -5]} opacity={1} permanent>CEDIS Principal</LeafletTooltip>
+                                        {/* CEDIS Marker */}
+                                        <Marker position={[19.4326, -99.1332]} icon={L.divIcon({ className: '', html: '<div class="w-4 h-4 bg-primary rounded-full border-2 border-white shadow-[0_0_15px_rgba(59,130,246,0.6)]"></div>' })}>
+                                            <LeafletTooltip direction="top" offset={[0, -5]} opacity={1} permanent>
+                                                {universalConfig.cedisAddress || "CEDIS Principal"}
+                                            </LeafletTooltip>
                                         </Marker>
 
-                                        <Marker position={[19.44, -99.14]} icon={L.divIcon({ className: '', html: '<div class="w-2 h-2 bg-slate-500 rounded-full opacity-50"></div>' })}>
-                                            <Popup>Cliente: Tienda A</Popup>
-                                        </Marker>
-
-                                        {/* Mock Nodes */}
-                                        {[
-                                            { x: 20, y: 30, type: "warehouse" },
-                                            { x: 50, y: 50, type: "client" },
-                                            { x: 80, y: 20, type: "client" },
-                                            { x: 60, y: 80, type: "client" },
-                                        ].map((node, i) => (
-                                            <div key={i} className="absolute w-4 h-4 -ml-2 -mt-2 rounded-full border-2 border-slate-700 bg-slate-900 flex items-center justify-center group cursor-pointer hover:scale-125 transition-all"
-                                                style={{ left: `${node.x}%`, top: `${node.y}%` }}
-                                            >
-                                                <div className={cn("w-1.5 h-1.5 rounded-full", node.type === 'warehouse' ? "bg-primary" : "bg-white/50")} />
-
-                                                {/* Hover Tooltip */}
-                                                <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-slate-800 text-xs px-2 py-1 rounded border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20">
-                                                    {node.type === 'warehouse' ? 'Centro de Distribución' : 'Punto de Entrega'}
-                                                </div>
+                                        {/* Active Route Stops */}
+                                        {activeRoutes.map((route: any) => (
+                                            <div key={route.id}>
+                                                {route.stops.map((stop: any) => (
+                                                    <Marker
+                                                        key={stop.id}
+                                                        position={[stop.locationLat || 19.44, stop.locationLng || -99.14]}
+                                                        icon={L.divIcon({
+                                                            className: '',
+                                                            html: `<div class="w-3 h-3 ${stop.stopType === 'delivery' ? 'bg-blue-500' : 'bg-purple-500'} rounded-full border border-white opacity-80"></div>`
+                                                        })}
+                                                    >
+                                                        <Popup className="glass-popup">
+                                                            <div className="p-1">
+                                                                <p className="font-bold text-xs uppercase">{stop.stopType === 'delivery' ? 'Entrega' : 'Recolección'}</p>
+                                                                <p className="text-[10px] text-slate-300">
+                                                                    {stop.stopType === 'delivery' ? stop.order?.customer?.name : stop.purchase?.supplier?.name}
+                                                                </p>
+                                                                <Badge className="mt-1 text-[8px] h-4 uppercase">{stop.status}</Badge>
+                                                            </div>
+                                                        </Popup>
+                                                    </Marker>
+                                                ))}
                                             </div>
                                         ))}
 
@@ -702,18 +733,20 @@ export default function Logistics() {
                                     <CardTitle className="text-sm font-bold uppercase text-slate-400">Panel del Supervisor</CardTitle>
                                 </CardHeader>
                                 <CardContent className="space-y-4 overflow-y-auto flex-1 p-4">
-                                    <div className="p-4 rounded-xl bg-orange-500/10 border border-orange-500/20">
-                                        <div className="flex items-start gap-3">
-                                            <div className="p-2 bg-orange-500/20 rounded-lg shrink-0">
-                                                <AlertCircle className="w-5 h-5 text-orange-500" />
-                                            </div>
-                                            <div>
-                                                <h4 className="text-sm font-bold text-orange-200">Alerta de Tráfico</h4>
-                                                <p className="text-xs text-slate-400 mt-1">Retraso detectado en sector Norte. "Guardian" sugiere desvío por Av. Central (+4 min).</p>
-                                                <Button size="sm" variant="ghost" className="h-6 mt-2 text-orange-400 hover:text-orange-300 hover:bg-orange-500/10 p-0">Aprobar Desvío</Button>
+                                    {aiInsights.filter((i: any) => i.type === 'logistics_alert').slice(0, 1).map((insight: any) => (
+                                        <div key={insight.id} className="p-4 rounded-xl bg-orange-500/10 border border-orange-500/20">
+                                            <div className="flex items-start gap-3">
+                                                <div className="p-2 bg-orange-500/20 rounded-lg shrink-0">
+                                                    <AlertCircle className="w-5 h-5 text-orange-500" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-sm font-bold text-orange-200">{insight.title}</h4>
+                                                    <p className="text-xs text-slate-400 mt-1">{insight.description}</p>
+                                                    <Button size="sm" variant="ghost" className="h-6 mt-2 text-orange-400 hover:text-orange-300 hover:bg-orange-500/10 p-0">Ver Detalles</Button>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
+                                    ))}
 
                                     <div>
                                         <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">En Ruta ({salesOrders.length > 0 ? '1' : '0'})</h4>
@@ -744,15 +777,28 @@ export default function Logistics() {
                                     </div>
 
                                     <div>
-                                        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Entregas Pendientes</h4>
+                                        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Pendientes de Asignar</h4>
                                         <div className="space-y-2">
-                                            {salesOrders.slice(0, 3).map((order: any) => (
-                                                <div key={order.id} className="flex items-center gap-3 p-2 rounded hover:bg-white/5">
-                                                    <div className="w-1.5 h-1.5 rounded-full bg-slate-600" />
-                                                    <p className="text-xs text-slate-300 flex-1 truncate">Orden #{order.id.slice(0, 8)}</p>
-                                                    <Badge variant="outline" className="text-[10px] scale-90 text-slate-500">Pendiente</Badge>
+                                            {[
+                                                ...salesOrders.filter((s: any) => s.deliveryStatus === 'pending').map((s: any) => ({ ...s, type: 'delivery' })),
+                                                ...purchaseOrders.filter((p: any) => p.logisticsMethod === 'pickup' && p.deliveryStatus === 'pending').map((p: any) => ({ ...p, type: 'collection' }))
+                                            ].map((task: any) => (
+                                                <div key={task.id} className="flex items-center gap-3 p-2 rounded hover:bg-white/5 group">
+                                                    <div className={cn("w-1.5 h-1.5 rounded-full", task.type === 'delivery' ? 'bg-blue-500' : 'bg-purple-500')} />
+                                                    <div className="flex-1 truncate">
+                                                        <p className="text-xs text-slate-300 truncate">
+                                                            {task.type === 'delivery' ? (task.customer?.name || `Venta #${task.id.slice(0, 5)}`) : (task.supplier?.name || `Recol #${task.id.slice(0, 5)}`)}
+                                                        </p>
+                                                        <p className="text-[10px] text-slate-500 italic">
+                                                            {task.type === 'delivery' ? 'Entrega' : 'Recolección'} • {task.product?.name}
+                                                        </p>
+                                                    </div>
+                                                    <Badge variant="outline" className="text-[10px] scale-90 text-slate-500 border-white/5 opacity-0 group-hover:opacity-100">UNASSIGNED</Badge>
                                                 </div>
                                             ))}
+                                            {salesOrders.length === 0 && purchaseOrders.length === 0 && (
+                                                <p className="text-xs text-slate-600 italic px-2">No hay tareas pendientes.</p>
+                                            )}
                                         </div>
                                     </div>
                                 </CardContent>

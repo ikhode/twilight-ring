@@ -63,7 +63,7 @@ export default function Settings() {
   }, [profile?.organization]);
 
   const updateOrgMutation = useMutation({
-    mutationFn: async (payload: { name: string, industry: string }) => {
+    mutationFn: async (payload: { name: string, industry: string, settings?: any }) => {
       const res = await fetch("/api/organization", {
         method: "PATCH",
         headers: {
@@ -110,25 +110,22 @@ export default function Settings() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Industria Principal</Label>
-                  <div className="flex gap-2">
-                    <select
-                      value={industryState}
-                      onChange={(e) => setIndustryState(e.target.value)}
-                      className="flex h-10 w-full rounded-md border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-primary"
-                    >
-                      <option value="retail">Retail</option>
-                      <option value="manufacturing">Manufactura</option>
-                      <option value="services">Servicios</option>
-                      <option value="healthcare">Salud</option>
-                      <option value="logistics">Logística</option>
-                      <option value="technology">Tecnología</option>
-                      <option value="other">Otro</option>
-                    </select>
-                  </div>
+                  <Label>Dirección del CEDIS (Base de Operaciones)</Label>
+                  <Input
+                    value={universalConfig.cedisAddress || ""}
+                    onChange={(e) => updateUniversalConfig({ cedisAddress: e.target.value })}
+                    placeholder="Ej. Av. Central 123, Ciudad de México"
+                    className="bg-slate-950 border-slate-800 text-white"
+                  />
+                  <p className="text-[10px] text-slate-500 italic">Esta dirección se utilizará como punto de partida para la optimización de rutas.</p>
                 </div>
+
                 <Button
-                  onClick={() => updateOrgMutation.mutate({ name: orgName, industry: industryState })}
+                  onClick={() => updateOrgMutation.mutate({
+                    name: orgName,
+                    industry: industryState,
+                    settings: { ...universalConfig, cedisAddress: universalConfig.cedisAddress }
+                  })}
                   disabled={updateOrgMutation.isPending}
                   className="w-full bg-primary/20 hover:bg-primary/30 text-primary border border-primary/20 py-6"
                 >

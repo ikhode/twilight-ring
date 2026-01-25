@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { KioskSession } from "@/types/kiosk";
+import { getKioskHeaders } from "@/lib/kiosk-auth";
 
 const PulseDot = ({ color = "bg-primary" }: { color?: string }) => (
     <div className="relative flex h-3 w-3">
@@ -75,7 +76,9 @@ export default function LogisticsTerminal({ sessionContext, onLogout }: { sessio
         queryKey: ["/api/logistics/fleet/routes/driver", driver?.id],
         queryFn: async () => {
             if (!driver?.id) return null;
-            const res = await fetch(`/api/logistics/fleet/routes/driver/${driver.id}`);
+            const res = await fetch(`/api/logistics/fleet/routes/driver/${driver.id}`, {
+                headers: getKioskHeaders({ employeeId: driver.id })
+            });
             if (!res.ok) return null;
             return res.json();
         },
@@ -86,7 +89,10 @@ export default function LogisticsTerminal({ sessionContext, onLogout }: { sessio
         mutationFn: async ({ stopId, signature, isPaid, paymentAmount, paymentMethod }: any) => {
             const res = await fetch(`/api/logistics/fleet/routes/stops/${stopId}/complete`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: getKioskHeaders({
+                    employeeId: driver?.id,
+                    supabaseToken: session?.access_token
+                }),
                 body: JSON.stringify({
                     signature,
                     lat: 0, lng: 0, // In production use real GPS
