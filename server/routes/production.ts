@@ -110,6 +110,13 @@ router.get("/summary", async (req, res): Promise<void> => {
     }
 });
 
+// Helper to get Process definition
+async function getProcess(processId: string, orgId: string) {
+    return await db.query.processes.findFirst({
+        where: and(eq(processes.id, processId), eq(processes.organizationId, orgId))
+    });
+}
+
 router.post("/instances/:id/finish", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
@@ -150,6 +157,36 @@ router.post("/instances/:id/finish", async (req, res): Promise<void> => {
             },
             timestamp: new Date()
         });
+
+        // 3. Auto-Increment Finished Goods Inventory
+        // Fetch linkage from Process Definition
+        const processDef = await getProcess(req.body.processId || (await db.select().from(processInstances).where(eq(processInstances.id, instanceId))).map(p => p.processId)[0], orgId);
+
+        if (processDef) {
+            const workflow = processDef.workflowData as any;
+            // Check for explicit output link
+            const outputProductId = workflow?.outputProductId || workflow?.meta?.outputProductId;
+
+            if (outputProductId && yields > 0) {
+                console.log(`[Production] Auto-incrementing Stock for Product ${outputProductId}. Qty: ${yields}`);
+
+                // Update Product Stock
+                await db.update(products)
+                    .set({ stock: sql`${products.stock} + ${Number(yields)}` })
+                    .where(and(eq(products.id, outputProductId), eq(products.organizationId, orgId)));
+
+                // Log Movement
+                await db.insert(inventoryMovements).values({
+                    organizationId: orgId,
+                    productId: outputProductId,
+                    quantity: Number(yields),
+                    type: "production",
+                    referenceId: instanceId,
+                    notes: `Producción Finalizada: Lote ${instanceId.slice(0, 8)}`,
+                    date: new Date()
+                });
+            }
+        }
 
         res.json({ success: true, message: "Batch finished" });
 

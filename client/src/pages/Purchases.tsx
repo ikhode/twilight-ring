@@ -211,7 +211,7 @@ function CreateProductDialog() {
         category: "Materia Prima",
         productType: "purchase", // Default
         stock: 0,
-        unit: "pza",
+        unit: "", // Let user define or default
         price: 0,
         cost: 0,
     });

@@ -124,4 +124,60 @@ router.get("/alerts", async (req, res): Promise<void> => {
     }
 });
 
+/**
+ * Actualiza un producto (Stock, Precio, Estado).
+ * @route PATCH /api/inventory/products/:id
+ */
+router.patch("/products/:id", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const productId = req.params.id;
+        const { stock, price, isActive, reason } = req.body;
+
+        // 1. Get current state
+        const product = await db.query.products.findFirst({
+            where: and(eq(products.id, productId), eq(products.organizationId, orgId))
+        });
+
+        if (!product) return res.status(404).json({ message: "Product not found" });
+
+        const updates: any = {};
+        if (typeof price === 'number') updates.price = price;
+        if (typeof isActive === 'boolean') updates.isActive = isActive;
+
+        // 2. Handle Stock Adjustment with Traceability
+        if (typeof stock === 'number') {
+            const diff = stock - product.stock;
+            if (diff !== 0) {
+                updates.stock = stock;
+
+                await db.insert(inventoryMovements).values({
+                    organizationId: orgId,
+                    productId: productId,
+                    quantity: diff,
+                    type: "adjustment",
+                    beforeStock: product.stock,
+                    afterStock: stock,
+                    notes: reason || "Ajuste manual de inventario",
+                    date: new Date()
+                });
+            }
+        }
+
+        // 3. Apply Updates
+        if (Object.keys(updates).length > 0) {
+            await db.update(products)
+                .set(updates)
+                .where(eq(products.id, productId));
+        }
+
+        res.json({ success: true, message: "Product updated" });
+    } catch (error) {
+        console.error("Update product error:", error);
+        res.status(500).json({ message: "Failed to update product" });
+    }
+});
+
 export default router;

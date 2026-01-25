@@ -76,6 +76,19 @@ function WorkflowEditor() {
     const [isCatalogOpen, setIsCatalogOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
     const [activeTab, setActiveTab] = useState("all");
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [processName, setProcessName] = useState("");
+    const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+
+    // Fetch Products for Settings
+    const { data: products = [] } = useQuery({
+        queryKey: ["/api/inventory/products"],
+        queryFn: async () => {
+            const res = await fetch("/api/inventory/products");
+            if (!res.ok) return [];
+            return res.json();
+        }
+    });
 
     // Fetch Catalog & Suggestions
     const { data: catalog } = useQuery({
@@ -116,9 +129,15 @@ function WorkflowEditor() {
 
     // Initial flow initialization
     useEffect(() => {
-        if (existingProcess && existingProcess.workflowData) {
-            setNodes(existingProcess.workflowData.nodes || []);
-            setEdges(existingProcess.workflowData.edges || []);
+        if (existingProcess) {
+            if (existingProcess.workflowData) {
+                setNodes(existingProcess.workflowData.nodes || []);
+                setEdges(existingProcess.workflowData.edges || []);
+                // Load metadata
+                const meta = existingProcess.workflowData as any;
+                if (meta.outputProductId) setSelectedProductId(meta.outputProductId);
+            }
+            setProcessName(existingProcess.name);
         } else if (!processId) {
             // Only set default placeholders if NOT loading a process (or if new/empty)
             setNodes([
@@ -279,9 +298,13 @@ function WorkflowEditor() {
     const saveMutation = useMutation({
         mutationFn: async () => {
             const payload = {
-                name: existingProcess?.name || "Nuevo Flujo",
+                name: processName || existingProcess?.name || "Nuevo Flujo",
                 description: existingProcess?.description || "Sin descripción",
-                workflowData: { nodes, edges },
+                workflowData: {
+                    nodes,
+                    edges,
+                    outputProductId: selectedProductId // Save the link!
+                },
                 type: "production" // Force type to production for now
             };
 
@@ -338,7 +361,14 @@ function WorkflowEditor() {
                         </div>
 
                         <div className="flex items-center gap-3">
-                            <Button variant="outline" className="h-8 border-white/10 text-[10px] uppercase font-black uppercase">
+                            <Button
+                                variant="outline"
+                                className="h-8 border-white/10 text-[10px] uppercase font-black"
+                                onClick={() => setIsSettingsOpen(true)}
+                            >
+                                <Settings2 className="w-3.5 h-3.5 mr-2" /> Config
+                            </Button>
+                            <Button variant="outline" className="h-8 border-white/10 text-[10px] uppercase font-black">
                                 <Play className="w-3.5 h-3.5 mr-2" /> Simular
                             </Button>
                             <Button
@@ -361,7 +391,7 @@ function WorkflowEditor() {
                             fitView
                             className="bg-slate-950"
                         >
-                            <Background color="#1e293b" gap={20} variant={BackgroundVariant.Dots} />
+                            <Background color="#cbd5e1" gap={20} size={1} variant={BackgroundVariant.Dots} className="opacity-20" />
                             <Controls className="bg-slate-900 border-white/10" />
                         </ReactFlow>
                     </div>
@@ -542,6 +572,45 @@ function WorkflowEditor() {
                                             </>
                                         );
                                     })()}
+                                </div>
+                            </ScrollArea>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+            {/* Process Settings Dialog */}
+            <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+                <DialogContent className="bg-slate-900 border-slate-800">
+                    <DialogHeader>
+                        <DialogTitle className="text-white">Configuración del Proceso</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-400 uppercase">Nombre del Proceso</label>
+                            <Input
+                                value={processName}
+                                onChange={(e) => setProcessName(e.target.value)}
+                                className="bg-slate-950 border-slate-800"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-400 uppercase">Producto Resultante (Output)</label>
+                            <p className="text-[10px] text-slate-500">Al finalizar un lote de este proceso, se incrementará el stock de este producto.</p>
+                            <ScrollArea className="h-48 rounded-md border border-slate-800 bg-slate-950 p-2">
+                                <div className="space-y-1">
+                                    {products.map((p: any) => (
+                                        <div
+                                            key={p.id}
+                                            onClick={() => setSelectedProductId(p.id)}
+                                            className={cn(
+                                                "p-2 rounded cursor-pointer flex justify-between items-center text-xs",
+                                                selectedProductId === p.id ? "bg-primary/20 text-primary" : "text-slate-400 hover:bg-slate-900"
+                                            )}
+                                        >
+                                            <span>{p.name}</span>
+                                            {selectedProductId === p.id && <Zap className="w-3 h-3" />}
+                                        </div>
+                                    ))}
                                 </div>
                             </ScrollArea>
                         </div>

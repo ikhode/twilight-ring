@@ -52,6 +52,8 @@ export default function Inventory() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
+  const [isAdjustDialogOpen, setIsAdjustDialogOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [selectedProductForHistory, setSelectedProductForHistory] = useState<any>(null);
 
   // Fallback to defaults if no universal categories are defined
@@ -93,7 +95,7 @@ export default function Inventory() {
       ...p,
       price: p.price / 100,
       status: p.stock < 100 ? "critical" : p.stock < 500 ? "low" : "available",
-      unit: "pza"
+      unit: p.unit || "pza"
     }));
   }, [dbProducts]);
 
@@ -182,6 +184,28 @@ export default function Inventory() {
     },
     onError: () => {
       toast({ title: "Error", description: "No se pudo archivar el producto.", variant: "destructive" });
+    }
+  });
+
+  const adjustStockMutation = useMutation({
+    mutationFn: async ({ productId, stock, reason }: { productId: string, stock: number, reason?: string }) => {
+      const res = await fetch(`/api/inventory/products/${productId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify({ stock, reason })
+      });
+      if (!res.ok) throw new Error("Failed to update stock");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/inventory/products"] });
+      toast({ title: "Inventario Actualizado", description: "El stock se ha ajustado correctamente." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     }
   });
 
@@ -379,7 +403,7 @@ export default function Inventory() {
                           <AlertTriangle className="w-3 h-3 mr-1" />
                           Agota en {item.cognitive.daysRemaining} días
                         </Badge>
-                        <span className="text-[10px] text-muted-foreground">Sugerido: +{item.cognitive.suggestedOrder} pza</span>
+                        <span className="text-[10px] text-muted-foreground">Sugerido: +{item.cognitive.suggestedOrder} {item.unit}</span>
                       </div>
                     ) : (
                       <span className="text-[10px] text-muted-foreground opacity-50 flex items-center gap-1">
@@ -450,22 +474,8 @@ export default function Inventory() {
                         size="sm"
                         data-testid={`button-adjust-stock-${item.id}`}
                         onClick={() => {
-                          const newStock = prompt("Ingrese el nuevo stock:", item.stock.toString());
-                          if (newStock !== null) {
-                            const val = parseInt(newStock);
-                            if (!isNaN(val)) {
-                              // Using re-use of mutation or creating a specific one. 
-                              // For now, let's use the archive logic pattern but for stock.
-                              fetch(`/api/inventory/products/${item.id}`, {
-                                method: 'PATCH',
-                                headers: {
-                                  'Content-Type': 'application/json',
-                                  'Authorization': `Bearer ${session?.access_token}`
-                                },
-                                body: JSON.stringify({ stock: val })
-                              }).then(() => queryClient.invalidateQueries({ queryKey: ["/api/inventory/products"] }));
-                            }
-                          }
+                          setSelectedProduct(item);
+                          setIsAdjustDialogOpen(true);
                         }}
                       >
                         <ArrowUpDown className="w-4 h-4 mr-1" />
@@ -503,6 +513,17 @@ export default function Inventory() {
             />
           </CardContent>
         </Card>
+
+        <StockAdjustmentDialog
+          isOpen={isAdjustDialogOpen}
+          onOpenChange={setIsAdjustDialogOpen}
+          product={selectedProduct}
+          onAdjust={(stock, reason) => {
+            adjustStockMutation.mutate({ productId: selectedProduct.id, stock, reason });
+            setIsAdjustDialogOpen(false);
+          }}
+          isPending={adjustStockMutation.isPending}
+        />
 
         <MovementHistoryDialog
           isOpen={isHistoryDialogOpen}
@@ -600,6 +621,66 @@ export default function Inventory() {
         </div>
       </div>
     </AppLayout>
+  );
+}
+
+function StockAdjustmentDialog({ isOpen, onOpenChange, product, onAdjust, isPending }: { isOpen: boolean, onOpenChange: (v: boolean) => void, product: any, onAdjust: (stock: number, reason: string) => void, isPending: boolean }) {
+  const [newStock, setNewStock] = useState<number>(0);
+  const [reason, setReason] = useState("");
+
+  useEffect(() => {
+    if (product) {
+      setNewStock(product.stock);
+      setReason("");
+    }
+  }, [product, isOpen]);
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Ajustar Inventario: {product?.name}</DialogTitle>
+          <DialogDescription>
+            Modifique la cantidad actual en existencia. Este cambio quedará auditado.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label className="text-right">Stock Actual</Label>
+            <div className="col-span-3 font-mono font-bold text-lg">
+              {product?.stock} {product?.unit}
+            </div>
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="adj-stock" className="text-right text-primary font-bold">Nuevo Stock</Label>
+            <Input
+              id="adj-stock"
+              type="number"
+              value={newStock}
+              onChange={(e) => setNewStock(parseInt(e.target.value) || 0)}
+              className="col-span-3 border-primary/50 focus:border-primary"
+              autoFocus
+            />
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="adj-reason" className="text-right">Motivo</Label>
+            <Input
+              id="adj-reason"
+              placeholder="Ej. Conteo cíclico, merma, corrección..."
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              className="col-span-3"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button onClick={() => onAdjust(newStock, reason)} disabled={isPending}>
+            {isPending ? "Guardando..." : "Confirmar Ajuste"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

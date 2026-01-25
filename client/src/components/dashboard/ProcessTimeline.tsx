@@ -148,7 +148,7 @@ export const ProcessTimeline = ({ instanceId = "demo-instance" }: { instanceId?:
                                                 .filter(([k]) => k !== 'insight' && k !== 'quality' && k !== 'temp') // Filter if needed or show all
                                                 .map(([key, val]) => (
                                                     <span key={key} className="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400">
-                                                        {key}: {String(val)}
+                                                        {key}: {typeof val === 'object' && val !== null ? JSON.stringify(val).replace(/["{}]/g, '').replace(/:/g, ': ').replace(/,/g, ', ') : String(val)}
                                                     </span>
                                                 ))}
                                         </div>

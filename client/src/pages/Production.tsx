@@ -696,7 +696,15 @@ export default function Production() {
               <StatCard title="Pagados" value={ticketStats.paid} icon={DollarSign} variant="primary" />
               <StatCard title="Total" value={formatCurrency(ticketStats.totalAmount / 100)} icon={DollarSign} />
             </div>
-            <Card className="mt-6"><CardContent className="pt-6"><DataTable columns={[{ key: "id", header: "ID", render: (i) => i.id.slice(0, 8) }, { key: "employee", header: "Empleado", render: (i) => i.employeeName }, { key: "taskName", header: "Proceso" }, { key: "quantity", header: "Cant." }, { key: "status", header: "Estado" }, { key: "totalAmount", header: "Monto", render: (i) => formatCurrency(i.totalAmount / 100) }, { key: "actions", header: "Acciones", render: (i) => i.status === 'pending' ? <Button size="sm" onClick={() => approveMutation.mutate(i.id)}>Aprobar</Button> : null }]} data={tickets} /></CardContent></Card>
+            <Card className="mt-6"><CardContent className="pt-6"><DataTable columns={[{ key: "id", header: "ID", render: (i) => i.id.slice(0, 8) }, { key: "employee", header: "Empleado", render: (i) => i.employeeName }, { key: "taskName", header: "Proceso" }, {
+              key: "quantity", header: "Cant.", render: (i) => {
+                const task = pieceworkTasks.find((t: any) => t.name === i.taskName);
+                return `${i.quantity} ${task?.unit || 'pza'}`;
+              }
+            },
+            { key: "status", header: "Estado" },
+            { key: "totalAmount", header: "Monto", render: (i) => formatCurrency(i.totalAmount / 100) },
+            { key: "actions", header: "Acciones", render: (i) => i.status === 'pending' ? <Button size="sm" onClick={() => approveMutation.mutate(i.id)}>Aprobar</Button> : null }]} data={tickets} /></CardContent></Card>
           </TabsContent>
         </Tabs>
       </div >
@@ -712,9 +720,13 @@ function FinalizeBatchDialog({ instance, tickets = [], onConfirm, isVisionEnable
 
   // Auto-calculate from tickets (The "Smart" part requested)
   const stats = {
-    destopado: tickets.filter(t => t.taskName?.toLowerCase().includes('destop') || t.taskName?.toLowerCase().includes('corte')).reduce((a, b) => a + (b.quantity || 0), 0),
-    deshuesado: tickets.filter(t => t.taskName?.toLowerCase().includes('deshues')).reduce((a, b) => a + (b.quantity || 0), 0),
-    pelado: tickets.filter(t => t.taskName?.toLowerCase().includes('pelad')).reduce((a, b) => a + (b.quantity || 0), 0), // Assuming this brings Kg
+    pelado: tickets.filter(t => t.taskName?.toLowerCase().includes('pelad')).reduce((a, b) => a + (b.quantity || 0), 0),
+  };
+
+  const getUnitForTask = (name: string) => {
+    // Basic heuristic to match tasks to units if pieceworkTasks is not readily available or for specific known steps
+    if (name.toLowerCase().includes('pelad')) return 'kg';
+    return 'pza';
   };
 
   const calculateEstimate = () => {
@@ -760,15 +772,15 @@ function FinalizeBatchDialog({ instance, tickets = [], onConfirm, isVisionEnable
 
                 <div className="relative z-10 bg-slate-900 px-2 flex flex-col items-center gap-1">
                   <span className="text-slate-500">Destopado</span>
-                  <Badge variant={stats.destopado > 0 ? "default" : "outline"} className="bg-blue-600 hover:bg-blue-700">{stats.destopado} pzas</Badge>
+                  <Badge variant={stats.destopado > 0 ? "default" : "outline"} className="bg-blue-600 hover:bg-blue-700">{stats.destopado} {getUnitForTask('destopado')}</Badge>
                 </div>
                 <div className="relative z-10 bg-slate-900 px-2 flex flex-col items-center gap-1">
                   <span className="text-slate-500">Deshuesado</span>
-                  <Badge variant={stats.deshuesado > 0 ? "default" : "outline"} className={cn("transition-colors", stats.deshuesado < stats.destopado ? "bg-amber-600" : "bg-emerald-600")}>{stats.deshuesado} pzas</Badge>
+                  <Badge variant={stats.deshuesado > 0 ? "default" : "outline"} className={cn("transition-colors", stats.deshuesado < stats.destopado ? "bg-amber-600" : "bg-emerald-600")}>{stats.deshuesado} {getUnitForTask('deshuesado')}</Badge>
                 </div>
                 <div className="relative z-10 bg-slate-900 px-2 flex flex-col items-center gap-1">
                   <span className="text-slate-500">Pelado</span>
-                  <Badge variant={stats.pelado > 0 ? "default" : "outline"} className="bg-purple-600 hover:bg-purple-700">{stats.pelado} kg</Badge>
+                  <Badge variant={stats.pelado > 0 ? "default" : "outline"} className="bg-purple-600 hover:bg-purple-700">{stats.pelado} {getUnitForTask('pelado')}</Badge>
                 </div>
               </div>
               {stats.destopado > stats.deshuesado && (

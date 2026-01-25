@@ -1,20 +1,40 @@
 import { Router, Request, Response } from "express";
 import { db, storage } from "../storage";
-import { getOrgIdFromRequest } from "../auth_util";
+import { getOrgIdFromRequest, getAuthenticatedUser } from "../auth_util";
 import { insertPieceworkTicketSchema, insertProductionTaskSchema } from "../../shared/schema";
 import {
     pieceworkTickets,
     productionTasks,
     products,
     payrollAdvances,
-    payrollAdvances,
     employees,
     expenses,
-    inventoryMovements
+    inventoryMovements,
+    cashRegisters,
+    cashTransactions,
+    users,
+    userOrganizations
 } from "../../shared/schema";
 import { eq, and, desc, inArray, sql } from "drizzle-orm";
 
 const router = Router();
+
+// Helper to get performer ID safe for Cashier
+async function getPerformerId(req: Request, orgId: string): Promise<string> {
+    const user = await getAuthenticatedUser(req);
+    if (user) return user.id;
+
+    // If no user (Kiosk mode), find a fallback user (Admin or Owner)
+    const admin = await db.query.userOrganizations.findFirst({
+        where: and(
+            eq(userOrganizations.organizationId, orgId),
+            eq(userOrganizations.role, 'admin')
+        )
+    });
+    // Fallback to strict "system" placeholder if we had one, but we must link to a valid user ID.
+    // Assuming at least one admin exists.
+    return admin?.userId || '00000000-0000-0000-0000-000000000000';
+}
 
 /**
  * Obtiene el listado de tickets de destajo con filtros opcionales.
@@ -332,15 +352,54 @@ router.post("/tickets/:id/pay", async (req: Request, res: Response): Promise<voi
 
         const ticketId = req.params.id;
 
-        await db.update(pieceworkTickets)
+        const [ticket] = await db.update(pieceworkTickets)
             .set({ status: 'paid', updatedAt: new Date() })
             .where(and(
                 eq(pieceworkTickets.id, ticketId),
                 eq(pieceworkTickets.organizationId, orgId)
-            ));
+            ))
+            .returning();
+
+        if (ticket) {
+            // 1. Record Expense
+            await db.insert(expenses).values({
+                organizationId: orgId,
+                amount: ticket.totalAmount,
+                category: 'payroll',
+                description: `Pago Ticket: ${ticket.taskName} (ID: ${ticket.id.slice(0, 8)})`,
+                date: new Date()
+            });
+
+            // 2. Update Cash Register (If open)
+            const register = await db.query.cashRegisters.findFirst({
+                where: and(
+                    eq(cashRegisters.organizationId, orgId),
+                    eq(cashRegisters.status, 'open')
+                )
+            });
+
+            if (register && register.currentSessionId) {
+                const performerId = await getPerformerId(req, orgId);
+                await db.insert(cashTransactions).values({
+                    organizationId: orgId,
+                    registerId: register.id,
+                    sessionId: register.currentSessionId,
+                    type: "out",
+                    category: "payroll",
+                    amount: ticket.totalAmount,
+                    description: `Pago Ticket: ${ticket.taskName}`,
+                    performedBy: performerId
+                });
+
+                await db.update(cashRegisters)
+                    .set({ balance: sql`${cashRegisters.balance} - ${ticket.totalAmount}` })
+                    .where(eq(cashRegisters.id, register.id));
+            }
+        }
 
         res.json({ success: true });
     } catch (error) {
+        console.error("Pay ticket error:", error);
         res.status(500).json({ message: "Failed to pay ticket" });
     }
 });
@@ -437,7 +496,7 @@ router.post("/payout", async (req: Request, res: Response): Promise<void> => {
 
         const netPayout = totalTicketAmount - totalAdvanceAmount;
 
-        // 3. Record Expense
+        // 3. Record Expense & Cash Transaction
         if (netPayout > 0) {
             await db.insert(expenses).values({
                 organizationId: orgId,
@@ -446,6 +505,32 @@ router.post("/payout", async (req: Request, res: Response): Promise<void> => {
                 description: `Pago de Nómina/Destajo (Tickets: ${ticketIds.length})`,
                 date: new Date()
             });
+
+            // Update Cash Register
+            const register = await db.query.cashRegisters.findFirst({
+                where: and(
+                    eq(cashRegisters.organizationId, orgId),
+                    eq(cashRegisters.status, 'open')
+                )
+            });
+
+            if (register && register.currentSessionId) {
+                const performerId = await getPerformerId(req, orgId);
+                await db.insert(cashTransactions).values({
+                    organizationId: orgId,
+                    registerId: register.id,
+                    sessionId: register.currentSessionId,
+                    type: "out",
+                    category: "payroll",
+                    amount: netPayout,
+                    description: `Pago Nómina (Tickets: ${ticketIds.length})`,
+                    performedBy: performerId
+                });
+
+                await db.update(cashRegisters)
+                    .set({ balance: sql`${cashRegisters.balance} - ${netPayout}` })
+                    .where(eq(cashRegisters.id, register.id));
+            }
         }
 
         res.json({
