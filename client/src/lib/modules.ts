@@ -105,14 +105,7 @@ export const ERP_MODULES: SystemModule[] = [
         href: '/documents',
         category: 'operations'
     },
-    {
-        id: 'admin',
-        name: 'Administración',
-        description: 'Configuración y control global',
-        icon: Shield,
-        href: '/admin',
-        category: 'support'
-    },
+
     {
         id: 'query',
         name: 'Consultas IA',

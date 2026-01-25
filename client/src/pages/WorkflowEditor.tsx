@@ -475,39 +475,73 @@ function WorkflowEditor() {
 
                             <ScrollArea className="flex-1">
                                 <div className="grid grid-cols-2 gap-4">
-                                    {(catalog as any)?.triggers?.map((t: any) => (
-                                        <Card
-                                            key={t.id}
-                                            onClick={() => addStep(t, 'trigger')}
-                                            className="p-5 bg-white/5 border-white/5 hover:border-primary/50 transition-all cursor-pointer group"
-                                        >
-                                            <Badge className="bg-primary/20 text-primary border-none text-[8px] mb-2">DISPARADOR</Badge>
-                                            <h4 className="text-sm font-bold text-white group-hover:text-primary transition-colors">{t.name}</h4>
-                                            <p className="text-[10px] text-slate-500 mt-1">{t.description}</p>
-                                        </Card>
-                                    ))}
-                                    {(catalog as any)?.conditions?.map((c: any) => (
-                                        <Card
-                                            key={c.id}
-                                            onClick={() => addStep(c, 'condition')}
-                                            className="p-5 bg-white/5 border-white/5 hover:border-orange-500/50 transition-all cursor-pointer group"
-                                        >
-                                            <Badge className="bg-orange-500/20 text-orange-500 border-none text-[8px] mb-2">CONDICIÓN</Badge>
-                                            <h4 className="text-sm font-bold text-white group-hover:text-orange-500 transition-colors">{c.name}</h4>
-                                            <p className="text-[10px] text-slate-500 mt-1">{c.description}</p>
-                                        </Card>
-                                    ))}
-                                    {(catalog as any)?.actions?.map((a: any) => (
-                                        <Card
-                                            key={a.id}
-                                            onClick={() => addStep(a, 'action')}
-                                            className="p-5 bg-white/5 border-white/5 hover:border-primary/50 transition-all cursor-pointer group"
-                                        >
-                                            <Badge className="bg-slate-800 text-slate-400 border-none text-[8px] mb-2">ACCIÓN</Badge>
-                                            <h4 className="text-sm font-bold text-white group-hover:text-primary transition-colors">{a.name}</h4>
-                                            <p className="text-[10px] text-slate-500 mt-1">{a.description}</p>
-                                        </Card>
-                                    ))}
+                                    {/* Filtering Logic */}
+                                    {(() => {
+                                        const categoryMap: Record<string, string> = {
+                                            'transacciones': 'transactions',
+                                            'clientes': 'customers',
+                                            'productos': 'products',
+                                            'logística': 'logistics',
+                                            'ia': 'ai',
+                                            'todos': 'all'
+                                        };
+                                        const targetCategory = categoryMap[activeTab] || 'all';
+
+                                        const filterItem = (item: any) => {
+                                            if (!item) return false;
+                                            const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                                item.description.toLowerCase().includes(searchTerm.toLowerCase());
+
+                                            // 'utility' and 'communication' show up in 'todos' or appropriate context? 
+                                            // Let's assume 'todos' shows everything.
+                                            // For specific tabs, strictly filter by category.
+                                            // We can also allow 'utility' to show in 'transacciones' if we want, but let's be strict for now.
+                                            let matchesCategory = targetCategory === 'all' || item.category === targetCategory;
+
+                                            // Fallback: if category is not defined on item (older items), show in 'todos' only
+                                            if (targetCategory !== 'all' && !item.category) matchesCategory = false;
+
+                                            return matchesSearch && matchesCategory;
+                                        };
+
+                                        return (
+                                            <>
+                                                {(catalog as any)?.triggers?.filter(filterItem).map((t: any) => (
+                                                    <Card
+                                                        key={t.id}
+                                                        onClick={() => addStep(t, 'trigger')}
+                                                        className="p-5 bg-white/5 border-white/5 hover:border-primary/50 transition-all cursor-pointer group"
+                                                    >
+                                                        <Badge className="bg-primary/20 text-primary border-none text-[8px] mb-2">DISPARADOR</Badge>
+                                                        <h4 className="text-sm font-bold text-white group-hover:text-primary transition-colors">{t.name}</h4>
+                                                        <p className="text-[10px] text-slate-500 mt-1">{t.description}</p>
+                                                    </Card>
+                                                ))}
+                                                {(catalog as any)?.conditions?.filter(filterItem).map((c: any) => (
+                                                    <Card
+                                                        key={c.id}
+                                                        onClick={() => addStep(c, 'condition')}
+                                                        className="p-5 bg-white/5 border-white/5 hover:border-orange-500/50 transition-all cursor-pointer group"
+                                                    >
+                                                        <Badge className="bg-orange-500/20 text-orange-500 border-none text-[8px] mb-2">CONDICIÓN</Badge>
+                                                        <h4 className="text-sm font-bold text-white group-hover:text-orange-500 transition-colors">{c.name}</h4>
+                                                        <p className="text-[10px] text-slate-500 mt-1">{c.description}</p>
+                                                    </Card>
+                                                ))}
+                                                {(catalog as any)?.actions?.filter(filterItem).map((a: any) => (
+                                                    <Card
+                                                        key={a.id}
+                                                        onClick={() => addStep(a, 'action')}
+                                                        className="p-5 bg-white/5 border-white/5 hover:border-primary/50 transition-all cursor-pointer group"
+                                                    >
+                                                        <Badge className="bg-slate-800 text-slate-400 border-none text-[8px] mb-2">ACCIÓN</Badge>
+                                                        <h4 className="text-sm font-bold text-white group-hover:text-primary transition-colors">{a.name}</h4>
+                                                        <p className="text-[10px] text-slate-500 mt-1">{a.description}</p>
+                                                    </Card>
+                                                ))}
+                                            </>
+                                        );
+                                    })()}
                                 </div>
                             </ScrollArea>
                         </div>

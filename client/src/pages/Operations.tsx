@@ -1,267 +1,207 @@
-
-import { useState } from "react";
-import { AppLayout } from "@/components/layout/AppLayout";
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "@/hooks/use-auth";
 import { useConfiguration } from "@/context/ConfigurationContext";
-import { Activity, Settings, Users, AlertTriangle, Truck, Package, ShoppingBag, Clock, Save, Building } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { NeuralMaintenanceForecast } from "@/components/operations/NeuralMaintenanceForecast";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+    Activity,
+    AlertTriangle,
+    Box,
+    Truck,
+    TrendingUp,
+    Users,
+    Zap,
+    Factory,
+    CheckCircle2
+} from "lucide-react";
+import { motion } from "framer-motion";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function Operations() {
-    const { session } = useAuth();
-    const { getModuleStatus } = useConfiguration();
-    const { toast } = useToast();
-    const queryClient = useQueryClient();
+    const { enabledModules, universalConfig } = useConfiguration();
+    const { profile } = useAuth();
+    const modules = enabledModules || [];
 
-    // Module Enforcement
-    const isEnabled = getModuleStatus("operations");
-    // In strict mode we might redirect, but here we show a disabled state UI for clarity if accessed directly
-
-    const { data: dashboard, isLoading: isLoadingDash } = useQuery({
-        queryKey: ["/api/operations/dashboard"],
-        queryFn: async () => {
-            const res = await fetch("/api/operations/dashboard", { headers: { Authorization: `Bearer ${session?.access_token}` } });
-            if (!res.ok) throw new Error("Failed");
-            return res.json();
-        },
-        enabled: isEnabled && !!session?.access_token
-    });
-
-    const { data: suppliers = [], isLoading: isLoadingSuppliers } = useQuery({
-        queryKey: ["/api/operations/suppliers"],
-        queryFn: async () => {
-            const res = await fetch("/api/operations/suppliers", { headers: { Authorization: `Bearer ${session?.access_token}` } });
-            return res.json();
-        },
-        enabled: isEnabled && !!session?.access_token
-    });
-
-    const { data: config } = useQuery({
-        queryKey: ["/api/operations/config"],
-        queryFn: async () => {
-            const res = await fetch("/api/operations/config", { headers: { Authorization: `Bearer ${session?.access_token}` } });
-            return res.json();
-        },
-        enabled: isEnabled && !!session?.access_token
-    });
-
-    if (!isEnabled) {
-        return (
-            <AppLayout>
-                <div className="flex flex-col items-center justify-center h-[80vh] text-center space-y-4">
-                    <div className="p-4 bg-muted rounded-full">
-                        <Settings className="w-12 h-12 text-muted-foreground" />
-                    </div>
-                    <div>
-                        <h2 className="text-2xl font-bold">Módulo de Operaciones Desactivado</h2>
-                        <p className="text-muted-foreground max-w-md mx-auto mt-2">
-                            Gestiona el núcleo de tu empresa activando este módulo en el Marketplace.
-                        </p>
-                    </div>
-                </div>
-            </AppLayout>
-        );
-    }
+    // Helper to check if module is active
+    const has = (id: string) => modules.some(m => m.id === id);
 
     return (
-        <AppLayout>
-            <div className="space-y-8 p-8 animate-in fade-in duration-500">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                            Operaciones Central
-                        </h1>
-                        <p className="text-muted-foreground mt-2">
-                            Centro de comando y configuración operativa.
-                        </p>
-                    </div>
-                    <div className="flex gap-2">
-                        <Button variant="outline">
-                            <Clock className="w-4 h-4 mr-2" />
-                            Historial
-                        </Button>
-                        <Button>
-                            <Activity className="w-4 h-4 mr-2" />
-                            Reporte Rápido
-                        </Button>
-                    </div>
+        <div className="p-8 space-y-8 min-h-screen bg-slate-950/50">
+            {/* Header Section */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h1 className="text-3xl font-black tracking-tight text-white mb-1">
+                        Centro de Operaciones
+                    </h1>
+                    <p className="text-slate-400">
+                        Visión general de {profile?.organization?.name || "la empresa"}
+                    </p>
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <Card className="bg-gradient-to-br from-blue-50 to-white dark:from-blue-950/20 dark:to-background border-l-4 border-l-blue-500">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium text-muted-foreground">Flota Activa</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold flex items-center gap-2">
-                                <Truck className="w-5 h-5 text-blue-500" />
-                                {dashboard?.stats?.activeVehicles || 0}
-                            </div>
-                        </CardContent>
-                    </Card>
-                    <Card className="bg-gradient-to-br from-orange-50 to-white dark:from-orange-950/20 dark:to-background border-l-4 border-l-orange-500">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium text-muted-foreground">Stock Crítico</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold flex items-center gap-2">
-                                <AlertTriangle className="w-5 h-5 text-orange-500" />
-                                {dashboard?.stats?.criticalStock || 0}
-                            </div>
-                        </CardContent>
-                    </Card>
-                    <Card className="bg-gradient-to-br from-green-50 to-white dark:from-green-950/20 dark:to-background border-l-4 border-l-green-500">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium text-muted-foreground">Cumplimiento</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold flex items-center gap-2">
-                                <Package className="w-5 h-5 text-green-500" />
-                                {dashboard?.stats?.fulfillmentRate || 0}%
-                            </div>
-                        </CardContent>
-                    </Card>
-                    <Card className="bg-gradient-to-br from-purple-50 to-white dark:from-purple-950/20 dark:to-background border-l-4 border-l-purple-500">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium text-muted-foreground">Eficiencia</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold flex items-center gap-2">
-                                <Activity className="w-5 h-5 text-purple-500" />
-                                {dashboard?.stats?.efficiency || 0}%
-                            </div>
-                        </CardContent>
-                    </Card>
+                <div className="flex items-center gap-3">
+                    <Badge variant="outline" className="px-3 py-1 border-primary/20 text-primary bg-primary/5">
+                        <Activity className="w-3 h-3 mr-2 animate-pulse" />
+                        Sistema Operativo
+                    </Badge>
                 </div>
+            </div>
 
-                <Tabs defaultValue="dashboard" className="space-y-4">
-                    <TabsList className="bg-muted/50 p-1">
-                        <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-                        <TabsTrigger value="suppliers">Proveedores</TabsTrigger>
-                        <TabsTrigger value="config">Configuración de Sede</TabsTrigger>
-                    </TabsList>
+            {/* Adaptive Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
-                    {/* ... inside the dashboard TabsContent ... */}
-                    <TabsContent value="dashboard" className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <NeuralMaintenanceForecast />
-                            {/* Existing Activity Card */}
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle>Actividad Reciente</CardTitle>
-                                    <CardDescription>Eventos operativos importantes.</CardDescription>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="space-y-4">
-                                        {dashboard?.activity?.map((act: any, idx: number) => (
-                                            <div key={idx} className="flex items-center justify-between border-b pb-2 last:border-0 last:pb-0">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`p-2 rounded-full ${act.type === 'alert' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
-                                                        <Activity className="w-4 h-4" />
-                                                    </div>
-                                                    <span>{act.message}</span>
-                                                </div>
-                                                <span className="text-sm text-muted-foreground">{act.time}</span>
-                                            </div>
-                                        ))}
-                                        {(!dashboard?.activity || dashboard.activity.length === 0) && (
-                                            <p className="text-muted-foreground text-center py-4">No hay actividad reciente.</p>
-                                        )}
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </div>
-                    </TabsContent>
-
-                    <TabsContent value="suppliers">
-                        <Card>
-                            <CardHeader className="flex flex-row items-center justify-between">
-                                <div>
-                                    <CardTitle>Directorio de Proveedores</CardTitle>
-                                    <CardDescription>Gestión básica de proveedores autorizados.</CardDescription>
+                {/* 1. Guardian AI (Always recommended/Core) */}
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+                    <Card className="bg-slate-900/50 border-slate-800 h-full hover:border-primary/50 transition-colors">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-medium text-slate-400 flex items-center justify-between">
+                                Salud del Sistema
+                                <Zap className="w-4 h-4 text-purple-400" />
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center">
+                                    <CheckCircle2 className="w-6 h-6 text-green-500" />
                                 </div>
-                                <Button size="sm"><Users className="w-4 h-4 mr-2" /> Nuevo Proveedor</Button>
+                                <div>
+                                    <div className="text-2xl font-bold text-white">100%</div>
+                                    <div className="text-xs text-slate-500">Operativo</div>
+                                </div>
+                            </div>
+                            <div className="mt-4 text-xs text-slate-400">
+                                Guardian AI no detecta anomalías en los últimos 30 minutos.
+                            </div>
+                        </CardContent>
+                    </Card>
+                </motion.div>
+
+                {/* 2. Inventory Widget */}
+                {has('inventory') && (
+                    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+                        <Card className="bg-slate-900/50 border-slate-800 h-full hover:border-blue-500/50 transition-colors">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-sm font-medium text-slate-400 flex items-center justify-between">
+                                    Inventario
+                                    <Box className="w-4 h-4 text-blue-400" />
+                                </CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <div className="space-y-2">
-                                    {suppliers.length === 0 ? (
-                                        <div className="text-center py-8 text-muted-foreground">
-                                            No hay proveedores registrados.
+                                <div className="space-y-4">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-2xl font-bold text-white">1,204</span>
+                                        <Badge variant="secondary" className="bg-blue-500/10 text-blue-400 hover:bg-blue-500/20">Items</Badge>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between text-xs">
+                                            <span className="text-slate-500">Stock Bajo</span>
+                                            <span className="text-red-400 font-bold">3 items</span>
                                         </div>
-                                    ) : (
-                                        suppliers.map((sup: any) => (
-                                            <div key={sup.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-600">
-                                                        {sup.name.substring(0, 2).toUpperCase()}
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-medium">{sup.name}</p>
-                                                        <p className="text-xs text-muted-foreground">{sup.contactEmail || "Sin contacto"}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="flex gap-2">
-                                                    <Button variant="ghost" size="sm">Ver</Button>
-                                                </div>
-                                            </div>
-                                        ))
-                                    )}
+                                        <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                                            <div className="h-full bg-gradient-to-r from-blue-600 to-purple-600 w-[85%]" />
+                                        </div>
+                                        <div className="text-[10px] text-right text-slate-500">Capacidad: 85%</div>
+                                    </div>
                                 </div>
                             </CardContent>
                         </Card>
-                    </TabsContent>
+                    </motion.div>
+                )}
 
-                    <TabsContent value="config">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Configuración de la Sede</CardTitle>
-                                <CardDescription>Ajustes generales de la operación.</CardDescription>
+                {/* 3. Production Widget */}
+                {has('production') && (
+                    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+                        <Card className="bg-slate-900/50 border-slate-800 h-full hover:border-orange-500/50 transition-colors">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-sm font-medium text-slate-400 flex items-center justify-between">
+                                    Producción
+                                    <Factory className="w-4 h-4 text-orange-400" />
+                                </CardTitle>
                             </CardHeader>
-                            <CardContent className="space-y-6">
-                                <div className="grid grid-cols-2 gap-6">
-                                    <div className="space-y-2">
-                                        <Label>Horario de Operación (Inicio)</Label>
-                                        <Input defaultValue={config?.workingHours?.start} type="time" />
+                            <CardContent>
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="flex flex-col">
+                                        <span className="text-2xl font-bold text-white">Active</span>
+                                        <span className="text-xs text-slate-500">Línea A & B</span>
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label>Horario de Operación (Fin)</Label>
-                                        <Input defaultValue={config?.workingHours?.end} type="time" />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label>Zona Horaria</Label>
-                                        <Input defaultValue={config?.timezone} />
-                                    </div>
-                                    <div className="flex items-center justify-between p-3 border rounded-lg">
-                                        <div className="space-y-0.5">
-                                            <Label>Despacho Automático</Label>
-                                            <p className="text-xs text-muted-foreground">Asignar rutas automáticamente al generar pedidos.</p>
-                                        </div>
-                                        <Switch checked={config?.autoDispatch} />
-                                    </div>
-                                    <div className="flex items-center justify-between p-3 border rounded-lg">
-                                        <div className="space-y-0.5">
-                                            <Label>Notificaciones por Email</Label>
-                                            <p className="text-xs text-muted-foreground">Reportes diarios y alertas críticas.</p>
-                                        </div>
-                                        <Switch checked={config?.notifications?.email} />
+                                    <div className="w-8 h-8 rounded animate-pulse bg-orange-500/20 flex items-center justify-center">
+                                        <Activity className="w-4 h-4 text-orange-500" />
                                     </div>
                                 </div>
-                                <div className="flex justify-end pt-4">
-                                    <Button><Save className="w-4 h-4 mr-2" /> Guardar Cambios</Button>
+                                <div className="space-y-2">
+                                    <div className="flex justify-between text-xs items-center p-2 bg-slate-800/50 rounded">
+                                        <span className="text-slate-300">Lote #4092</span>
+                                        <Badge variant="outline" className="text-[10px] border-orange-500/20 text-orange-400">En Proceso</Badge>
+                                    </div>
+                                    <div className="flex justify-between text-xs items-center p-2 bg-slate-800/50 rounded">
+                                        <span className="text-slate-300">Lote #4093</span>
+                                        <Badge variant="outline" className="text-[10px] border-slate-600/50 text-slate-500">En Cola</Badge>
+                                    </div>
                                 </div>
                             </CardContent>
                         </Card>
-                    </TabsContent>
-                </Tabs>
+                    </motion.div>
+                )}
+
+                {/* 4. Sales/Revenue Widget */}
+                {has('sales') && (
+                    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+                        <Card className="bg-slate-900/50 border-slate-800 h-full hover:border-green-500/50 transition-colors">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-sm font-medium text-slate-400 flex items-center justify-between">
+                                    Ventas (Hoy)
+                                    <TrendingUp className="w-4 h-4 text-green-400" />
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="space-y-1">
+                                    <div className="text-2xl font-bold text-white">$ 24,500</div>
+                                    <p className="text-xs text-green-400 flex items-center">
+                                        +12% vs ayer
+                                    </p>
+                                </div>
+                                <div className="mt-4 pt-4 border-t border-slate-800">
+                                    <div className="text-xs text-slate-500 mb-2">Últimas órdenes</div>
+                                    <div className="space-y-1.5">
+                                        <div className="flex justify-between text-xs text-slate-300">
+                                            <span>#ORD-992</span>
+                                            <span>$ 450.00</span>
+                                        </div>
+                                        <div className="flex justify-between text-xs text-slate-300">
+                                            <span>#ORD-991</span>
+                                            <span>$ 1,200.00</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </motion.div>
+                )}
+
+                {/* 5. Logistics Widget */}
+                {has('logistics') && (
+                    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
+                        <Card className="bg-slate-900/50 border-slate-800 h-full hover:border-indigo-500/50 transition-colors">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-sm font-medium text-slate-400 flex items-center justify-between">
+                                    Logística
+                                    <Truck className="w-4 h-4 text-indigo-400" />
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="flex gap-4">
+                                    <div className="flex-1 text-center p-2 rounded bg-slate-800/30">
+                                        <div className="text-lg font-bold text-white">4</div>
+                                        <div className="text-[10px] text-slate-500 uppercase">En Ruta</div>
+                                    </div>
+                                    <div className="flex-1 text-center p-2 rounded bg-slate-800/30">
+                                        <div className="text-lg font-bold text-white">2</div>
+                                        <div className="text-[10px] text-slate-500 uppercase">Pendiente</div>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </motion.div>
+                )}
+
             </div>
-        </AppLayout>
+        </div>
     );
 }

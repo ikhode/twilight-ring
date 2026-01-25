@@ -59,7 +59,13 @@ export function ConfigurationProvider({ children }: { children: React.ReactNode 
         queryKey: ["/api/config"],
         queryFn: async () => {
             if (!session?.access_token) return null;
-            const res = await fetch("/api/config", { headers: { Authorization: `Bearer ${session.access_token}` } });
+            const orgId = localStorage.getItem("nexus_active_org") || "";
+            const res = await fetch("/api/config", {
+                headers: {
+                    Authorization: `Bearer ${session.access_token}`,
+                    "x-organization-id": orgId
+                }
+            });
             if (!res.ok) throw new Error("Failed to fetch config");
             return res.json();
         },
@@ -83,11 +89,13 @@ export function ConfigurationProvider({ children }: { children: React.ReactNode 
     const mutation = useMutation({
         mutationFn: async (payload: any) => {
             if (!session?.access_token) return;
+            const orgId = localStorage.getItem("nexus_active_org") || "";
             await fetch("/api/config", {
                 method: "PATCH",
                 headers: {
                     "Content-Type": "application/json",
-                    Authorization: `Bearer ${session.access_token}`
+                    Authorization: `Bearer ${session.access_token}`,
+                    "x-organization-id": orgId
                 },
                 body: JSON.stringify(payload)
             });

@@ -159,7 +159,7 @@ export const MODULE_REGISTRY: ModuleMetadata[] = [
             "Integración con inventario"
         ],
         pricing: "included",
-        dependencies: ["inventory", "operations"],
+        dependencies: ["operations", "finance"],
         requiredRole: "user",
         tags: ["ventas", "facturación", "ingresos"]
     },
@@ -201,9 +201,9 @@ export const MODULE_REGISTRY: ModuleMetadata[] = [
             "Presupuestos"
         ],
         pricing: "included",
-        dependencies: [],
+        dependencies: ["operations"],
         requiredRole: "manager",
-        tags: ["finanzas", "contabilidad", "gastos"]
+        tags: ["finanzas", "dinero", "contabilidad"]
     },
     {
         id: "purchases",
@@ -221,7 +221,7 @@ export const MODULE_REGISTRY: ModuleMetadata[] = [
             "Historial de compras"
         ],
         pricing: "included",
-        dependencies: ["inventory"],
+        dependencies: ["operations", "finance"],
         requiredRole: "user",
         tags: ["compras", "proveedores", "órdenes"]
     },
@@ -285,7 +285,7 @@ export const MODULE_REGISTRY: ModuleMetadata[] = [
             "Exportación de datos"
         ],
         pricing: "included",
-        dependencies: [],
+        dependencies: ["operations", "finance"],
         requiredRole: "manager",
         tags: ["analytics", "reportes", "métricas"]
     },
@@ -307,7 +307,7 @@ export const MODULE_REGISTRY: ModuleMetadata[] = [
             "Historial de anomalías"
         ],
         pricing: "premium",
-        dependencies: [],
+        dependencies: ["cpe", "operations", "finance"],
         requiredRole: "manager",
         tags: ["ia", "anomalías", "seguridad"]
     },
@@ -327,7 +327,7 @@ export const MODULE_REGISTRY: ModuleMetadata[] = [
             "Recomendaciones personalizadas"
         ],
         pricing: "premium",
-        dependencies: [],
+        dependencies: ["cpe", "analytics"],
         requiredRole: "manager",
         tags: ["ia", "decisiones", "predicciones"]
     },
@@ -335,21 +335,21 @@ export const MODULE_REGISTRY: ModuleMetadata[] = [
         id: "cpe",
         name: "CPE - Process Engine",
         description: "Motor de procesos cognitivos",
-        longDescription: "Trazabilidad completa de procesos con análisis de causa raíz y optimización automática.",
-        icon: "GitBranch",
+        longDescription: "Corazón cognitivo del ERP. Ejecuta flujos de decisión, orquesta modelos TFJS y gestiona el aprendizaje continuo del sistema.",
+        icon: "BrainCircuit",
         category: "ai",
         route: "/settings",
         features: [
-            "Trazabilidad de procesos",
-            "Análisis de causa raíz (RCA)",
+            "Orquestación de modelos TFJS",
+            "Aprendizaje de patrones",
+            "Trazabilidad cognitiva",
             "Detección de cuellos de botella",
-            "Optimización automática",
-            "Mapas de procesos"
+            "Optimización automática"
         ],
-        pricing: "premium",
-        dependencies: [],
+        pricing: "included", // Core logic requires this
+        dependencies: ["operations", "finance"],
         requiredRole: "admin",
-        tags: ["procesos", "optimización", "trazabilidad"]
+        tags: ["core", "ia", "motor", "tfjs"]
     },
     {
         id: "ai-chat",
@@ -367,7 +367,7 @@ export const MODULE_REGISTRY: ModuleMetadata[] = [
             "Fuentes citadas"
         ],
         pricing: "premium",
-        dependencies: [],
+        dependencies: ["admin", "cpe"],
         requiredRole: "user",
         tags: ["chat", "ia", "documentación"]
     },
@@ -387,7 +387,7 @@ export const MODULE_REGISTRY: ModuleMetadata[] = [
             "Sugerencias inteligentes"
         ],
         pricing: "premium",
-        dependencies: [],
+        dependencies: ["analytics", "cpe"],
         requiredRole: "user",
         tags: ["queries", "sql", "datos"]
     },
@@ -512,26 +512,6 @@ export const MODULE_REGISTRY: ModuleMetadata[] = [
         dependencies: [],
         requiredRole: "admin",
         tags: ["admin", "configuración", "usuarios"]
-    },
-    {
-        id: "marketplace",
-        name: "Marketplace",
-        description: "Marketplace de módulos",
-        longDescription: "Explorar, activar y desactivar módulos del sistema según las necesidades de tu negocio.",
-        icon: "Store",
-        category: "operations",
-        route: "/settings",
-        features: [
-            "Catálogo de módulos",
-            "Activación/desactivación",
-            "Gestión de dependencias",
-            "Módulos premium",
-            "Configuración por organización"
-        ],
-        pricing: "included",
-        dependencies: [],
-        requiredRole: "admin",
-        tags: ["marketplace", "módulos", "configuración"]
     }
 ];
 

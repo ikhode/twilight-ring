@@ -149,10 +149,13 @@ export function registerAuthRoutes(app: Express) {
                 return res.status(404).json({ message: "User not found" });
             }
 
-            const userOrg = await db.query.userOrganizations.findFirst({
+            const userOrgs = await db.query.userOrganizations.findMany({
                 where: eq(userOrganizations.userId, user.id),
                 with: { organization: true },
             });
+
+            // Default to the first one, but return all
+            const activeOrg = userOrgs.length > 0 ? userOrgs[0] : null;
 
             res.json({
                 user: {
@@ -160,8 +163,12 @@ export function registerAuthRoutes(app: Express) {
                     email: user.email,
                     name: user.name,
                 },
-                organization: userOrg?.organization,
-                role: userOrg?.role,
+                organization: activeOrg?.organization, // Kept for backward compatibility
+                role: activeOrg?.role, // Kept for backward compatibility
+                organizations: userOrgs.map(uo => ({
+                    ...uo.organization,
+                    role: uo.role // Include role in the organization object
+                }))
             });
 
         } catch (error) {

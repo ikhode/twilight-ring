@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "../storage";
 import {
-    purchases, products, inventoryMovements, suppliers,
+    purchases, products, inventoryMovements, suppliers, expenses,
     insertPurchaseSchema, insertSupplierSchema
 } from "../../shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -79,7 +79,7 @@ router.post("/", async (req, res): Promise<void> => {
 
                 // If created as 'received' immediately, process stock
                 if (status === "received") {
-                    await receiveItem(orgId, record);
+                    await receiveItem(orgId, { ...record, product: productStr }); // Pass product data for expense creation
                 }
 
             } catch (err) {
@@ -96,77 +96,95 @@ router.post("/", async (req, res): Promise<void> => {
     }
 });
 
+// Helper to create finance transaction
+async function createExpenseFromPurchase(orgId: string, purchase: any) {
+    // Determine category based on product type or default to 'Materials'
+    // For now, we use a generic 'Expense' placeholder or try to find a matching category
+
+    await db.insert(expenses).values({
+        organizationId: orgId,
+        type: "expense",
+        amount: purchase.totalAmount, // Already in cents
+        description: `Compra: ${purchase.product?.name || 'Insumo'} (${purchase.quantity} u.)`,
+        date: new Date(),
+        status: "completed",
+        category: "Abastecimiento", // Simple string for now as per schema
+        metadata: { purchaseId: purchase.id, supplierId: purchase.supplierId }
+    });
+}
+
 /**
- * Marks a purchase item as received and updates inventory + weighted average cost.
+ * Marks a purchase item as received, updates inventory, and RECORDS EXPENSE.
  */
+async function receiveItem(orgId: string, purchase: any) {
+    // 1. Update Purchase Status
+    await db.update(purchases)
+        .set({ deliveryStatus: "received", paymentStatus: "paid" }) // Assuming COD or immediate liability
+        .where(eq(purchases.id, purchase.id));
+
+    // 2. Update Inventory (Stock + Weighted Average Cost)
+    const [product] = await db.select().from(products).where(eq(products.id, purchase.productId));
+    if (product) {
+        const newStock = (product.stock || 0) + purchase.quantity;
+
+        // Calculate new Weighted Average Cost
+        // (OldCost * OldStock + NewCost * NewQty) / NewTotalStock
+        const currentTotalValue = (product.cost || 0) * (product.stock || 0);
+        const purchaseTotalValue = purchase.totalAmount; // This is total for the line
+        const newCost = newStock > 0 ? Math.round((currentTotalValue + purchaseTotalValue) / newStock) : 0;
+
+        await db.update(products)
+            .set({ stock: newStock, cost: newCost })
+            .where(eq(products.id, purchase.productId));
+
+        // Log Movement
+        await db.insert(inventoryMovements).values({
+            organizationId: orgId,
+            productId: purchase.productId,
+            type: "in",
+            quantity: purchase.quantity,
+            reason: "purchase_receive",
+            referenceId: purchase.id,
+            beforeStock: product.stock || 0,
+            afterStock: newStock,
+            date: new Date(),
+            notes: `Recepción Compra #${purchase.id.slice(0, 8)}`
+        });
+    }
+
+    // 3. CORE INTEGRATION: Record Financial Expense
+    // Check if "finance" module is active for this org?
+    // For now, we assume if you have purchases, you have finance or at least want the record.
+    await createExpenseFromPurchase(orgId, purchase);
+}
+
 router.patch("/:id/receive", async (req, res): Promise<void> => {
     try {
-        const { id } = req.params;
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
 
-        const [purchase] = await db.select().from(purchases).where(and(eq(purchases.id, id), eq(purchases.organizationId, orgId)));
+        const { id } = req.params;
+
+        const [purchase] = await db.query.purchases.findMany({
+            where: and(eq(purchases.id, id), eq(purchases.organizationId, orgId)),
+            with: { product: true }
+        });
 
         if (!purchase) return res.status(404).json({ message: "Purchase not found" });
         if (purchase.deliveryStatus === "received") return res.status(400).json({ message: "Already received" });
 
-        // Update status
-        await db.update(purchases)
-            .set({ deliveryStatus: "received" })
-            .where(eq(purchases.id, id));
+        await receiveItem(orgId, purchase);
 
-        // Process Stock & Cost
-        if (purchase.productId) {
-            await receiveItem(orgId, purchase);
-        }
-
-        res.json({ message: "Item received", success: true });
-
+        res.json({ message: "Purchase received, inventory updated, and expense recorded." });
     } catch (error) {
         console.error("Receive purchase error:", error);
         res.status(500).json({ message: "Error receiving item" });
     }
 });
 
-// Helper function to handle stock increase and cost averaging
-async function receiveItem(orgId: string, purchase: any) {
-    const [product] = await db.select().from(products).where(and(eq(products.id, purchase.productId), eq(products.organizationId, orgId)));
-    if (!product) return;
+// End of Router
 
-    // Calculate Weighted Average Cost
-    // currentTotalValue = stock * currentCost
-    // newTotalValue = currentTotalValue + (purchaseQty * purchaseCost)
-    // newStock = stock + purchaseQty
-    // newCost = newTotalValue / newStock
 
-    const currentStock = product.stock || 0;
-    const currentCost = product.cost || 0;
-    const purchaseQty = purchase.quantity;
-    const purchaseTotalCost = purchase.totalAmount; // totalAmount is quantity * unitCost
-
-    const newStock = currentStock + purchaseQty;
-    const newTotalValue = (currentStock * currentCost) + purchaseTotalCost;
-    const newCost = newStock > 0 ? Math.round(newTotalValue / newStock) : purchaseTotalCost / purchaseQty;
-
-    // Update Product
-    await db.update(products).set({
-        stock: newStock,
-        cost: newCost
-    }).where(and(eq(products.id, purchase.productId), eq(products.organizationId, orgId)));
-
-    // Log Movement
-    await db.insert(inventoryMovements).values({
-        organizationId: orgId,
-        productId: purchase.productId,
-        quantity: purchaseQty,
-        type: "purchase",
-        referenceId: purchase.id,
-        beforeStock: currentStock,
-        afterStock: newStock,
-        date: new Date(),
-        notes: `Recepción Compra #${purchase.id.slice(0, 8)}`
-    });
-}
 
 /**
  * --- NEW FEATURES ---

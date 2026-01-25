@@ -19,6 +19,8 @@ interface SidebarProps {
   onLinkClick?: () => void;
 }
 
+import { OrgSwitcher } from "@/components/layout/OrgSwitcher";
+
 export function Sidebar({ className, onLinkClick }: SidebarProps) {
   const [location] = useLocation();
   const { user, profile, signOut } = useAuth();
@@ -47,8 +49,19 @@ export function Sidebar({ className, onLinkClick }: SidebarProps) {
         className
       )}
     >
+      {/* Header / Org Switcher */}
+      <div className={cn("px-4 pt-4 pb-2 transition-all", collapsed ? "flex justify-center px-0" : "")}>
+        {!collapsed ? (
+          <OrgSwitcher />
+        ) : (
+          <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center text-primary font-bold mb-4">
+            OS
+          </div>
+        )}
+      </div>
+
       {/* Brand */}
-      <div className="h-16 flex items-center px-6 border-b border-white/5 bg-gradient-to-r from-primary/5 to-transparent overflow-hidden">
+      <div className="h-12 flex items-center px-6 border-b border-white/5 bg-gradient-to-r from-primary/5 to-transparent overflow-hidden mb-2">
         <Menu className="w-5 h-5 text-slate-400 mr-3 flex-shrink-0" />
         {!collapsed && (
           <h1 className="font-black text-xl tracking-tighter italic text-white whitespace-nowrap">

@@ -59,25 +59,69 @@ Rank by relevance.`
     }
 
     private keywordMatching(query: string, allModules: any[]): string[] {
-        const terms = query.toLowerCase().split(/\s+/);
+        // Simple "tensor-like" weighing
+        const stopWords = ['de', 'el', 'la', 'los', 'las', 'un', 'una', 'y', 'o', 'para', 'en', 'con', 'necesito', 'quiero', 'sistema', 'modulo', 'software'];
+        const cleanQuery = query.toLowerCase()
+            .replace(/[^\w\s]/g, '')
+            .split(/\s+/)
+            .filter(w => !stopWords.includes(w) && w.length > 2);
+
+        // Semantic Map ("Lightweight Embedding")
+        const semanticMap: Record<string, string[]> = {
+            'dinero': ['finance', 'purchases'],
+            'plata': ['finance', 'sales'],
+            'pagos': ['finance', 'payroll'],
+            'cobrar': ['sales', 'finance'],
+            'vender': ['sales', 'pos', 'kiosk'],
+            'cliente': ['crm', 'sales'],
+            'empleado': ['hr', 'employees', 'payroll'],
+            'personal': ['hr', 'employees'],
+            'bodega': ['inventory', 'logistics'],
+            'almacen': ['inventory'],
+            'envio': ['logistics'],
+            'camion': ['logistics'],
+            'ruta': ['logistics'],
+            'maquina': ['production', 'maintenance'],
+            'fabrica': ['production'],
+            'turno': ['production', 'hr'],
+            'calidad': ['qa', 'production'],
+            'nomina': ['payroll', 'hr'],
+            'sueldo': ['payroll'],
+            'asistencia': ['time_tracking', 'hr'],
+            'documento': ['documents'],
+            'archivo': ['documents'],
+            'firma': ['documents'],
+            'ticket': ['tickets', 'crm'],
+            'soporte': ['tickets'],
+            'ayuda': ['tickets']
+        };
+
         const scores = new Map<string, number>();
 
         allModules.forEach(module => {
             let score = 0;
-            const text = `${module.name} ${module.description} ${module.tags.join(' ')}`.toLowerCase();
+            const text = `${module.name} ${module.description} ${module.longDescription || ''} ${(module.tags || []).join(' ')}`.toLowerCase();
 
-            terms.forEach(term => {
-                if (text.includes(term)) score += 1;
-                // Boost exact tag matches
-                if (module.tags.some((t: string) => t.toLowerCase() === term)) score += 2;
-                // Boost name matches
-                if (module.name.toLowerCase().includes(term)) score += 3;
+            cleanQuery.forEach(term => {
+                // Direct Match
+                if (text.includes(term)) score += 3;
+
+                // Semantic Match
+                if (semanticMap[term] && semanticMap[term].includes(module.id)) score += 5;
+
+                // Fuzzy / Partial
+                if (module.id.includes(term)) score += 4;
             });
 
             if (score > 0) {
                 scores.set(module.id, score);
             }
         });
+
+        // Debug fallback
+        if (scores.size === 0) {
+            console.log("[Recommender] No matches found for:", cleanQuery);
+        }
 
         // Sort by score desc
         return Array.from(scores.entries())

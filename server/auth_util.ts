@@ -23,7 +23,24 @@ export async function getOrgIdFromRequest(req: Request): Promise<string | null> 
     const user = await getAuthenticatedUser(req);
     if (!user) return null;
 
-    // Get user's organization
+    // 3. Organization Context Override
+    // Allows the frontend to specify which organization they are acting on behalf of
+    const contextOrgId = req.headers["x-organization-id"] as string;
+    if (contextOrgId) {
+        // Validate user belongs to this org
+        const membership = await db.query.userOrganizations.findFirst({
+            where: and(
+                eq(userOrganizations.userId, user.id),
+                eq(userOrganizations.organizationId, contextOrgId)
+            )
+        });
+        if (membership) return contextOrgId;
+        // If specified org is invalid for user, fall back to default logic or error?
+        // Fallback to default is safer for now to prevent broken states, or we could return null.
+        console.warn(`[Auth] User ${user.id} attempted to access invalid org ${contextOrgId}`);
+    }
+
+    // Default: Get user's first organization
     const userOrg = await db.query.userOrganizations.findFirst({
         where: eq(userOrganizations.userId, user.id),
     });

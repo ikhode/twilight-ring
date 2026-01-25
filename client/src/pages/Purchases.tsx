@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { useConfiguration } from "@/context/ConfigurationContext";
 import { cn } from "@/lib/utils";
 import {
     ShoppingCart, Plus, Minus, Trash2, CreditCard,
@@ -101,6 +102,8 @@ export default function Purchases() {
 
 function PurchasesTable({ data }: { data: any[] }) {
     const { session } = useAuth();
+    const { enabledModules } = useConfiguration();
+    const hasInventory = enabledModules.some(m => m.id === "inventory");
     const queryClient = useQueryClient();
     const { toast } = useToast();
     const formatCurrency = (amount: number) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(amount);
@@ -116,11 +119,13 @@ function PurchasesTable({ data }: { data: any[] }) {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/purchases"] });
-            queryClient.invalidateQueries({ queryKey: ["/api/inventory/products"] }); // Update stock
-            toast({ title: "Recepción Exitosa", description: "Inventario actualizado correctamente." });
+            if (hasInventory) {
+                queryClient.invalidateQueries({ queryKey: ["/api/inventory/products"] });
+            }
+            toast({ title: hasInventory ? "Recepción Exitosa" : "Compra Completada", description: hasInventory ? "Inventario actualizado correctamente." : "Gasto registrado." });
         },
         onError: () => {
-            toast({ title: "Error", description: "No se pudo procesar la recepción.", variant: "destructive" });
+            toast({ title: "Error", description: "No se pudo procesar.", variant: "destructive" });
         }
     });
 
@@ -128,10 +133,10 @@ function PurchasesTable({ data }: { data: any[] }) {
         { key: "date", header: "Fecha", render: (it: any) => new Date(it.date).toLocaleDateString() },
         { key: "supplier", header: "Proveedor", render: (it: any) => it.supplier?.name || "N/A" },
         {
-            key: "product", header: "Producto", render: (it: any) => (
+            key: "product", header: "Concepto / Producto", render: (it: any) => (
                 <div className="flex flex-col">
                     <span className="font-medium">{it.product?.name || "Desconocido"}</span>
-                    <span className="text-xs text-muted-foreground">Cant: {it.quantity}</span>
+                    {hasInventory && <span className="text-xs text-muted-foreground">Cant: {it.quantity}</span>}
                 </div>
             )
         },
@@ -139,18 +144,20 @@ function PurchasesTable({ data }: { data: any[] }) {
         {
             key: "status", header: "Estado", render: (it: any) => (
                 <div className="flex gap-2">
-                    <Badge variant={it.paymentStatus === 'paid' ? 'default' : 'secondary'}>{it.paymentStatus}</Badge>
-                    <Badge variant={it.deliveryStatus === 'received' ? 'success' : 'outline'} className={cn(it.deliveryStatus === 'pending' && "bg-amber-100 text-amber-700 hover:bg-amber-200")}>
-                        {it.deliveryStatus}
-                    </Badge>
+                    <Badge variant={it.paymentStatus === 'paid' ? 'default' : 'secondary'}>{it.paymentStatus === 'paid' ? 'Pagado' : 'Por Pagar'}</Badge>
+                    {hasInventory && (
+                        <Badge variant={it.deliveryStatus === 'received' ? 'success' : 'outline'} className={cn(it.deliveryStatus === 'pending' && "bg-amber-100 text-amber-700 hover:bg-amber-200")}>
+                            {it.deliveryStatus === 'received' ? 'Recibido' : 'Pendiente'}
+                        </Badge>
+                    )}
                 </div>
             )
         },
         {
-            key: "actions", header: "Acciones", render: (it: any) => (
+            key: "actions", header: "", render: (it: any) => (
                 it.deliveryStatus === 'pending' && (
                     <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => receiveMutation.mutate(it.id)} disabled={receiveMutation.isPending}>
-                        Recibir
+                        {hasInventory ? "Recibir Stock" : "Marcar Completado"}
                     </Button>
                 )
             )
@@ -160,11 +167,10 @@ function PurchasesTable({ data }: { data: any[] }) {
     return <DataTable columns={columns} data={data} />;
 }
 
-// ... Existing CreateSupplierDialog ...
-// ... Imports and other code ...
-
 function CreateProductDialog() {
     const { session } = useAuth();
+    const { enabledModules } = useConfiguration();
+    const hasInventory = enabledModules.some(m => m.id === "inventory");
     const queryClient = useQueryClient();
     const { toast } = useToast();
     const [open, setOpen] = useState(false);
@@ -172,7 +178,7 @@ function CreateProductDialog() {
         name: "",
         sku: "",
         category: "Materia Prima",
-        productType: "purchase",
+        productType: "purchase", // Default
         stock: 0,
         unit: "pza",
         price: 0,
@@ -189,6 +195,7 @@ function CreateProductDialog() {
                 },
                 body: JSON.stringify({
                     ...data,
+                    productType: hasInventory ? "purchase" : "service_cost", // Tag as service if no inventory
                     price: Math.round(data.price * 100),
                     cost: Math.round(data.cost * 100)
                 })
@@ -199,55 +206,54 @@ function CreateProductDialog() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/inventory/products"] });
             setOpen(false);
+            toast({ title: hasInventory ? "Producto creado" : "Concepto creado", description: "Listo para usar en compras." });
             setFormData({ name: "", sku: "", category: "Materia Prima", productType: "purchase", stock: 0, unit: "pza", price: 0, cost: 0 });
-            toast({ title: "Producto Creado", description: "El producto se ha registrado correctamente." });
         },
-        onError: () => {
-            toast({ title: "Error", description: "No se pudo crear el producto.", variant: "destructive" });
-        }
+        onError: () => toast({ title: "Error", variant: "destructive" })
     });
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2">
-                    <Plus className="w-4 h-4" /> Nuevo Insumo
+                <Button className="gap-2">
+                    <Plus className="w-4 h-4" />
+                    {hasInventory ? "Nuevo Producto" : "Nuevo Concepto/Gasto"}
                 </Button>
             </DialogTrigger>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Alta de Nuevo Insumo / Producto</DialogTitle>
+                    <DialogTitle>{hasInventory ? "Alta de Producto" : "Alta de Concepto"}</DialogTitle>
                 </DialogHeader>
-                <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="name" className="text-right">Nombre</Label>
-                        <Input id="name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="col-span-3" />
+                <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                        <Label>Nombre / Descripción</Label>
+                        <Input value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="Ej. Papel Bond o Servicio Limpieza" />
                     </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="productType" className="text-right">Tipo</Label>
-                        <Select onValueChange={(v) => setFormData({ ...formData, productType: v })} defaultValue={formData.productType}>
-                            <SelectTrigger className="col-span-3">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="both">Compra y Venta</SelectItem>
-                                <SelectItem value="purchase">Materia Prima (Compra)</SelectItem>
-                                <SelectItem value="sale">Producto Terminado (Venta)</SelectItem>
-                                <SelectItem value="internal">Insumo Interno / Producido</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    {(formData.productType === "both" || formData.productType === "purchase") && (
-                        <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="cost" className="text-right">Costo Est.</Label>
-                            <Input id="cost" type="number" step="0.01" value={formData.cost} onChange={(e) => setFormData({ ...formData, cost: parseFloat(e.target.value) || 0 })} className="col-span-3" />
+                    {hasInventory && (
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label>SKU</Label>
+                                <Input value={formData.sku} onChange={e => setFormData({ ...formData, sku: e.target.value })} />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Unidad</Label>
+                                <Input value={formData.unit} onChange={e => setFormData({ ...formData, unit: e.target.value })} />
+                            </div>
                         </div>
                     )}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label>Costo Unitario (MXN)</Label>
+                            <Input type="number" value={formData.cost} onChange={e => setFormData({ ...formData, cost: parseFloat(e.target.value) })} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Precio Venta (MXN)</Label>
+                            <Input type="number" value={formData.price} onChange={e => setFormData({ ...formData, price: parseFloat(e.target.value) })} />
+                        </div>
+                    </div>
                 </div>
                 <DialogFooter>
-                    <Button onClick={() => createMutation.mutate(formData)} disabled={createMutation.isPending}>
-                        {createMutation.isPending ? "Guardando..." : "Confirmar Registro"}
-                    </Button>
+                    <Button onClick={() => createMutation.mutate(formData)} disabled={createMutation.isPending}>{createMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />} Guardar</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

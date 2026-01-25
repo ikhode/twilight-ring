@@ -101,8 +101,8 @@ export async function registerRoutes(
   app.use("/api/sales", requireModule("/sales"), salesRoutes);
 
   // HR
-  app.use("/api/hr", requireModule("/hr"), hrRoutes);
-  app.use("/api/hr/attendance", requireModule("/hr"), attendanceRoutes);
+  app.use("/api/hr", requireModule("/employees"), hrRoutes);
+  app.use("/api/hr/attendance", requireModule("/employees"), attendanceRoutes);
 
   // Finance
   app.use("/api/finance", requireModule("/finance"), financeRoutes);

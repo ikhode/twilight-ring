@@ -1,76 +1,63 @@
-import * as tf from '@tensorflow/tfjs';
 import { create } from 'zustand';
+import * as tf from '@tensorflow/tfjs';
 
-// Define the shape of our Tensor State
-interface TensorState {
-    sales: tf.Tensor2D | null;
-    inventory: tf.Tensor2D | null;
-    hr: tf.Tensor2D | null;
+export interface TensorState {
+    salesTensor: tf.Tensor | null;
+    inventoryTensor: tf.Tensor | null;
+    purchasesTensor: tf.Tensor | null;
 
-    // Actions to update tensors (usually called by data hooks)
-    setSalesTensor: (data: number[][]) => void;
-    setInventoryTensor: (data: number[][]) => void;
-    setHRTensor: (data: number[][]) => void;
+    setSalesTensor: (data: any[]) => void;
+    setInventoryTensor: (data: any[]) => void;
+    setPurchasesTensor: (data: any[]) => void;
 
-    // Utility to dispose to avoid memory leaks
-    disposeAll: () => void;
+    getTensor: (name: string) => tf.Tensor | null;
 }
 
 export const useTensorBridge = create<TensorState>((set, get) => ({
-    sales: null,
-    inventory: null,
-    hr: null,
+    salesTensor: null,
+    inventoryTensor: null,
+    purchasesTensor: null,
 
     setSalesTensor: (data) => {
-        const old = get().sales;
+        // Assume data is [Time, Value, ...]
+        if (!data || data.length === 0) return;
+
+        // Clean up old tensor
+        const old = get().salesTensor;
         if (old) old.dispose();
 
-        try {
-            // Check if data is valid for tensor creation
-            if (!data || data.length === 0) {
-                set({ sales: null });
-                return;
-            }
-            set({ sales: tf.tensor2d(data) });
-        } catch (e) {
-            console.error("Failed to tensorize sales data", e);
-        }
+        const tensor = tf.tensor2d(data);
+        set({ salesTensor: tensor });
     },
 
     setInventoryTensor: (data) => {
-        const old = get().inventory;
+        const old = get().inventoryTensor;
         if (old) old.dispose();
 
-        try {
-            if (!data || data.length === 0) {
-                set({ inventory: null });
-                return;
-            }
-            set({ inventory: tf.tensor2d(data) });
-        } catch (e) {
-            console.error("Failed to tensorize inventory data", e);
-        }
+        const tensor = tf.tensor2d(data);
+        set({ inventoryTensor: tensor });
     },
 
-    setHRTensor: (data) => {
-        const old = get().hr;
+    setPurchasesTensor: (data) => {
+        const old = get().purchasesTensor;
         if (old) old.dispose();
 
-        try {
-            if (!data || data.length === 0) {
-                set({ hr: null });
-                return;
-            }
-            set({ hr: tf.tensor2d(data) });
-        } catch (e) {
-            console.error("Failed to tensorize HR data", e);
-        }
+        const tensor = tf.tensor2d(data);
+        set({ purchasesTensor: tensor });
     },
 
-    disposeAll: () => {
-        get().sales?.dispose();
-        get().inventory?.dispose();
-        get().hr?.dispose();
-        set({ sales: null, inventory: null, hr: null });
+    getTensor: (name) => {
+        const s = get();
+        if (name === 'sales') return s.salesTensor;
+        if (name === 'inventory') return s.inventoryTensor;
+        if (name === 'purchases') return s.purchasesTensor;
+        return null;
     }
 }));
+
+// Export a singleton-like access for non-hook usage if needed, 
+// strictly speaking regular zustand usage is enough.
+export const tensorBridge = {
+    getState: useTensorBridge.getState,
+    subscribe: useTensorBridge.subscribe
+};

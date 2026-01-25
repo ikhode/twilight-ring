@@ -161,6 +161,9 @@ export function ModuleMarketplace() {
             );
         }
 
+        // ALWAYS exclude the 'marketplace' module itself from the list
+        filtered = filtered.filter(m => m.id !== 'marketplace');
+
         setFilteredModules(filtered);
     };
 

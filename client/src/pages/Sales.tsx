@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
+import { useConfiguration } from "@/context/ConfigurationContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
@@ -160,6 +161,8 @@ export default function Sales() {
 function POSView() {
   const { session } = useAuth();
   const { toast } = useToast();
+  const { enabledModules } = useConfiguration();
+  const hasInventory = enabledModules.some(m => m.id === "inventory");
   const queryClient = useQueryClient();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -195,8 +198,8 @@ function POSView() {
       setSelectedDriver("");
       setSelectedVehicle("");
       queryClient.invalidateQueries({ queryKey: ["/api/inventory/products"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/sales/stats"] }); // Refresh trends
-      queryClient.invalidateQueries({ queryKey: ["/api/finance/summary"] }); // Refresh finance
+      queryClient.invalidateQueries({ queryKey: ["/api/sales/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/finance/summary"] });
 
       toast({
         title: "Venta Exitosa",
@@ -336,14 +339,14 @@ function POSView() {
               {filteredProducts.map((product) => (
                 <button
                   key={product.id}
-                  disabled={product.stock <= 0}
+                  disabled={hasInventory && product.stock <= 0}
                   onClick={() => addToCart(product)}
                   className={cn(
                     "p-4 rounded-xl border border-border bg-card transition-all text-left group relative overflow-hidden",
-                    product.stock > 0 ? "hover:bg-muted/50 hover:border-primary/50" : "opacity-60 cursor-not-allowed grayscale bg-muted/20"
+                    hasInventory && product.stock <= 0 ? "opacity-60 cursor-not-allowed grayscale bg-muted/20" : "hover:bg-muted/50 hover:border-primary/50"
                   )}
                 >
-                  {product.stock <= 0 && (
+                  {hasInventory && product.stock <= 0 && (
                     <div className="absolute inset-0 bg-background/50 flex items-center justify-center z-10">
                       <span className="bg-muted text-muted-foreground text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-widest transform -rotate-12 border border-border">
                         Sin Stock
@@ -358,17 +361,19 @@ function POSView() {
                   <p className="text-lg font-bold font-mono mt-2 text-primary">
                     {formatCurrency(product.price)}
                   </p>
-                  <Badge
-                    variant="secondary"
-                    className={cn(
-                      "mt-2 text-[10px]",
-                      product.stock <= 0 && "bg-muted text-muted-foreground",
-                      product.stock > 0 && product.status === "critical" && "bg-destructive/15 text-destructive",
-                      product.stock > 0 && product.status === "low" && "bg-warning/15 text-warning"
-                    )}
-                  >
-                    {product.stock <= 0 ? "Agotado" : `Stock: ${product.stock}`}
-                  </Badge>
+                  {hasInventory && (
+                    <Badge
+                      variant="secondary"
+                      className={cn(
+                        "mt-2 text-[10px]",
+                        product.stock <= 0 && "bg-muted text-muted-foreground",
+                        product.stock > 0 && product.status === "critical" && "bg-destructive/15 text-destructive",
+                        product.stock > 0 && product.status === "low" && "bg-warning/15 text-warning"
+                      )}
+                    >
+                      {product.stock <= 0 ? "Agotado" : `Stock: ${product.stock}`}
+                    </Badge>
+                  )}
                 </button>
               ))}
             </div>
@@ -549,6 +554,8 @@ function SalesTrends() {
     </div>
   );
 }
+
+
 
 function SalesHistory() {
   const { session } = useAuth();

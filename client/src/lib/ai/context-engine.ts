@@ -37,7 +37,11 @@ class ContextEngine {
         }));
 
         // 2. Merge with Core Modules
-        const allModules = [...coreModules.map(m => ({ ...m, priority: 50 })), ...activeERPModules];
+        const isZeroState = enabledModules.length === 0;
+        const allModules = [...coreModules.map(m => ({
+            ...m,
+            priority: isZeroState && m.id === 'settings' ? 100 : 50
+        })), ...activeERPModules];
 
         const items = allModules.map(module => {
             let priority = module.priority;

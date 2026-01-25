@@ -7,6 +7,9 @@ interface AuthContextType {
     session: Session | null;
     user: User | null;
     profile: any | null; // Extended profile from our DB
+    organization: any | null; // Active Organization
+    allOrganizations: any[]; // List of all linked organizations
+    switchOrganization: (orgId: string) => void;
     loading: boolean;
     signOut: () => Promise<void>;
 }
@@ -15,6 +18,9 @@ const AuthContext = createContext<AuthContextType>({
     session: null,
     user: null,
     profile: null,
+    organization: null,
+    allOrganizations: [],
+    switchOrganization: () => { },
     loading: true,
     signOut: async () => { },
 });
@@ -24,6 +30,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [profile, setProfile] = useState<any | null>(null);
     const [loading, setLoading] = useState(true);
+    const [organization, setOrganization] = useState<any | null>(null);
+    const [allOrganizations, setAllOrganizations] = useState<any[]>([]);
     const [, setLocation] = useLocation();
 
     useEffect(() => {
@@ -48,6 +56,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 fetchProfile(session.user.id);
             } else {
                 setProfile(null);
+                setOrganization(null);
+                setAllOrganizations([]);
                 setLoading(false);
             }
         });
@@ -62,6 +72,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (res.ok) {
                 const data = await res.json();
                 setProfile(data);
+
+                // Handle Multi-Org
+                const orgs = data.organizations || (data.organization ? [data.organization] : []);
+                setAllOrganizations(orgs);
+
+                // Restore persistent selection or default to first
+                const savedOrgId = localStorage.getItem("nexus_active_org");
+                const savedOrg = orgs.find((o: any) => o.id === savedOrgId);
+                const active = savedOrg || orgs[0] || null;
+
+                setOrganization(active);
+                if (active) localStorage.setItem("nexus_active_org", active.id);
             }
         } catch (error) {
             console.error("Error fetching profile:", error);
@@ -70,13 +92,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
+    const switchOrganization = async (orgId: string) => {
+        const target = allOrganizations.find(o => o.id === orgId);
+        if (target) {
+            setOrganization(target);
+            localStorage.setItem("nexus_active_org", target.id);
+            // Reload page to ensure all contexts (Tanstack Query, etc.) refresh with new headers
+            // A hard reload is safest for this architectural change
+            window.location.reload();
+        }
+    };
+
     const signOut = async () => {
         await supabase.auth.signOut();
+        localStorage.removeItem("nexus_active_org");
         setLocation("/login");
     };
 
     return (
-        <AuthContext.Provider value={{ session, user, profile, loading, signOut }}>
+        <AuthContext.Provider value={{
+            session,
+            user,
+            profile,
+            organization,
+            allOrganizations,
+            switchOrganization,
+            loading,
+            signOut
+        }}>
             {children}
         </AuthContext.Provider>
     );

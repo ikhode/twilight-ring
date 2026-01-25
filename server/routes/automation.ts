@@ -21,20 +21,23 @@ export function registerAutomationRoutes(app: Express): void {
     app.get("/api/automation/catalog", async (req: Request, res: Response): Promise<void> => {
         res.json({
             triggers: [
-                { id: 'manual', name: 'Activación Manual', description: 'Se inicia cuando un usuario presiona un botón', icon: 'zap' },
-                { id: 'inventory_low', name: 'Inventario Bajo', description: 'Cuando un producto baja del stock mínimo', icon: 'package' },
-                { id: 'fraud_warning', name: 'Alerta de Fraude', description: 'Detectado por AI Guardian en Radar', icon: 'shield-alert' },
-                { id: 'new_lead', name: 'Nuevo Prospecto CRM', description: 'Cuando se registra un cliente potencial', icon: 'users' },
+                { id: 'manual', name: 'Activación Manual', description: 'Se inicia cuando un usuario presiona un botón', icon: 'zap', category: 'utility' },
+                { id: 'inventory_low', name: 'Inventario Bajo', description: 'Cuando un producto baja del stock mínimo', icon: 'package', category: 'products' },
+                { id: 'fraud_warning', name: 'Alerta de Fraude', description: 'Detectado por AI Guardian en Radar', icon: 'shield-alert', category: 'ai' },
+                { id: 'new_lead', name: 'Nuevo Prospecto CRM', description: 'Cuando se registra un cliente potencial', icon: 'users', category: 'customers' },
+                { id: 'logistics_delay', name: 'Retraso en Entrega', description: 'Detectado por GPS de la unidad', icon: 'truck', category: 'logistics' },
             ],
             actions: [
-                { id: 'send_email', name: 'Enviar Correo', description: 'Manda un email al equipo responsable', icon: 'mail' },
-                { id: 'create_refund', name: 'Generar Reembolso', description: 'Procesa la devolución automáticamente', icon: 'banknote' },
-                { id: 'discord_notify', name: 'Notificar Operaciones', description: 'Envía un mensaje al canal de Discord', icon: 'message-square' },
-                { id: 'update_crm', name: 'Actualizar CRM', description: 'Cambia el estado del contacto', icon: 'user-plus' },
+                { id: 'send_email', name: 'Enviar Correo', description: 'Manda un email al equipo responsable', icon: 'mail', category: 'communication' },
+                { id: 'create_refund', name: 'Generar Reembolso', description: 'Procesa la devolución automáticamente', icon: 'banknote', category: 'transactions' },
+                { id: 'discord_notify', name: 'Notificar Operaciones', description: 'Envía un mensaje al canal de Discord', icon: 'message-square', category: 'communication' },
+                { id: 'update_crm', name: 'Actualizar CRM', description: 'Cambia el estado del contacto', icon: 'user-plus', category: 'customers' },
+                { id: 'restock_order', name: 'Orden de Compra', description: 'Genera pedido a proveedor', icon: 'shopping-cart', category: 'products' },
             ],
             conditions: [
-                { id: 'amount_check', name: 'Validar Monto', description: 'Si el total es > o < a X', icon: 'filter' },
-                { id: 'status_check', name: 'Validar Estado', description: 'Si el estado coincide con X', icon: 'check-circle' },
+                { id: 'amount_check', name: 'Validar Monto', description: 'Si el total es > o < a X', icon: 'filter', category: 'transactions' },
+                { id: 'status_check', name: 'Validar Estado', description: 'Si el estado coincide con X', icon: 'check-circle', category: 'utility' },
+                { id: 'risk_check', name: 'Nivel de Riesgo', description: 'Evaluar riesgo de operación', icon: 'shield', category: 'ai' },
             ]
         });
     });

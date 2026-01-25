@@ -19,7 +19,7 @@ export function CognitiveBridge() {
     const { setContext } = useCognitiveEngine();
 
     // Tensor Actions
-    const { setSalesTensor, setInventoryTensor } = useTensorBridge();
+    const { setSalesTensor, setInventoryTensor, setPurchasesTensor } = useTensorBridge();
 
     // 1. Context Sync (Metadata)
     useEffect(() => {
@@ -60,7 +60,20 @@ export function CognitiveBridge() {
             console.log("🧠 Tensor Bridge: Inventory Stream Linked");
         }
 
-    }, [enabledModules, setSalesTensor, setInventoryTensor]);
+        if (enabledModules.includes("finance") || enabledModules.includes("purchases")) {
+            // [Day, Amount, CategoryId]
+            const mockPurchaseData = [
+                [1, 500, 1],
+                [2, 1200, 2],
+                [3, 300, 1],
+                [4, 0, 0],
+                [5, 4500, 3]
+            ];
+            setPurchasesTensor(mockPurchaseData);
+            console.log("🧠 Tensor Bridge: Purchases Stream Linked");
+        }
+
+    }, [enabledModules, setSalesTensor, setInventoryTensor, setPurchasesTensor]);
 
     return null;
 }

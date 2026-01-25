@@ -17,6 +17,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
+import { useConfiguration } from "@/context/ConfigurationContext";
 
 interface HeaderProps {
   title: string;
@@ -27,6 +28,7 @@ interface HeaderProps {
 export function Header({ title, subtitle, children }: HeaderProps) {
   const [isDark, setIsDark] = useState(true);
   const { session } = useAuth();
+  const { enabledModules } = useConfiguration();
 
   const toggleTheme = () => {
     setIsDark(!isDark);
@@ -109,13 +111,20 @@ export function Header({ title, subtitle, children }: HeaderProps) {
         </div>
 
         <div className="hidden lg:block">
-          <GuardianStatus />
+          {enabledModules.length > 0 ? (
+            <GuardianStatus />
+          ) : (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/50 border border-slate-800">
+              <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+              <span className="text-[10px] uppercase font-black tracking-widest text-slate-500">System Standby</span>
+            </div>
+          )}
         </div>
       </div>
 
       <div className="flex items-center gap-4">
         <div className="hidden md:block">
-          <SemanticSearch />
+          {enabledModules.length > 0 && <SemanticSearch />}
         </div>
 
         <Button

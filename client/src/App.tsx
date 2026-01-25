@@ -28,10 +28,12 @@ import Settings from "@/pages/Settings";
 import TrustNet from "@/pages/TrustNet";
 import Admin from "@/pages/Admin";
 import Query from "@/pages/Query";
+import Marketplace from "@/pages/Marketplace";
 import Demo from "@/pages/Demo";
 import TerminalLink from "@/pages/TerminalLink";
 import SubscriptionSuccess from "@/pages/SubscriptionSuccess";
 import WorkflowEditor from "@/pages/WorkflowEditor";
+import Operations from "@/pages/Operations";
 
 import Kiosk from "@/pages/Kiosk";
 
@@ -56,6 +58,8 @@ function Router() {
       <Route path="/finance" component={Finance} />
       <Route path="/finance/payroll" component={PayrollManager} />
       <Route path="/crm" component={CRM} />
+      <Route path="/marketplace" component={Marketplace} />
+      <Route path="/operations" component={Operations} />
       <Route path="/purchases" component={Purchases} />
       <Route path="/tickets" component={Tickets} />
       <Route path="/documents" component={Documents} />

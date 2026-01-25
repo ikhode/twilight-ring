@@ -43,8 +43,7 @@ import { Zap } from "lucide-react";
 
 import { useToast } from "@/hooks/use-toast";
 import { useConfiguration, IndustryType } from "@/context/ConfigurationContext";
-import { ERP_MODULES } from "@/lib/modules";
-import { ModuleMarketplace } from "@/components/modules/ModuleMarketplace";
+
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation } from "@tanstack/react-query";
 
@@ -55,16 +54,16 @@ export default function Settings() {
   const [orgName, setOrgName] = useState(profile?.organization?.name || "Mi Empresa S.A.");
 
   const updateOrgMutation = useMutation({
-    mutationFn: async (name: string) => {
+    mutationFn: async (payload: { name: string, industry: string }) => {
       const res = await fetch("/api/organization", {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session?.access_token}`
         },
-        body: JSON.stringify({ name })
+        body: JSON.stringify(payload)
       });
-      if (!res.ok) throw new Error("Error al actualizar perfil");
+      if (!res.ok) throw new Error("Error al actualizar organización");
       return res.json();
     },
     onSuccess: () => {
@@ -91,17 +90,14 @@ export default function Settings() {
             <CreditCard className="w-4 h-4 mr-2" />
             Suscripción
           </TabsTrigger>
-          <TabsTrigger value="modules" data-testid="tab-modules" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
-            <Puzzle className="w-4 h-4 mr-2" />
-            Módulos SaaS
-          </TabsTrigger>
+
           <TabsTrigger value="ethics" data-testid="tab-ethics" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
             <Shield className="w-4 h-4 mr-2" />
             Gobernanza IA
           </TabsTrigger>
           <TabsTrigger value="advanced" data-testid="tab-advanced" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
             <Zap className="w-4 h-4 mr-2 text-primary" />
-            Avanzado
+            Config. Avanzada
           </TabsTrigger>
         </TabsList>
 
@@ -111,10 +107,10 @@ export default function Settings() {
             <CardHeader>
               <CardTitle className="font-display flex items-center gap-2">
                 <Database className="w-5 h-5 text-primary" />
-                Motor de Configuración Universal
+                Definiciones Globales y Diccionarios
               </CardTitle>
               <CardDescription>
-                Define campos personalizados y tipos de datos que se aplicarán a todo el OS
+                Establece los catálogos base (categorías, tipos, estados) que utilizarán todos los módulos del sistema.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -261,6 +257,19 @@ export default function Settings() {
                     <Badge variant="outline">Dinámico</Badge>
                   </div>
                   <p className="text-xs text-muted-foreground">Campos extra según la industria (peso, color, caducidad, serie).</p>
+
+                  {/* Visualization on Card */}
+                  <div className="flex flex-wrap gap-1">
+                    {(universalConfig?.productAttributes?.length > 0) ? (
+                      universalConfig.productAttributes.slice(0, 3).map((attr, idx) => (
+                        <Badge key={idx} variant="secondary" className="text-[10px]">{attr.name}</Badge>
+                      ))
+                    ) : (
+                      <span className="text-[10px] text-slate-600 italic">Sin atributos definidos</span>
+                    )}
+                    {universalConfig?.productAttributes?.length > 3 && <Badge variant="outline" className="text-[10px]">+{universalConfig.productAttributes.length - 3}</Badge>}
+                  </div>
+
                   <Dialog>
                     <DialogTrigger asChild>
                       <Button variant="ghost" size="sm" className="w-full text-xs h-7">Gestionar Campos</Button>
@@ -290,6 +299,9 @@ export default function Settings() {
                           }}><Plus className="w-4 h-4" /></Button>
                         </div>
                         <div className="space-y-2">
+                          {(!universalConfig.productAttributes || universalConfig.productAttributes.length === 0) && (
+                            <p className="text-sm text-muted-foreground text-center py-4">No hay atributos personalizados.</p>
+                          )}
                           {(universalConfig.productAttributes || []).map((attr, idx) => (
                             <div key={idx} className="flex items-center justify-between bg-slate-900 px-3 py-2 rounded text-sm border border-slate-800">
                               <span>{attr.name} <span className="text-xs text-muted-foreground">({attr.type})</span></span>
@@ -312,6 +324,19 @@ export default function Settings() {
                     <Badge variant="outline">Flexible</Badge>
                   </div>
                   <p className="text-xs text-muted-foreground">Configura qué productos se consumen y cuáles se producen.</p>
+
+                  {/* Visualization on Card */}
+                  <div className="flex flex-wrap gap-1">
+                    {(universalConfig?.processFlows?.length > 0) ? (
+                      universalConfig.processFlows.slice(0, 3).map((flow, idx) => (
+                        <Badge key={idx} variant="outline" className="text-[10px] border-primary/50 text-primary">{flow.name}</Badge>
+                      ))
+                    ) : (
+                      <span className="text-[10px] text-slate-600 italic">Sin flujos definidos</span>
+                    )}
+                    {universalConfig?.processFlows?.length > 3 && <Badge variant="outline" className="text-[10px] border-slate-700">+{universalConfig.processFlows.length - 3}</Badge>}
+                  </div>
+
                   <Dialog>
                     <DialogTrigger asChild>
                       <Button variant="ghost" size="sm" className="w-full text-xs h-7">Diseñar Workflows</Button>
@@ -341,6 +366,9 @@ export default function Settings() {
                           }}><Plus className="w-4 h-4" /></Button>
                         </div>
                         <div className="space-y-2">
+                          {(!universalConfig.processFlows || universalConfig.processFlows.length === 0) && (
+                            <p className="text-sm text-muted-foreground text-center py-4">No hay flujos de proceso configurados.</p>
+                          )}
                           {(universalConfig.processFlows || []).map((flow, idx) => (
                             <div key={idx} className="flex items-center justify-between bg-slate-900 px-3 py-2 rounded text-sm border border-slate-800">
                               <span>{flow.name} <span className="text-xs text-muted-foreground">({flow.type})</span></span>
@@ -380,15 +408,36 @@ export default function Settings() {
                     className="bg-slate-950 border-slate-800 text-white"
                   />
                 </div>
+
                 <div className="space-y-2">
                   <Label>Industria Principal</Label>
-                  <div className="p-3 rounded-lg border border-slate-800 bg-slate-950 flex items-center justify-between">
-                    <span className="font-bold uppercase tracking-wider text-sm">{industry}</span>
-                    <Badge variant="outline" className="text-primary border-primary/30">Activo</Badge>
+                  <div className="flex gap-2">
+                    <select
+                      value={industry}
+                      onChange={(e) => {
+                        // Direct update via context or local state?
+                        // Let's use the local state then save. 
+                        // Actually, useConfiguration exposes setIndustry but that's optimistic.
+                        // We need to include it in the save payload.
+                        // Wait, the current page uses 'industry' from context which is read-only effectively until mutation.
+                        // I will add a local state for industry editing.
+                        updateUniversalConfig({ industry: e.target.value }); // Optimistic update via context if supported
+                        // But real update happens on 'Guardar Perfil'
+                      }}
+                      className="flex h-10 w-full rounded-md border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      <option value="retail">Retail</option>
+                      <option value="manufacturing">Manufactura</option>
+                      <option value="services">Servicios</option>
+                      <option value="healthcare">Salud</option>
+                      <option value="logistics">Logística</option>
+                      <option value="technology">Tecnología</option>
+                      <option value="other">Otro</option>
+                    </select>
                   </div>
                 </div>
                 <Button
-                  onClick={() => updateOrgMutation.mutate(orgName)}
+                  onClick={() => updateOrgMutation.mutate({ name: orgName, industry })}
                   disabled={updateOrgMutation.isPending}
                   className="w-full bg-primary/20 hover:bg-primary/30 text-primary border border-primary/20 py-6"
                 >
@@ -454,9 +503,7 @@ export default function Settings() {
           </div>
         </TabsContent>
 
-        <TabsContent value="modules" className="space-y-6">
-          <ModuleMarketplace />
-        </TabsContent>
+
 
         <TabsContent value="ethics">
           <EthicsPanel />

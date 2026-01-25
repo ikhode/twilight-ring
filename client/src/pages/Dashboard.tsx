@@ -131,6 +131,55 @@ export default function Dashboard() {
 
   const activeInstanceId = instances?.[0]?.id;
 
+  // Zero-State: System Initialization
+  if (enabledModules.length === 0) {
+    return (
+      <AppLayout title="Núcleo Cognitivo" subtitle="Inicialización del Sistema">
+        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-8 animate-in fade-in duration-1000">
+
+          {/* Visual: Sleeping Brain */}
+          <div className="relative">
+            <div className="w-32 h-32 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center relative z-10">
+              <Brain className="w-16 h-16 text-slate-700" />
+            </div>
+            {/* Pulse rings */}
+            <div className="absolute inset-0 rounded-full border border-slate-800 animate-ping opacity-20" />
+            <div className="absolute inset-[-10px] rounded-full border border-slate-800 animate-ping opacity-10 [animation-delay:0.5s]" />
+          </div>
+
+          <div className="max-w-md space-y-4">
+            <h2 className="text-2xl font-black uppercase tracking-widest text-slate-300">Sistema en Espera</h2>
+            <p className="text-slate-500">
+              El Núcleo Cognitivo está activo pero no tiene módulos conectados.
+              Para comenzar, activa los módulos operativos necesarios para tu industria.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-lg">
+            <Link href="/settings">
+              <Button className="w-full h-14 bg-primary text-black hover:bg-primary/90 font-bold uppercase tracking-widest">
+                <Zap className="w-5 h-5 mr-2" />
+                Activar Módulos
+              </Button>
+            </Link>
+            <Link href="/workflows">
+              <Button variant="outline" className="w-full h-14 border-slate-700 hover:bg-slate-800 text-slate-300 uppercase tracking-widest">
+                <Settings2 className="w-5 h-5 mr-2" />
+                Asistente de Configuración
+              </Button>
+            </Link>
+          </div>
+
+          <div className="pt-8 border-t border-slate-800/50 w-full max-w-md">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-slate-600 font-bold">
+              Estado: <span className="text-amber-500">Standby</span> • Esperando Input
+            </p>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
   return (
     <AppLayout
       title="Núcleo Cognitivo"
@@ -171,7 +220,7 @@ export default function Dashboard() {
 
         {/* AI Status Banner with Neural Net */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="md:col-span-2 relative overflow-hidden p-0 rounded-2xl bg-slate-900 border border-white/5 h-[180px]">
+          <div className="md:col-span-2 relative overflow-hidden p-0 rounded-2xl bg-slate-900 border border-white/5 min-h-[180px]">
             <SystemHealth />
             <div className="absolute top-4 left-6 pointer-events-none">
               <div className="flex items-center gap-4">
@@ -229,7 +278,7 @@ export default function Dashboard() {
         </div>
 
         {/* Adaptive KPIs (Rewritten to use CognitiveKPI) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <CognitiveKPI
             label="Ingresos Totales"
             value={stats?.revenue || "---"}
