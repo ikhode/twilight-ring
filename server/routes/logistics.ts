@@ -144,5 +144,65 @@ router.post("/fleet/routes/generate", async (req, res): Promise<void> => {
     }
 });
 
+/**
+ * Obtiene la ruta activa para un conductor específico.
+ */
+router.get("/fleet/routes/driver/:driverId", async (req, res): Promise<void> => {
+    try {
+        const { driverId } = req.params;
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const route = await db.query.routes.findFirst({
+            where: and(eq(routes.driverId, driverId), eq(routes.status, "active")),
+            with: {
+                stops: true,
+                vehicle: true
+            }
+        });
+
+        if (!route) {
+            return res.status(404).json({ message: "No active route found" });
+        }
+
+        res.json(route);
+    } catch (error) {
+        console.error("Fetch driver route error:", error);
+        res.status(500).json({ message: "Error fetching driver route" });
+    }
+});
+
+/**
+ * Marca una parada como completada y registra la prueba de entrega.
+ */
+router.post("/fleet/routes/stops/:id/complete", async (req, res): Promise<void> => {
+    try {
+        const { id } = req.params;
+        const { signature, lat, lng, isPaid, paymentAmount, paymentMethod } = req.body;
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const [stop] = await db.update(routeStops)
+            .set({
+                status: "completed",
+                proofSignature: signature,
+                proofLocationLat: lat,
+                proofLocationLng: lng,
+                isPaid: isPaid || false,
+                paymentAmount: paymentAmount,
+                paymentMethod: paymentMethod,
+                completedAt: new Date()
+            })
+            .where(eq(routeStops.id, id))
+            .returning();
+
+        if (!stop) return res.status(404).json({ message: "Stop not found" });
+
+        res.json(stop);
+    } catch (error) {
+        console.error("Complete stop error:", error);
+        res.status(500).json({ message: "Error completing stop" });
+    }
+});
 
 export default router;

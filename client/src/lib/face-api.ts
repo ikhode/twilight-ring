@@ -27,6 +27,9 @@ export class FaceApiService {
 
         this.loadingPromise = (async () => {
             try {
+                // Suppress Tensor registration warnings
+                tf.env().set('DEBUG', false);
+
                 console.log('[FaceID] Waiting for TensorFlow.js to be ready...');
                 await tf.ready();
                 console.log('[FaceID] TensorFlow.js is ready. Backend:', tf.getBackend());

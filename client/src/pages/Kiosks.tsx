@@ -35,6 +35,7 @@ import {
   Smartphone,
   Info,
   ShieldCheck,
+  CheckCircle2,
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
@@ -54,6 +55,7 @@ const KIOSK_CAPABILITIES = [
   { id: "attendance", name: "Asistencia", description: "Verificación biométrica y turnos", icon: Clock },
   { id: "production", name: "Producción", description: "Control de patio y procesos", icon: ClipboardCheck },
   { id: "sales", name: "Ventas / POS", description: "Despacho y facturación", icon: CreditCard },
+  { id: "driver_kiosk", name: "Logística / GPS", description: "Terminal para conductores y rastreo", icon: Truck },
   { id: "info", name: "Información", description: "Tableros de anuncios e indicadores", icon: Info },
 ];
 
@@ -140,6 +142,7 @@ export default function Kiosks() {
 
     createKioskMutation.mutate({
       ...newKiosk,
+      type: newKiosk.capabilities.includes("driver_kiosk") ? "driver_kiosk" : "standard",
       status: "offline",
     });
   };
@@ -203,6 +206,17 @@ export default function Kiosks() {
                 {kiosks.filter((k) => k.status !== "online").length} desconectados
               </span>
             </div>
+          </div>
+
+          <div className="p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center gap-4">
+            <Truck className="w-5 h-5 text-indigo-400" />
+            <div className="flex-1">
+              <p className="text-xs font-bold text-indigo-100 uppercase tracking-wider">Terminales de Chofer</p>
+              <p className="text-[10px] text-indigo-300">Rastreo en tiempo real y gestión de rutas activo.</p>
+            </div>
+            <Button size="sm" variant="outline" className="h-8 text-[10px] border-indigo-500/30 hover:bg-indigo-500/20 text-indigo-300" onClick={() => setLocation("/logistics")}>
+              Ver en Mapa
+            </Button>
           </div>
 
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
@@ -275,7 +289,7 @@ export default function Kiosks() {
                                 isSelected ? "text-primary" : "text-muted-foreground"
                               )}
                             />
-                            {isSelected && <Checkbox checked className="rounded-full shadow-none" />}
+                            {isSelected && <CheckCircle2 className="w-5 h-5 text-primary stroke-[3px]" />}
                           </div>
                           <p className="font-bold text-sm">{cap.name}</p>
                           <p className="text-[10px] text-muted-foreground mt-1 leading-tight">

@@ -29,6 +29,7 @@ export const fuelLogs = pgTable("fuel_logs", {
 
 export const maintenanceLogs = pgTable("maintenance_logs", {
     id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
     vehicleId: varchar("vehicle_id").notNull().references(() => vehicles.id, { onDelete: "cascade" }),
     date: timestamp("date").defaultNow(),
     type: text("type").notNull(), // "preventive", "corrective"
@@ -67,6 +68,10 @@ export const routeStops = pgTable("route_stops", {
     proofPhoto: text("proof_photo"),
     proofLocationLat: customType<{ data: number }>({ dataType() { return "real"; } })("proof_location_lat"),
     proofLocationLng: customType<{ data: number }>({ dataType() { return "real"; } })("proof_location_lng"),
+    // Payment/Cash Collection
+    isPaid: boolean("is_paid").default(false),
+    paymentAmount: integer("payment_amount"),
+    paymentMethod: text("payment_method"), // "cash", "transfer", "credit"
     completedAt: timestamp("completed_at"),
     createdAt: timestamp("created_at").defaultNow(),
 });

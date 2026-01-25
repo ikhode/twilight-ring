@@ -243,9 +243,9 @@ function POSView() {
   });
 
   const { data: vehicles = [] } = useQuery({
-    queryKey: ["/api/fleet/vehicles"],
+    queryKey: ["/api/logistics/fleet/vehicles"],
     queryFn: async () => {
-      const res = await fetch("/api/fleet/vehicles", { headers: { Authorization: `Bearer ${session?.access_token}` } });
+      const res = await fetch("/api/logistics/fleet/vehicles", { headers: { Authorization: `Bearer ${session?.access_token}` } });
       return res.json();
     },
     enabled: !!session?.access_token

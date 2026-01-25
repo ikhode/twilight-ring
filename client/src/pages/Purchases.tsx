@@ -119,47 +119,75 @@ function PurchasesTable({ data }: { data: any[] }) {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/purchases"] });
-            if (hasInventory) {
-                queryClient.invalidateQueries({ queryKey: ["/api/inventory/products"] });
-            }
-            toast({ title: hasInventory ? "Recepción Exitosa" : "Compra Completada", description: hasInventory ? "Inventario actualizado correctamente." : "Gasto registrado." });
+            queryClient.invalidateQueries({ queryKey: ["/api/inventory/products"] });
+            toast({ title: "Insumos Recibidos", description: "El inventario se ha actualizado." });
         },
-        onError: () => {
-            toast({ title: "Error", description: "No se pudo procesar.", variant: "destructive" });
-        }
+        onError: () => toast({ title: "Error", description: "No se pudo recibir.", variant: "destructive" })
+    });
+
+    const payMutation = useMutation({
+        mutationFn: async (id: string) => {
+            const res = await fetch(`/api/purchases/${id}/pay`, {
+                method: 'PATCH',
+                headers: { Authorization: `Bearer ${session?.access_token}` }
+            });
+            if (!res.ok) throw new Error("Failed to pay");
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/purchases"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/finance/summary"] });
+            toast({ title: "Pago Registrado", description: "El gasto se ha reflejado en finanzas." });
+        },
+        onError: () => toast({ title: "Error", description: "No se pudo registrar el pago.", variant: "destructive" })
     });
 
     const columns = [
         { key: "date", header: "Fecha", render: (it: any) => new Date(it.date).toLocaleDateString() },
         { key: "supplier", header: "Proveedor", render: (it: any) => it.supplier?.name || "N/A" },
         {
-            key: "product", header: "Concepto / Producto", render: (it: any) => (
+            key: "product", header: "Insumo / Cant.", render: (it: any) => (
                 <div className="flex flex-col">
                     <span className="font-medium">{it.product?.name || "Desconocido"}</span>
-                    {hasInventory && <span className="text-xs text-muted-foreground">Cant: {it.quantity}</span>}
+                    <span className="text-xs text-muted-foreground">{it.quantity} {it.product?.unit || 'u.'}</span>
                 </div>
             )
         },
-        { key: "total", header: "Total", render: (it: any) => formatCurrency(it.totalAmount / 100) },
+        {
+            key: "logistics", header: "Logística", render: (it: any) => (
+                <div className="flex flex-col text-xs">
+                    <span className="capitalize">{it.logisticsMethod === 'pickup' ? 'Recolección' : 'Entrega'}</span>
+                    {it.freightCost > 0 && <span className="text-muted-foreground">Flete: {formatCurrency(it.freightCost / 100)}</span>}
+                </div>
+            )
+        },
+        { key: "total", header: "Total", render: (it: any) => <span className="font-bold">{formatCurrency(it.totalAmount / 100)}</span> },
         {
             key: "status", header: "Estado", render: (it: any) => (
-                <div className="flex gap-2">
-                    <Badge variant={it.paymentStatus === 'paid' ? 'default' : 'secondary'}>{it.paymentStatus === 'paid' ? 'Pagado' : 'Por Pagar'}</Badge>
-                    {hasInventory && (
-                        <Badge variant={it.deliveryStatus === 'received' ? 'success' : 'outline'} className={cn(it.deliveryStatus === 'pending' && "bg-amber-100 text-amber-700 hover:bg-amber-200")}>
-                            {it.deliveryStatus === 'received' ? 'Recibido' : 'Pendiente'}
-                        </Badge>
-                    )}
+                <div className="flex flex-col gap-1">
+                    <Badge variant={it.paymentStatus === 'paid' ? 'default' : 'secondary'} className="w-fit text-[10px] px-1 h-4">
+                        {it.paymentStatus === 'paid' ? 'Pagado' : 'Por Pagar'}
+                    </Badge>
+                    <Badge variant={it.deliveryStatus === 'received' ? 'success' : 'outline'} className={cn("w-fit text-[10px] px-1 h-4", it.deliveryStatus === 'pending' && "bg-amber-100 text-amber-700 border-amber-200")}>
+                        {it.deliveryStatus === 'received' ? 'Recibido' : 'Pendiente'}
+                    </Badge>
                 </div>
             )
         },
         {
             key: "actions", header: "", render: (it: any) => (
-                it.deliveryStatus === 'pending' && (
-                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => receiveMutation.mutate(it.id)} disabled={receiveMutation.isPending}>
-                        {hasInventory ? "Recibir Stock" : "Marcar Completado"}
-                    </Button>
-                )
+                <div className="flex gap-1">
+                    {it.deliveryStatus === 'pending' && (
+                        <Button size="sm" variant="outline" className="h-7 text-[10px] px-2 bg-green-50 hover:bg-green-100 text-green-700 border-green-200" onClick={() => receiveMutation.mutate(it.id)} disabled={receiveMutation.isPending}>
+                            Recibir
+                        </Button>
+                    )}
+                    {it.paymentStatus === 'pending' && (
+                        <Button size="sm" variant="outline" className="h-7 text-[10px] px-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200" onClick={() => payMutation.mutate(it.id)} disabled={payMutation.isPending}>
+                            Pagar
+                        </Button>
+                    )}
+                </div>
             )
         }
     ];
@@ -330,10 +358,16 @@ function CreatePurchaseDialog() {
     const queryClient = useQueryClient();
     const [open, setOpen] = useState(false);
 
-    // Cart logic moved inside
-    const [cart, setCart] = useState<{ id: number; name: string; cost: number; quantity: number }[]>([]);
+    const [cart, setCart] = useState<{ id: string; name: string; cost: number; quantity: number }[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedSupplier, setSelectedSupplier] = useState<string>("");
+
+    // New Fields
+    const [paymentMethod, setPaymentMethod] = useState<string>("transfer");
+    const [logisticsMethod, setLogisticsMethod] = useState<string>("delivery");
+    const [driverId, setDriverId] = useState<string>("");
+    const [vehicleId, setVehicleId] = useState<string>("");
+    const [freightCost, setFreightCost] = useState<number>(0);
 
     const { data: dbProducts = [] } = useQuery({
         queryKey: ["/api/inventory/products"],
@@ -347,6 +381,18 @@ function CreatePurchaseDialog() {
         enabled: open
     });
 
+    const { data: drivers = [] } = useQuery({
+        queryKey: ["/api/hr/employees"],
+        queryFn: async () => (await fetch("/api/hr/employees", { headers: { Authorization: `Bearer ${session?.access_token}` } })).json(),
+        enabled: open && logisticsMethod === "pickup"
+    });
+
+    const { data: vehicles = [] } = useQuery({
+        queryKey: ["/api/logistics/fleet/vehicles"],
+        queryFn: async () => (await fetch("/api/logistics/fleet/vehicles", { headers: { Authorization: `Bearer ${session?.access_token}` } })).json(),
+        enabled: open && logisticsMethod === "pickup"
+    });
+
     const purchaseMutation = useMutation({
         mutationFn: async () => {
             const items = cart.map(item => ({
@@ -357,7 +403,16 @@ function CreatePurchaseDialog() {
             const res = await fetch("/api/purchases", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
-                body: JSON.stringify({ items, supplierId: selectedSupplier, status: 'pending' })
+                body: JSON.stringify({
+                    items,
+                    supplierId: selectedSupplier,
+                    paymentMethod,
+                    logisticsMethod,
+                    driverId: driverId || null,
+                    vehicleId: vehicleId || null,
+                    freightCost: Math.round(freightCost * 100),
+                    status: 'pending'
+                })
             });
             if (!res.ok) throw new Error("Failed");
             return res.json();
@@ -366,6 +421,7 @@ function CreatePurchaseDialog() {
             setOpen(false);
             setCart([]);
             setSelectedSupplier("");
+            setFreightCost(0);
             queryClient.invalidateQueries({ queryKey: ["/api/purchases"] });
             toast({ title: "Orden Registrada", description: "La orden de compra ha sido creada." });
         },
@@ -379,11 +435,12 @@ function CreatePurchaseDialog() {
         });
     };
 
-    const updateItem = (id: number, field: string, val: number) => {
+    const updateItem = (id: string, field: string, val: number) => {
         setCart(prev => prev.map(i => i.id === id ? { ...i, [field]: val } : i));
     };
 
-    const total = cart.reduce((acc, i) => acc + (i.cost * i.quantity), 0);
+    const cartTotal = cart.reduce((acc, i) => acc + (i.cost * i.quantity), 0);
+    const totalWithFreight = cartTotal + freightCost;
     const formatCurrency = (amount: number) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(amount);
 
     const filteredProducts = Array.isArray(dbProducts) ? dbProducts.filter((p: any) => p.name.toLowerCase().includes(searchQuery.toLowerCase())) : [];
@@ -393,27 +450,29 @@ function CreatePurchaseDialog() {
             <DialogTrigger asChild>
                 <Button><Plus className="w-4 h-4 mr-2" /> Nueva Orden</Button>
             </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader><DialogTitle>Nueva Orden de Compra</DialogTitle></DialogHeader>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 py-4">
+                    {/* Catalog */}
                     <div className="space-y-4 border-r pr-4">
                         <Label>Catálogo de Insumos</Label>
                         <div className="relative">
                             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                             <Input placeholder="Buscar..." className="pl-8" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
                         </div>
-                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                        <div className="space-y-2 max-h-80 overflow-y-auto pr-2">
                             {filteredProducts.map(p => (
-                                <div key={p.id} className="flex justify-between items-center p-2 border rounded hover:bg-muted cursor-pointer" onClick={() => addToCart(p)}>
+                                <div key={p.id} className="flex justify-between items-center p-2 border rounded hover:bg-muted cursor-pointer group" onClick={() => addToCart(p)}>
                                     <div className="text-sm font-medium">{p.name}</div>
-                                    <Badge variant="outline">{p.stock}</Badge>
+                                    <Badge variant="outline" className="group-hover:bg-primary group-hover:text-primary-foreground">Agg</Badge>
                                 </div>
                             ))}
                         </div>
                     </div>
 
-                    <div className="space-y-4">
+                    {/* Order Details */}
+                    <div className="space-y-4 border-r pr-4">
                         <div className="space-y-2">
                             <Label>Proveedor</Label>
                             <Select value={selectedSupplier} onValueChange={setSelectedSupplier}>
@@ -422,36 +481,98 @@ function CreatePurchaseDialog() {
                             </Select>
                         </div>
 
-                        <div className="space-y-2">
-                            <Label>Items en Orden</Label>
-                            <div className="space-y-2 max-h-60 overflow-y-auto">
-                                {cart.map(item => (
-                                    <div key={item.id} className="p-2 bg-muted/30 rounded border text-sm space-y-2">
-                                        <div className="flex justify-between font-medium"><span>{item.name}</span> <Trash2 className="w-4 h-4 text-destructive cursor-pointer" onClick={() => setCart(c => c.filter(x => x.id !== item.id))} /></div>
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <div>
-                                                <Label className="text-[10px]">Cant.</Label>
-                                                <Input type="number" className="h-7 text-xs" value={item.quantity} onChange={e => updateItem(item.id, 'quantity', parseInt(e.target.value))} />
-                                            </div>
-                                            <div>
-                                                <Label className="text-[10px]">Costo Unit.</Label>
-                                                <Input type="number" className="h-7 text-xs" value={item.cost} onChange={e => updateItem(item.id, 'cost', parseFloat(e.target.value))} />
-                                            </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label>Método de Pago</Label>
+                                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="transfer">Transferencia</SelectItem>
+                                        <SelectItem value="cash">Efectivo</SelectItem>
+                                        <SelectItem value="credit">Crédito</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Logística</Label>
+                                <Select value={logisticsMethod} onValueChange={setLogisticsMethod}>
+                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="delivery">Entrega Puerta</SelectItem>
+                                        <SelectItem value="pickup">Recoger Parcela</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+
+                        {logisticsMethod === 'pickup' && (
+                            <div className="p-3 bg-muted/50 rounded-lg space-y-3 animate-in fade-in slide-in-from-top-2">
+                                <p className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground">Datos de Recolección</p>
+                                <div className="space-y-2">
+                                    <Label className="text-xs">Conductor</Label>
+                                    <Select value={driverId} onValueChange={setDriverId}>
+                                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Elegir..." /></SelectTrigger>
+                                        <SelectContent>
+                                            {drivers.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-xs">Vehículo</Label>
+                                    <Select value={vehicleId} onValueChange={setVehicleId}>
+                                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Elegir..." /></SelectTrigger>
+                                        <SelectContent>
+                                            {vehicles.map((v: any) => <SelectItem key={v.id} value={v.id}>{v.plate} - {v.model}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-xs">Costo Flete (Opcional)</Label>
+                                    <Input type="number" className="h-8 text-xs" value={freightCost} onChange={e => setFreightCost(parseFloat(e.target.value) || 0)} />
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Cart Summary */}
+                    <div className="space-y-4">
+                        <Label>Items en Orden</Label>
+                        <div className="space-y-2 max-h-80 overflow-y-auto pr-2">
+                            {cart.length === 0 && <p className="text-sm text-muted-foreground text-center py-10 italic">Carrito vacío</p>}
+                            {cart.map(item => (
+                                <div key={item.id} className="p-2 bg-muted/30 rounded border text-sm space-y-2">
+                                    <div className="flex justify-between font-medium">
+                                        <span>{item.name}</span>
+                                        <Trash2 className="w-4 h-4 text-destructive cursor-pointer opacity-50 hover:opacity-100" onClick={() => setCart(c => c.filter(x => x.id !== item.id))} />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <Label className="text-[10px]">Cant.</Label>
+                                            <Input type="number" className="h-7 text-xs" value={item.quantity} onChange={e => updateItem(item.id, 'quantity', parseInt(e.target.value) || 1)} />
+                                        </div>
+                                        <div>
+                                            <Label className="text-[10px]">Costo Unit.</Label>
+                                            <Input type="number" className="h-7 text-xs" value={item.cost} onChange={e => updateItem(item.id, 'cost', parseFloat(e.target.value) || 0)} />
                                         </div>
                                     </div>
-                                ))}
-                            </div>
-                            <div className="flex justify-between font-bold text-lg pt-2 border-t">
-                                <span>Total Estimado</span>
-                                <span>{formatCurrency(total)}</span>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="space-y-1 pt-2 border-t font-mono text-sm">
+                            <div className="flex justify-between"><span>Subtotal:</span><span>{formatCurrency(cartTotal)}</span></div>
+                            {freightCost > 0 && <div className="flex justify-between text-muted-foreground"><span>Flete (Logística):</span><span>{formatCurrency(freightCost)}</span></div>}
+                            <div className="flex justify-between font-bold text-lg pt-1 border-t text-primary mt-1">
+                                <span>TOTAL</span>
+                                <span>{formatCurrency(totalWithFreight)}</span>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <DialogFooter>
-                    <Button onClick={() => purchaseMutation.mutate()} disabled={purchaseMutation.isPending || cart.length === 0 || !selectedSupplier}>
-                        {purchaseMutation.isPending ? "Procesando..." : "Confirmar Orden"}
+                    <Button onClick={() => purchaseMutation.mutate()} disabled={purchaseMutation.isPending || cart.length === 0 || !selectedSupplier} className="w-full lg:w-auto h-11 px-8">
+                        {purchaseMutation.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Procesando...</> : "Confirmar Orden de Compra"}
                     </Button>
                 </DialogFooter>
             </DialogContent>

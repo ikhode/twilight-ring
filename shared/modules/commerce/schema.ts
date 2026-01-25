@@ -43,6 +43,7 @@ export const products = pgTable("products", {
     price: integer("price").notNull().default(0), // in cents
     cost: integer("cost").notNull().default(0), // in cents
     stock: integer("stock").notNull().default(0),
+    minStock: integer("min_stock").notNull().default(0),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at").defaultNow(),
 });
@@ -83,8 +84,15 @@ export const purchases = pgTable("purchases", {
     quantity: integer("quantity").notNull().default(1),
     totalAmount: integer("total_amount").notNull(), // in cents
     paymentStatus: text("payment_status").notNull().default("pending"), // "pending", "paid", "refunded"
+    paymentMethod: text("payment_method"), // "cash", "transfer", "credit"
     deliveryStatus: text("delivery_status").notNull().default("pending"), // "pending", "received", "partial", "returned", "cancelled"
+    logisticsMethod: text("logistics_method").notNull().default("delivery"), // "delivery", "pickup"
+    driverId: varchar("driver_id").references(() => employees.id),
+    vehicleId: varchar("vehicle_id").references(() => vehicles.id),
+    freightCost: integer("freight_cost").default(0), // in cents
     date: timestamp("date").defaultNow(),
+    receivedAt: timestamp("received_at"),
+    paidAt: timestamp("paid_at"),
     notes: text("notes"),
 });
 

@@ -16,6 +16,11 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('fetch', event => {
+    // Skip API calls from caching completely
+    if (event.request.url.includes('/api/')) {
+        return;
+    }
+
     // Simple Cache-First Strategy for static assets
     event.respondWith(
         caches.match(event.request)
@@ -23,7 +28,14 @@ self.addEventListener('fetch', event => {
                 if (response) {
                     return response;
                 }
-                return fetch(event.request);
+                return fetch(event.request).catch(err => {
+                    console.error('SW fetch failed:', err);
+                    // Return a generic error response instead of breaking the promise
+                    return new Response('Network error occurred', {
+                        status: 408,
+                        statusText: 'Network Error'
+                    });
+                });
             })
     );
 });

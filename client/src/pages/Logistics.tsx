@@ -258,6 +258,20 @@ export default function Logistics() {
         enabled: !!session?.access_token
     });
 
+    const { data: activeTerminals = [] } = useQuery({
+        queryKey: ["/api/kiosks"],
+        queryFn: async () => {
+            const res = await fetch("/api/kiosks", {
+                headers: { Authorization: `Bearer ${session?.access_token}` }
+            });
+            if (!res.ok) return [];
+            const data = await res.json();
+            // Filter only driver kiosks or those with recent location
+            return data.filter((k: any) => k.type === "driver_kiosk" || (k.lastLatitude && k.lastLongitude));
+        },
+        enabled: !!session?.access_token
+    });
+
     // Calculate maintenance alerts client-side for now
     // Assume service needed every 10,000 km
     const vehiclesNeedingService = Array.isArray(vehiclesData) ? vehiclesData.filter((v: any) => {
@@ -274,6 +288,7 @@ export default function Logistics() {
     useSupabaseRealtime({ table: 'vehicles', queryKey: ["/api/logistics/fleet/vehicles"] });
     useSupabaseRealtime({ table: 'sales', queryKey: ["/api/operations/sales/orders"] });
     useSupabaseRealtime({ table: 'routes', queryKey: ["/api/logistics/fleet/routes/active"] });
+    useSupabaseRealtime({ table: 'terminals', queryKey: ["/api/kiosks"] });
 
     const { data: employees = [] } = useQuery({
         queryKey: ["/api/hr/employees"],
@@ -600,22 +615,45 @@ export default function Logistics() {
                                             </div>
                                         ))}
 
-                                        {/* Active Vehicle Marker (Mock or Real) */}
-                                        <Marker
-                                            position={[19.4326, -99.1332]}
-                                            icon={createVehicleIcon('active')}
-                                        >
-                                            <Popup className="glass-popup">
-                                                <div className="p-1">
-                                                    <p className="font-bold text-sm">Unidad {vehiclesData[0]?.plate || "DEMO-01"}</p>
-                                                    <p className="text-xs text-slate-500">En Ruta • 45 km/h</p>
-                                                    <Badge className="mt-1 bg-green-500 hover:bg-green-600 text-[10px] h-5">OPTIMO</Badge>
-                                                </div>
-                                            </Popup>
-                                            <LeafletTooltip direction="bottom" offset={[0, 20]} opacity={0.8} permanent>
-                                                {vehiclesData[0]?.plate || "DEMO-01"}
-                                            </LeafletTooltip>
-                                        </Marker>
+                                        {/* Real Active Terminals Tracking */}
+                                        {activeTerminals.map((kiosk: any) => (
+                                            <Marker
+                                                key={kiosk.id}
+                                                position={[kiosk.lastLatitude || 19.4326, kiosk.lastLongitude || -99.1332]}
+                                                icon={createVehicleIcon(kiosk.status === 'online' ? 'active' : 'inactive')}
+                                            >
+                                                <Popup className="glass-popup">
+                                                    <div className="p-1">
+                                                        <p className="font-bold text-sm">{kiosk.name}</p>
+                                                        <p className="text-xs text-slate-500">
+                                                            Vehículo: {vehiclesData.find((v: any) => v.id === kiosk.vehicleId)?.plate || 'N/A'}<br />
+                                                            Conductor: {employees.find((e: any) => e.id === kiosk.driverId)?.name || 'N/A'}
+                                                        </p>
+                                                        <Badge className={cn("mt-1 text-[10px] h-5", kiosk.status === 'online' ? "bg-green-500" : "bg-slate-500")}>
+                                                            {kiosk.status === 'online' ? 'EN MOVIMIENTO' : 'DESCONECTADO'}
+                                                        </Badge>
+                                                    </div>
+                                                </Popup>
+                                                <LeafletTooltip direction="bottom" offset={[0, 20]} opacity={0.8} permanent>
+                                                    {vehiclesData.find((v: any) => v.id === kiosk.vehicleId)?.plate || kiosk.name}
+                                                </LeafletTooltip>
+                                            </Marker>
+                                        ))}
+
+                                        {/* Mock Vehicle Marker logic removed or kept as backup if no terminals */}
+                                        {activeTerminals.length === 0 && (
+                                            <Marker
+                                                position={[19.4326, -99.1332]}
+                                                icon={createVehicleIcon('active')}
+                                            >
+                                                <Popup className="glass-popup">
+                                                    <div className="p-1">
+                                                        <p className="font-bold text-sm">Unidad Demo</p>
+                                                        <p className="text-xs text-slate-500">Sin terminales activas</p>
+                                                    </div>
+                                                </Popup>
+                                            </Marker>
+                                        )}
 
                                         <MapController center={[19.4326, -99.1332]} />
                                     </MapContainer>

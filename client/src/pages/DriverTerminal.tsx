@@ -1,13 +1,18 @@
 import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Navigation, MapPin, CheckCircle, Camera, Truck, User, Shield, AlertTriangle } from "lucide-react";
+import { Loader2, Navigation, MapPin, CheckCircle, Camera, Truck, User, Shield, AlertTriangle, Maximize, CreditCard, Banknote, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { FaceAuthCamera } from "@/components/kiosks/FaceAuthCamera";
 
 // Cognitive UI Components
 const PulseDot = ({ color = "bg-primary" }: { color?: string }) => (
@@ -27,11 +32,15 @@ export default function DriverTerminal() {
     const [view, setView] = useState<"auth" | "dashboard" | "route" | "pod">("auth");
     const [activeStop, setActiveStop] = useState<any>(null);
     const [signature, setSignature] = useState<string | null>(null);
+    const [isPaid, setIsPaid] = useState(false);
+    const [paymentAmount, setPaymentAmount] = useState("");
+    const [paymentMethod, setPaymentMethod] = useState("cash");
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
     // Driver Identity & Device
     const [driverIdentity, setDriverIdentity] = useState<any>(null);
     const [authStatus, setAuthStatus] = useState<"loading" | "linked" | "unlinked" | "error">("loading");
+    const [needsBiometric, setNeedsBiometric] = useState(true);
 
     // 1. Initialize & Check Auth
     useEffect(() => {
@@ -95,16 +104,60 @@ export default function DriverTerminal() {
         checkAuth();
     }, []);
 
+    const toggleFullscreen = () => {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch((err) => {
+                console.error(`Error attempting to enable full-screen mode: ${err.message}`);
+            });
+        } else {
+            document.exitFullscreen();
+        }
+    };
+
+    // 2. Real-time GPS Tracking
+    useEffect(() => {
+        if (!driverIdentity?.terminal?.id) return;
+
+        let watchId: number;
+
+        const startTracking = () => {
+            if ("geolocation" in navigator) {
+                watchId = navigator.geolocation.watchPosition(
+                    async (position) => {
+                        const { latitude, longitude } = position.coords;
+                        try {
+                            await fetch(`/api/kiosks/${driverIdentity.terminal.id}/heartbeat`, {
+                                method: 'PATCH',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'x-device-auth': `${driverIdentity.terminal.deviceId}:${driverIdentity.terminal.deviceSalt || ''}`
+                                },
+                                body: JSON.stringify({ latitude, longitude })
+                            });
+                        } catch (err) {
+                            console.error("Heartbeat error:", err);
+                        }
+                    },
+                    (error) => console.error("Geolocation error:", error),
+                    { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+                );
+            }
+        };
+
+        startTracking();
+        return () => {
+            if (watchId) navigator.geolocation.clearWatch(watchId);
+        };
+    }, [driverIdentity?.terminal?.id]);
+
+
     // Get Active Route (Real)
     const { data: activeRoute, isLoading: isLoadingRoute } = useQuery({
-        queryKey: ["/api/operations/fleet/routes/driver", driverIdentity?.id],
+        queryKey: ["/api/logistics/fleet/routes/driver", driverIdentity?.id],
         queryFn: async () => {
-            // In real app, we likely use the terminal ID or driver ID from the verified session
-            // but for now let's assume the mutation uses the session context or we pass the ID.
-            // We can use the endpoint we made earlier, but we need the ID.
             if (!driverIdentity?.id) return null;
 
-            const res = await fetch(`/api/operations/fleet/routes/driver/${driverIdentity.id}`, {
+            const res = await fetch(`/api/logistics/fleet/routes/driver/${driverIdentity.id}`, {
                 headers: { Authorization: `Bearer ${session?.access_token}` }
             });
             if (!res.ok) return null;
@@ -114,34 +167,34 @@ export default function DriverTerminal() {
     });
 
     const completeStopMutation = useMutation({
-        mutationFn: async ({ stopId, signature }: { stopId: string, signature: string }) => {
-            await fetch(`/api/operations/fleet/routes/stops/${stopId}/complete`, {
+        mutationFn: async ({ stopId, signature, isPaid, paymentAmount, paymentMethod }: any) => {
+            await fetch(`/api/logistics/fleet/routes/stops/${stopId}/complete`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    // Note: We might need a special headers for kiosk auth if no user session
-                    // For now assuming the driver is also a user or we use the device ID in headers?
-                    // Let's rely on standard Auth if the driver is logged in? 
-                    // OR, effectively, this endpoint should be open to the device if validated.
-                    // IMPORTANT: In a PWA, the "User" session might not exist same as the "Admin" session.
-                    // We should probably pass the device-id header for validation middleware.
                     Authorization: `Bearer ${session?.access_token}`
                 },
                 body: JSON.stringify({
                     signature,
                     lat: 19.4326,
-                    lng: -99.1332 // Mock GPS: To be replaced with simulator or real navigator
+                    lng: -99.1332, // Mock GPS
+                    isPaid,
+                    paymentAmount: paymentAmount ? parseInt(paymentAmount) : 0,
+                    paymentMethod
                 })
             });
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["/api/operations/fleet/routes/driver"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/logistics/fleet/routes/driver"] });
             setView("route");
             setActiveStop(null);
             setSignature(null);
-            toast({ title: "Entrega Completada", description: "La prueba de entrega se ha subido correctamente." });
+            setIsPaid(false);
+            setPaymentAmount("");
+            toast({ title: "Entrega Completada", description: "La prueba de entrega y el pago se han registrado." });
         }
     });
+
 
     // Canvas Logic for Signature
     useEffect(() => {
@@ -202,6 +255,53 @@ export default function DriverTerminal() {
 
     // Render Auth (Face Simulator) - REMOVED / SKIPPED since we are "linked"
 
+    // Render Biometric Auth
+    if (authStatus === "linked" && needsBiometric) {
+        return (
+            <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6 text-white selection:bg-primary/30">
+                <div className="max-w-md w-full space-y-8 text-center">
+                    <div className="space-y-2">
+                        <Badge className="bg-primary/10 text-primary border-primary/20 mb-4 uppercase tracking-widest">
+                            Terminal del Conductor
+                        </Badge>
+                        <h1 className="text-5xl font-black italic tracking-tighter uppercase">Nexus Driver</h1>
+                        <p className="text-slate-500 uppercase tracking-[0.2em] text-xs">Identificación Biométrica Requerida</p>
+                    </div>
+
+                    <FaceAuthCamera
+                        terminalId={driverIdentity?.terminal?.id}
+                        onAuthenticated={(emp) => {
+                            setNeedsBiometric(false);
+                            setView("dashboard");
+                            toast({ title: `Hola, ${emp.name}`, description: "Acceso autorizado." });
+                        }}
+                    />
+
+                    <div className="pt-8 border-t border-white/5 flex flex-col gap-4">
+                        <Button
+                            variant="outline"
+                            className="w-full bg-white/5 border-white/10"
+                            onClick={toggleFullscreen}
+                        >
+                            <Maximize className="w-4 h-4 mr-2" />
+                            PANTALLA COMPLETA
+                        </Button>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="text-left space-y-1">
+                                <p className="text-[10px] uppercase opacity-30">Unidad</p>
+                                <p className="text-[10px] font-mono">{driverIdentity?.vehicle?.plate || '---'}</p>
+                            </div>
+                            <div className="text-right space-y-1">
+                                <p className="text-[10px] uppercase opacity-30">Seguridad</p>
+                                <p className="text-[10px] font-mono">TLS_V3_FACEID</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     // Render Dashboard (No Route)
     if (view === "dashboard" && !activeRoute) {
         return (
@@ -244,8 +344,11 @@ export default function DriverTerminal() {
                                 <span className="text-xs font-mono text-green-500">EN LINEA • {driverIdentity?.vehicle?.plate}</span>
                             </div>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right flex flex-col items-end gap-2">
                             <span className="text-3xl font-black">{completedStops}/{totalStops}</span>
+                            <Button variant="ghost" size="icon" onClick={toggleFullscreen} className="h-8 w-8 rounded-full bg-white/5">
+                                <Maximize className="w-4 h-4" />
+                            </Button>
                         </div>
                     </div>
                     {/* Progress Bar */}
@@ -328,13 +431,51 @@ export default function DriverTerminal() {
 
                     <div className="bg-white p-4 rounded-xl shadow-sm border space-y-4">
                         <div className="flex items-center justify-between">
-                            <label className="text-xs font-bold uppercase text-slate-400">Firma del Cliente</label>
+                            <div className="flex items-center gap-2">
+                                <Checkbox id="isPaid" checked={isPaid} onCheckedChange={(val) => setIsPaid(!!val)} />
+                                <Label htmlFor="isPaid" className="text-sm font-bold uppercase transition-colors">¿Se recibió pago?</Label>
+                            </div>
+                            {isPaid ? <Banknote className="w-5 h-5 text-green-500 animate-bounce" /> : <CreditCard className="w-5 h-5 text-slate-300" />}
+                        </div>
+
+                        {isPaid && (
+                            <div className="space-y-4 pt-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                                <div className="space-y-2">
+                                    <Label className="text-[10px] font-black uppercase text-slate-400">Monto Recibido ($)</Label>
+                                    <Input
+                                        type="number"
+                                        placeholder="0.00"
+                                        value={paymentAmount}
+                                        onChange={(e) => setPaymentAmount(e.target.value)}
+                                        className="h-12 text-lg font-bold"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-[10px] font-black uppercase text-slate-400">Método de Pago</Label>
+                                    <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                                        <SelectTrigger className="h-12">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="cash">Efectivo</SelectItem>
+                                            <SelectItem value="transfer">Transferencia</SelectItem>
+                                            <SelectItem value="card">Tarjeta / TPV</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="bg-white p-4 rounded-xl shadow-sm border space-y-4">
+                        <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-black uppercase text-slate-400">Firma del Cliente / Proveedor</label>
                             <Button variant="ghost" size="sm" onClick={() => {
                                 const ctx = canvasRef.current?.getContext("2d");
-                                if (ctx) ctx.clearRect(0, 0, 300, 150);
-                            }} className="text-xs text-red-500">Borrar</Button>
+                                if (ctx) ctx.clearRect(0, 0, 320, 200);
+                            }} className="text-[10px] text-red-500 font-bold">LIMPIAR</Button>
                         </div>
-                        <div className="border-2 border-dashed border-slate-200 rounded-xl overflow-hidden bg-slate-50 touch-none">
+                        <div className="border border-slate-200 rounded-xl overflow-hidden bg-slate-50 touch-none shadow-inner">
                             <canvas
                                 ref={canvasRef}
                                 width={320}
@@ -342,16 +483,24 @@ export default function DriverTerminal() {
                                 className="w-full h-[200px]"
                             />
                         </div>
+                        <p className="text-[9px] text-slate-400 italic text-center">Al firmar, el cliente confirma la recepción del pedido.</p>
                     </div>
 
-                    <Button className="w-full h-14 text-lg font-bold shadow-xl shadow-primary/20"
+                    <Button className="w-full h-16 text-lg font-black uppercase italic tracking-tighter shadow-xl shadow-primary/20 bg-primary hover:bg-primary/90 rounded-2xl"
+                        disabled={completeStopMutation.isPending}
                         onClick={() => {
                             const canvas = canvasRef.current;
                             const dataUrl = canvas?.toDataURL();
-                            completeStopMutation.mutate({ stopId: activeStop.id, signature: dataUrl! });
+                            completeStopMutation.mutate({
+                                stopId: activeStop.id,
+                                signature: dataUrl!,
+                                isPaid,
+                                paymentAmount,
+                                paymentMethod
+                            });
                         }}
                     >
-                        CONFIRMAR ENTREGA
+                        {completeStopMutation.isPending ? <Loader2 className="w-6 h-6 animate-spin" /> : "CONFIRMAR ENTREGA Y FINALIZAR"}
                     </Button>
                 </div>
             </div>

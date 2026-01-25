@@ -506,8 +506,8 @@ export default function KioskInterface(): JSX.Element {
 
         {activeCaps.length === 0 && (
           <div className="col-span-full py-20 text-center opacity-30 space-y-4 border-2 border-dashed border-white/5 rounded-[40px]">
-            <XCircle className="w-12 h-12 mx-auto" />
-            <p className="font-black uppercase tracking-widest text-xs">Módulo no configurado</p>
+            <Truck className="w-12 h-12 mx-auto animate-bounce" />
+            <p className="font-black uppercase tracking-widest text-xs italic">Aguardando Asignación de Sistema...</p>
           </div>
         )}
       </div>
@@ -599,13 +599,7 @@ export default function KioskInterface(): JSX.Element {
             </p>
           </div>
 
-          <Button
-            variant="ghost"
-            onClick={() => setLocation("/kiosks")}
-            className="md:order-last text-muted-foreground hover:text-white hover:bg-white/5 border border-white/5"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" /> Panel Admin
-          </Button>
+
         </header>
 
         <main className="space-y-8">
