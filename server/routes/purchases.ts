@@ -22,7 +22,9 @@ router.get("/", async (req, res): Promise<void> => {
             orderBy: [desc(purchases.date)],
             with: {
                 supplier: true,
-                product: true
+                product: true,
+                driver: true,
+                vehicle: true
             }
         });
         res.json(data);
@@ -238,6 +240,35 @@ router.patch("/:id/pay", async (req, res): Promise<void> => {
     } catch (error) {
         console.error("Pay purchase error:", error);
         res.status(500).json({ message: "Error processing payment" });
+    }
+});
+
+router.patch("/:id/logistics", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const { id } = req.params;
+        const { driverId, vehicleId, freightCost, logisticsMethod } = req.body;
+
+        const [existing] = await db.select().from(purchases).where(and(eq(purchases.id, id), eq(purchases.organizationId, orgId))).limit(1);
+        if (!existing) return res.status(404).json({ message: "Purchase not found" });
+
+        const updateData: any = {};
+        if (driverId !== undefined) updateData.driverId = driverId;
+        if (vehicleId !== undefined) updateData.vehicleId = vehicleId;
+        if (freightCost !== undefined) updateData.freightCost = freightCost;
+        if (logisticsMethod !== undefined) updateData.logisticsMethod = logisticsMethod;
+
+        const [updated] = await db.update(purchases)
+            .set(updateData)
+            .where(eq(purchases.id, id))
+            .returning();
+
+        res.json(updated);
+    } catch (error) {
+        console.error("Update purchase logistics error:", error);
+        res.status(500).json({ message: "Error updating logistics" });
     }
 });
 

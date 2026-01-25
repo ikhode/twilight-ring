@@ -31,6 +31,7 @@ import {
   MapPin,
   RefreshCw,
   Truck,
+  CreditCard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLocation, useParams } from "wouter";
@@ -42,16 +43,17 @@ import { supabase } from "@/lib/supabase";
 import ProductionTerminal from "./kiosks/ProductionTerminal";
 import CashierTerminal from "./kiosks/CashierTerminal";
 import AdminTerminal from "./kiosks/AdminTerminal";
+import LogisticsTerminal from "./kiosks/LogisticsTerminal";
 import { FaceAuthCamera } from "@/components/kiosks/FaceAuthCamera";
 import { format } from "date-fns";
 
 // Define Kiosk Capabilities
 const KIOSK_CAPABILITIES = [
-  { id: "attendance", name: "Control de Asistencia", description: "Registro de entradas y salidas", icon: Clock },
-  { id: "coco-entry", name: "Entrada de Coco", description: "Registro de pesaje y lotes de coco", icon: Package },
-  { id: "worker-activity", name: "Actividad Obrera", description: "Registro de tareas y producción", icon: Factory },
+  { id: "attendance", name: "Asistencia", description: "Verificación biométrica y turnos", icon: Clock },
+  { id: "production", name: "Producción", description: "Control de patio y procesos", icon: Factory },
+  { id: "sales", name: "Ventas / POS", description: "Despacho y facturación", icon: CreditCard },
+  { id: "driver_kiosk", name: "Ruta Logística", description: "Terminal para conductores y rastreo", icon: Truck },
   { id: "faceid-config", name: "Configuración Face ID", description: "Enrollamiento biométrico facial", icon: Shield },
-  { id: "logistics", name: "Ruta Logística", description: "Seguimiento GPS y entrega de pedidos", icon: Navigation },
 ];
 
 /**
@@ -337,6 +339,30 @@ export default function KioskInterface(): JSX.Element {
     );
   }
 
+  // 1.5 Driver Terminal
+  if (kioskInfo?.capabilities?.includes("driver_kiosk")) {
+    if (!authenticatedEmployee) {
+      return (
+        <KioskLoginView
+          terminal={kioskInfo}
+          onAuthenticated={setAuthenticatedEmployee}
+        />
+      );
+    }
+    return (
+      <LogisticsTerminal
+        sessionContext={{
+          terminal: kioskInfo as Terminal,
+          driver: authenticatedEmployee
+        }}
+        onLogout={() => {
+          setAuthenticatedEmployee(null);
+          localStorage.removeItem("last_auth_employee_id");
+        }}
+      />
+    );
+  }
+
   // 1.5 Worker Activity (Mapped to Production)
   if (kioskInfo?.capabilities?.includes("worker-activity")) {
     if (!authenticatedEmployee) {
@@ -471,7 +497,7 @@ export default function KioskInterface(): JSX.Element {
           <button
             key={cap.id}
             onClick={() => {
-              if (cap.id === "attendance" || cap.id === "worker-activity" || cap.id === "coco-entry") {
+              if (["attendance", "production", "sales", "driver_kiosk", "worker-activity"].includes(cap.id)) {
                 setPendingCapability(cap.id);
                 setActiveView("login");
               } else {

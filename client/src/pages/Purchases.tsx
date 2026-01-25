@@ -156,8 +156,10 @@ function PurchasesTable({ data }: { data: any[] }) {
         {
             key: "logistics", header: "Logística", render: (it: any) => (
                 <div className="flex flex-col text-xs">
-                    <span className="capitalize">{it.logisticsMethod === 'pickup' ? 'Recolección' : 'Entrega'}</span>
-                    {it.freightCost > 0 && <span className="text-muted-foreground">Flete: {formatCurrency(it.freightCost / 100)}</span>}
+                    <span className="capitalize font-medium">{it.logisticsMethod === 'pickup' ? 'Recolección' : 'Entrega'}</span>
+                    {it.driver && <span className="text-muted-foreground">Cond: {it.driver.name}</span>}
+                    {it.vehicle && <span className="text-muted-foreground">Veh: {it.vehicle.plate}</span>}
+                    {it.freightCost > 0 && <span className="text-blue-600 font-bold">Flete: {formatCurrency(it.freightCost / 100)}</span>}
                 </div>
             )
         },
@@ -187,6 +189,7 @@ function PurchasesTable({ data }: { data: any[] }) {
                             Pagar
                         </Button>
                     )}
+                    <EditLogisticsDialog purchase={it} />
                 </div>
             )
         }
@@ -383,13 +386,21 @@ function CreatePurchaseDialog() {
 
     const { data: drivers = [] } = useQuery({
         queryKey: ["/api/hr/employees"],
-        queryFn: async () => (await fetch("/api/hr/employees", { headers: { Authorization: `Bearer ${session?.access_token}` } })).json(),
+        queryFn: async () => {
+            const res = await fetch("/api/hr/employees", { headers: { Authorization: `Bearer ${session?.access_token}` } });
+            if (!res.ok) return [];
+            return res.json();
+        },
         enabled: open && logisticsMethod === "pickup"
     });
 
     const { data: vehicles = [] } = useQuery({
         queryKey: ["/api/logistics/fleet/vehicles"],
-        queryFn: async () => (await fetch("/api/logistics/fleet/vehicles", { headers: { Authorization: `Bearer ${session?.access_token}` } })).json(),
+        queryFn: async () => {
+            const res = await fetch("/api/logistics/fleet/vehicles", { headers: { Authorization: `Bearer ${session?.access_token}` } });
+            if (!res.ok) return [];
+            return res.json();
+        },
         enabled: open && logisticsMethod === "pickup"
     });
 
@@ -573,6 +584,124 @@ function CreatePurchaseDialog() {
                 <DialogFooter>
                     <Button onClick={() => purchaseMutation.mutate()} disabled={purchaseMutation.isPending || cart.length === 0 || !selectedSupplier} className="w-full lg:w-auto h-11 px-8">
                         {purchaseMutation.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Procesando...</> : "Confirmar Orden de Compra"}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function EditLogisticsDialog({ purchase }: { purchase: any }) {
+    const { session } = useAuth();
+    const { toast } = useToast();
+    const queryClient = useQueryClient();
+    const [open, setOpen] = useState(false);
+
+    const [logisticsMethod, setLogisticsMethod] = useState<string>(purchase.logisticsMethod || "delivery");
+    const [driverId, setDriverId] = useState<string>(purchase.driverId || "");
+    const [vehicleId, setVehicleId] = useState<string>(purchase.vehicleId || "");
+    const [freightCost, setFreightCost] = useState<number>(purchase.freightCost / 100 || 0);
+
+    const { data: drivers = [] } = useQuery({
+        queryKey: ["/api/hr/employees"],
+        queryFn: async () => {
+            const res = await fetch("/api/hr/employees", { headers: { Authorization: `Bearer ${session?.access_token}` } });
+            if (!res.ok) return [];
+            return res.json();
+        },
+        enabled: open
+    });
+
+    const { data: vehicles = [] } = useQuery({
+        queryKey: ["/api/logistics/fleet/vehicles"],
+        queryFn: async () => {
+            const res = await fetch("/api/logistics/fleet/vehicles", { headers: { Authorization: `Bearer ${session?.access_token}` } });
+            if (!res.ok) return [];
+            return res.json();
+        },
+        enabled: open
+    });
+
+    const updateMutation = useMutation({
+        mutationFn: async () => {
+            const res = await fetch(`/api/purchases/${purchase.id}/logistics`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+                body: JSON.stringify({
+                    logisticsMethod,
+                    driverId: driverId === "none" ? null : (driverId || null),
+                    vehicleId: vehicleId === "none" ? null : (vehicleId || null),
+                    freightCost: Math.round(freightCost * 100),
+                })
+            });
+            if (!res.ok) throw new Error("Failed");
+            return res.json();
+        },
+        onSuccess: () => {
+            setOpen(false);
+            queryClient.invalidateQueries({ queryKey: ["/api/purchases"] });
+            toast({ title: "Logística Actualizada", description: "Los datos de envío se han guardado." });
+        },
+        onError: () => toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar la logística." })
+    });
+
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                <Button size="sm" variant="ghost" className="h-7 text-[10px] px-2">
+                    Editar
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Editar Logística de Compra</DialogTitle>
+                </DialogHeader>
+
+                <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                        <Label>Método de Logística</Label>
+                        <Select value={logisticsMethod} onValueChange={setLogisticsMethod}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="delivery">Entrega Puerta</SelectItem>
+                                <SelectItem value="pickup">Recoger Parcela</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label>Conductor</Label>
+                        <Select value={driverId} onValueChange={setDriverId}>
+                            <SelectTrigger><SelectValue placeholder="Elegir..." /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="none">Ninguno</SelectItem>
+                                {drivers.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label>Vehículo</Label>
+                        <Select value={vehicleId} onValueChange={setVehicleId}>
+                            <SelectTrigger><SelectValue placeholder="Elegir..." /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="none">Ninguno</SelectItem>
+                                {vehicles.map((v: any) => <SelectItem key={v.id} value={v.id}>{v.plate} - {v.model}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label>Costo Flete (Opcional)</Label>
+                        <Input type="number" value={freightCost} onChange={e => setFreightCost(parseFloat(e.target.value) || 0)} />
+                    </div>
+                </div>
+
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+                    <Button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending}>
+                        {updateMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                        Guardar Cambios
                     </Button>
                 </DialogFooter>
             </DialogContent>

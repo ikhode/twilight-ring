@@ -138,6 +138,14 @@ export const purchasesRelations = relations(purchases, ({ one }) => ({
         fields: [purchases.supplierId],
         references: [suppliers.id],
     }),
+    driver: one(employees, {
+        fields: [purchases.driverId],
+        references: [employees.id],
+    }),
+    vehicle: one(vehicles, {
+        fields: [purchases.vehicleId],
+        references: [vehicles.id],
+    }),
 }));
 
 export const inventoryMovementsRelations = relations(inventoryMovements, ({ one }) => ({
