@@ -66,14 +66,61 @@ export function FaceAuthCamera({ onAuthenticated, terminalId }: FaceAuthCameraPr
         return () => clearInterval(intervalId);
     }, [terminalId, onAuthenticated]);
 
+    const manualScan = async () => {
+        if (!webcamRef.current) return;
+        setStatus('scanning');
+        try {
+            const imageSrc = webcamRef.current.getScreenshot();
+            if (!imageSrc) return;
+
+            const img = new Image();
+            img.src = imageSrc;
+            await new Promise((resolve) => (img.onload = resolve));
+
+            const descriptor = await faceApiService.getFaceDescriptor(img);
+
+            if (!descriptor) {
+                setStatus('error');
+                setErrorMsg('No se detecta rostro. Ajuste posición.');
+                setTimeout(() => setStatus('idle'), 2000);
+                return;
+            }
+
+            setStatus('verifying');
+            const res = await fetch('/api/kiosks/identify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    descriptor: faceApiService.descriptorToArray(descriptor),
+                    terminalId
+                })
+            });
+
+            if (res.ok) {
+                const employee = await res.json();
+                setStatus('success');
+                onAuthenticated(employee);
+            } else {
+                setStatus('error');
+                setErrorMsg('Persona no reconocida');
+                setTimeout(() => setStatus('idle'), 2000);
+            }
+        } catch (err) {
+            console.error('Manual scan error:', err);
+            setStatus('error');
+            setErrorMsg('Error de conexión o cámara');
+            setTimeout(() => setStatus('idle'), 2000);
+        }
+    };
+
     return (
         <div className="relative w-full max-w-sm mx-auto overflow-hidden">
             <div className={cn(
-                "relative aspect-square rounded-[80px] overflow-hidden border-8 transition-all duration-500",
+                "relative aspect-square rounded-[80px] overflow-hidden border-8 transition-all duration-500 cursor-pointer active:scale-95",
                 status === 'success' ? "border-emerald-500 scale-105" :
                     status === 'error' ? "border-red-500" :
-                        status === 'verifying' ? "border-primary animate-pulse" : "border-white/5"
-            )}>
+                        status === 'verifying' ? "border-primary animate-pulse" : "border-white/5 hover:border-primary/50"
+            )} onClick={manualScan}>
                 <Webcam
                     audio={false}
                     ref={webcamRef}
@@ -124,8 +171,8 @@ export function FaceAuthCamera({ onAuthenticated, terminalId }: FaceAuthCameraPr
                     )}
 
                     {status === 'idle' || status === 'scanning' ? (
-                        <div className="mt-48 bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/10">
-                            <p className="text-[10px] font-bold uppercase tracking-widest opacity-80">Posiciona tu rostro para escanear</p>
+                        <div className="mt-48 bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 group-hover:bg-primary/20 transition-colors">
+                            <p className="text-[10px] font-bold uppercase tracking-widest opacity-80">Tocá aquí para escanear</p>
                         </div>
                     ) : null}
                 </div>

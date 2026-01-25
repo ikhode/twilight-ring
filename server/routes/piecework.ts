@@ -38,11 +38,15 @@ router.get("/tickets", async (req: Request, res: Response): Promise<void> => {
             conditions.push(eq(pieceworkTickets.status, ticketStatus));
         }
 
+        console.log(`[DEBUG_TICKETS] Org: ${orgId}, Employee: ${targetEmployeeId}, Status: ${ticketStatus}`);
+
         const tickets = await db.query.pieceworkTickets.findMany({
             where: and(...conditions),
             with: { employee: true },
             orderBy: [desc(pieceworkTickets.createdAt)]
         });
+
+        console.log(`[DEBUG_TICKETS] Found: ${tickets.length}`);
 
         res.json(tickets.map(t => ({
             ...t,
@@ -50,6 +54,36 @@ router.get("/tickets", async (req: Request, res: Response): Promise<void> => {
         })));
     } catch (error) {
         console.error("Fetch tickets error:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+/**
+ * Obtiene un ticket individual por ID.
+ */
+router.get("/tickets/:id", async (req: Request, res: Response): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const ticket = await db.query.pieceworkTickets.findFirst({
+            where: and(
+                eq(pieceworkTickets.id, req.params.id),
+                eq(pieceworkTickets.organizationId, orgId)
+            ),
+            with: { employee: true }
+        });
+
+        if (!ticket) {
+            return res.status(404).json({ message: "Ticket not found" });
+        }
+
+        res.json({
+            ...ticket,
+            employeeName: ticket.employee?.name || "Desconocido"
+        });
+    } catch (error) {
+        console.error("Fetch ticket error:", error);
         res.status(500).json({ message: "Internal server error" });
     }
 });
@@ -260,6 +294,54 @@ router.post("/tickets", async (req: Request, res: Response): Promise<void> => {
     } catch (error) {
         console.error("Create ticket error:", error);
         res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+// NEW: Approve Ticket
+router.post("/tickets/:id/approve", async (req: Request, res: Response): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const ticketId = req.params.id;
+
+        // Verify ownership
+        const [ticket] = await db.select().from(pieceworkTickets).where(and(
+            eq(pieceworkTickets.id, ticketId),
+            eq(pieceworkTickets.organizationId, orgId)
+        ));
+
+        if (!ticket) return res.status(404).json({ message: "Ticket not found" });
+
+        await db.update(pieceworkTickets)
+            .set({ status: 'approved', approvedBy: (req as any).user?.id || 'admin', updatedAt: new Date() })
+            .where(eq(pieceworkTickets.id, ticketId));
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error("Approve error:", error);
+        res.status(500).json({ message: "Failed to approve ticket" });
+    }
+});
+
+// NEW: Pay Single Ticket (Quick Action)
+router.post("/tickets/:id/pay", async (req: Request, res: Response): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const ticketId = req.params.id;
+
+        await db.update(pieceworkTickets)
+            .set({ status: 'paid', updatedAt: new Date() })
+            .where(and(
+                eq(pieceworkTickets.id, ticketId),
+                eq(pieceworkTickets.organizationId, orgId)
+            ));
+
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ message: "Failed to pay ticket" });
     }
 });
 

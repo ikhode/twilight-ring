@@ -36,7 +36,8 @@ import {
   Loader2,
   Edit,
   Trash2,
-  Camera
+  Camera,
+  Copy
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -200,6 +201,17 @@ function EditEmployeeDialog({ employee, open, onOpenChange }: { employee: Employ
                 status: formData.get("status") as any,
               });
             }} className="space-y-4 py-4">
+              {/* ID Display for Kiosk */}
+              <div className="p-3 bg-slate-950 rounded border border-slate-800 space-y-2">
+                <Label className="text-xs text-muted-foreground">ID de Empleado (Para Kiosco)</Label>
+                <div className="flex gap-2">
+                  <code className="flex-1 bg-slate-900 border border-slate-800 rounded px-2 py-1.5 font-mono text-xs flex items-center">{employee.id}</code>
+                  <Button type="button" variant="outline" size="icon" className="h-8 w-8" onClick={() => { navigator.clipboard.writeText(employee.id); toast({ title: "ID Copiado", description: "Listo para pegar en el Kiosco." }); }}>
+                    <Copy className="w-3 h-3" />
+                  </Button>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Nombre</Label>

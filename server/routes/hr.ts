@@ -41,6 +41,23 @@ router.post("/employees", async (req, res): Promise<void> => {
 });
 
 /**
+ * Obtiene un empleado individual por ID.
+ */
+router.get("/employees/:id", async (req, res): Promise<void> => {
+    const orgId = await getOrgIdFromRequest(req);
+    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
+    const id = req.params.id;
+    const employee = await storage.getEmployee(id);
+
+    if (!employee || employee.organizationId !== orgId) {
+        return res.status(404).json({ error: "Employee not found" });
+    }
+
+    res.json(employee);
+});
+
+/**
  * Actualiza la información de un empleado.
  */
 router.patch("/employees/:id", async (req, res): Promise<void> => {

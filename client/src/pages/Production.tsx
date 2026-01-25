@@ -46,6 +46,8 @@ interface Ticket {
   status: 'pending' | 'approved' | 'rejected' | 'paid';
   createdAt: string;
   amount: number;
+  batchId?: string; // Linked Batch
+  taskName?: string; // Backend returns this
 }
 
 function TaskSelector({ tasks, inventory, isError }: { tasks: any[], inventory: any[], isError: boolean }) {
@@ -456,7 +458,7 @@ export default function Production() {
                           {/* Ticket Summary */}
                           <div className="mt-2 flex gap-2">
                             <Badge variant="secondary" className="text-[10px] bg-emerald-500/10 text-emerald-400 border-none">
-                              {(tickets || []).filter(t => t.id /* Hacky check */ && t.process /* Just using process name match or could do batchId match if we had it in FE list */).length} Tickets
+                              {(tickets || []).filter(t => t.batchId === instance.id).length} Tickets
                             </Badge>
                           </div>
                         </div>

@@ -16,7 +16,9 @@ import {
     User,
     LogOut,
     Search,
-    Plus
+    Plus,
+    Camera,
+    X
 } from "lucide-react";
 import { KioskSession } from "@/types/kiosk";
 import { getKioskHeaders } from "@/lib/kiosk-auth";
@@ -40,6 +42,7 @@ interface Advance {
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CashControl } from "@/components/finance/CashControl";
+import { FaceAuthCamera } from "@/components/kiosks/FaceAuthCamera";
 
 // ... existing imports
 
@@ -58,21 +61,71 @@ export default function CashierTerminal({ sessionContext, onLogout }: CashierTer
         });
     };
 
-    // Mock employee search for now, replacing with real search if endpoint exists
-    const handleEmployeeSearch = () => {
+    // Smart Scan Logic
+    const handleSmartSearch = async () => {
         if (!scanCode) return;
+
+        // 1. Try to find a Ticket first (Smart Scan)
+        if (scanCode.includes('-') && scanCode.length > 20) {
+            try {
+                const res = await fetch(`/api/piecework/tickets/${scanCode}`, { headers: getAuthHeaders() });
+                if (res.ok) {
+                    const ticket = await res.json();
+                    if (ticket && (ticket.status === 'pending' || ticket.status === 'approved')) {
+                        setScannedTicket(ticket); // Trigger Ticket Pay Modal
+                        setScanCode("");
+                        return;
+                    } else if (ticket) {
+                        toast({ title: "Ticket ya procesado", description: `Estado: ${ticket.status}`, variant: "destructive" });
+                        return;
+                    }
+                }
+            } catch (e) { /* Ignore, proceed to employee check */ }
+        }
+
+        // 2. Fallback to Employee ID
         setEmployeeId(scanCode);
+        setScanCode("");
     };
 
-    // Fetch unpaid tickets for this employee
+    const [scannedTicket, setScannedTicket] = useState<any | null>(null);
+    const [showFaceCam, setShowFaceCam] = useState(false);
+
+    // Pay Single Ticket Mutation
+    const paySingleTicketMutation = useMutation({
+        mutationFn: async (ticketId: string) => {
+            const res = await fetch(`/api/piecework/tickets/${ticketId}/pay`, { method: "POST", headers: getAuthHeaders() });
+            if (!res.ok) throw new Error("Failed to pay ticket");
+            return res.json();
+        },
+        onSuccess: () => {
+            toast({ title: "Ticket Pagado", description: "Pago registrado exitosamente." });
+            setScannedTicket(null);
+            queryClient.invalidateQueries({ queryKey: ["/api/piecework/tickets"] });
+        }
+    });
+
+    // Fetch unpaid tickets for this employee (Ready for Payment = Approved)
     const { data: unpaidTickets = [], isLoading: loadingTickets } = useQuery<UnpaidTicket[]>({
-        queryKey: ["/api/piecework/tickets/unpaid", employeeId],
+        queryKey: ["/api/piecework/tickets/unpaid", employeeId, "approved"],
         queryFn: async () => {
             if (!employeeId) return [];
-            const res = await fetch(`/api/piecework/tickets?employeeId=${employeeId}&status=pending`, {
+            const res = await fetch(`/api/piecework/tickets?employeeId=${employeeId}&status=approved`, {
                 headers: getAuthHeaders()
             });
             if (!res.ok) throw new Error("Failed to fetch tickets");
+            return res.json();
+        },
+        enabled: !!employeeId
+    });
+
+    // Fetch Employee Details for Feedback
+    const { data: employeeDetails } = useQuery<any>({
+        queryKey: ["/api/hr/employees", employeeId],
+        queryFn: async () => {
+            if (!employeeId) return null;
+            const res = await fetch(`/api/hr/employees/${employeeId}`, { headers: getAuthHeaders() });
+            if (!res.ok) return null;
             return res.json();
         },
         enabled: !!employeeId
@@ -188,19 +241,96 @@ export default function CashierTerminal({ sessionContext, onLogout }: CashierTer
                                         placeholder="ID de Empleado..."
                                         className="font-mono uppercase"
                                     />
-                                    <Button size="icon" onClick={handleEmployeeSearch}>
+                                    <Button size="icon" onClick={handleSmartSearch}>
                                         <Search className="w-4 h-4" />
+                                    </Button>
+                                    <Button size="icon" variant="outline" className="border-primary/50 text-primary" onClick={() => setShowFaceCam(true)}>
+                                        <Camera className="w-4 h-4" />
                                     </Button>
                                 </div>
 
-                                {employeeId && (
-                                    <div className="p-4 rounded-lg bg-primary/10 border border-primary/20 flex items-center gap-3">
-                                        <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center">
-                                            <User className="w-6 h-6 text-primary" />
+                                {/* Face ID Modal */}
+                                <Dialog open={showFaceCam} onOpenChange={setShowFaceCam}>
+                                    <DialogContent>
+                                        <DialogHeader>
+                                            <DialogTitle>Identificación Biométrica</DialogTitle>
+                                        </DialogHeader>
+                                        <div className="py-4">
+                                            <FaceAuthCamera
+                                                terminalId={sessionContext.terminal.id}
+                                                onAuthenticated={(emp) => {
+                                                    setEmployeeId(emp.id);
+                                                    setShowFaceCam(false);
+                                                    toast({ title: "Empleado Identificado", description: emp.name });
+                                                }}
+                                            />
+                                        </div>
+                                    </DialogContent>
+                                </Dialog>
+
+                                {/* Quick Pay Ticket Dialog */}
+                                <Dialog open={!!scannedTicket} onOpenChange={(open) => !open && setScannedTicket(null)}>
+                                    <DialogContent className="max-w-sm">
+                                        <DialogHeader>
+                                            <DialogTitle className="flex items-center gap-2">
+                                                <DollarSign className="w-5 h-5 text-emerald-500" />
+                                                Pagar Ticket Rápido
+                                            </DialogTitle>
+                                            <DialogDescription>Pago individual por escaneo</DialogDescription>
+                                        </DialogHeader>
+                                        {scannedTicket && (
+                                            <div className="space-y-4 py-4">
+                                                <div className="p-4 bg-slate-900 rounded-lg space-y-2">
+                                                    <div className="flex justify-between">
+                                                        <span className="text-slate-400 text-xs uppercase">Tarea</span>
+                                                        <span className="font-bold">{scannedTicket.taskName}</span>
+                                                    </div>
+                                                    <div className="flex justify-between">
+                                                        <span className="text-slate-400 text-xs uppercase">Empleado</span>
+                                                        <span className="">{scannedTicket.employeeName}</span>
+                                                    </div>
+                                                    <div className="flex justify-between border-t border-slate-800 pt-2 mt-2">
+                                                        <span className="text-slate-400">Total</span>
+                                                        <span className="font-mono text-xl text-emerald-400">${(scannedTicket.totalAmount / 100).toFixed(2)}</span>
+                                                    </div>
+                                                </div>
+                                                <DialogFooter>
+                                                    <Button variant="outline" onClick={() => setScannedTicket(null)}>Cancelar</Button>
+                                                    <Button
+                                                        className="bg-emerald-600 hover:bg-emerald-700"
+                                                        onClick={() => paySingleTicketMutation.mutate(scannedTicket.id)}
+                                                        disabled={paySingleTicketMutation.isPending}
+                                                    >
+                                                        {paySingleTicketMutation.isPending ? "Pagando..." : "Autorizar Pago"}
+                                                    </Button>
+                                                </DialogFooter>
+                                            </div>
+                                        )}
+                                    </DialogContent>
+                                </Dialog>
+
+                                {employeeId && employeeDetails && (
+                                    <div className="p-4 rounded-lg bg-primary/10 border border-primary/20 flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
+                                        <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden border-2 border-primary/30">
+                                            {employeeDetails.avatar ? (
+                                                <img src={employeeDetails.avatar} alt="Avatar" className="w-full h-full object-cover" />
+                                            ) : (
+                                                <User className="w-6 h-6 text-primary" />
+                                            )}
                                         </div>
                                         <div>
-                                            <p className="font-bold text-white">Empleado</p>
-                                            <p className="text-xs text-primary/80">ID: {employeeId.slice(0, 8)}...</p>
+                                            <p className="font-bold text-white text-lg leading-none">{employeeDetails.name}</p>
+                                            <p className="text-xs text-primary/80 font-mono mt-1">{employeeDetails.role} • {employeeDetails.department}</p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {employeeId && !employeeDetails && (
+                                    <div className="p-4 rounded-lg bg-slate-800 border border-slate-700 flex items-center gap-3 animate-pulse">
+                                        <div className="w-12 h-12 rounded-full bg-slate-700" />
+                                        <div className="space-y-2">
+                                            <div className="h-4 w-32 bg-slate-700 rounded" />
+                                            <div className="h-3 w-24 bg-slate-700 rounded" />
                                         </div>
                                     </div>
                                 )}
