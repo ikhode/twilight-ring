@@ -81,6 +81,8 @@ import { Copilot } from "@/components/ai/Copilot";
 import { ConfigurationProvider } from "@/context/ConfigurationContext";
 import { NexusGuide } from "@/components/tutorial/NexusGuide";
 
+import { CognitiveBridge } from "@/lib/cognitive/CognitiveBridge";
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -90,6 +92,7 @@ function App() {
             <TooltipProvider>
               <Toaster />
               <NexusGuide />
+              <CognitiveBridge />
               <Copilot />
               <Router />
             </TooltipProvider>

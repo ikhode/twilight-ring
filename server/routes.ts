@@ -23,6 +23,7 @@ import { searchRoutes } from "./routes/search";
 import { whatsappRoutes } from "./routes/whatsapp";
 import { kioskRoutes } from "./routes/kiosks";
 import productionRoutes from "./routes/production";
+import logisticsRoutes from "./routes/logistics";
 import { registerChatRoutes } from "./routes/chat";
 import { registerDocumentationRoutes } from "./routes/documentation";
 import { registerAdminRoutes } from "./routes/admin";
@@ -87,7 +88,8 @@ export async function registerRoutes(
 
   // Operations / Production
   app.use("/api/production", requireModule("/production"), productionRoutes);
-  app.use("/api/operations", requireModule("/production"), operationsRoutes);
+  app.use("/api/operations", requireModule("/operations"), operationsRoutes);
+  app.use("/api/logistics", requireModule("/logistics"), logisticsRoutes);
   app.use("/api/inventory", requireModule("/inventory"), inventoryRoutes); // Protected Inventory Logic
 
   registerCPERoutes(app);
@@ -95,7 +97,7 @@ export async function registerRoutes(
   app.use("/api/piecework", requireModule("/piecework"), pieceworkRoutes);
 
   // CRM / Sales
-  app.use("/api/crm", requireModule("/sales"), crmRoutes);
+  app.use("/api/crm", requireModule("/crm"), crmRoutes);
   app.use("/api/sales", requireModule("/sales"), salesRoutes);
 
   // HR

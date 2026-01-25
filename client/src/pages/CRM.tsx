@@ -30,6 +30,7 @@ import { Customer, Supplier } from "../../../shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { useConfiguration } from "@/hooks/use-configuration";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { CognitiveButton, AliveValue } from "@/components/cognitive";
@@ -232,6 +233,27 @@ export default function CRM() {
     }
   });
 
+  // Module Enforcement
+  const isEnabled = useConfiguration().getModuleStatus("crm");
+
+  if (!isEnabled) {
+    return (
+      <AppLayout>
+        <div className="flex flex-col items-center justify-center h-[80vh] text-center space-y-4">
+          <div className="p-4 bg-muted rounded-full">
+            <Users className="w-12 h-12 text-muted-foreground" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold">Módulo CRM Desactivado</h2>
+            <p className="text-muted-foreground max-w-md mx-auto mt-2">
+              Gestiona relaciones con clientes activando este módulo en el Marketplace.
+            </p>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
   // --- QUERIES ---
   const { data: customers = [], isLoading: loadingCustomers } = useQuery<Customer[]>({
     queryKey: ["/api/crm/customers"],
@@ -243,7 +265,7 @@ export default function CRM() {
       if (!res.ok) throw new Error("Fetch failed");
       return res.json();
     },
-    enabled: !!session?.access_token
+    enabled: isEnabled && !!session?.access_token
   });
 
   const { data: suppliers = [], isLoading: loadingSuppliers } = useQuery<Supplier[]>({
@@ -256,7 +278,7 @@ export default function CRM() {
       if (!res.ok) throw new Error("Fetch failed");
       return res.json();
     },
-    enabled: !!session?.access_token
+    enabled: isEnabled && !!session?.access_token
   });
 
   const { data: analysisData } = useQuery({

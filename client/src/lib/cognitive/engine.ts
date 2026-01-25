@@ -8,6 +8,15 @@ export interface CognitiveState {
     activeMode: SystemMode;
     suggestions: CognitiveSuggestion[];
 
+    // Context Awareness
+    context: {
+        activeModules: string[];
+        userRole: string | null;
+        organizationId: string | null;
+        industry?: string;
+    };
+    setContext: (ctx: Partial<CognitiveState['context']>) => void;
+
     // Actions
     setConfidence: (score: number) => void;
     setIntent: (intent: string) => void;
@@ -31,6 +40,15 @@ export const useCognitiveEngine = create<CognitiveState>((set) => ({
     currentIntent: null,
     activeMode: 'observation',
     suggestions: [],
+    context: {
+        activeModules: [],
+        userRole: null,
+        organizationId: null
+    },
+
+    setContext: (ctx) => set((state) => ({
+        context: { ...state.context, ...ctx }
+    })),
 
     setConfidence: (score) => set({ systemConfidence: score }),
     setIntent: (intent) => set({ currentIntent: intent }),

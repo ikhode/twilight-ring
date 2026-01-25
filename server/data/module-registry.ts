@@ -62,6 +62,45 @@ export const MODULE_CATEGORIES: Record<ModuleCategory, { name: string; descripti
 export const MODULE_REGISTRY: ModuleMetadata[] = [
     // OPERATIONS
     {
+        id: "operations",
+        name: "Operaciones",
+        description: "Gestión Operativa Central",
+        longDescription: "Núcleo de operaciones de la empresa. Habilita dashboard operativo, gestión básica de proveedores y configuración de sedes.",
+        icon: "Briefcase",
+        category: "operations",
+        route: "/operations",
+        features: [
+            "Dashboard de operaciones",
+            "Gestión de proveedores (Base)",
+            "Configuración de sedes",
+            "Reportes operativos generales"
+        ],
+        pricing: "included",
+        dependencies: [],
+        requiredRole: "user",
+        tags: ["operaciones", "core", "administración"]
+    },
+    {
+        id: "logistics",
+        name: "Logística",
+        description: "Control de flota y rutas",
+        longDescription: "Gestión completa de vehículos, mantenimiento, combustible y optimización de rutas de entrega.",
+        icon: "Truck",
+        category: "operations",
+        route: "/logistics",
+        features: [
+            "Gestión de flota vehicular",
+            "Control de combustible",
+            "Programación de mantenimiento",
+            "Optimización de rutas",
+            "Tracking de entregas"
+        ],
+        pricing: "included",
+        dependencies: ["operations"],
+        requiredRole: "user",
+        tags: ["logística", "flota", "rutas"]
+    },
+    {
         id: "inventory",
         name: "Inventario",
         description: "Gestión completa de productos y stock",
@@ -77,7 +116,7 @@ export const MODULE_REGISTRY: ModuleMetadata[] = [
             "Historial de movimientos"
         ],
         pricing: "included",
-        dependencies: [],
+        dependencies: ["operations"],
         requiredRole: "user",
         tags: ["inventario", "stock", "productos"]
     },
@@ -97,30 +136,11 @@ export const MODULE_REGISTRY: ModuleMetadata[] = [
             "Reportes de eficiencia"
         ],
         pricing: "included",
-        dependencies: ["inventory"],
+        dependencies: ["inventory", "operations"],
         requiredRole: "user",
         tags: ["producción", "manufactura", "procesos"]
     },
-    {
-        id: "logistics",
-        name: "Logística",
-        description: "Gestión de flota y entregas",
-        longDescription: "Control de vehículos, rutas, combustible y mantenimiento para optimizar la logística de tu negocio.",
-        icon: "Truck",
-        category: "operations",
-        route: "/logistics",
-        features: [
-            "Gestión de flota vehicular",
-            "Control de combustible",
-            "Programación de mantenimiento",
-            "Optimización de rutas",
-            "Tracking de entregas"
-        ],
-        pricing: "included",
-        dependencies: [],
-        requiredRole: "user",
-        tags: ["logística", "vehículos", "entregas"]
-    },
+
 
     // SALES & CRM
     {
@@ -139,7 +159,7 @@ export const MODULE_REGISTRY: ModuleMetadata[] = [
             "Integración con inventario"
         ],
         pricing: "included",
-        dependencies: ["inventory"],
+        dependencies: ["inventory", "operations"],
         requiredRole: "user",
         tags: ["ventas", "facturación", "ingresos"]
     },
@@ -159,7 +179,7 @@ export const MODULE_REGISTRY: ModuleMetadata[] = [
             "Segmentación de clientes"
         ],
         pricing: "included",
-        dependencies: [],
+        dependencies: ["operations"],
         requiredRole: "user",
         tags: ["crm", "clientes", "leads"]
     },

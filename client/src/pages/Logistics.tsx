@@ -86,9 +86,9 @@ function DriverLinkDialog() {
     const [generatedLink, setGeneratedLink] = useState<string | null>(null);
 
     const { data: vehicles = [] } = useQuery<Vehicle[]>({
-        queryKey: ["/api/operations/fleet/vehicles"],
+        queryKey: ["/api/logistics/fleet/vehicles"],
         queryFn: async () => {
-            const res = await fetch("/api/operations/fleet/vehicles", { headers: { Authorization: `Bearer ${session?.access_token}` } });
+            const res = await fetch("/api/logistics/fleet/vehicles", { headers: { Authorization: `Bearer ${session?.access_token}` } });
             return res.json();
         },
         enabled: !!session?.access_token
@@ -204,7 +204,7 @@ export default function Logistics() {
 
     const createVehicleMutation = useMutation({
         mutationFn: async (data: any) => {
-            const res = await fetch("/api/operations/fleet/vehicles", {
+            const res = await fetch("/api/logistics/fleet/vehicles", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -216,16 +216,16 @@ export default function Logistics() {
             return res.json();
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["/api/operations/fleet/vehicles"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/logistics/fleet/vehicles"] });
             setIsAddOpen(false);
             toast({ title: "Vehículo Registrado", description: "Unidad añadida a la flota." });
         }
     });
 
     const { data: vehiclesData = [] } = useQuery({
-        queryKey: ["/api/operations/fleet/vehicles"],
+        queryKey: ["/api/logistics/fleet/vehicles"],
         queryFn: async () => {
-            const res = await fetch("/api/operations/fleet/vehicles", {
+            const res = await fetch("/api/logistics/fleet/vehicles", {
                 headers: { Authorization: `Bearer ${session?.access_token}` }
             });
             if (!res.ok) return [];
@@ -235,9 +235,9 @@ export default function Logistics() {
     });
 
     const { data: maintenanceLogs = [] } = useQuery({
-        queryKey: ["/api/operations/fleet/maintenance"],
+        queryKey: ["/api/logistics/fleet/maintenance"],
         queryFn: async () => {
-            const res = await fetch("/api/operations/fleet/maintenance", {
+            const res = await fetch("/api/logistics/fleet/maintenance", {
                 headers: { Authorization: `Bearer ${session?.access_token}` }
             });
             if (!res.ok) return [];
@@ -271,9 +271,9 @@ export default function Logistics() {
     }) : [];
 
     // Realtime subscriptions
-    useSupabaseRealtime({ table: 'vehicles', queryKey: ["/api/operations/fleet/vehicles"] });
+    useSupabaseRealtime({ table: 'vehicles', queryKey: ["/api/logistics/fleet/vehicles"] });
     useSupabaseRealtime({ table: 'sales', queryKey: ["/api/operations/sales/orders"] });
-    useSupabaseRealtime({ table: 'routes', queryKey: ["/api/operations/fleet/routes/active"] });
+    useSupabaseRealtime({ table: 'routes', queryKey: ["/api/logistics/fleet/routes/active"] });
 
     const { data: employees = [] } = useQuery({
         queryKey: ["/api/hr/employees"],
@@ -285,7 +285,7 @@ export default function Logistics() {
     });
 
     const { data: activeRoutes = [] } = useQuery({
-        queryKey: ["/api/operations/fleet/routes/active"],
+        queryKey: ["/api/logistics/fleet/routes/active"],
         queryFn: async () => {
             // Mock fetching active routes - In real app create specific endpoint
             // For now we'll just check if we can simulate the "Active" state
@@ -295,7 +295,7 @@ export default function Logistics() {
 
     const generateRouteMutation = useMutation({
         mutationFn: async ({ vehicleId, driverId }: { vehicleId: string, driverId: string }) => {
-            const res = await fetch("/api/operations/fleet/routes/generate", {
+            const res = await fetch("/api/logistics/fleet/routes/generate", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
                 body: JSON.stringify({ vehicleId, driverId })
