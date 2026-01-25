@@ -111,6 +111,25 @@ router.post("/tasks", async (req: Request, res: Response): Promise<void> => {
     }
 });
 
+router.delete("/tasks/:id", async (req: Request, res: Response): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const taskId = req.params.id;
+
+        await db.delete(productionTasks)
+            .where(and(
+                eq(productionTasks.id, taskId),
+                eq(productionTasks.organizationId, orgId)
+            ));
+
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ message: "Failed to delete task" });
+    }
+});
+
 /**
  * Obtiene el listado de adelantos de nómina pendientes.
  */

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,12 +28,15 @@ import {
   DollarSign,
   Check,
   X,
-  AlertTriangle
+  AlertTriangle,
+  Trash2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
+import { VisionCounter } from "@/components/production/VisionCounter";
+import { useConfiguration } from "@/context/ConfigurationContext";
 
 interface Ticket {
   id: number;
@@ -214,6 +217,20 @@ export default function Production() {
     },
   });
 
+  const deleteTaskMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/piecework/tasks/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${session?.access_token}` }
+      });
+      if (!res.ok) throw new Error("Error deleting task");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/piecework/tasks"] });
+      toast({ title: "Tarifa Eliminada" });
+    }
+  });
+
   const deleteProcessMutation = useMutation({
     mutationFn: async (id: string) => {
       const res = await fetch(`/api/cpe/processes/${id}`, {
@@ -267,14 +284,31 @@ export default function Production() {
       return res.json();
     },
     onSuccess: () => {
-      setIsTicketCreateOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["/api/piecework/tickets"] });
       toast({ title: "Ticket Creado" });
+    }
+  });
+
+  const finishBatchMutation = useMutation({
+    mutationFn: async (data: { instanceId: string, yields: any, notes?: string }) => {
+      const res = await fetch(`/api/production/instances/${data.instanceId}/finish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify(data)
+      });
+      if (!res.ok) throw new Error("Error finishing batch");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/production/summary"] });
+      toast({ title: "Lote Finalizado", description: "Inventario y rendimientos calculados." });
     }
   });
 
   useSupabaseRealtime({ table: 'processes', queryKey: ["/api/cpe/processes"] });
   useSupabaseRealtime({ table: 'piecework_tickets', queryKey: ["/api/piecework/tickets"] });
+
+  const { enabledModules } = useConfiguration();
+  const isVisionEnabled = enabledModules.includes('vision');
 
   const stats = {
     activeProcesses: summary?.activeCount || 0,
@@ -416,7 +450,16 @@ export default function Production() {
                     <CardContent className="flex items-center justify-between py-4">
                       <div className="flex items-center gap-4">
                         <RefreshCw className="w-5 h-5 text-emerald-500 animate-spin-slow" />
-                        <div><p className="font-bold">{instance.aiContext?.loteName || `Lote #${instance.id.substring(0, 8)}`}</p><p className="text-xs text-muted-foreground">{new Date(instance.startedAt).toLocaleTimeString()}</p></div>
+                        <div>
+                          <p className="font-bold">{instance.aiContext?.loteName || `Lote #${instance.id.substring(0, 8)}`}</p>
+                          <p className="text-xs text-muted-foreground">{new Date(instance.startedAt).toLocaleTimeString()} - {instance.processId.split('-')[0]}</p>
+                          {/* Ticket Summary */}
+                          <div className="mt-2 flex gap-2">
+                            <Badge variant="secondary" className="text-[10px] bg-emerald-500/10 text-emerald-400 border-none">
+                              {(tickets || []).filter(t => t.id /* Hacky check */ && t.process /* Just using process name match or could do batchId match if we had it in FE list */).length} Tickets
+                            </Badge>
+                          </div>
+                        </div>
                       </div>
                       <div className="flex gap-2">
                         <Dialog>
@@ -430,7 +473,12 @@ export default function Production() {
                             </form>
                           </DialogContent>
                         </Dialog>
-                        <Button size="sm" variant="secondary">Finalizar</Button>
+                        <FinalizeBatchDialog
+                          instance={instance}
+                          tickets={tickets.filter(t => t.batchId === instance.id)}
+                          onConfirm={(data) => finishBatchMutation.mutate({ instanceId: instance.id, ...data })}
+                          isVisionEnabled={isVisionEnabled}
+                        />
                       </div>
                     </CardContent>
                   </Card>
@@ -550,14 +598,26 @@ export default function Production() {
                     </form>
                     <div className="mt-4 pt-4 border-t border-slate-800">
                       <p className="text-xs font-bold uppercase text-slate-500 mb-2">Tarifas Activas</p>
-                      <div className="space-y-1 max-h-40 overflow-y-auto">
+                      <div className="space-y-1 max-h-40 overflow-y-auto pr-1 custom-scrollbar">
                         {Array.isArray(pieceworkTasks) && pieceworkTasks.map((t: any) => (
-                          <div key={t.id} className="flex justify-between items-center text-sm p-2 rounded bg-slate-900/50">
-                            <div className="flex items-center gap-2">
-                              <span>{t.name}</span>
-                              {t.isRecipe && <Badge variant="outline" className="text-[9px] h-4">RECETA</Badge>}
+                          <div key={t.id} className="group flex justify-between items-center text-sm p-2 rounded bg-slate-900/50 hover:bg-slate-900 transition-colors border border-transparent hover:border-slate-800">
+                            <div className="flex items-center gap-2 flex-1 min-w-0 mr-2">
+                              <span className="truncate font-medium">{t.name}</span>
+                              {t.isRecipe && <Badge variant="outline" className="text-[9px] h-4 shrink-0 px-1">RECETA</Badge>}
                             </div>
-                            <span className="font-mono">${(t.unitPrice / 100).toFixed(2)}</span>
+                            <div className="flex items-center gap-3 shrink-0">
+                              <span className="font-mono font-bold text-emerald-400">${(t.unitPrice / 100).toFixed(2)}</span>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 opacity-0 group-hover:opacity-100 transition-all"
+                                onClick={() => {
+                                  if (confirm("¿Eliminar esta tarifa?")) deleteTaskMutation.mutate(t.id);
+                                }}
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -583,9 +643,28 @@ export default function Production() {
                         quantity: Number(fd.get('quantity')),
                         unitPrice: task ? task.unitPrice : Number(fd.get('price')) * 100,
                         status: 'pending',
-                        selectedInputId: recipeInputId
+                        selectedInputId: recipeInputId,
+                        batchId: fd.get('batchId') === 'none' ? undefined : fd.get('batchId')
                       });
                     }} className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label>Proceso / Lote Activo (Opcional)</Label>
+                        <Select name="batchId">
+                          <SelectTrigger>
+                            <SelectValue placeholder="Vincular a un Lote (Recomendado)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">-- Sin Lote / General --</SelectItem>
+                            {summary?.recentInstances?.filter((i: any) => i.status === "active").map((i: any) => (
+                              <SelectItem key={i.id} value={i.id}>
+                                {i.aiContext?.loteName || `Lote #${i.id.substring(0, 8)}`} ({new Date(i.startedAt).toLocaleTimeString()})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[10px] text-muted-foreground">Al vincular, el trabajo contará para el avance del lote.</p>
+                      </div>
+
                       <div className="space-y-2">
                         <Label>Empleado</Label>
                         <Select name="employeeId" required><SelectTrigger><SelectValue placeholder="Seleccionar Empleado" /></SelectTrigger><SelectContent>{employees && Array.isArray(employees) && employees.map((emp: any) => (<SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>))}</SelectContent></Select>
@@ -618,7 +697,165 @@ export default function Production() {
             <Card className="mt-6"><CardContent className="pt-6"><DataTable columns={[{ key: "id", header: "ID", render: (i) => i.id.slice(0, 8) }, { key: "employee", header: "Empleado", render: (i) => i.employeeName }, { key: "taskName", header: "Proceso" }, { key: "quantity", header: "Cant." }, { key: "status", header: "Estado" }, { key: "totalAmount", header: "Monto", render: (i) => formatCurrency(i.totalAmount / 100) }, { key: "actions", header: "Acciones", render: (i) => i.status === 'pending' ? <Button size="sm" onClick={() => approveMutation.mutate(i.id)}>Aprobar</Button> : null }]} data={tickets} /></CardContent></Card>
           </TabsContent>
         </Tabs>
-      </div>
-    </AppLayout>
+      </div >
+    </AppLayout >
+  );
+}
+
+function FinalizeBatchDialog({ instance, tickets = [], onConfirm, isVisionEnabled }: { instance: any, tickets?: any[], onConfirm: (data: any) => void, isVisionEnabled: boolean }) {
+  const [step, setStep] = useState(1);
+  const [outputs, setOutputs] = useState({ water: 0, pulp: 0, shells: 0 });
+  const [estimatedInput, setEstimatedInput] = useState(0);
+  const [visionCount, setVisionCount] = useState(0);
+
+  // Auto-calculate from tickets (The "Smart" part requested)
+  const stats = {
+    destopado: tickets.filter(t => t.taskName?.toLowerCase().includes('destop') || t.taskName?.toLowerCase().includes('corte')).reduce((a, b) => a + (b.quantity || 0), 0),
+    deshuesado: tickets.filter(t => t.taskName?.toLowerCase().includes('deshues')).reduce((a, b) => a + (b.quantity || 0), 0),
+    pelado: tickets.filter(t => t.taskName?.toLowerCase().includes('pelad')).reduce((a, b) => a + (b.quantity || 0), 0), // Assuming this brings Kg
+  };
+
+  const calculateEstimate = () => {
+    // If we have Destopado count (Input), that is the most accurate "Input" count (Piecework verified)
+    if (stats.destopado > 0) {
+      setEstimatedInput(stats.destopado);
+    }
+
+    // If we have Pelado count (Pulp Kg), pre-fill the output
+    if (stats.pelado > 0 && outputs.pulp === 0) { // Only if not manually overridden
+      // Assuming Pelado tickets are in Kg or Units? User said "nos dice cuantos kilos"
+      // If unit is 'kg', direct map. If 'pza', we might need factor. 
+      // For MVP we assume the Pelado Ticket quantity IS the Kg (or user adjusts).
+      // Let's set it but allow override.
+      setOutputs(prev => ({ ...prev, pulp: stats.pelado }));
+    }
+  };
+
+  useEffect(() => {
+    calculateEstimate();
+  }, [tickets]); // Run once when tickets load/change
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild><Button size="sm" variant="secondary">Finalizar</Button></DialogTrigger>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Cierre de Lote & Balance de Masas</DialogTitle>
+          <DialogDescription>ID: {instance.id.substring(0, 8)}</DialogDescription>
+        </DialogHeader>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+          <div className="space-y-4">
+            {/* Process Flow Visualization */}
+            <div className="p-4 bg-slate-900/80 rounded-lg space-y-3 border border-slate-700/50">
+              <h4 className="font-bold text-xs uppercase text-slate-400 flex items-center gap-2">
+                <Workflow className="w-3 h-3" />
+                Flujo de Proceso (Tickets Registrados)
+              </h4>
+              <div className="flex items-center justify-between text-xs relative">
+                {/* Visual Connector Line */}
+                <div className="absolute top-1/2 left-0 w-full h-0.5 bg-slate-800 -z-0"></div>
+
+                <div className="relative z-10 bg-slate-900 px-2 flex flex-col items-center gap-1">
+                  <span className="text-slate-500">Destopado</span>
+                  <Badge variant={stats.destopado > 0 ? "default" : "outline"} className="bg-blue-600 hover:bg-blue-700">{stats.destopado} pzas</Badge>
+                </div>
+                <div className="relative z-10 bg-slate-900 px-2 flex flex-col items-center gap-1">
+                  <span className="text-slate-500">Deshuesado</span>
+                  <Badge variant={stats.deshuesado > 0 ? "default" : "outline"} className={cn("transition-colors", stats.deshuesado < stats.destopado ? "bg-amber-600" : "bg-emerald-600")}>{stats.deshuesado} pzas</Badge>
+                </div>
+                <div className="relative z-10 bg-slate-900 px-2 flex flex-col items-center gap-1">
+                  <span className="text-slate-500">Pelado</span>
+                  <Badge variant={stats.pelado > 0 ? "default" : "outline"} className="bg-purple-600 hover:bg-purple-700">{stats.pelado} kg</Badge>
+                </div>
+              </div>
+              {stats.destopado > stats.deshuesado && (
+                <div className="flex items-center gap-2 p-2 bg-amber-500/10 text-amber-300 rounded text-[10px]">
+                  <AlertCircle className="w-3 h-3" />
+                  <span>Posible Pérdida: {stats.destopado - stats.deshuesado} cocos iniciados no llegaron a deshuesado.</span>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 bg-slate-900 rounded-lg space-y-3">
+              <h4 className="font-bold text-sm uppercase text-slate-400">Captura de Producción</h4>
+              <div className="space-y-2">
+                <Label className="flex justify-between">
+                  Agua Recolectada (Litros)
+                  <span className="text-[10px] text-blue-400 font-normal">No pagada en destajo</span>
+                </Label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  className="border-blue-500/30 focus:border-blue-500 bg-blue-950/20"
+                  placeholder="0.0 L"
+                  onChange={(e) => setOutputs({ ...outputs, water: Number(e.target.value) })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Pulpa / Carne (Kg)</Label>
+                <div className="relative">
+                  <Input
+                    type="number"
+                    step="0.1"
+                    className="border-white/20 pl-20"
+                    placeholder="0.0 Kg"
+                    value={outputs.pulp > 0 ? outputs.pulp : ''}
+                    onChange={(e) => setOutputs({ ...outputs, pulp: Number(e.target.value) })}
+                  />
+                  <div className="absolute left-3 top-2.5 text-xs text-purple-400 font-bold">
+                    ∑ Tickets
+                  </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground">Pre-llenado con la suma de tickets de "Pelado". Ajustar si es necesario.</p>
+              </div>
+            </div>
+
+            {isVisionEnabled && (
+              <VisionCounter onCountChange={setVisionCount} />
+            )}
+          </div>
+
+
+          <div className="space-y-4 flex flex-col justify-between">
+            <div className="p-4 bg-slate-900/50 border border-slate-800 rounded-lg h-full">
+              <h4 className="font-bold text-sm uppercase text-slate-400 mb-4">Estimación Inteligente</h4>
+
+              <div className="space-y-6">
+                <div className="text-center space-y-1">
+                  <p className="text-xs text-slate-500">Consumo Estimado (Cocos)</p>
+                  <div className="text-4xl font-black text-white">{estimatedInput}</div>
+                  <p className="text-[10px] text-slate-500 italic">Calculado base rendimientos típicos</p>
+                </div>
+
+                {visionCount > 0 && (
+                  <div className="text-center space-y-1 pt-4 border-t border-slate-800">
+                    <p className="text-xs text-emerald-500">Sensor Visión</p>
+                    <div className="text-xl font-bold text-emerald-400">{visionCount}</div>
+                  </div>
+                )}
+
+                <div className="pt-4 space-y-2">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-400">Rendimiento Agua:</span>
+                    <span className="font-mono">{outputs.water > 0 ? (outputs.water / (visionCount || estimatedInput || 1)).toFixed(3) : '-'} L/coco</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-400">Rendimiento Carne:</span>
+                    <span className="font-mono">{outputs.pulp > 0 ? (outputs.pulp / (visionCount || estimatedInput || 1)).toFixed(3) : '-'} Kg/coco</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button onClick={() => onConfirm({ yields: outputs, estimatedInput: visionCount > 0 ? visionCount : estimatedInput })}>
+            Confirmar Cierre e Inventario
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

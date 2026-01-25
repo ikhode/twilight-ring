@@ -117,6 +117,14 @@ export const ERP_MODULES: SystemModule[] = [
     },
 
     {
+        id: 'vision',
+        name: 'Smart Vision',
+        description: 'Conteo y medición por cámara',
+        icon: Monitor,
+        href: '/vision',
+        category: 'operations'
+    },
+    {
         id: 'query',
         name: 'Consultas IA',
         description: 'Consultas en lenguaje natural',

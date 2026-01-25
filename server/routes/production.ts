@@ -110,4 +110,53 @@ router.get("/summary", async (req, res): Promise<void> => {
     }
 });
 
+router.post("/instances/:id/finish", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const instanceId = req.params.id;
+        const { yields, estimatedInput, notes } = req.body;
+
+        // 1. Update Instance Status & Context
+        await db.update(processInstances)
+            .set({
+                status: "completed",
+                completedAt: new Date(),
+                aiContext: sql`jsonb_set(
+                    COALESCE(${processInstances.aiContext}, '{}'::jsonb), 
+                    '{yields}', 
+                    ${JSON.stringify({ final: yields, estimatedInput })}::jsonb
+                )`
+            })
+            .where(eq(processInstances.id, instanceId));
+
+        // 2. Perform Smart Inventory Adjustment (Consumption)
+        // Ideally we would find the input product ID from the Process definition (Recipe).
+        // For MVP, we assume a standard "Coconut" product ID or we might need to lookup.
+        // Let's deduce consumption if a product named "Coco" exists or rely on Process definition.
+
+        // FUTURE: Fetch Process -> Recipe -> Input Product ID.
+        // For now, we just log the event as a "Production Closure" which an admin can review.
+
+        await db.insert(processEvents).values({
+            instanceId,
+            eventType: "complete",
+            data: {
+                yields,
+                estimatedInput,
+                notes,
+                message: `Lote cerrado. Consumo estimado: ${estimatedInput} unidades.`
+            },
+            timestamp: new Date()
+        });
+
+        res.json({ success: true, message: "Batch finished" });
+
+    } catch (error) {
+        console.error("Error finishing batch:", error);
+        res.status(500).json({ message: "Failed to finish batch" });
+    }
+});
+
 export default router;
