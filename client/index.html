@@ -25,11 +25,16 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
+      // EMERGENCY CLEANUP: Force unregister Service Worker to prevent MIME type errors
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then(reg => console.log('SW Registered', reg.scope))
-            .catch(err => console.error('SW Fail', err));
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+           for(let registration of registrations) {
+             registration.unregister().then(function() {
+               console.log('ServiceWorker unregistered');
+               // Optional: Force reload if we suspect cache is blocking, 
+               // but that might cause loops. Just unregistering is safer.
+             });
+           }
         });
       }
     </script>
