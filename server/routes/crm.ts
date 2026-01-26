@@ -17,7 +17,10 @@ const router = Router();
 router.get("/customers", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
         const data = await storage.getCustomers(orgId);
         res.json(data);
     } catch (error) {
@@ -36,10 +39,16 @@ router.get("/customers", async (req, res): Promise<void> => {
 router.post("/customers", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const parsed = insertCustomerSchema.safeParse({ ...req.body, organizationId: orgId });
-        if (!parsed.success) return res.status(400).json(parsed.error);
+        if (!parsed.success) {
+            res.status(400).json(parsed.error);
+            return;
+        }
 
         const data = await storage.createCustomer(parsed.data);
         res.json(data);
@@ -59,7 +68,10 @@ router.post("/customers", async (req, res): Promise<void> => {
 router.get("/suppliers", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
         const data = await storage.getSuppliers(orgId);
         res.json(data);
     } catch (error) {
@@ -78,10 +90,16 @@ router.get("/suppliers", async (req, res): Promise<void> => {
 router.post("/suppliers", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const parsed = insertSupplierSchema.safeParse({ ...req.body, organizationId: orgId });
-        if (!parsed.success) return res.status(400).json(parsed.error);
+        if (!parsed.success) {
+            res.status(400).json(parsed.error);
+            return;
+        }
 
         const data = await storage.createSupplier(parsed.data);
         res.json(data);
@@ -101,7 +119,10 @@ router.post("/suppliers", async (req, res): Promise<void> => {
 router.get("/analysis", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const customers = await storage.getCustomers(orgId);
 
@@ -155,7 +176,10 @@ router.get("/analysis", async (req, res): Promise<void> => {
 router.post("/reminders", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const customers = await storage.getCustomers(orgId);
         const debtors = customers.filter(c => c.balance > 0);

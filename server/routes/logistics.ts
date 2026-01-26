@@ -101,9 +101,9 @@ router.post("/fleet/vehicles/:id/maintenance", async (req, res): Promise<void> =
         }
 
         // Update mileage if provided (and greater than current)
-        if (data.mileageIn > vehicle.currentMileage) {
+        if (data.mileageIn > (vehicle.currentMileage || 0)) {
             await db.update(vehicles)
-                .set({ currentMileage: data.mileageIn, updatedAt: new Date() })
+                .set({ currentMileage: data.mileageIn })
                 .where(eq(vehicles.id, vehicleId));
         }
 

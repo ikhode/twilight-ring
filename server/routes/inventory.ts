@@ -13,7 +13,10 @@ const router = Router();
 router.get("/products", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const inv = await db.query.products.findMany({
             where: eq(products.organizationId, orgId)
@@ -55,7 +58,10 @@ router.get("/products", async (req, res): Promise<void> => {
 router.post("/products", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const parsed = insertProductSchema.safeParse({
             ...req.body,
@@ -64,7 +70,8 @@ router.post("/products", async (req, res): Promise<void> => {
         });
 
         if (!parsed.success) {
-            return res.status(400).json({ message: "Invalid product data", errors: parsed.error });
+            res.status(400).json({ message: "Invalid product data", errors: parsed.error });
+            return;
         }
 
         const [product] = await db.insert(products).values(parsed.data).returning();
@@ -82,7 +89,10 @@ router.post("/products", async (req, res): Promise<void> => {
 router.get("/movements", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const movements = await db.query.inventoryMovements.findMany({
             where: eq(inventoryMovements.organizationId, orgId),
@@ -107,7 +117,10 @@ router.get("/movements", async (req, res): Promise<void> => {
 router.get("/alerts", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         // Simple Low Stock Alert Logic
         const alerts = await db.query.products.findMany({
@@ -131,7 +144,10 @@ router.get("/alerts", async (req, res): Promise<void> => {
 router.patch("/products/:id", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const productId = req.params.id;
         const { stock, price, isActive, reason } = req.body;
@@ -141,7 +157,10 @@ router.patch("/products/:id", async (req, res): Promise<void> => {
             where: and(eq(products.id, productId), eq(products.organizationId, orgId))
         });
 
-        if (!product) return res.status(404).json({ message: "Product not found" });
+        if (!product) {
+            res.status(404).json({ message: "Product not found" });
+            return;
+        }
 
         const updates: any = {};
         if (typeof price === 'number') updates.price = price;
@@ -191,7 +210,10 @@ router.patch("/products/:id", async (req, res): Promise<void> => {
 router.get("/products/:id/history", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const productId = req.params.id;
 
@@ -200,7 +222,10 @@ router.get("/products/:id/history", async (req, res): Promise<void> => {
             where: and(eq(products.id, productId), eq(products.organizationId, orgId))
         });
 
-        if (!product) return res.status(404).json({ message: "Product not found" });
+        if (!product) {
+            res.status(404).json({ message: "Product not found" });
+            return;
+        }
 
         // Fetch movements with user information for full traceability
         const movements = await db

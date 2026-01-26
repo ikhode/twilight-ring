@@ -118,7 +118,8 @@ router.post("/documents/parse", async (req, res): Promise<void> => {
 
         const { file } = req.body;
         if (!file) {
-            return res.status(400).json({ message: "No file provided" });
+            res.status(400).json({ message: "No file provided" });
+            return;
         }
 
         const base64Data = file.split(';base64,').pop();

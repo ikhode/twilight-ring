@@ -29,14 +29,23 @@ export function registerDocumentationRoutes(app: Express) {
     app.get("/api/documentation", async (req: Request, res: Response): Promise<void> => {
         try {
             const authHeader = req.headers.authorization;
-            if (!authHeader) return res.status(401).json({ message: "No token provided" });
+            if (!authHeader) {
+                res.status(401).json({ message: "No token provided" });
+                return;
+            }
 
             const token = authHeader.replace("Bearer ", "");
             const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-            if (error || !user) return res.status(401).json({ message: "Invalid token" });
+            if (error || !user) {
+                res.status(401).json({ message: "Invalid token" });
+                return;
+            }
 
             const organizationId = await getOrgIdFromRequest(req);
-            if (!organizationId) return res.status(401).json({ message: "Unauthorized" });
+            if (!organizationId) {
+                res.status(401).json({ message: "Unauthorized" });
+                return;
+            }
 
             const role = await getUserRole(user.id, organizationId);
             const { category } = req.query;
@@ -63,7 +72,10 @@ export function registerDocumentationRoutes(app: Express) {
     app.get("/api/documentation/:id", async (req: Request, res: Response): Promise<void> => {
         try {
             const authHeader = req.headers.authorization;
-            if (!authHeader) return res.status(401).json({ message: "No token provided" });
+            if (!authHeader) {
+                res.status(401).json({ message: "No token provided" });
+                return;
+            }
 
             const token = authHeader.replace("Bearer ", "");
             const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
@@ -78,7 +90,8 @@ export function registerDocumentationRoutes(app: Express) {
             const doc = await documentationService.getDocument(id, role);
 
             if (!doc) {
-                return res.status(404).json({ message: "Document not found or access denied" });
+                res.status(404).json({ message: "Document not found or access denied" });
+                return;
             }
 
             res.json({ document: doc });
@@ -98,7 +111,10 @@ export function registerDocumentationRoutes(app: Express) {
     app.post("/api/documentation/search", async (req: Request, res: Response): Promise<void> => {
         try {
             const authHeader = req.headers.authorization;
-            if (!authHeader) return res.status(401).json({ message: "No token provided" });
+            if (!authHeader) {
+                res.status(401).json({ message: "No token provided" });
+                return;
+            }
 
             const token = authHeader.replace("Bearer ", "");
             const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
@@ -111,7 +127,8 @@ export function registerDocumentationRoutes(app: Express) {
             const { query, limit = 5 } = req.body;
 
             if (!query) {
-                return res.status(400).json({ message: "Query is required" });
+                res.status(400).json({ message: "Query is required" });
+                return;
             }
 
             const results = await documentationService.searchDocuments(
@@ -137,7 +154,10 @@ export function registerDocumentationRoutes(app: Express) {
     app.get("/api/documentation/categories", async (req: Request, res: Response): Promise<void> => {
         try {
             const authHeader = req.headers.authorization;
-            if (!authHeader) return res.status(401).json({ message: "No token provided" });
+            if (!authHeader) {
+                res.status(401).json({ message: "No token provided" });
+                return;
+            }
 
             const token = authHeader.replace("Bearer ", "");
             const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
@@ -167,7 +187,10 @@ export function registerDocumentationRoutes(app: Express) {
     app.post("/api/documentation", async (req: Request, res: Response): Promise<void> => {
         try {
             const authHeader = req.headers.authorization;
-            if (!authHeader) return res.status(401).json({ message: "No token provided" });
+            if (!authHeader) {
+                res.status(401).json({ message: "No token provided" });
+                return;
+            }
 
             const token = authHeader.replace("Bearer ", "");
             const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
@@ -180,13 +203,15 @@ export function registerDocumentationRoutes(app: Express) {
 
             // Only admins can create documentation
             if (role !== "admin") {
-                return res.status(403).json({ message: "Forbidden: Admin access required" });
+                res.status(403).json({ message: "Forbidden: Admin access required" });
+                return;
             }
 
             const { category, title, content, tags, accessRoles, metadata } = req.body;
 
             if (!category || !title || !content) {
-                return res.status(400).json({ message: "Missing required fields" });
+                res.status(400).json({ message: "Missing required fields" });
+                return;
             }
 
             const docId = await documentationService.addDocument({
@@ -218,7 +243,10 @@ export function registerDocumentationRoutes(app: Express) {
     app.put("/api/documentation/:id", async (req: Request, res: Response): Promise<void> => {
         try {
             const authHeader = req.headers.authorization;
-            if (!authHeader) return res.status(401).json({ message: "No token provided" });
+            if (!authHeader) {
+                res.status(401).json({ message: "No token provided" });
+                return;
+            }
 
             const token = authHeader.replace("Bearer ", "");
             const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
@@ -231,7 +259,8 @@ export function registerDocumentationRoutes(app: Express) {
 
             // Only admins can update documentation
             if (role !== "admin") {
-                return res.status(403).json({ message: "Forbidden: Admin access required" });
+                res.status(403).json({ message: "Forbidden: Admin access required" });
+                return;
             }
 
             const { id } = req.params;
@@ -256,7 +285,10 @@ export function registerDocumentationRoutes(app: Express) {
     app.delete("/api/documentation/:id", async (req: Request, res: Response): Promise<void> => {
         try {
             const authHeader = req.headers.authorization;
-            if (!authHeader) return res.status(401).json({ message: "No token provided" });
+            if (!authHeader) {
+                res.status(401).json({ message: "No token provided" });
+                return;
+            }
 
             const token = authHeader.replace("Bearer ", "");
             const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
@@ -269,7 +301,8 @@ export function registerDocumentationRoutes(app: Express) {
 
             // Only admins can delete documentation
             if (role !== "admin") {
-                return res.status(403).json({ message: "Forbidden: Admin access required" });
+                res.status(403).json({ message: "Forbidden: Admin access required" });
+                return;
             }
 
             const { id } = req.params;

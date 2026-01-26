@@ -22,7 +22,10 @@ async function getContext(req: Request) {
 router.get("/cash/stats", async (req: Request, res: Response) => {
     try {
         const { user, orgId } = await getContext(req);
-        if (!user || !orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!user || !orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         // Get the main register for the org
         const register = await db.query.cashRegisters.findFirst({
@@ -66,7 +69,10 @@ router.get("/cash/stats", async (req: Request, res: Response) => {
 router.post("/cash/open", async (req: Request, res: Response) => {
     try {
         const { user, orgId } = await getContext(req);
-        if (!user || !orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!user || !orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const { startAmount, notes } = req.body;
 
@@ -87,7 +93,8 @@ router.post("/cash/open", async (req: Request, res: Response) => {
         }
 
         if (register.status === 'open') {
-            return res.status(400).json({ message: "Register is already open" });
+            res.status(400).json({ message: "Register is already open" });
+            return;
         }
 
         // 2. Create Session
@@ -122,7 +129,10 @@ router.post("/cash/open", async (req: Request, res: Response) => {
 router.post("/cash/close", async (req: Request, res: Response) => {
     try {
         const { user, orgId } = await getContext(req);
-        if (!user || !orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!user || !orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const { declaredAmount, notes } = req.body;
 
@@ -130,7 +140,8 @@ router.post("/cash/close", async (req: Request, res: Response) => {
             where: eq(cashRegisters.organizationId, orgId)
         });
         if (!register || register.status !== 'open' || !register.currentSessionId) {
-            return res.status(400).json({ message: "Register is not open" });
+            res.status(400).json({ message: "Register is not open" });
+            return;
         }
 
         const expectedAmount = register.balance;
@@ -169,7 +180,10 @@ router.post("/cash/close", async (req: Request, res: Response) => {
 router.post("/cash/transaction", async (req: Request, res: Response) => {
     try {
         const { user, orgId } = await getContext(req);
-        if (!user || !orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!user || !orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const { type, amount, category, description } = req.body;
 
@@ -177,12 +191,14 @@ router.post("/cash/transaction", async (req: Request, res: Response) => {
             where: eq(cashRegisters.organizationId, orgId)
         });
         if (!register || register.status !== 'open' || !register.currentSessionId) {
-            return res.status(400).json({ message: "Register is closed. Open a session first." });
+            res.status(400).json({ message: "Register is closed. Open a session first." });
+            return;
         }
 
         // Validate funds for withdrawal
         if (type === 'out' && register.balance < amount) {
-            return res.status(400).json({ message: "Insufficient funds in register" });
+            res.status(400).json({ message: "Insufficient funds in register" });
+            return;
         }
 
         // 1. Record Transaction
@@ -215,12 +231,16 @@ router.post("/cash/transaction", async (req: Request, res: Response) => {
 router.post("/payout", async (req: Request, res: Response) => {
     try {
         const { user, orgId } = await getContext(req);
-        if (!user || !orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!user || !orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const { employeeId, amount, notes } = req.body;
 
         if (!employeeId || !amount || amount <= 0) {
-            return res.status(400).json({ message: "Invalid payment details" });
+            res.status(400).json({ message: "Invalid payment details" });
+            return;
         }
 
         // 1. Check Register
@@ -229,11 +249,13 @@ router.post("/payout", async (req: Request, res: Response) => {
         });
 
         if (!register || register.status !== 'open' || !register.currentSessionId) {
-            return res.status(400).json({ message: "Register is closed. Cannot pay." });
+            res.status(400).json({ message: "Register is closed. Cannot pay." });
+            return;
         }
 
         if (register.balance < amount) {
-            return res.status(400).json({ message: "Insufficient funds in register" });
+            res.status(400).json({ message: "Insufficient funds in register" });
+            return;
         }
 
         // 2. Decrement Register Balance (Money Out)
@@ -367,16 +389,23 @@ router.get("/summary", async (req, res): Promise<void> => {
 router.post("/transaction", async (req, res): Promise<void> => {
     try {
         const { orgId } = await getContext(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const { type, amount, category, description, method } = req.body;
 
         if (!amount || isNaN(Number(amount))) {
-            return res.status(400).json({ message: "Amount is required and must be a number" });
+            res.status(400).json({ message: "Amount is required and must be a number" });
+            return;
         }
 
         if (type === 'expense') {
-            if (!category) return res.status(400).json({ message: "Category is required for expenses" });
+            if (!category) {
+                res.status(400).json({ message: "Category is required for expenses" });
+                return;
+            }
 
             const [rec] = await db.insert(expenses).values({
                 organizationId: orgId,
