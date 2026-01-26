@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "../storage";
 import { products } from "../../shared/schema";
 import { eq, and, gte } from "drizzle-orm";
-import { getOrgIdFromKioskRequest } from "../kiosk_util";
+import { getOrgIdFromRequest } from "../auth_util";
 
 const router = Router();
 
@@ -12,7 +12,7 @@ const router = Router();
  */
 router.get("/batches", async (req, res): Promise<void> => {
     try {
-        const orgId = await getOrgIdFromKioskRequest(req);
+        const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
             res.status(401).json({ message: "Unauthorized" });
             return;

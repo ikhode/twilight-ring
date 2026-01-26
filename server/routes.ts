@@ -106,9 +106,9 @@ export async function registerRoutes(
   // Piecework
   app.use("/api/piecework", requireModule("/piecework"), pieceworkRoutes);
 
-  // Production / Operations
-  app.use("/api/cpe", requireModule("/production"), cpeRoutes);
-  app.use("/api/production", productionBatchesRoutes); // Production batches (no module guard for kiosks)
+  // Production batches (no module guard for kiosks)
+  app.use("/api/production", productionBatchesRoutes);
+
   // CRM / Sales
   app.use("/api/crm", requireModule("/crm"), crmRoutes);
   app.use("/api/sales", requireModule("/sales"), salesRoutes);
