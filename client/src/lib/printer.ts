@@ -66,19 +66,30 @@ export const printThermalTicket = (ticket: any, organizationName: string = "IkHO
             </div>
             
             <div class="footer text-center">
-                <div>Folio: #${ticket.id.toString().substring(0, 6)}</div>
-                <div>Firma del Supervisor</div>
+                <svg id="barcode"></svg>
+                <div style="font-size: 8px; margin-top: 2px;">${ticket.id}</div>
+                <div style="margin-top: 10px;">Firma del Supervisor</div>
                 <br/><br/>
                 <div class="divider"></div>
             </div>
             
+            <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
             <script>
                 window.onload = function() {
-                    window.print();
-                    setTimeout(function() { 
-                        // window.close() is not needed for iframe, just remove it
-                        // parent.document.body.removeChild(window.frameElement);
-                    }, 1000);
+                    try {
+                        JsBarcode("#barcode", "${ticket.id}", {
+                            format: "CODE128",
+                            width: 1.5,
+                            height: 35,
+                            displayValue: false,
+                            margin: 0
+                        });
+                    } catch (e) { console.error("Barcode error", e); }
+
+                    // Small delay to ensure render
+                    setTimeout(function() {
+                        window.print();
+                    }, 500);
                 }
             </script>
         </body>

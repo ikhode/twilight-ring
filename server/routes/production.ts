@@ -99,8 +99,11 @@ router.post("/report", async (req, res): Promise<void> => {
         if (!process) return res.status(404).json({ message: "Process not found" });
 
         const workflow = process.workflowData as any;
-        const rate = workflow?.piecework?.rate || 0; // In cents
-        const amount = Math.round(quantity * rate);
+        const rate = Number(workflow?.piecework?.rate) || 0; // In cents
+        const safeQuantity = Number(quantity) || 0;
+        const amount = Math.round(safeQuantity * rate);
+
+        console.log(`[DEBUG REPORT] Creating ticket: Quantity=${safeQuantity}, Rate=${rate}, Amount=${amount}, Instance=${instanceId}`);
 
         // 2. Create Ticket
         const [ticket] = await db.insert(pieceworkTickets).values({
@@ -111,7 +114,7 @@ router.post("/report", async (req, res): Promise<void> => {
             quantity: Number(quantity),
             unit: unit || workflow?.piecework?.unit || 'pza',
             unitPrice: rate,
-            amount: amount,
+            totalAmount: amount, // Fix: schema expects totalAmount
             status: "pending",
             createdAt: new Date(),
             approvedAt: null,
