@@ -148,6 +148,19 @@ export const bankReconciliations = pgTable("bank_reconciliations", {
     createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const bankAccounts = pgTable("bank_accounts", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    name: text("name").notNull(), // e.g. "Banorte Nomina", "Santander Operativa"
+    bankName: text("bank_name"),
+    accountNumber: text("account_number"),
+    currency: text("currency").notNull().default("MXN"),
+    balance: integer("balance").notNull().default(0), // in cents
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 
 // Types
 export type CashRegister = typeof cashRegisters.$inferSelect;
@@ -155,6 +168,7 @@ export type CashSession = typeof cashSessions.$inferSelect;
 export type CashTransaction = typeof cashTransactions.$inferSelect;
 export type Expense = typeof expenses.$inferSelect;
 export type Payment = typeof payments.$inferSelect;
+export type BankAccount = typeof bankAccounts.$inferSelect;
 
 export type AnalyticsMetric = typeof analyticsMetrics.$inferSelect;
 export type InsertAnalyticsMetric = z.infer<typeof insertAnalyticsMetricSchema>;
@@ -169,6 +183,7 @@ export const insertCashSessionSchema = createInsertSchema(cashSessions);
 export const insertCashTransactionSchema = createInsertSchema(cashTransactions);
 export const insertExpenseSchema = createInsertSchema(expenses);
 export const insertPaymentSchema = createInsertSchema(payments);
+export const insertBankAccountSchema = createInsertSchema(bankAccounts);
 export const insertAnalyticsMetricSchema = createInsertSchema(analyticsMetrics);
 export const insertMetricModelSchema = createInsertSchema(metricModels);
 export const insertBudgetSchema = createInsertSchema(budgets);
@@ -180,3 +195,4 @@ export type InsertCashSession = z.infer<typeof insertCashSessionSchema>;
 export type InsertCashTransaction = z.infer<typeof insertCashTransactionSchema>;
 export type InsertBudget = z.infer<typeof insertBudgetSchema>;
 export type InsertBankReconciliation = z.infer<typeof insertBankReconciliationSchema>;
+export type InsertBankAccount = z.infer<typeof insertBankAccountSchema>;

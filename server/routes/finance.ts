@@ -3,7 +3,7 @@ import { db } from "../storage";
 import {
     cashRegisters, cashSessions, cashTransactions, users, employees,
     expenses, payments, sales, payrollAdvances, purchases, products,
-    budgets, bankReconciliations
+    budgets, bankReconciliations, bankAccounts
 } from "../../shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { getAuthenticatedUser, getOrgIdFromRequest } from "../auth_util";
@@ -288,18 +288,19 @@ router.get("/summary", async (req, res): Promise<void> => {
             return and(...filters);
         };
 
-        const [totalExpenses, totalSales, totalPayments, totalAdvances, pendingSales, pendingPurchases, registers] = await Promise.all([
+        const [totalExpenses, totalSales, totalPayments, totalAdvances, pendingSales, pendingPurchases, registers, accounts] = await Promise.all([
             db.query.expenses.findMany({ where: withPeriod(eq(expenses.organizationId, orgId), expenses.date) }),
             db.query.sales.findMany({ where: withPeriod(eq(sales.organizationId, orgId), sales.date) }),
             db.query.payments.findMany({ where: withPeriod(eq(payments.organizationId, orgId), payments.date) }),
             db.query.payrollAdvances.findMany({ where: withPeriod(eq(payrollAdvances.organizationId, orgId), payrollAdvances.date) }),
             db.query.sales.findMany({ where: and(eq(sales.organizationId, orgId), eq(sales.deliveryStatus, 'pending')) }),
             db.query.purchases.findMany({ where: and(eq(purchases.organizationId, orgId), eq(purchases.paymentStatus, 'pending')) }),
-            db.query.cashRegisters.findMany({ where: eq(cashRegisters.organizationId, orgId) })
+            db.query.cashRegisters.findMany({ where: eq(cashRegisters.organizationId, orgId) }),
+            db.query.bankAccounts.findMany({ where: eq(bankAccounts.organizationId, orgId) })
         ]);
 
         const expenseSum = totalExpenses.reduce((acc, curr) => acc + curr.amount, 0);
-        const salesSum = totalSales.reduce((acc, curr) => acc + curr.totalPrice, 0);
+        const salesSum = totalSales.filter(s => s.paymentStatus === 'paid').reduce((acc, curr) => acc + curr.totalPrice, 0);
         const payrollSum = totalAdvances.reduce((acc, curr) => acc + curr.amount, 0);
         const manualIncomeSum = totalPayments.filter(p => p.type === 'income').reduce((acc, curr) => acc + curr.amount, 0);
         const manualPaymentExpenseSum = totalPayments.filter(p => p.type === 'expense').reduce((acc, curr) => acc + curr.amount, 0);
@@ -307,9 +308,10 @@ router.get("/summary", async (req, res): Promise<void> => {
         const totalIncome = salesSum + manualIncomeSum;
         const totalOutflow = expenseSum + payrollSum + manualPaymentExpenseSum;
         const cashInRegisters = registers.reduce((acc, curr) => acc + curr.balance, 0);
+        const bankBalance = accounts.reduce((acc, curr) => acc + curr.balance, 0);
 
         // Simplified Logic for Summary
-        const currentBalance = totalIncome - totalOutflow + cashInRegisters; // Rough approximation
+        const currentBalance = totalIncome - totalOutflow + cashInRegisters + bankBalance;
 
         // --- NEW: Fetch Recent Transactions for History ---
         const [recentExpenses, recentPayments] = await Promise.all([
@@ -350,6 +352,7 @@ router.get("/summary", async (req, res): Promise<void> => {
             income: totalIncome,
             expenses: totalOutflow,
             cashInRegisters,
+            bankBalance,
             recentTransactions
         });
 
@@ -454,6 +457,56 @@ router.post("/reconcile", async (req, res): Promise<void> => {
     } catch (error) {
         console.error("Reconciliation error:", error);
         res.status(500).json({ message: "Reconciliation failed" });
+    }
+});
+
+/**
+ * --- BANK ACCOUNTS CRUD ---
+ */
+
+router.get("/accounts", async (req, res): Promise<void> => {
+    try {
+        const { orgId } = await getContext(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const accs = await db.query.bankAccounts.findMany({
+            where: eq(bankAccounts.organizationId, orgId),
+            orderBy: [desc(bankAccounts.createdAt)]
+        });
+        res.json(accs);
+    } catch (error) {
+        res.status(500).json({ message: "Failed to fetch bank accounts" });
+    }
+});
+
+router.post("/accounts", async (req, res): Promise<void> => {
+    try {
+        const { orgId } = await getContext(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const [acc] = await db.insert(bankAccounts).values({
+            ...req.body,
+            organizationId: orgId,
+            balance: req.body.balance || 0
+        }).returning();
+        res.status(201).json(acc);
+    } catch (error) {
+        res.status(500).json({ message: "Failed to create bank account" });
+    }
+});
+
+router.patch("/accounts/:id", async (req, res): Promise<void> => {
+    try {
+        const { orgId } = await getContext(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const [acc] = await db.update(bankAccounts)
+            .set({ ...req.body, updatedAt: new Date() })
+            .where(and(eq(bankAccounts.id, req.params.id), eq(bankAccounts.organizationId, orgId)))
+            .returning();
+        res.json(acc);
+    } catch (error) {
+        res.status(500).json({ message: "Failed to update bank account" });
     }
 });
 

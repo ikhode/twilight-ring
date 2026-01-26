@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "../storage";
 import {
-    sales, products, inventoryMovements, payments,
+    sales, products, inventoryMovements, payments, cashRegisters, cashTransactions, bankAccounts,
     insertSaleSchema
 } from "../../shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -21,7 +21,7 @@ router.post("/", async (req, res): Promise<void> => {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
 
-        const { items, driverId, vehicleId, customerId, status } = req.body; // Expecting { items: [{ productId, quantity, price }], ... }
+        const { items, driverId, vehicleId, customerId, paymentStatus, paymentMethod, bankAccountId } = req.body;
         if (!items || !Array.isArray(items)) {
             return res.status(400).json({ message: "Invalid payload: items array required" });
         }
@@ -49,8 +49,10 @@ router.post("/", async (req, res): Promise<void> => {
                     totalPrice: item.price * item.quantity, // Price is unit price in cents
                     driverId: driverId || null,
                     vehicleId: vehicleId || null,
-                    paymentStatus: "paid", // Default to paid for now
-                    deliveryStatus: "delivered", // Default to delivered for POS
+                    paymentStatus: paymentStatus || "pending",
+                    paymentMethod: paymentMethod || null,
+                    bankAccountId: bankAccountId || null,
+                    deliveryStatus: "pending",
                     date: new Date()
                 }).returning();
 
@@ -84,14 +86,42 @@ router.post("/", async (req, res): Promise<void> => {
         // 5. Record Financial Income (Real Movement) if any success
         if (successfulItems.length > 0) {
             const totalAmount = successfulItems.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
-            await db.insert(payments).values({
-                organizationId: orgId,
-                amount: totalAmount,
-                type: "income",
-                method: "cash", // Could vary
-                referenceId: `BATCH-${Date.now()}`,
-                date: new Date()
-            });
+
+            // If paymentStatus is 'paid', trigger financial record
+            if (paymentStatus === 'paid') {
+                if (paymentMethod === 'cash') {
+                    // Affect Cash Register
+                    const register = await db.query.cashRegisters.findFirst({
+                        where: and(eq(cashRegisters.organizationId, orgId), eq(cashRegisters.status, 'open'))
+                    });
+                    if (register) {
+                        await db.insert(cashTransactions).values({
+                            organizationId: orgId,
+                            registerId: register.id,
+                            sessionId: register.currentSessionId as string,
+                            amount: totalAmount,
+                            type: 'in',
+                            category: 'sales',
+                            description: `Venta POS - Efectivo`,
+                            date: new Date()
+                        });
+                        await db.update(cashRegisters).set({ balance: sql`${cashRegisters.balance} + ${totalAmount}` }).where(eq(cashRegisters.id, register.id));
+                    }
+                } else if (paymentMethod === 'transfer' && bankAccountId) {
+                    // Affect Bank Account
+                    await db.update(bankAccounts).set({ balance: sql`${bankAccounts.balance} + ${totalAmount}` }).where(eq(bankAccounts.id, bankAccountId));
+                }
+
+                await db.insert(payments).values({
+                    organizationId: orgId,
+                    amount: totalAmount,
+                    type: "income",
+                    method: paymentMethod || "cash",
+                    referenceId: `SALE-BATCH-${Date.now()}`,
+                    date: new Date()
+                });
+            }
+
             res.json({ message: "Sales processed", stats });
         } else {
             // If nothing succeeded, it means everything failed (likely due to stock)
@@ -203,6 +233,78 @@ router.get("/stats", async (req, res): Promise<void> => {
     } catch (error) {
         console.error("Sales stats error:", error);
         res.status(500).json({ message: "Error fetching sales stats" });
+    }
+});
+
+/**
+ * Registra el pago de una venta pendiente.
+ * @route PATCH /api/sales/:id/pay
+ */
+router.patch("/:id/pay", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const { paymentMethod, bankAccountId } = req.body;
+        const [sale] = await db.select().from(sales).where(and(eq(sales.id, req.params.id), eq(sales.organizationId, orgId)));
+
+        if (!sale) return res.status(404).json({ message: "Sale not found" });
+        if (sale.paymentStatus === 'paid') return res.status(400).json({ message: "Sale already paid" });
+
+        // Update Sale
+        await db.update(sales)
+            .set({ paymentStatus: 'paid', paymentMethod, bankAccountId })
+            .where(eq(sales.id, sale.id));
+
+        // Finance Integration
+        if (paymentMethod === 'cash') {
+            const register = await db.query.cashRegisters.findFirst({
+                where: and(eq(cashRegisters.organizationId, orgId), eq(cashRegisters.status, 'open'))
+            });
+            if (register) {
+                await db.insert(cashTransactions).values({
+                    organizationId: orgId,
+                    registerId: register.id,
+                    sessionId: register.currentSessionId as string,
+                    amount: sale.totalPrice,
+                    type: 'in',
+                    category: 'sales',
+                    description: `Pago Venta #${sale.id.slice(0, 8)}`,
+                    date: new Date()
+                });
+                await db.update(cashRegisters).set({ balance: sql`${cashRegisters.balance} + ${sale.totalPrice}` }).where(eq(cashRegisters.id, register.id));
+            }
+        } else if (paymentMethod === 'transfer' && bankAccountId) {
+            await db.update(bankAccounts).set({ balance: sql`${bankAccounts.balance} + ${sale.totalPrice}` }).where(eq(bankAccounts.id, bankAccountId));
+        }
+
+        await db.insert(payments).values({
+            organizationId: orgId,
+            amount: sale.totalPrice,
+            type: "income",
+            method: paymentMethod,
+            referenceId: `PAY-SALE-${sale.id}`,
+            date: new Date()
+        });
+
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ message: "Payment failed" });
+    }
+});
+
+/**
+ * Actualiza el estado de entrega.
+ * @route PATCH /api/sales/:id/delivery
+ */
+router.patch("/:id/delivery", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        const { status } = req.body;
+        await db.update(sales).set({ deliveryStatus: status }).where(eq(sales.id, req.params.id));
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ message: "Delivery update failed" });
     }
 });
 

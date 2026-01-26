@@ -27,7 +27,8 @@ import {
   ShieldAlert,
   History,
   TrendingUp as TrendingUpIcon,
-  LineChart
+  LineChart,
+  Building2
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -100,6 +101,12 @@ export default function Finance() {
             description="Costo total stock"
             icon={PiggyBank}
             variant="default"
+          />
+          <StatCard
+            title="Saldos en Bancos"
+            value={isLoading ? "..." : formatCurrency((summary?.bankBalance || 0) / 100)}
+            icon={Building2}
+            variant="primary"
           />
           <StatCard
             title="Supervivencia (Runway)"
@@ -296,6 +303,12 @@ export default function Finance() {
                       </a>
                     </Button>
                   )}
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href="/finance/accounts">
+                      <Building2 className="w-4 h-4 mr-1" />
+                      Gestionar Cuentas
+                    </Link>
+                  </Button>
                   <Button variant="outline" size="sm">
                     <Filter className="w-4 h-4 mr-1" />
                     Filtrar
@@ -372,8 +385,8 @@ export default function Finance() {
                 ]}
                 data={(Array.isArray(recentTransactions) ? recentTransactions : []).map((t: any) => ({
                   ...t,
-                  type: t.amount > 0 ? 'sale' : 'expense',
-                  description: t.description || (t.amount > 0 ? "Venta Regular" : "Gasto Operativo"),
+                  type: (t.amount || 0) > 0 ? 'sale' : 'expense',
+                  description: t.description || ((t.amount || 0) > 0 ? "Venta Regular" : "Gasto Operativo"),
                   status: 'completed'
                 }))}
               />

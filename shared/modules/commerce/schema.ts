@@ -69,8 +69,10 @@ export const sales = pgTable("sales", {
     customerId: varchar("customer_id").references(() => customers.id),
     quantity: integer("quantity").notNull(),
     totalPrice: integer("total_price").notNull(),
-    paymentStatus: text("payment_status").notNull().default("pending"), // "pending", "paid", "refunded"
-    deliveryStatus: text("delivery_status").notNull().default("delivered"), // "pending", "shipped", "delivered", "returned"
+    paymentStatus: text("payment_status").notNull().default("pending"), // "pending", "paid", "partially_paid", "refunded"
+    paymentMethod: text("payment_method"), // "cash", "transfer", "credit"
+    bankAccountId: varchar("bank_account_id"), // link to bank account if transfer
+    deliveryStatus: text("delivery_status").notNull().default("pending"), // "pending", "shipped", "delivered", "returned"
     driverId: varchar("driver_id").references(() => employees.id),
     vehicleId: varchar("vehicle_id").references(() => vehicles.id),
     date: timestamp("date").defaultNow(),

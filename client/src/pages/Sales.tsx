@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,9 @@ import {
   ShoppingBag,
   LineChart,
   History,
-  Receipt
+  Receipt,
+  Building2,
+  ArrowUpRight
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
@@ -138,7 +140,7 @@ export default function Sales() {
           </TabsTrigger>
           <TabsTrigger value="history" className="gap-2">
             <History className="w-4 h-4" />
-            Historial
+            Ventas & Seguimiento
           </TabsTrigger>
         </TabsList>
 
@@ -170,6 +172,10 @@ function POSView() {
   const [selectedVehicle, setSelectedVehicle] = useState<string>("");
   const [selectedCustomer, setSelectedCustomer] = useState<string>("");
 
+  const [selectedBankId, setSelectedBankId] = useState<string>("");
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "transfer">("cash");
+  const [isPayDialogOpen, setIsPayDialogOpen] = useState(false);
+
   // Pay Mutation
   const payMutation = useMutation({
     mutationFn: async (items: any[]) => {
@@ -184,6 +190,9 @@ function POSView() {
           driverId: selectedDriver || null,
           vehicleId: selectedVehicle || null,
           customerId: selectedCustomer || null,
+          paymentStatus: paymentMethod === 'cash' ? "paid" : "pending",
+          paymentMethod: paymentMethod,
+          bankAccountId: selectedBankId || null,
           status: "paid"
         })
       });
@@ -197,6 +206,7 @@ function POSView() {
       setCart([]);
       setSelectedDriver("");
       setSelectedVehicle("");
+      setIsPayDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ["/api/inventory/products"] });
       queryClient.invalidateQueries({ queryKey: ["/api/sales/stats"] });
       queryClient.invalidateQueries({ queryKey: ["/api/finance/summary"] });
@@ -255,6 +265,15 @@ function POSView() {
     queryKey: ["/api/crm/customers"],
     queryFn: async () => {
       const res = await fetch("/api/crm/customers", { headers: { Authorization: `Bearer ${session?.access_token}` } });
+      return res.json();
+    },
+    enabled: !!session?.access_token
+  });
+
+  const { data: bankAccounts = [] } = useQuery({
+    queryKey: ["/api/finance/accounts"],
+    queryFn: async () => {
+      const res = await fetch("/api/finance/accounts", { headers: { Authorization: `Bearer ${session?.access_token}` } });
       return res.json();
     },
     enabled: !!session?.access_token
@@ -452,9 +471,74 @@ function POSView() {
                   <Separator />
                   <div className="flex justify-between text-lg font-bold"><span>Total</span><span className="font-mono text-primary">{formatCurrency(total)}</span></div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <Button variant="outline" className="h-14" onClick={handlePay} disabled={payMutation.isPending}><Banknote className="w-5 h-5 mr-2" />{payMutation.isPending ? "Procesando" : "Efectivo"}</Button>
-                  <Button className="h-14" onClick={handlePay} disabled={payMutation.isPending}><CreditCard className="w-5 h-5 mr-2" />{payMutation.isPending ? "Procesando" : "Tarjeta"}</Button>
+                <div className="grid grid-cols-1 gap-3">
+                  <Dialog open={isPayDialogOpen} onOpenChange={setIsPayDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button className="h-16 text-lg font-bold" disabled={cart.length === 0}>
+                        <CreditCard className="w-6 h-6 mr-2" />
+                        Finalizar Venta
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Confirmar Pago</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="flex justify-between items-center p-4 bg-muted rounded-lg">
+                          <span className="text-lg font-medium">Total a Pagar:</span>
+                          <span className="text-2xl font-bold text-primary">{formatCurrency(total)}</span>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Método de Pago</Label>
+                          <div className="grid grid-cols-2 gap-3">
+                            <Button
+                              type="button"
+                              variant={paymentMethod === 'cash' ? 'default' : 'outline'}
+                              className="h-12"
+                              onClick={() => setPaymentMethod('cash')}
+                            >
+                              <Banknote className="w-4 h-4 mr-2" /> Efectivo
+                            </Button>
+                            <Button
+                              type="button"
+                              variant={paymentMethod === 'transfer' ? 'default' : 'outline'}
+                              className="h-12"
+                              onClick={() => setPaymentMethod('transfer')}
+                            >
+                              <Building2 className="w-4 h-4 mr-2" /> Transferencia
+                            </Button>
+                          </div>
+                        </div>
+
+                        {paymentMethod === 'transfer' && (
+                          <div className="space-y-2">
+                            <Label>Cuenta Bancaria de Destino</Label>
+                            <select
+                              className="w-full bg-background border border-border rounded-md p-2 text-sm"
+                              value={selectedBankId}
+                              onChange={(e) => setSelectedBankId(e.target.value)}
+                            >
+                              <option value="">Seleccione cuenta...</option>
+                              {bankAccounts.map((a: any) => (
+                                <option key={a.id} value={a.id}>{a.name} ({a.bankName})</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsPayDialogOpen(false)}>Cancelar</Button>
+                        <Button
+                          onClick={handlePay}
+                          disabled={payMutation.isPending || (paymentMethod === 'transfer' && !selectedBankId)}
+                        >
+                          {payMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                          Confirmar Venta
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
                 </div>
                 <Button variant="outline" className="w-full" onClick={() => {
                   const win = window.open('', '', 'width=300,height=600');
@@ -555,10 +639,10 @@ function SalesTrends() {
   );
 }
 
-
-
 function SalesHistory() {
   const { session } = useAuth();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   const formatCurrency = (amount: number) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(amount);
 
   const { data: orders = [] } = useQuery({
@@ -570,6 +654,21 @@ function SalesHistory() {
     enabled: !!session?.access_token
   });
 
+  const updateDeliveryMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string, status: string }) => {
+      const res = await fetch(`/api/sales/${id}/delivery`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ status })
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sales/orders"] });
+      toast({ title: "Estado de entrega actualizado" });
+    }
+  });
+
   const columns = [
     { key: "id", header: "ID", render: (it: any) => <span className="font-mono text-xs text-muted-foreground">#{it.id.slice(0, 6)}</span> },
     { key: "date", header: "Fecha", render: (it: any) => new Date(it.date).toLocaleString() },
@@ -577,10 +676,38 @@ function SalesHistory() {
     { key: "quantity", header: "Cant.", render: (it: any) => it.quantity },
     { key: "totalPrice", header: "Total", render: (it: any) => <span className="font-bold text-green-600">{formatCurrency(it.totalPrice / 100)}</span> },
     {
-      key: "status", header: "Estado", render: (it: any) => (
-        <Badge variant={it.status === "paid" ? "default" : "secondary"}>
-          {it.status === "paid" ? "Pagado" : "Pendiente"}
+      key: "deliveryStatus",
+      header: "Entrega",
+      render: (it: any) => (
+        <Badge variant={it.deliveryStatus === "delivered" ? "default" : "secondary"} className={cn(it.deliveryStatus === "pending" && "bg-amber-100 text-amber-700")}>
+          {it.deliveryStatus === "delivered" ? "Entregado" : it.deliveryStatus === "shipped" ? "En Camino" : "Pendiente"}
         </Badge>
+      )
+    },
+    {
+      key: "paymentStatus",
+      header: "Pago",
+      render: (it: any) => (
+        <div className="flex flex-col gap-1">
+          <Badge variant={it.paymentStatus === "paid" ? "outline" : "secondary"} className={cn(it.paymentStatus === "paid" ? "border-green-500 text-green-600" : "bg-red-100 text-red-700")}>
+            {it.paymentStatus === "paid" ? "Pagado" : "Pendiente"}
+          </Badge>
+          {it.paymentMethod && <span className="text-[10px] opacity-70 uppercase">{it.paymentMethod}</span>}
+        </div>
+      )
+    },
+    {
+      key: "actions",
+      header: "Acciones",
+      render: (it: any) => (
+        <div className="flex gap-1">
+          {it.paymentStatus !== "paid" && <PaySaleDialog sale={it} />}
+          {it.deliveryStatus !== "delivered" && (
+            <Button size="sm" variant="outline" onClick={() => updateDeliveryMutation.mutate({ id: it.id, status: "delivered" })}>
+              <Package className="w-3 h-3 mr-1" /> Entregar
+            </Button>
+          )}
+        </div>
       )
     }
   ];
@@ -591,6 +718,88 @@ function SalesHistory() {
         <DataTable columns={columns} data={orders} />
       </CardContent>
     </Card>
+  );
+}
+
+function PaySaleDialog({ sale }: { sale: any }) {
+  const { session } = useAuth();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [method, setMethod] = useState<"cash" | "transfer">("cash");
+  const [bankId, setBankId] = useState("");
+
+  const { data: accounts = [] } = useQuery({
+    queryKey: ["/api/finance/accounts"],
+    queryFn: async () => {
+      const res = await fetch("/api/finance/accounts", { headers: { Authorization: `Bearer ${session?.access_token}` } });
+      return res.json();
+    },
+    enabled: open
+  });
+
+  const payMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/sales/${sale.id}/pay`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ paymentMethod: method, bankAccountId: bankId || null })
+      });
+      if (!res.ok) throw new Error("Payment failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sales/orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/finance/summary"] });
+      setOpen(false);
+      toast({ title: "Pago registrado exitosamente" });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "No se pudo registrar el pago", variant: "destructive" });
+    }
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="default" className="bg-green-600 hover:bg-green-700">
+          <DollarSign className="w-3 h-3 mr-1" /> Cobrar
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Registrar Pago: #{sale.id.slice(0, 6)}</DialogTitle></DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="p-4 bg-muted rounded-lg flex justify-between items-center">
+            <span className="font-medium">Monto a Cobrar:</span>
+            <span className="text-xl font-bold font-mono text-green-600">
+              {new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(sale.totalPrice / 100)}
+            </span>
+          </div>
+          <div className="space-y-2">
+            <Label>Método</Label>
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant={method === 'cash' ? 'default' : 'outline'} onClick={() => setMethod('cash')}>Efectivo</Button>
+              <Button variant={method === 'transfer' ? 'default' : 'outline'} onClick={() => setMethod('transfer')}>Transferencia</Button>
+            </div>
+          </div>
+          {method === 'transfer' && (
+            <div className="space-y-2">
+              <Label>Cuenta Destino</Label>
+              <select className="w-full bg-background border border-border rounded-md p-2 text-sm" value={bankId} onChange={(e) => setBankId(e.target.value)}>
+                <option value="">Seleccione cuenta...</option>
+                {accounts.map((a: any) => (<option key={a.id} value={a.id}>{a.name} ({a.bankName})</option>))}
+              </select>
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+          <Button onClick={() => payMutation.mutate()} disabled={payMutation.isPending || (method === 'transfer' && !bankId)}>
+            Confirmar Pago
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -609,7 +818,6 @@ function SalesMetrics() {
   });
 
   const salesToday = metrics?.metrics?.length > 0 ? metrics.metrics[metrics.metrics.length - 1].value : 0;
-  // Use real count from backend (tags.count) or default to 0
   const transactionCount = metrics?.metrics?.length > 0 ? (metrics.metrics[metrics.metrics.length - 1].tags?.count || 0) : 0;
   const avgTicket = transactionCount > 0 ? salesToday / transactionCount : 0;
 
