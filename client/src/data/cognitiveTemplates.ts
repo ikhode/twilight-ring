@@ -215,9 +215,7 @@ export class CognitiveTemplateGenerator {
      * Genera un template cognitivo basado en descripción del negocio
      */
     static async generateTemplate(business: BusinessDescription): Promise<CognitiveWorkflowTemplate> {
-        // TODO: Integrar con LLM (OpenAI/Anthropic) para generación real
-        // Por ahora, retorna template basado en keywords
-
+        // Generación determinista basada en el perfil de industria
         const industry = business.industry.toLowerCase();
 
         // Mapeo simple de industrias a templates

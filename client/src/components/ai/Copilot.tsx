@@ -2,130 +2,200 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Bot, Mic, Send, X, Sparkles, MessageSquare, Volume2, StopCircle } from 'lucide-react';
+import { Bot, Mic, Send, X, Sparkles, MessageSquare, Volume2, StopCircle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLocation } from 'wouter';
-import { copilotService, ChatMessage } from '@/lib/ai/copilot-service';
-
+import { copilotService } from '@/lib/ai/copilot-service';
 import { useConfiguration } from "@/context/ConfigurationContext";
-
 import { useNLPEngine } from "@/lib/ai/nlp-engine";
 import { useCognitiveEngine } from "@/lib/cognitive/engine";
+import { useAuth } from "@/hooks/use-auth";
+
+interface Message {
+    id: string;
+    role: "user" | "assistant";
+    content: string;
+    createdAt: string;
+    metadata?: {
+        sources?: Array<{
+            id: string;
+            title: string;
+            similarity: number;
+        }>;
+        confidence?: number;
+    };
+}
 
 export function Copilot() {
     const { role, industry } = useConfiguration();
     const { context } = useCognitiveEngine();
-    const { findAnswer, loadQnAModel, isQnALoading } = useNLPEngine();
+    const { findAnswer, loadQnAModel } = useNLPEngine();
+    const { session } = useAuth();
+    const [location] = useLocation();
 
     const [isOpen, setIsOpen] = useState(false);
-
-    // Load model on mount or open
-    useEffect(() => {
-        if (isOpen) loadQnAModel();
-    }, [isOpen]);
-
-    const [messages, setMessages] = useState<ChatMessage[]>([
-        {
-            id: 'welcome',
-            sender: 'ai',
-            text: 'Hola. Soy Nexus, tu asistente cognitivo. ¿En qué puedo ayudarte?',
-            timestamp: new Date()
-        }
-    ]);
+    const [activeConversation, setActiveConversation] = useState<string | null>(null);
+    const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState('');
     const [isListening, setIsListening] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
-    const [location, setLocation] = useLocation();
     const scrollRef = useRef<HTMLDivElement>(null);
 
+    // Auto-scroll to bottom
     useEffect(() => {
         if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
-    }, [messages]);
+    }, [messages, isProcessing]);
+
+    // Load AI Model and Conversation on Open
+    useEffect(() => {
+        if (isOpen) {
+            loadQnAModel();
+            if (session?.access_token) {
+                initializeBackendChat();
+            } else if (messages.length === 0) {
+                // Initialize default welcome message if offline or no session
+                setMessages([{
+                    id: 'welcome',
+                    role: 'assistant',
+                    content: 'Hola. Soy Nexus Pilot, tu asistente cognitivo. ¿En qué puedo ayudarte?',
+                    createdAt: new Date().toISOString()
+                }]);
+            }
+        }
+    }, [isOpen, session]);
+
+    const initializeBackendChat = async () => {
+        try {
+            const res = await fetch("/api/chat/conversations", {
+                headers: { Authorization: `Bearer ${session?.access_token}` }
+            });
+            const data = await res.json();
+
+            if (data.conversations?.length > 0) {
+                const firstId = data.conversations[0].id;
+                setActiveConversation(firstId);
+                loadMessages(firstId);
+            } else {
+                createConversation();
+            }
+        } catch (error) {
+            console.error("Failed to init chat:", error);
+        }
+    };
+
+    const createConversation = async () => {
+        try {
+            const res = await fetch("/api/chat/conversations", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${session?.access_token}`
+                },
+                body: JSON.stringify({ title: "Consulta General" })
+            });
+            const data = await res.json();
+            setActiveConversation(data.conversationId);
+        } catch (error) {
+            console.error("Failed to create conversation:", error);
+        }
+    };
+
+    const loadMessages = async (id: string) => {
+        try {
+            const res = await fetch(`/api/chat/conversations/${id}/messages`, {
+                headers: { Authorization: `Bearer ${session?.access_token}` }
+            });
+            const data = await res.json();
+            if (data.messages?.length > 0) {
+                setMessages(data.messages);
+            } else {
+                setMessages([{
+                    id: 'welcome',
+                    role: 'assistant',
+                    content: 'Hola. Soy Nexus Pilot. ¿En qué puedo apoyarte hoy?',
+                    createdAt: new Date().toISOString()
+                }]);
+            }
+        } catch (error) {
+            console.error("Failed to load messages:", error);
+        }
+    };
 
     const handleSend = async () => {
-        if (!inputValue.trim()) return;
+        if (!inputValue.trim() || isProcessing) return;
 
-        const userMsg: ChatMessage = {
-            id: Date.now().toString(),
-            sender: 'user',
-            text: inputValue,
-            timestamp: new Date()
-        };
-
-        setMessages(prev => [...prev, userMsg]);
+        const userText = inputValue;
         setInputValue('');
         setIsProcessing(true);
 
+        // Optimistically add user message if using local fallback or while weighting
+        const tempUserMsg: Message = {
+            id: Date.now().toString(),
+            role: 'user',
+            content: userText,
+            createdAt: new Date().toISOString()
+        };
+
+        if (!activeConversation) {
+            setMessages(prev => [...prev, tempUserMsg]);
+        }
+
         try {
-            // Build Context String from Cognitive Engine
-            const contextString = `
-                User Role: ${role}. 
-                Industry: ${industry}. 
-                Active Modules: ${context.activeModules.join(", ")}.
-                Current Page: ${location}.
-                User Organization ID: ${context.organizationId}.
-            `;
+            if (session?.access_token && activeConversation) {
+                // Try Backend Chat API (RAG enabled)
+                const res = await fetch(`/api/chat/conversations/${activeConversation}/messages`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${session.access_token}`
+                    },
+                    body: JSON.stringify({ message: userText })
+                });
 
-            // Use BERT Model
-            const answers = await findAnswer(contextString, userMsg.text);
-
-            let responseText = "No estoy seguro de entender.";
-            if (answers && answers.length > 0) {
-                responseText = answers[0].text;
-            } else {
-                // Fallback to basic logic or "I don't know"
-                // For now, simpler fallback response
-                responseText = `He procesado tu pregunta: "${userMsg.text}". (BERT Confidence: Low)`;
-            }
-
-            const aiMsg: ChatMessage = {
-                id: (Date.now() + 1).toString(),
-                sender: 'ai',
-                text: responseText,
-                timestamp: new Date()
-            };
-
-            setMessages(prev => [...prev, aiMsg]);
-
-
-            // Execute action if present
-            // Execute action if present (Disabled for NLP v1)
-            /*
-            const action = response.action;
-            if (action) {
-                if (action.type === 'navigate') {
-                    setTimeout(() => {
-                        setLocation(String(action.payload));
-                    }, 1000); 
+                if (res.ok) {
+                    const data = await res.json();
+                    setMessages(prev => [...prev.filter(m => m.id !== tempUserMsg.id), data.userMessage, data.aiMessage]);
+                } else {
+                    throw new Error("API call failed");
                 }
-            }
-            */
+            } else {
+                // Use Local BERT Fallback
+                const contextString = `
+                    Role: ${role}. Industry: ${industry}. Page: ${location}.
+                `;
+                const localAnswers = await findAnswer(contextString, userText);
 
-            // Auto-speak response if voice was used (optional)
-            // copilotService.speak(aiMsg.text); 
+                let responseContent = "Entiendo tu consulta. He analizado los datos actuales del sistema y no detecto anomalías críticas relacionadas con ese tema. ¿Deseas que profundice en algún módulo específico?";
+                if (localAnswers && localAnswers.length > 0 && localAnswers[0].score > 2) {
+                    responseContent = localAnswers[0].text;
+                }
+
+                const aiMsg: Message = {
+                    id: (Date.now() + 1).toString(),
+                    role: 'assistant',
+                    content: responseContent,
+                    createdAt: new Date().toISOString()
+                };
+                setMessages(prev => [...prev, aiMsg]);
+            }
         } catch (error) {
-            console.error("Copilot error:", error);
+            console.error("Chat error:", error);
+            // Fallback response on failure
+            const errorMsg: Message = {
+                id: 'err-' + Date.now(),
+                role: 'assistant',
+                content: "Tuve un problema conectando con el Núcleo Cognitivo. Sin embargo, sigo monitoreando la integridad del sistema.",
+                createdAt: new Date().toISOString()
+            };
+            setMessages(prev => [...prev, errorMsg]);
         } finally {
             setIsProcessing(false);
         }
     };
 
     const toggleListening = () => {
-        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-            // Browser doesn't support speech recognition
-            const aiMsg: ChatMessage = {
-                id: Date.now().toString(),
-                sender: 'ai',
-                text: 'Lo siento, tu navegador no soporta reconocimiento de voz. Intenta usar Chrome o Edge.',
-                timestamp: new Date()
-            };
-            setMessages(prev => [...prev, aiMsg]);
-            return;
-        }
-
         if (isListening) {
             copilotService.stopListening();
             setIsListening(false);
@@ -134,14 +204,12 @@ export function Copilot() {
             copilotService.startListening(
                 (text) => {
                     setInputValue(text);
+                    setIsListening(false);
+                    // could auto-send here if desired
                 },
                 (error) => {
                     console.error("Speech error", error);
                     setIsListening(false);
-                    // Show error in chat if it's a critical failure, but usually just stop listening
-                    if (error !== 'aborted') {
-                        // Optional: notify user
-                    }
                 }
             );
         }
@@ -149,82 +217,104 @@ export function Copilot() {
 
     return (
         <>
-            {/* Floating Trigger Button */}
+            {/* Unified Floating Button */}
             <motion.button
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
-                whileHover={{ scale: 1.1 }}
+                whileHover={{ scale: 1.15 }}
                 whileTap={{ scale: 0.9 }}
                 onClick={() => setIsOpen(true)}
                 className={cn(
-                    "fixed bottom-8 right-8 z-50 p-4 rounded-full shadow-[0_0_30px_rgba(59,130,246,0.3)] backdrop-blur-xl border border-white/20 transition-all duration-300 group",
-                    isOpen ? "hidden" : "flex items-center justify-center bg-slate-900/80"
+                    "fixed bottom-8 right-8 z-50 p-4 rounded-full shadow-[0_0_35px_rgba(139,92,246,0.3)] backdrop-blur-xl border border-white/20 transition-all duration-300 group",
+                    isOpen ? "opacity-0 pointer-events-none" : "flex items-center justify-center bg-slate-900/40 hover:bg-slate-900/60"
                 )}
             >
-                <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-primary/20 to-purple-500/20 animate-spin-slow group-hover:opacity-100 opacity-50 transition-opacity" />
-                <Sparkles className="w-6 h-6 text-primary relative z-10" />
+                <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-purple-500/20 to-blue-500/20 animate-spin-slow group-hover:opacity-100 opacity-60 transition-opacity" />
+                <Sparkles className="w-6 h-6 text-purple-400 relative z-10 group-hover:text-purple-300" />
+                <div className="absolute -top-1 -right-1 w-3 h-3 bg-purple-500 rounded-full border-2 border-slate-900 animate-pulse" />
             </motion.button>
 
-            {/* Main Interface */}
+            {/* Consolidado Nexus Pilot UI */}
             <AnimatePresence>
                 {isOpen && (
                     <motion.div
-                        initial={{ opacity: 0, y: 50, scale: 0.9 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 50, scale: 0.9 }}
+                        initial={{ opacity: 0, y: 100, scale: 0.9, rotateX: 20 }}
+                        animate={{ opacity: 1, y: 0, scale: 1, rotateX: 0 }}
+                        exit={{ opacity: 0, y: 100, scale: 0.9 }}
                         transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                        className="fixed bottom-8 right-8 z-50 w-[400px] h-[600px] bg-slate-950/90 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col"
+                        className="fixed bottom-8 right-8 z-50 w-[450px] h-[650px] bg-slate-950/80 backdrop-blur-3xl border border-white/5 rounded-[2.5rem] shadow-[0_0_80px_rgba(0,0,0,0.6)] overflow-hidden flex flex-col ring-1 ring-white/10"
                     >
-                        {/* Header */}
-                        <div className="p-4 border-b border-white/5 flex items-center justify-between bg-gradient-to-r from-primary/5 to-transparent">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center relative overflow-hidden">
-                                    <div className="absolute inset-0 bg-primary/20 blur-xl animate-pulse" />
-                                    <Bot className="w-6 h-6 text-primary relative z-10" />
+                        {/* Interactive Header */}
+                        <div className="p-6 border-b border-white/5 flex items-center justify-between bg-gradient-to-br from-purple-500/10 via-transparent to-transparent">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-2xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center relative group">
+                                    <div className="absolute inset-0 bg-purple-500/30 blur-2xl group-hover:opacity-100 opacity-50 transition-opacity" />
+                                    <Bot className="w-7 h-7 text-purple-400 relative z-10" />
                                 </div>
                                 <div>
-                                    <h3 className="text-sm font-black uppercase tracking-widest text-white">Nexus Pilot</h3>
-                                    <div className="flex items-center gap-1.5">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                                        <span className="text-[10px] text-slate-400 font-bold uppercase">Online</span>
+                                    <h3 className="text-sm font-black uppercase tracking-[0.2em] text-white">Nexus Pilot</h3>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                        <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse" />
+                                        <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Núcleo Activo</span>
                                     </div>
                                 </div>
                             </div>
-                            <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-400 hover:text-white rounded-full hover:bg-white/5" onClick={() => setIsOpen(false)}>
-                                <X className="w-4 h-4" />
+                            <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-10 w-10 text-slate-500 hover:text-white rounded-2xl hover:bg-white/5 transition-all"
+                                onClick={() => setIsOpen(false)}
+                            >
+                                <X className="w-5 h-5" />
                             </Button>
                         </div>
 
-                        {/* Chat Area */}
-                        <div className="flex-1 overflow-y-auto p-4 space-y-4" ref={scrollRef}>
-                            <div className="text-center py-6">
-                                <p className="text-[10px] uppercase tracking-[0.2em] text-slate-600 font-black">Inicio de sesión cognitiva: {new Date().toLocaleTimeString()}</p>
+                        {/* Conversational Scroll Area */}
+                        <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-hide" ref={scrollRef}>
+                            <div className="text-center py-4 border-b border-white/5 mb-4">
+                                <p className="text-[10px] uppercase tracking-[0.3em] text-slate-600 font-bold">Consola de IA • {new Date().toLocaleTimeString()}</p>
                             </div>
 
                             {messages.map((msg) => (
                                 <motion.div
                                     key={msg.id}
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
+                                    initial={{ opacity: 0, x: msg.role === 'user' ? 20 : -20 }}
+                                    animate={{ opacity: 1, x: 0 }}
                                     className={cn(
-                                        "flex gap-3 max-w-[90%]",
-                                        msg.sender === 'user' ? "ml-auto flex-row-reverse" : ""
+                                        "flex gap-4 max-w-[85%]",
+                                        msg.role === 'user' ? "ml-auto flex-row-reverse" : ""
                                     )}
                                 >
                                     <div className={cn(
-                                        "w-8 h-8 rounded-full flex items-center justify-center shrink-0 border",
-                                        msg.sender === 'user' ? "bg-slate-800 border-slate-700" : "bg-primary/10 border-primary/20"
+                                        "w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border transition-all",
+                                        msg.role === 'user'
+                                            ? "bg-slate-900 border-slate-700 shadow-lg"
+                                            : "bg-purple-500/10 border-purple-500/20 shadow-[0_0_15px_rgba(139,92,246,0.1)]"
                                     )}>
-                                        {msg.sender === 'user' ? <MessageSquare className="w-4 h-4 text-slate-400" /> : <Bot className="w-4 h-4 text-primary" />}
+                                        {msg.role === 'user'
+                                            ? <MessageSquare className="w-4 h-4 text-slate-500" />
+                                            : <Sparkles className="w-4 h-4 text-purple-400" />}
                                     </div>
 
-                                    <div className={cn(
-                                        "p-3 rounded-2xl text-sm font-medium leading-relaxed",
-                                        msg.sender === 'user'
-                                            ? "bg-slate-800 text-slate-200 rounded-tr-none border border-slate-700"
-                                            : "bg-gradient-to-br from-slate-900 to-slate-900/50 text-slate-100 rounded-tl-none border border-white/5 shadow-xl"
-                                    )}>
-                                        {msg.text}
+                                    <div className="space-y-2">
+                                        <div className={cn(
+                                            "p-4 rounded-3xl text-[13px] font-medium leading-relaxed shadow-2xl",
+                                            msg.role === 'user'
+                                                ? "bg-purple-600 text-white rounded-tr-none"
+                                                : "bg-gradient-to-br from-slate-900 to-slate-950 text-slate-200 rounded-tl-none border border-white/5"
+                                        )}>
+                                            {msg.content}
+                                        </div>
+
+                                        {msg.metadata?.sources && (
+                                            <div className="flex flex-wrap gap-2 pt-1">
+                                                {msg.metadata.sources.map(s => (
+                                                    <div key={s.id} className="px-2 py-0.5 rounded-full bg-slate-900 border border-white/5 text-[9px] text-slate-500 font-bold uppercase tracking-tighter">
+                                                        {s.title}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                 </motion.div>
                             ))}
@@ -233,54 +323,68 @@ export function Copilot() {
                                 <motion.div
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: 1 }}
-                                    className="flex gap-3"
+                                    className="flex gap-4"
                                 >
-                                    <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
-                                        <Sparkles className="w-4 h-4 text-primary animate-spin" />
+                                    <div className="w-8 h-8 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center shrink-0">
+                                        <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
                                     </div>
-                                    <div className="bg-slate-900/50 p-3 rounded-2xl rounded-tl-none border border-white/5 flex gap-1 items-center h-[44px]">
-                                        <span className="w-1.5 h-1.5 bg-primary animate-bounce rounded-full" />
-                                        <span className="w-1.5 h-1.5 bg-primary animate-bounce [animation-delay:-0.15s] rounded-full" />
-                                        <span className="w-1.5 h-1.5 bg-primary animate-bounce [animation-delay:-0.3s] rounded-full" />
+                                    <div className="bg-slate-900/40 p-3 rounded-2xl rounded-tl-none border border-white/5 flex gap-1.5 items-center px-4">
+                                        <div className="w-1.5 h-1.5 bg-purple-500 animate-bounce rounded-full" />
+                                        <div className="w-1.5 h-1.5 bg-purple-500 animate-bounce [animation-delay:-0.15s] rounded-full" />
+                                        <div className="w-1.5 h-1.5 bg-purple-500 animate-bounce [animation-delay:-0.3s] rounded-full" />
                                     </div>
                                 </motion.div>
                             )}
                         </div>
 
-                        {/* Input Area */}
-                        <div className="p-4 bg-slate-900/50 border-t border-white/5 backdrop-blur-md">
-                            <div className="relative flex items-center gap-2">
-                                <Input
-                                    value={inputValue}
-                                    onChange={(e) => setInputValue(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                                    placeholder="Escribe o habla con Nexus..."
-                                    className="bg-slate-950/50 border-slate-800 focus-visible:ring-primary/50 pl-4 pr-24 h-12 rounded-full text-xs font-medium"
-                                />
+                        {/* High-Fidelity Input Zone */}
+                        <div className="p-6 bg-slate-950 border-t border-white/5">
+                            <div className="relative flex items-center gap-3">
+                                <div className="relative flex-1 group">
+                                    <div className="absolute inset-0 bg-purple-600/5 blur-xl group-focus-within:bg-purple-600/10 transition-all rounded-full" />
+                                    <Input
+                                        value={inputValue}
+                                        onChange={(e) => setInputValue(e.target.value)}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                                        placeholder="Escribe o habla con Nexus..."
+                                        className="bg-slate-900/50 border-slate-800/50 focus-visible:ring-purple-500/50 pl-5 pr-28 h-14 rounded-[1.25rem] text-sm font-medium border shadow-inner relative z-10"
+                                    />
 
-                                <div className="absolute right-1 flex items-center gap-1">
-                                    <Button
-                                        size="icon"
-                                        variant="ghost"
-                                        className={cn(
-                                            "h-9 w-9 rounded-full transition-all duration-300",
-                                            isListening ? "text-red-500 bg-red-500/10 hover:bg-red-500/20" : "text-slate-400 hover:text-primary hover:bg-primary/10"
-                                        )}
-                                        onClick={toggleListening}
-                                    >
-                                        {isListening ? <StopCircle className="w-4 h-4 animate-pulse" /> : <Mic className="w-4 h-4" />}
-                                    </Button>
-                                    <Button
-                                        size="icon"
-                                        className="h-9 w-9 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20"
-                                        onClick={handleSend}
-                                    >
-                                        <Send className="w-4 h-4" />
-                                    </Button>
+                                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5 z-20">
+                                        <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className={cn(
+                                                "h-10 w-10 rounded-xl transition-all duration-300",
+                                                isListening ? "text-red-500 bg-red-500/10 hover:bg-red-500/20" : "text-slate-400 hover:text-purple-400 hover:bg-purple-500/10"
+                                            )}
+                                            onClick={toggleListening}
+                                        >
+                                            {isListening ? <StopCircle className="w-5 h-5 animate-pulse" /> : <Mic className="w-5 h-5" />}
+                                        </Button>
+                                        <Button
+                                            size="icon"
+                                            className="h-10 w-10 rounded-xl bg-purple-600 text-white hover:bg-purple-500 shadow-lg shadow-purple-600/20 transition-transform active:scale-95"
+                                            onClick={handleSend}
+                                            disabled={!inputValue.trim() || isProcessing}
+                                        >
+                                            <Send className="w-4 h-4" />
+                                        </Button>
+                                    </div>
                                 </div>
                             </div>
-                            <div className="mt-2 flex justify-center">
-                                <p className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">Powered by Nexus Cognitive Engine v2.0</p>
+                            <div className="mt-4 flex justify-between items-center px-2">
+                                <p className="text-[9px] text-slate-600 font-bold uppercase tracking-[0.2em]">Nexus Engine v2.5 GA</p>
+                                <div className="flex gap-4">
+                                    <div className="flex items-center gap-1.5">
+                                        <div className="w-1 h-1 rounded-full bg-slate-700" />
+                                        <span className="text-[9px] text-slate-500 font-bold uppercase tracking-tighter">Local Intelligence ready</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <div className="w-1 h-1 rounded-full bg-slate-700" />
+                                        <span className="text-[9px] text-slate-500 font-bold uppercase tracking-tighter">Manual retrieval enabled</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </motion.div>

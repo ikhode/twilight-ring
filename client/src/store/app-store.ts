@@ -18,6 +18,7 @@ interface AppState {
     productCategories: string[];
     defaultUnits: string[];
     productTypeLabels: Record<string, { label: string, context: string }>;
+    cedisAddress?: string;
 
     // Actions
     setIndustry: (industry: string) => void;
@@ -28,7 +29,8 @@ interface AppState {
         productCategories?: string[],
         defaultUnits?: string[],
         industryName?: string,
-        productTypeLabels?: Record<string, { label: string, context: string }>
+        productTypeLabels?: Record<string, { label: string, context: string }>,
+        cedisAddress?: string
     }) => void;
 
     // Optimistic Industry Update
@@ -51,6 +53,7 @@ export const useAppStore = create<AppState>()(
                 sale: { label: "Producto Final", context: "Ajuste dinámico de precios." },
                 internal: { label: "Uso Interno", context: "Control de gasto operativo." }
             },
+            cedisAddress: "",
 
             setIndustry: (industry) => set({ industry }),
             setTheme: (theme) => set({ theme }),
@@ -61,7 +64,8 @@ export const useAppStore = create<AppState>()(
                 productCategories: config.productCategories || state.productCategories,
                 defaultUnits: config.defaultUnits || state.defaultUnits,
                 industryName: config.industryName || state.industryName,
-                productTypeLabels: config.productTypeLabels || state.productTypeLabels
+                productTypeLabels: config.productTypeLabels || state.productTypeLabels,
+                cedisAddress: config.cedisAddress !== undefined ? config.cedisAddress : state.cedisAddress
             })),
 
             applyIndustryTemplate: (industryKey) => {

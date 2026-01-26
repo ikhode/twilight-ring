@@ -151,7 +151,7 @@ export function ConfigurationProvider({ children }: { children: React.ReactNode 
                 placeTypes: [],
                 productAttributes: [],
                 processFlows: [],
-                cedisAddress: ""
+                cedisAddress: store.cedisAddress || ""
             },
             updateUniversalConfig,
         }}>

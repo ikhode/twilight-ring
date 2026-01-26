@@ -1,60 +1,14 @@
-import OpenAI from "openai";
-import { db } from "../storage";
-import { modules } from "../../shared/schema";
-import { eq } from "drizzle-orm";
-
-const openai = process.env.OPENAI_API_KEY
-    ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-    : null;
-
+/**
+ * Module Recommender Service - LOCAL SEMANTIC ENGINE
+ * Matches user requirements to system modules using local heuristics.
+ */
 export class ModuleRecommender {
 
     /**
-     * Recommend modules based on user description
+     * Recommend modules based on user description - 100% Local Logic
      */
     async recommendModules(description: string, allModules: any[]): Promise<string[]> {
-
-        // 1. Try LLM if available
-        if (openai) {
-            try {
-                const modulesList = allModules.map(m => ({ id: m.id, name: m.name, description: m.description, tags: m.tags }));
-
-                const completion = await openai.chat.completions.create({
-                    model: "gpt-4o-mini",
-                    messages: [
-                        {
-                            role: "system",
-                            content: `You are an ERP configuration assistant. Match the user's need to the available modules.
-                            
-Available Modules:
-${JSON.stringify(modulesList, null, 2)}
-
-Return a JSON array of specific module IDs that best solve the user's problem. 
-Example response: ["finance", "crm"]
-Only return IDs that exist in the list.
-Rank by relevance.`
-                        },
-                        {
-                            role: "user",
-                            content: `User description: "${description}"`
-                        }
-                    ],
-                    response_format: { type: "json_object" }
-                });
-
-                const content = completion.choices[0]?.message?.content;
-                if (content) {
-                    const parsed = JSON.parse(content);
-                    // Handle both direct array or wrapped object
-                    const ids = Array.isArray(parsed) ? parsed : (parsed.modules || parsed.ids || []);
-                    if (ids.length > 0) return ids;
-                }
-            } catch (error) {
-                console.error("LLM recommendation failed, falling back to keywords:", error);
-            }
-        }
-
-        // 2. Fallback: Weighted Keyword Matching
+        // Use deterministic local keyword matching
         return this.keywordMatching(description, allModules);
     }
 

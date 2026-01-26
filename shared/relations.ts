@@ -170,3 +170,32 @@ export const routeStopsRelations = relations(schema.routeStops, ({ one }) => ({
         references: [schema.purchases.id],
     }),
 }));
+
+// AI Chat Relations
+export const aiChatAgentsRelations = relations(schema.aiChatAgents, ({ many }) => ({
+    conversations: many(schema.chatConversations),
+}));
+
+export const chatConversationsRelations = relations(schema.chatConversations, ({ one, many }) => ({
+    user: one(schema.users, {
+        fields: [schema.chatConversations.userId],
+        references: [schema.users.id],
+    }),
+    organization: one(schema.organizations, {
+        fields: [schema.chatConversations.organizationId],
+        references: [schema.organizations.id],
+    }),
+    agent: one(schema.aiChatAgents, {
+        fields: [schema.chatConversations.agentId],
+        references: [schema.aiChatAgents.id],
+    }),
+    messages: many(schema.chatMessages),
+}));
+
+export const chatMessagesRelations = relations(schema.chatMessages, ({ one }) => ({
+    conversation: one(schema.chatConversations, {
+        fields: [schema.chatMessages.conversationId],
+        references: [schema.chatConversations.id],
+    }),
+}));
+
