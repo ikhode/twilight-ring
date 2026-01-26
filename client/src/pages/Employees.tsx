@@ -411,7 +411,7 @@ export default function Employees() {
               <AliveValue label="Total Empleados" value={stats.total} trend="neutral" />
             </CardContent>
           </Card>
-          <Card className="bg-slate-900/50 border-slate-800">
+          <Card className="bg-slate-900/50 border-slate-800" data-tour="attendance-section">
             <CardContent className="pt-6">
               <AliveValue label="Activos Ahora" value={stats.active} trend="up" explanation="98% de asistencia hoy" />
             </CardContent>
@@ -451,7 +451,7 @@ export default function Employees() {
                 </div>
                 <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                   <DialogTrigger asChild>
-                    <CognitiveButton intent="create_employee" title="Registrar nuevo talento">
+                    <CognitiveButton intent="create_employee" title="Registrar nuevo talento" data-tour="add-employee-btn">
                       <Plus className="w-4 h-4 mr-2" />
                       Agregar Empleado
                     </CognitiveButton>

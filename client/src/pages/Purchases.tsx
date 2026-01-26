@@ -353,7 +353,7 @@ function CreateSupplierDialog() {
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2">
+                <Button variant="outline" size="sm" className="gap-2" data-tour="suppliers-section">
                     <Plus className="w-4 h-4" /> Nuevo Proveedor
                 </Button>
             </DialogTrigger>
@@ -507,7 +507,7 @@ function CreatePurchaseDialog() {
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button><Plus className="w-4 h-4 mr-2" /> Nueva Orden</Button>
+                <Button data-tour="new-purchase-btn"><Plus className="w-4 h-4 mr-2" /> Nueva Orden</Button>
             </DialogTrigger>
             <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader><DialogTitle>Nueva Orden de Compra</DialogTitle></DialogHeader>

@@ -518,7 +518,7 @@ export default function Logistics() {
                 <TabsList className="bg-slate-900/50 border border-slate-800">
                     <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
                     <TabsTrigger value="fleet">Gestión de Flota</TabsTrigger>
-                    <TabsTrigger value="routes">Rutas Inteligentes</TabsTrigger>
+                    <TabsTrigger value="routes" data-tour="routes-section">Rutas Inteligentes</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="dashboard" className="h-[calc(100vh-12rem)]">
@@ -570,7 +570,7 @@ export default function Logistics() {
                             </div>
 
                             {/* Live Map */}
-                            <Card className="flex-1 bg-slate-950 border-slate-800 overflow-hidden relative group">
+                            <Card className="flex-1 bg-slate-950 border-slate-800 overflow-hidden relative group" data-tour="fleet-map">
                                 <div className="absolute top-4 right-4 z-[400] bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 flex items-center gap-2">
                                     <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
                                     <span className="text-xs font-bold text-white tracking-widest uppercase">Live Tracking</span>

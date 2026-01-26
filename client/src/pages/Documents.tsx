@@ -111,6 +111,7 @@ export default function Documents() {
                 <div className="lg:col-span-2 flex flex-col gap-6">
                     {/* Upload Zone */}
                     <Card
+                        data-tour="upload-doc-btn"
                         className={cn(
                             "border-2 border-dashed transition-all cursor-pointer h-40 flex flex-col items-center justify-center",
                             isDragging ? "border-primary bg-primary/5 scale-[1.01]" : "border-muted hover:border-primary/50"
@@ -174,7 +175,7 @@ export default function Documents() {
                 </div>
 
                 {/* Right: Analyzed Items (Inbox) */}
-                <div className="bg-card border rounded-xl overflow-hidden flex flex-col h-full">
+                <div className="bg-card border rounded-xl overflow-hidden flex flex-col h-full" data-tour="doc-categories">
                     <div className="p-4 border-b bg-muted/20">
                         <h3 className="font-semibold flex items-center gap-2">
                             <Sparkles className="w-4 h-4 text-yellow-500" />
