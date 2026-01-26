@@ -52,7 +52,7 @@ import { useAppStore } from "@/store/app-store";
 export default function Inventory() {
   const { session } = useAuth();
   const { toast } = useToast();
-  const { universalConfig } = useConfiguration();
+  const { universalConfig, industry } = useConfiguration();
   const { productTypeLabels } = useAppStore();
   const [searchQuery, setSearchQuery] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -60,6 +60,18 @@ export default function Inventory() {
   const [isAdjustDialogOpen, setIsAdjustDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [selectedProductForHistory, setSelectedProductForHistory] = useState<any>(null);
+
+  // Dynamic Placeholders
+  const placeholders: Record<string, string> = {
+    manufacturing: "Ej: Placa de Acero Calibre 18",
+    retail: "Ej: Vestido de Noche Rojo",
+    logistics: "Ej: Tarima Euro 120x80",
+    restaurant: "Ej: Hamburguesa Doble con Queso",
+    services: "Ej: Hora de Desarrollo Senior",
+    generic: "Ej: Producto General"
+  };
+
+  const currentPlaceholder = placeholders[industry as string] || placeholders.generic;
 
   // Fallback to defaults if no universal categories are defined
   const categories = universalConfig.productCategories?.length > 0
@@ -296,7 +308,7 @@ export default function Inventory() {
                           <Label htmlFor="name" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Nombre del Item</Label>
                           <CognitiveInput
                             id="name"
-                            placeholder="Ej: Vestido Rosa Seda"
+                            placeholder={currentPlaceholder}
                             value={newProduct.name}
                             onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
                             semanticType="name"

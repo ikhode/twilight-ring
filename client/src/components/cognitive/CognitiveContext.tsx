@@ -29,7 +29,7 @@ interface CognitiveContextType {
     acceptPrediction: (fieldId: string) => void;
 
     // Holistic Audit
-    requestHolisticDiagnostic: () => Promise<void>;
+    requestHolisticDiagnostic: (silent?: boolean) => Promise<void>;
 }
 
 const CognitiveContext = React.createContext<CognitiveContextType | undefined>(undefined);
@@ -71,12 +71,13 @@ export function CognitiveProvider({ children }: { children: React.ReactNode }) {
         });
     }, []);
 
-    const requestHolisticDiagnostic = React.useCallback(async () => {
+    const requestHolisticDiagnostic = React.useCallback(async (silent: boolean = false) => {
         if (isUSELoading || isAnalyzingForm) return;
 
-        setIsAnalyzingForm(true);
-        // Simulate LLM Processing Delay for "Weight" and Perception
-        await new Promise(r => setTimeout(r, 1200));
+        if (!silent) setIsAnalyzingForm(true);
+
+        // Simulate LLM Processing Delay depending on mode
+        await new Promise(r => setTimeout(r, silent ? 800 : 1200));
 
         const newDiagnostics: Diagnostic[] = [];
         const name = values['name'] || values['id-name'] || '';
@@ -124,7 +125,7 @@ export function CognitiveProvider({ children }: { children: React.ReactNode }) {
             ...newDiagnostics
         ]);
 
-        setIsAnalyzingForm(false);
+        if (!silent) setIsAnalyzingForm(false);
     }, [values, isUSELoading, isAnalyzingForm, findSemanticMatches]);
 
     // Auto-trigger on activity timeout (2 seconds without changes)
@@ -132,7 +133,7 @@ export function CognitiveProvider({ children }: { children: React.ReactNode }) {
         if (Object.keys(values).length === 0) return;
 
         const timer = setTimeout(() => {
-            requestHolisticDiagnostic();
+            requestHolisticDiagnostic(true);
         }, 2500);
 
         return () => clearTimeout(timer);

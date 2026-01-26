@@ -128,8 +128,8 @@ export default function Settings() {
                           {React.createElement(mod.icon as any, { className: "w-4 h-4" })}
                         </div>
                         <div>
-                          <p className="text-xs font-bold text-white uppercase italic">{mod.label}</p>
-                          <p className="text-[10px] text-slate-500">Integrado en el flujo cognitivo</p>
+                          <p className="text-xs font-bold text-white uppercase italic">{mod.name}</p>
+                          <p className="text-[10px] text-slate-500">{mod.description}</p>
                         </div>
                       </div>
                       <Switch
