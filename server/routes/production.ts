@@ -3,6 +3,7 @@ import { processInstances, processEvents, inventoryMovements, products, piecewor
 import { eq, sql, and } from "drizzle-orm";
 import { getOrgIdFromRequest } from "../auth_util";
 import { Router } from "express";
+import { CognitiveEngine } from "../lib/cognitive-engine";
 
 const router = Router();
 
@@ -259,13 +260,12 @@ router.post("/instances/:id/finish", async (req, res): Promise<void> => {
         console.log(`[Cognitive Production] Inferred Input: ${inferredInputQty}, Inferred Output: ${inferredOutputQty}`);
 
         // C. Ejecución de Movimientos de Inventario
-
         const processDef = await getProcess(req.body.processId || (await db.select().from(processInstances).where(eq(processInstances.id, instanceId))).map(p => p.processId)[0], orgId);
 
         if (processDef) {
             const workflow = processDef.workflowData as any;
 
-            // 1. Consumo Insumo Principal (e.g. Coco Entero)
+            // 1. Consumo Insumo Principal
             const inputProductId = workflow?.inputProductId || workflow?.meta?.inputProductId;
             if (inputProductId && inferredInputQty > 0) {
                 await db.update(products)
@@ -278,40 +278,54 @@ router.post("/instances/:id/finish", async (req, res): Promise<void> => {
                     quantity: -inferredInputQty,
                     type: "production_use",
                     referenceId: instanceId,
-                    notes: `Consumo (Basado en Tickets): ${inferredInputQty} u.`,
+                    notes: `Consumo (Inferencia): ${inferredInputQty} u.`,
                     date: new Date()
                 });
             }
 
-            // 2. Producción Producto Principal (e.g. Pulpa)
-            // Support multiple outputs: Take the first one as MAIN for automatic stock increment.
-            let outputProductId = workflow?.outputProductId || workflow?.meta?.outputProductId;
+            // 2. Procesar Rendimientos Dinámicos (Yields)
+            // 'yields' puede ser un objeto { productId: quantity } o un número (legacy)
+            if (typeof yields === 'object' && yields !== null) {
+                for (const [pid, qty] of Object.entries(yields)) {
+                    if (qty && (qty as number) > 0) {
+                        await db.update(products)
+                            .set({ stock: sql`${products.stock} + ${Number(qty)}` })
+                            .where(and(eq(products.id, pid), eq(products.organizationId, orgId)));
 
-            // New Array Support
-            if (Array.isArray(workflow?.outputProductIds) && workflow.outputProductIds.length > 0) {
-                outputProductId = workflow.outputProductIds[0];
+                        await db.insert(inventoryMovements).values({
+                            organizationId: orgId,
+                            productId: pid,
+                            quantity: Number(qty),
+                            type: "production",
+                            referenceId: instanceId,
+                            notes: `Producción (Captura Dinámica)`,
+                            date: new Date()
+                        });
+                    }
+                }
+            } else {
+                // Fallback Legacy: Producción Producto Principal
+                let outputProductId = workflow?.outputProductId || workflow?.outputProductIds?.[0];
+                const legacyQty = Number(yields) || 0;
+                if (outputProductId && legacyQty > 0) {
+                    await db.update(products)
+                        .set({ stock: sql`${products.stock} + ${legacyQty}` })
+                        .where(and(eq(products.id, outputProductId), eq(products.organizationId, orgId)));
+
+                    await db.insert(inventoryMovements).values({
+                        organizationId: orgId,
+                        productId: outputProductId,
+                        quantity: legacyQty,
+                        type: "production",
+                        referenceId: instanceId,
+                        notes: `Producción Principal (Legacy)`,
+                        date: new Date()
+                    });
+                }
             }
 
-            if (outputProductId && inferredOutputQty > 0) {
-                await db.update(products)
-                    .set({ stock: sql`${products.stock} + ${inferredOutputQty}` })
-                    .where(and(eq(products.id, outputProductId), eq(products.organizationId, orgId)));
-
-                await db.insert(inventoryMovements).values({
-                    organizationId: orgId,
-                    productId: outputProductId,
-                    quantity: inferredOutputQty,
-                    type: "production",
-                    referenceId: instanceId,
-                    notes: `Producción Principal (Inferencia): ${inferredOutputQty} kg/u.`,
-                    date: new Date()
-                });
-            }
-
-            // 3. Co-Productos (Agua, Hueso, etc.)
-            // Estos vienen explícitos en el request 'coProducts' o se infieren
-            const reqCoProducts = req.body.coProducts || []; // [{ productId, quantity, notes }]
-
+            // 3. Co-Productos (Legacy support or additional manual entries)
+            const reqCoProducts = req.body.coProducts || [];
             for (const cp of reqCoProducts) {
                 if (cp.productId && cp.quantity > 0) {
                     await db.update(products)
@@ -322,9 +336,9 @@ router.post("/instances/:id/finish", async (req, res): Promise<void> => {
                         organizationId: orgId,
                         productId: cp.productId,
                         quantity: Number(cp.quantity),
-                        type: "production_coproduct", // New type ideally
+                        type: "production_coproduct",
                         referenceId: instanceId,
-                        notes: `Co-Producto Generado: ${cp.notes || ''}`,
+                        notes: `Co-Producto: ${cp.notes || ''}`,
                         date: new Date()
                     });
                 }
@@ -333,13 +347,17 @@ router.post("/instances/:id/finish", async (req, res): Promise<void> => {
 
         // 4. Cognitive Analysis
         // Emitir evento al "Cerebro" para que analice rendimientos y genere insights
+        const totalYield = typeof yields === 'object' && yields !== null
+            ? Object.values(yields).reduce((a: number, b: any) => a + (Number(b) || 0), 0)
+            : Number(yields) || 0;
+
         CognitiveEngine.emit({
             orgId,
             type: "production_finish",
             data: {
                 instanceId,
                 processName: processDef?.name || "Desconocido",
-                yields: Number(yields),
+                yields: totalYield,
                 estimatedInput: Number(estimatedInput),
                 notes
             }

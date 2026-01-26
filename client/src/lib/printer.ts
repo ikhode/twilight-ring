@@ -19,22 +19,27 @@ export const printThermalTicket = (ticket: any, organizationName: string = "IkHO
         <html>
         <head>
             <style>
-                @page { margin: 0; size: 80mm auto; }
+                @page { margin: 0; size: auto; }
                 body { 
-                    font-family: 'Courier New', monospace; 
-                    width: 76mm; 
-                    margin: 2mm; 
-                    font-size: 12px;
-                    line-height: 1.2;
+                    font-family: monospace;
+                    width: 72mm; /* Ajuste seguro para papel de 80mm */
+                    margin: 0;
+                    padding: 2mm;
+                    font-size: 14px; /* Un poco más grande para legibilidad */
+                    line-height: 1.1;
                     color: black;
+                    background: white;
+                    font-weight: bold; /* Mejor contraste en térmicas */
                 }
                 .text-center { text-align: center; }
                 .text-right { text-align: right; }
-                .bold { font-weight: bold; }
-                .divider { border-top: 1px dashed black; margin: 5px 0; }
+                .text-left { text-align: left; }
+                .divider { border-top: 1px dashed black; margin: 8px 0; }
                 .header { margin-bottom: 10px; }
-                .footer { margin-top: 15px; font-size: 10px; }
-                .big-total { font-size: 16px; margin: 5px 0; }
+                .footer { margin-top: 20px; font-size: 12px; }
+                .big-total { font-size: 18px; margin: 10px 0; display: block; }
+                table { width: 100%; border-collapse: collapse; }
+                td { vertical-align: top; }
             </style>
         </head>
         <body>

@@ -840,6 +840,8 @@ export default function Production() {
 
                             <FinalizeBatchDialog
                               instance={instance}
+                              process={processes?.find((p: any) => p.id === instance.processId)}
+                              inventory={inventory}
                               tickets={tickets.filter(t => t.batchId === instance.id)}
                               onConfirm={(data) => { finishBatchMutation.mutate({ instanceId: instance.id, ...data }); }}
                               isVisionEnabled={isVisionEnabled}
@@ -1007,41 +1009,28 @@ export default function Production() {
  * @param root0.isVisionEnabled
  * @param root0.isLoading
  */
-function FinalizeBatchDialog({ instance, tickets = [], onConfirm, isVisionEnabled, isLoading }: { instance: any, tickets?: any[], onConfirm: (data: any) => void, isVisionEnabled: boolean, isLoading?: boolean }) {
-  const [step, setStep] = useState(1);
-  const [outputs, setOutputs] = useState({ water: 0, pulp: 0, shells: 0 });
+function FinalizeBatchDialog({ instance, process, inventory = [], tickets = [], onConfirm, isVisionEnabled, isLoading }: { instance: any, process: any, inventory: any[], tickets?: any[], onConfirm: (data: any) => void, isVisionEnabled: boolean, isLoading?: boolean }) {
+  const [outputs, setOutputs] = useState<Record<string, number>>({});
   const [estimatedInput, setEstimatedInput] = useState(0);
   const [visionCount, setVisionCount] = useState(0);
 
   const [coProducts, setCoProducts] = useState<{ productId: string, quantity: number }[]>([]);
 
-  /**
-   *
-   */
   const addCoProduct = () => { setCoProducts([...coProducts, { productId: "", quantity: 0 }]); };
-  /**
-   *
-   * @param index
-   * @param field
-   * @param value
-   */
   const updateCoProduct = (index: number, field: string, value: any) => {
     const newCoProducts = [...coProducts];
     (newCoProducts as any)[index][field] = value;
     setCoProducts(newCoProducts);
   };
 
-  // Auto-calculate from tickets (The "Smart" part requested)
+  const outputProducts = process?.workflowData?.outputProductIds || [];
+
   const stats = {
-    pelado: tickets.filter(t => t.taskName?.toLowerCase().includes('pelad')).reduce((a, b) => a + (b.quantity || 0), 0),
-    destopado: tickets.filter(t => t.taskName?.toLowerCase().includes('destop')).reduce((a, b) => a + (b.quantity || 0), 0),
-    deshuesado: tickets.filter(t => t.taskName?.toLowerCase().includes('hues')).reduce((a, b) => a + (b.quantity || 0), 0),
+    totalPieces: tickets.reduce((a, b) => a + (b.quantity || 0), 0),
+    // Heuristic: sum of tickets where task name matches common output stages
+    mainOutputQty: tickets.filter(t => t.taskName?.toLowerCase().includes('pela') || t.taskName?.toLowerCase().includes('termina')).reduce((a, b) => a + (b.quantity || 0), 0),
   };
 
-  /**
-   *
-   * @param name
-   */
   const getUnitForTask = (name: string) => {
     if (name.toLowerCase().includes('pelad')) return 'kg';
     return 'pza';
@@ -1051,17 +1040,19 @@ function FinalizeBatchDialog({ instance, tickets = [], onConfirm, isVisionEnable
    *
    */
   const calculateEstimate = () => {
-    if (stats.destopado > 0) {
-      setEstimatedInput(stats.destopado);
-    }
-    if (stats.pelado > 0 && outputs.pulp === 0) {
-      setOutputs(prev => ({ ...prev, pulp: stats.pelado }));
+    // Estimado de entrada: Mayor volumen de piezas reportado en tickets iniciales
+    const initialTask = tickets.find(t => t.taskName?.toLowerCase().includes('destop') || t.taskName?.toLowerCase().includes('inici'));
+    if (initialTask) setEstimatedInput(initialTask.quantity);
+
+    // Si no hay valores manuales, pre-llenar con la suma de tickets de la etapa final
+    if (outputProducts.length > 0 && Object.keys(outputs).length === 0) {
+      setOutputs({ [outputProducts[0]]: stats.mainOutputQty });
     }
   };
 
   useEffect(() => {
     calculateEstimate();
-  }, [tickets]);
+  }, [tickets, process]);
 
   return (
     <Dialog>
@@ -1105,61 +1096,70 @@ function FinalizeBatchDialog({ instance, tickets = [], onConfirm, isVisionEnable
             </div>
 
             <div className="p-4 bg-slate-900 rounded-lg space-y-3">
-              <h4 className="font-bold text-sm uppercase text-slate-400">Captura de Producción</h4>
-              <div className="space-y-2">
+              <h4 className="font-bold text-sm uppercase text-slate-400 flex items-center gap-2">
+                <Package className="w-4 h-4 text-emerald-500" />
+                Captura de Producción Final
+              </h4>
+
+              <div className="space-y-4">
+                {outputProducts.map((pid: string) => {
+                  const product = inventory.find(p => p.id === pid);
+                  return (
+                    <div key={pid} className="space-y-2">
+                      <Label className="text-xs font-bold text-slate-300 uppercase">
+                        {product?.name || 'Producto'} ({product?.unit || 'u'})
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          className="bg-slate-950 border-slate-800 pl-20"
+                          value={outputs[pid] || ''}
+                          onChange={(e) => setOutputs({ ...outputs, [pid]: Number(e.target.value) })}
+                          placeholder="0.00"
+                        />
+                        <div className="absolute left-3 top-2.5 text-[10px] text-purple-400 font-bold uppercase">
+                          ∑ Tickets
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-slate-500 italic">Sugerencia basada en tickets: {stats.mainOutputQty} {product?.unit || 'u'}</p>
+                    </div>
+                  );
+                })}
+
+                {(!outputProducts || outputProducts.length === 0) && (
+                  <div className="p-4 border border-dashed border-slate-800 rounded text-center text-xs text-slate-500">
+                    No hay productos de salida definidos en este proceso.
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-4 border-t border-slate-800 space-y-3">
                 <div className="flex justify-between items-center">
-                  <Label className="text-xs uppercase text-blue-400 font-bold">Co-Productos / Subproductos</Label>
+                  <Label className="text-xs uppercase text-blue-400 font-bold">Subproductos Adicionales</Label>
                   <Button type="button" variant="ghost" size="sm" onClick={addCoProduct} className="h-6 text-[10px]"><Plus className="w-3 h-3 mr-1" /> Agregar</Button>
                 </div>
                 {coProducts.map((cp, idx) => (
                   <div key={idx} className="flex gap-2 items-center">
                     <div className="flex-1">
                       <Select value={cp.productId} onValueChange={(v) => { updateCoProduct(idx, 'productId', v); }}>
-                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Producto" /></SelectTrigger>
+                        <SelectTrigger className="h-8 text-xs bg-slate-950 border-slate-800"><SelectValue placeholder="Producto" /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="coproduct-1">Agua de Coco</SelectItem>
-                          <SelectItem value="coproduct-2">Hueso / Copra</SelectItem>
-                          <SelectItem value="coproduct-3">Estopa</SelectItem>
+                          {inventory.filter(p => !outputProducts.includes(p.id)).map((p: any) => (
+                            <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
                     <Input
                       type="number"
-                      className="w-24 h-8 text-xs"
+                      className="w-24 h-8 text-xs bg-slate-950 border-slate-800"
                       placeholder="Cant."
                       value={cp.quantity || ''}
                       onChange={(e) => { updateCoProduct(idx, 'quantity', Number(e.target.value)); }}
                     />
                   </div>
                 ))}
-                <Label className="flex justify-between pt-2">
-                  Agua Recolectada (Litros)
-                  <span className="text-[10px] text-blue-400 font-normal">No pagada en destajo</span>
-                </Label>
-                <Input
-                  type="number"
-                  step="0.1"
-                  className="border-blue-500/30 focus:border-blue-500 bg-blue-950/20"
-                  placeholder="0.0 L"
-                  onChange={(e) => { setOutputs({ ...outputs, water: Number(e.target.value) }); }}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Pulpa / Carne (Kg)</Label>
-                <div className="relative">
-                  <Input
-                    type="number"
-                    step="0.1"
-                    className="border-white/20 pl-20"
-                    placeholder="0.0 Kg"
-                    value={outputs.pulp > 0 ? outputs.pulp : ''}
-                    onChange={(e) => { setOutputs({ ...outputs, pulp: Number(e.target.value) }); }}
-                  />
-                  <div className="absolute left-3 top-2.5 text-xs text-purple-400 font-bold">
-                    ∑ Tickets
-                  </div>
-                </div>
-                <p className="text-[10px] text-muted-foreground">Pre-llenado con la suma de tickets de "Pelado". Ajustar si es necesario.</p>
               </div>
             </div>
 
@@ -1188,14 +1188,18 @@ function FinalizeBatchDialog({ instance, tickets = [], onConfirm, isVisionEnable
                 )}
 
                 <div className="pt-4 space-y-2">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-slate-400">Rendimiento Agua:</span>
-                    <span className="font-mono">{outputs.water > 0 ? (outputs.water / (visionCount || estimatedInput || 1)).toFixed(3) : '-'} L/coco</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-slate-400">Rendimiento Carne:</span>
-                    <span className="font-mono">{outputs.pulp > 0 ? (outputs.pulp / (visionCount || estimatedInput || 1)).toFixed(3) : '-'} Kg/coco</span>
-                  </div>
+                  {outputProducts.map((pid: string) => {
+                    const product = inventory.find(p => p.id === pid);
+                    const qty = outputs[pid] || 0;
+                    return (
+                      <div key={pid} className="flex justify-between text-xs">
+                        <span className="text-slate-400">Rendimiento {product?.name}:</span>
+                        <span className="font-mono text-emerald-400">
+                          {qty > 0 ? (qty / (visionCount || estimatedInput || 1)).toFixed(3) : '-'} {product?.unit || 'u'}/in
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
