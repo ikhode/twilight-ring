@@ -53,8 +53,7 @@ export function usePresence(page: string, customIdentity?: { id: string; email: 
                     setIsTracking(true);
                     await channel.track({
                         user_id: trackId,
-                        email: customIdentity?.email || user?.email || '',
-                        name: customIdentity?.name || profile?.name || user?.email?.split('@')[0] || 'Unknown',
+                        name: customIdentity?.name || profile?.user?.name || user?.email?.split('@')[0] || 'Unknown',
                         page,
                         online_at: new Date().toISOString(),
                     });

@@ -3,19 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { Session, User } from "@supabase/supabase-js";
 import { useLocation } from "wouter";
 import { Organization } from "@shared/core/schema";
-
-// Custom type ensuring we handle the Profile response structure
-export type UserProfile = {
-    user: {
-        id: string;
-        email: string;
-        name: string;
-    };
-    role?: string;
-    organizationId?: string;
-    organization: Organization;
-    organizations: Organization[];
-};
+import { UserProfile } from "@/types/auth";
 
 interface AuthContextType {
     session: Session | null;
