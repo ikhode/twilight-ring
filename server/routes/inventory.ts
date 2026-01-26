@@ -180,4 +180,39 @@ router.patch("/products/:id", async (req, res): Promise<void> => {
     }
 });
 
+/**
+ * Obtiene el historial de movimientos de un producto específico con trazabilidad completa.
+ * @route GET /api/inventory/products/:id/history
+ */
+router.get("/products/:id/history", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const productId = req.params.id;
+
+        // Verify product belongs to organization
+        const product = await db.query.products.findFirst({
+            where: and(eq(products.id, productId), eq(products.organizationId, orgId))
+        });
+
+        if (!product) return res.status(404).json({ message: "Product not found" });
+
+        // Fetch movements with all traceability information
+        const movements = await db.query.inventoryMovements.findMany({
+            where: and(
+                eq(inventoryMovements.organizationId, orgId),
+                eq(inventoryMovements.productId, productId)
+            ),
+            orderBy: [desc(inventoryMovements.date)],
+            limit: 50 // Last 50 movements
+        });
+
+        res.json(movements);
+    } catch (error) {
+        console.error("Product history error:", error);
+        res.status(500).json({ message: "Failed to fetch product history" });
+    }
+});
+
 export default router;

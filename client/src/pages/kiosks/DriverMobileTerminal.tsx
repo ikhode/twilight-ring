@@ -110,57 +110,30 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
         };
     }, [employee?.id, terminalId]);
 
-    // Mock route data - replace with real API
+    // Fetch real route data from backend
     const { data: route, isLoading } = useQuery<Route>({
-        queryKey: ["/api/logistics/driver-route"],
+        queryKey: ["/api/logistics/driver-route", employee.id],
         queryFn: async () => {
-            // Mock data
+            const res = await fetch(`/api/logistics/driver-route/${employee.id}`);
+            if (!res.ok) {
+                // If no route found, return empty route
+                return {
+                    id: `RUTA-${new Date().toISOString().split('T')[0]}`,
+                    driverName: employee.name,
+                    vehiclePlate: "N/A",
+                    stops: [],
+                    startedAt: new Date().toISOString()
+                };
+            }
+            const data = await res.json();
+            // Override driverName with actual employee name
             return {
-                id: "RUTA-001",
-                driverName: "Juan Pérez",
-                vehiclePlate: "ABC-123",
-                stops: [
-                    {
-                        id: "STOP-1",
-                        type: "delivery",
-                        customerName: "Tienda El Sol",
-                        address: "Av. Juárez #123, Col. Centro",
-                        phone: "3331234567",
-                        products: [
-                            { name: "Aceite de Coco 1L", quantity: 10 },
-                            { name: "Copra Premium 5kg", quantity: 5 }
-                        ],
-                        expectedAmount: 250000, // $2,500.00 in cents
-                        status: "pending"
-                    },
-                    {
-                        id: "STOP-2",
-                        type: "delivery",
-                        customerName: "Super La Esperanza",
-                        address: "Calle Morelos #456",
-                        phone: "3339876543",
-                        products: [
-                            { name: "Aceite de Coco 500ml", quantity: 20 }
-                        ],
-                        expectedAmount: 180000,
-                        status: "pending"
-                    },
-                    {
-                        id: "STOP-3",
-                        type: "pickup",
-                        customerName: "Proveedor Don José",
-                        address: "Carretera a Tonalá Km 8",
-                        phone: "3335555555",
-                        products: [
-                            { name: "Coco Entero Fresco", quantity: 500 }
-                        ],
-                        expectedAmount: 500000, // Amount to PAY
-                        status: "pending"
-                    }
-                ],
-                startedAt: new Date().toISOString()
+                ...data,
+                driverName: employee.name
             };
-        }
+        },
+        enabled: !!employee?.id,
+        refetchInterval: 60000 // Refresh every minute
     });
 
     const completeStopMutation = useMutation({
@@ -171,12 +144,27 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
             amountCollected?: number;
             notes?: string;
         }) => {
-            // Replace with real API call
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            return data;
+            const res = await fetch("/api/logistics/complete-stop", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    saleId: data.stopId,
+                    signature: data.signature,
+                    photo: data.photo,
+                    amountCollected: data.amountCollected,
+                    notes: data.notes,
+                    paymentMethod: amount ? "cash" : undefined
+                })
+            });
+
+            if (!res.ok) {
+                throw new Error("Failed to complete stop");
+            }
+
+            return res.json();
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["/api/logistics/driver-route"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/logistics/driver-route", employee.id] });
             setActiveStop(null);
             setShowSignature(false);
             setShowPayment(false);

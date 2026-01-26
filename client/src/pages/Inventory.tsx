@@ -44,6 +44,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { CognitiveButton, AliveValue, CognitiveInput, CognitiveField, CognitiveProvider, GuardianDiagnostic, GuardianSafeStatus } from "@/components/cognitive";
 import { useConfiguration } from "@/context/ConfigurationContext";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
@@ -300,9 +301,16 @@ export default function Inventory() {
                     data-testid="input-search-products"
                   />
                 </div>
-                <Button variant="outline" size="icon">
-                  <Filter className="w-4 h-4" />
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" size="icon">
+                      <Filter className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Filtrar productos</p>
+                  </TooltipContent>
+                </Tooltip>
 
                 <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                   <DialogTrigger asChild>
@@ -622,29 +630,43 @@ export default function Inventory() {
                         <ArrowUpDown className="w-4 h-4 mr-1" />
                         Ajustar
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                        onClick={() => {
-                          if (confirm("¿Está seguro de que desea archivar este producto?")) {
-                            archiveProductMutation.mutate(item.id);
-                          }
-                        }}
-                      >
-                        <Archive className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        data-testid={`button-history-${item.id}`}
-                        onClick={() => {
-                          setSelectedProductForHistory(item);
-                          setIsHistoryDialogOpen(true);
-                        }}
-                      >
-                        <HistoryIcon className="w-4 h-4" />
-                      </Button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => {
+                              if (confirm("¿Está seguro de que desea archivar este producto?")) {
+                                archiveProductMutation.mutate(item.id);
+                              }
+                            }}
+                          >
+                            <Archive className="w-4 h-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Archivar producto</p>
+                        </TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            data-testid={`button-history-${item.id}`}
+                            onClick={() => {
+                              setSelectedProductForHistory(item);
+                              setIsHistoryDialogOpen(true);
+                            }}
+                          >
+                            <HistoryIcon className="w-4 h-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Historial de movimientos</p>
+                        </TooltipContent>
+                      </Tooltip>
                     </div>
                   ),
                   className: "text-right",
