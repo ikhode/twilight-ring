@@ -37,6 +37,9 @@ import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 
 import { DailyBriefing } from "@/components/cognitive/DailyBriefing";
 import { useConfiguration } from "@/context/ConfigurationContext";
+import { SalesFunnelWidget } from "@/components/widgets/SalesFunnelWidget";
+import { TopCustomersWidget } from "@/components/widgets/TopCustomersWidget";
+import { MarketTrendsWidget } from "@/components/widgets/MarketTrendsWidget";
 
 export default function Dashboard() {
   const { role, setRole, industry, enabledModules } = useConfiguration();
@@ -418,31 +421,62 @@ export default function Dashboard() {
                   <ActionCards role={role} />
                 </div>
 
-                {/* 4. Module Grid */}
+                {/* 4. Module Grid - Real Widgets */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {config.layout.filter(w => {
                     const isSystemWidget = w.type !== 'alert' && w.id !== 'revenue_forecast';
                     const isModuleEnabled = w.moduleId ? enabledModules.includes(w.moduleId) : true;
                     return isSystemWidget && isModuleEnabled;
-                  }).map((widget) => (
-                    <Card key={widget.id} className="bg-slate-900/40 border-slate-800 group hover:border-primary/20 transition-all">
-                      <CardContent className="p-6">
-                        <div className="flex items-center justify-between mb-6">
-                          <h5 className="text-sm font-black uppercase tracking-widest italic">{widget.title}</h5>
-                          <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-600 hover:text-white">
-                            <ChevronRight className="w-4 h-4" />
-                          </Button>
-                        </div>
-                        <div className="h-32 rounded-xl bg-slate-950/50 border border-white/5 flex items-center justify-center overflow-hidden">
-                          <div className="text-center opacity-20 group-hover:opacity-40 transition-opacity">
-                            {widget.type === 'chart' && <TrendingUp className="w-12 h-12 mx-auto mb-2" />}
-                            {widget.type === 'table' && <LayoutDashboard className="w-12 h-12 mx-auto mb-2" />}
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Cargando Módulo {widget.id}</p>
+                  }).map((widget) => {
+                    // Render real widgets based on ID
+                    if (widget.id === 'sales_funnel') {
+                      return <SalesFunnelWidget key={widget.id} />;
+                    }
+                    if (widget.id === 'top_customers') {
+                      return <TopCustomersWidget key={widget.id} />;
+                    }
+                    if (widget.id === 'market_trends') {
+                      return <MarketTrendsWidget key={widget.id} />;
+                    }
+                    if (widget.id === 'sales_opportunities') {
+                      // Reuse ActionCards but in card format
+                      return (
+                        <Card key={widget.id} className="bg-slate-900/40 border-slate-800 hover:border-primary/20 transition-all">
+                          <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-black uppercase tracking-widest italic">{widget.title}</CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="space-y-2">
+                              <div className="p-3 bg-primary/5 border border-primary/10 rounded-lg">
+                                <p className="text-xs text-slate-400">Las oportunidades de IA se muestran en la sección "Acciones Recomendadas" arriba</p>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    }
+
+                    // Fallback for other widgets
+                    return (
+                      <Card key={widget.id} className="bg-slate-900/40 border-slate-800 group hover:border-primary/20 transition-all">
+                        <CardContent className="p-6">
+                          <div className="flex items-center justify-between mb-6">
+                            <h5 className="text-sm font-black uppercase tracking-widest italic">{widget.title}</h5>
+                            <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-600 hover:text-white">
+                              <ChevronRight className="w-4 h-4" />
+                            </Button>
                           </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                          <div className="h-32 rounded-xl bg-slate-950/50 border border-white/5 flex items-center justify-center overflow-hidden">
+                            <div className="text-center opacity-20 group-hover:opacity-40 transition-opacity">
+                              {widget.type === 'chart' && <TrendingUp className="w-12 h-12 mx-auto mb-2" />}
+                              {widget.type === 'table' && <LayoutDashboard className="w-12 h-12 mx-auto mb-2" />}
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Próximamente</p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               </motion.div>
             </AnimatePresence>

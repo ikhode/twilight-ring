@@ -41,7 +41,9 @@ import purchasesRoutes from "./routes/purchases";
 import inventoryRoutes from "./routes/inventory";
 import tensorRoutes from "./routes/tensors";
 import notificationsRoutes from "./routes/notifications";
+import salesWidgetsRoutes from "./routes/sales-widgets";
 import { requireModule } from "./middleware/moduleGuard";
+
 
 
 
@@ -105,6 +107,7 @@ export async function registerRoutes(
   // CRM / Sales
   app.use("/api/crm", requireModule("/crm"), crmRoutes);
   app.use("/api/sales", requireModule("/sales"), salesRoutes);
+  app.use("/api/sales", salesWidgetsRoutes); // Sales widgets (funnel, top customers, trends)
 
   // HR
   app.use("/api/hr", requireModule("/employees"), hrRoutes);
