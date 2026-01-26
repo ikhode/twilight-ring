@@ -1,4 +1,4 @@
-import { Request } from "express";
+import { Request, Response, NextFunction } from "express";
 import { db } from "./storage";
 import { userOrganizations, terminals, users, employees } from "../shared/schema";
 import { eq, and } from "drizzle-orm";
@@ -118,4 +118,19 @@ export async function getAuthenticatedUser(req: Request) {
     }
 
     return null;
+}
+/**
+ * Middleware to protect routes and ensure a valid session exists.
+ */
+export async function requireAuth(req: Request, res: Response, next: NextFunction) {
+    // Some routes might need bypassing (like health checks), but for now we protect everything.
+    const user = await getAuthenticatedUser(req);
+
+    if (!user) {
+        return res.status(401).json({ message: "No autorizado. Inicie sesión para continuar." });
+    }
+
+    // Attach user to request for downstream use
+    (req as any).user = user;
+    next();
 }

@@ -1,11 +1,34 @@
+import "dotenv/config";
 import { db } from "../storage";
 import { sql } from "drizzle-orm";
+import { supabaseAdmin } from "../supabase";
 
 async function clean() {
-    console.log("Cleaning database...");
+    console.log("🚀 Cleaning database and Auth users...");
 
-    // List of tables to truncate (order matters if not using CASCADE, but CASCADE handles it)
+    // 1. Delete Supabase Auth Users
+    try {
+        const { data: { users: authUsers }, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+        if (listError) throw listError;
+
+        console.log(`Found ${authUsers.length} auth users to remove.`);
+
+        for (const user of authUsers) {
+            const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(user.id);
+            if (deleteError) {
+                console.warn(`✘ Could not delete auth user ${user.id}: ${deleteError.message}`);
+            } else {
+                console.log(`✔ Deleted auth user: ${user.email}`);
+            }
+        }
+    } catch (e: any) {
+        console.error("✘ Error cleaning Auth users:", e.message);
+    }
+
+    // 2. Truncate Tables
     const tables = [
+        "users", // Added users table too
+        "organizations", // Added organizations
         "rca_reports",
         "process_events",
         "process_instances",
@@ -43,7 +66,6 @@ async function clean() {
 
     for (const table of tables) {
         try {
-            // Identity restart is good to reset serial IDs if any
             await db.execute(sql.raw(`TRUNCATE TABLE "${table}" RESTART IDENTITY CASCADE`));
             console.log(`✔ Truncated ${table}`);
         } catch (e: any) {
@@ -51,7 +73,7 @@ async function clean() {
         }
     }
 
-    console.log("\nDatabase clean completed Successfully!");
+    console.log("\n✨ System is now completely clean!");
     process.exit(0);
 }
 

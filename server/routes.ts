@@ -73,6 +73,11 @@ export async function registerRoutes(
 
   // Register all route modules
   registerAuthRoutes(app);
+
+  // Apply authentication guard to all subsequent API routes
+  const { requireAuth } = await import("./auth_util");
+  app.use("/api", requireAuth);
+
   registerModuleRoutes(app);
   registerAIRoutes(app);
   registerSubscriptionRoutes(app);
