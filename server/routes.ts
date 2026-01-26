@@ -42,7 +42,9 @@ import inventoryRoutes from "./routes/inventory";
 import tensorRoutes from "./routes/tensors";
 import notificationsRoutes from "./routes/notifications";
 import salesWidgetsRoutes from "./routes/sales-widgets";
+import productionBatchesRoutes from "./routes/production-batches";
 import { requireModule } from "./middleware/moduleGuard";
+
 
 
 
@@ -104,6 +106,9 @@ export async function registerRoutes(
   // Piecework
   app.use("/api/piecework", requireModule("/piecework"), pieceworkRoutes);
 
+  // Production / Operations
+  app.use("/api/cpe", requireModule("/production"), cpeRoutes);
+  app.use("/api/production", productionBatchesRoutes); // Production batches (no module guard for kiosks)
   // CRM / Sales
   app.use("/api/crm", requireModule("/crm"), crmRoutes);
   app.use("/api/sales", requireModule("/sales"), salesRoutes);

@@ -53,12 +53,18 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
     const [quantity, setQuantity] = useState<number>(0);
 
-    // Mock batches for now - later fetch from raw materials inventory
-    const mockBatches = [
-        { id: "LOTE-992", name: "COCO ENTERO (A)", quality: "PREMIUM" },
-        { id: "LOTE-993", name: "COCO ENTERO (B)", quality: "ECONÓMICO" },
-        { id: "LOTE-994", name: "COCO DESMOLDADO", quality: "PROCESADO" },
-    ];
+    // Fetch real batches from inventory
+    const { data: batches = [] } = useQuery({
+        queryKey: ["/api/production/batches"],
+        queryFn: async () => {
+            const res = await fetch("/api/production/batches", {
+                headers: getKioskHeaders({ employeeId: sessionContext.driver?.id })
+            });
+            if (!res.ok) return [];
+            return res.json();
+        },
+        refetchInterval: 30000 // Refresh every 30 seconds
+    });
 
     // Fetch available tasks/rates from DB
     const { data: tasks = [] } = useQuery<Task[]>({
@@ -179,25 +185,32 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
                         {currentStage === "batch" && (
                             <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
                                 <h2 className="text-4xl font-black tracking-tight uppercase">Seleccione Lote</h2>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    {mockBatches.map((batch) => (
-                                        <button
-                                            key={batch.id}
-                                            onClick={() => {
-                                                setSelectedBatch(batch.id);
-                                                setCurrentStage("task");
-                                            }}
-                                            className="group relative p-8 rounded-3xl bg-white/[0.03] border border-white/10 hover:border-primary/50 hover:bg-primary/5 transition-all text-left"
-                                        >
-                                            <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                                                <Box className="w-6 h-6 text-slate-400 group-hover:text-primary" />
-                                            </div>
-                                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">{batch.id}</p>
-                                            <h3 className="text-xl font-black text-white uppercase leading-tight group-hover:text-primary transition-colors">{batch.name}</h3>
-                                            <Badge variant="outline" className="mt-4 border-slate-700 text-slate-400 text-[9px] font-bold uppercase tracking-widest">{batch.quality}</Badge>
-                                        </button>
-                                    ))}
-                                </div>
+                                {batches.length === 0 ? (
+                                    <div className="p-12 text-center">
+                                        <Box className="w-16 h-16 mx-auto mb-4 text-slate-700" />
+                                        <p className="text-slate-500">No hay lotes disponibles</p>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                        {batches.map((batch: any) => (
+                                            <button
+                                                key={batch.id}
+                                                onClick={() => {
+                                                    setSelectedBatch(batch.id);
+                                                    setCurrentStage("task");
+                                                }}
+                                                className="group relative p-8 rounded-3xl bg-white/[0.03] border border-white/10 hover:border-primary/50 hover:bg-primary/5 transition-all text-left"
+                                            >
+                                                <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                                                    <Box className="w-6 h-6 text-slate-400 group-hover:text-primary" />
+                                                </div>
+                                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">{batch.id}</p>
+                                                <h3 className="text-xl font-black text-white uppercase leading-tight group-hover:text-primary transition-colors">{batch.name}</h3>
+                                                <Badge variant="outline" className="mt-4 border-slate-700 text-slate-400 text-[9px] font-bold uppercase tracking-widest">{batch.quality}</Badge>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         )}
 

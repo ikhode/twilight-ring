@@ -30,7 +30,7 @@ export function SalesFunnelWidget() {
                 </CardHeader>
                 <CardContent>
                     <div className="h-32 flex items-center justify-center">
-                        <div className="animate-pulse text-slate-600">Cargando...</div>
+                        <div className="animate-pulse text-slate-600">Cargando datos...</div>
                     </div>
                 </CardContent>
             </Card>
