@@ -6,7 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/Landing";
 import Auth from "@/pages/Auth";
-import Onboarding from "@/pages/Onboarding";
+import { IntroJsOnboarding } from "@/components/onboarding/IntroJsOnboarding";
 import Dashboard from "@/pages/Dashboard";
 import Kiosks from "@/pages/Kiosks";
 import KioskInterface from "@/pages/KioskInterface";
@@ -44,7 +44,7 @@ function Router() {
       <Route path="/" component={Landing} />
       <Route path="/login" component={Auth} />
       <Route path="/signup" component={Auth} />
-      <Route path="/onboarding" component={Onboarding} />
+      <Route path="/onboarding" component={IntroJsOnboarding} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/kiosks" component={Kiosks} />
       <Route path="/kiosk" component={Kiosk} />

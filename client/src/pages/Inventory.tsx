@@ -277,6 +277,7 @@ export default function Inventory() {
                     <CognitiveButton
                       className="gap-2"
                       data-testid="button-add-product"
+                      data-tour="add-product-btn"
                       intent="register_inventory"
                     >
                       <Plus className="w-4 h-4" />
@@ -375,7 +376,7 @@ export default function Inventory() {
               </div>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent data-tour="product-list">
             <DataTable
               columns={[
                 {

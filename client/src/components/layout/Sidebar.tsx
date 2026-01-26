@@ -85,10 +85,24 @@ export function Sidebar({ className, onLinkClick }: SidebarProps) {
             const isActive = location === item.href;
             const isHighPriority = item.priority > 60;
 
+            // Map href to data-tour attribute
+            const dataTourMap: Record<string, string> = {
+              '/inventory': 'inventory-nav',
+              '/sales': 'sales-nav',
+              '/purchases': 'purchases-nav',
+              '/workflows': 'workflows-nav',
+              '/employees': 'employees-nav',
+              '/finance/payroll': 'payroll-nav',
+              '/crm': 'crm-nav',
+              '/logistics': 'logistics-nav',
+              '/documents': 'documents-nav'
+            };
+
             return (
               <motion.div key={item.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                 <Link href={item.href} onClick={handleLinkClick}>
                   <div
+                    data-tour={dataTourMap[item.href]}
                     className={cn(
                       "relative flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group cursor-pointer overflow-hidden",
                       isActive
