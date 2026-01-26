@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,12 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import SignatureCanvas from "react-signature-canvas";
+import type { Employee } from "../../../../shared/schema";
+
+interface DriverTerminalMobileProps {
+    employee: Employee;
+    terminalId?: string;
+}
 
 interface Stop {
     id: string;
@@ -47,15 +53,62 @@ interface Route {
     completedAt?: string;
 }
 
-export function DriverTerminalMobile() {
+export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMobileProps) {
     const [activeStop, setActiveStop] = useState<Stop | null>(null);
     const [showSignature, setShowSignature] = useState(false);
     const [showPayment, setShowPayment] = useState(false);
     const [amount, setAmount] = useState("");
     const [notes, setNotes] = useState("");
     const [photo, setPhoto] = useState<string | null>(null);
+    const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
     const signatureRef = useRef<SignatureCanvas>(null);
     const queryClient = useQueryClient();
+
+    // GPS Tracking - Send location to backend every 30 seconds
+    useEffect(() => {
+        if (!employee?.id) return;
+
+        let watchId: number;
+
+        const trackLocation = () => {
+            if ("geolocation" in navigator) {
+                watchId = navigator.geolocation.watchPosition(
+                    async (position) => {
+                        const location = {
+                            lat: position.coords.latitude,
+                            lng: position.coords.longitude
+                        };
+                        setCurrentLocation(location);
+
+                        // Send to backend for tracking
+                        try {
+                            await fetch("/api/logistics/driver-location", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                    employeeId: employee.id,
+                                    terminalId,
+                                    latitude: location.lat,
+                                    longitude: location.lng,
+                                    timestamp: new Date().toISOString()
+                                })
+                            });
+                        } catch (error) {
+                            console.error("Failed to send location:", error);
+                        }
+                    },
+                    (error) => console.error("GPS Error:", error),
+                    { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+                );
+            }
+        };
+
+        trackLocation();
+
+        return () => {
+            if (watchId) navigator.geolocation.clearWatch(watchId);
+        };
+    }, [employee?.id, terminalId]);
 
     // Mock route data - replace with real API
     const { data: route, isLoading } = useQuery<Route>({

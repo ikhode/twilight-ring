@@ -43,6 +43,7 @@ import tensorRoutes from "./routes/tensors";
 import notificationsRoutes from "./routes/notifications";
 import salesWidgetsRoutes from "./routes/sales-widgets";
 import productionBatchesRoutes from "./routes/production-batches";
+import driverTrackingRoutes from "./routes/driver-tracking";
 import { requireModule } from "./middleware/moduleGuard";
 
 
@@ -100,6 +101,7 @@ export async function registerRoutes(
   app.use("/api/production", requireModule("/production"), productionRoutes);
   app.use("/api/operations", requireModule("/operations"), operationsRoutes);
   app.use("/api/logistics", requireModule("/logistics"), logisticsRoutes);
+  app.use("/api/logistics", driverTrackingRoutes); // Driver GPS tracking (no module guard for kiosks)
   app.use("/api/inventory", requireModule("/inventory"), inventoryRoutes); // Protected Inventory Logic
 
   registerCPERoutes(app);

@@ -350,7 +350,7 @@ export default function KioskInterface(): JSX.Element {
         />
       );
     }
-    return <DriverTerminalMobile />;
+    return <DriverTerminalMobile employee={authenticatedEmployee} terminalId={kioskInfo.id} />;
   }
 
   // 1.5 Worker Activity (Mapped to Production)
