@@ -11,6 +11,9 @@ import {
     AlertCircle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/use-auth";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface KPIProps {
     id: string;
@@ -32,25 +35,40 @@ const iconMap: Record<string, any> = {
 };
 
 export function DynamicKPIs({ kpis }: { kpis: string[] }) {
-    // Simulamos datos de KPIs. En producción esto vendría de una API o store global.
-    const mockData: Record<string, Omit<KPIProps, 'id' | 'icon'>> = {
-        revenue: { label: 'Ingresos Totales', value: '$1.2M', trend: 12.5, status: 'normal' },
-        active_users: { label: 'Usuarios Activos', value: '142', trend: 3.2, status: 'normal' },
-        system_health: { label: 'Salud del Sistema', value: '99.9%', trend: 0.1, status: 'normal' },
-        critical_alerts: { label: 'Alertas Críticas', value: '1', trend: -50, status: 'warning' },
-        production_efficiency: { label: 'Eficiencia', value: '87%', trend: 5.4, status: 'normal' },
-        active_lots: { label: 'Lotes Activos', value: '24', trend: 0, status: 'normal' },
-        equipment_status: { label: 'Equipos OK', value: '11/12', trend: -8.3, status: 'warning' },
-        waste_levels: { label: 'Nivel de Merma', value: '4.2%', trend: 15.2, status: 'warning' },
-        fleet_utilization: { label: 'Uso de Flota', value: '92%', trend: 2.1, status: 'normal' },
-        pending_deliveries: { label: 'Entregas Pend.', value: '18', trend: 12.0, status: 'normal' },
-        total_sales: { label: 'Ventas del Mes', value: '$458k', trend: 8.7, status: 'normal' },
-    };
+    const { session } = useAuth();
+
+    // Fetch real KPIs from backend
+    const { data: kpisData, isLoading } = useQuery({
+        queryKey: ["/api/analytics/kpis"],
+        queryFn: async () => {
+            const res = await fetch("/api/analytics/kpis", {
+                headers: { Authorization: `Bearer ${session?.access_token}` }
+            });
+            if (!res.ok) throw new Error("Failed to fetch KPIs");
+            return res.json();
+        },
+        enabled: !!session?.access_token,
+        refetchInterval: 60000, // Refresh every minute
+    });
+
+    if (isLoading) {
+        return (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {kpis.map((kpiId) => (
+                    <Card key={kpiId} className="bg-slate-900/40 border-slate-800">
+                        <CardContent className="p-6">
+                            <Skeleton className="h-20 w-full" />
+                        </CardContent>
+                    </Card>
+                ))}
+            </div>
+        );
+    }
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {kpis.map((kpiId, index) => {
-                const data = mockData[kpiId] || { label: kpiId, value: '---', trend: 0, status: 'normal' };
+                const data = kpisData?.[kpiId] || { label: kpiId, value: '---', trend: 0, status: 'normal' };
                 const Icon = iconMap[kpiId] || iconMap.default;
 
                 return (

@@ -39,7 +39,11 @@ import { pieceworkRoutes } from "./routes/piecework";
 import salesRoutes from "./routes/sales";
 import purchasesRoutes from "./routes/purchases";
 import inventoryRoutes from "./routes/inventory";
+import tensorRoutes from "./routes/tensors";
+import notificationsRoutes from "./routes/notifications";
 import { requireModule } from "./middleware/moduleGuard";
+
+
 
 export async function registerRoutes(
   httpServer: Server,
@@ -75,6 +79,8 @@ export async function registerRoutes(
   app.use("/api/config", configRoutes);
   app.use("/api/search", searchRoutes);
   app.use("/api/whatsapp", whatsappRoutes); // Core Comms
+  app.use("/api/notifications", notificationsRoutes); // System notifications
+
 
   // --- PROTECTED MODULES ---
 
@@ -110,6 +116,8 @@ export async function registerRoutes(
 
   // Analytics
   app.use("/api/analytics", requireModule("/analytics"), analyticsRoutes);
+  app.use("/api/analytics/tensors", tensorRoutes); // Tensor data for AI/ML
+
 
   // Specialized
   app.use("/api/cognitive", cognitiveRoutes); // Core AI?

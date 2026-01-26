@@ -57,22 +57,20 @@ class GuardianService {
             where: (p, { eq }) => eq(p.organizationId, orgId)
         });
 
-        const insights = [];
-
-        // 1. Check for Low Data (Onboarding Nudges)
+        const insights = [];// 1. Check for Low Data (Onboarding Nudges)
         if (customers.length === 0) {
             insights.push({
                 type: "suggestion",
                 severity: "medium",
-                title: "Start Building Your CRM",
-                description: "You haven't registered any customers yet. Add your first customer to enable predictive credit scoring."
+                title: "Comienza a construir tu CRM",
+                description: "Aún no has registrado clientes. Agrega tu primer cliente para habilitar el análisis predictivo de crédito."
             });
         } else if (customers.length < 3) {
             insights.push({
                 type: "suggestion",
                 severity: "low",
-                title: "Grow Your Network",
-                description: `You only have ${customers.length} client(s). Register key partners to activate TrustNet insights.`
+                title: "Amplía tu red",
+                description: `Actualmente tienes ${customers.length} cliente(s). Registra socios clave para activar los análisis de TrustNet.`
             });
         }
 
@@ -80,8 +78,8 @@ class GuardianService {
             insights.push({
                 type: "suggestion",
                 severity: "medium",
-                title: "Inventory Empty",
-                description: "Your catalog is empty. Bulk import products to start tracking consumption flows."
+                title: "Inventario vacío",
+                description: "Tu catálogo está vacío. Importa productos en lote para comenzar a rastrear los flujos de consumo."
             });
         }
 
@@ -91,8 +89,8 @@ class GuardianService {
             insights.push({
                 type: "anomaly",
                 severity: "high",
-                title: "Unusual Expense Detected",
-                description: "Spike in 'Travel' expenses (+45%) detected this week compared to moving average."
+                title: "Gasto inusual detectado",
+                description: "Se detectó un aumento inusual en los gastos de “Viajes” (+45%) esta semana en comparación con el promedio móvil."
             });
         }
 
@@ -100,8 +98,8 @@ class GuardianService {
             insights.push({
                 type: "prediction",
                 severity: "medium",
-                title: "Inventory Risk",
-                description: `Predicting stockout for item '${products[0].name}' in 4 days based on current consumption.`
+                title: "Riesgo de inventario",
+                description: `Se prevé un quiebre de stock del producto “${products[0].name}” en 4 días según el consumo actual.`
             });
         }
 

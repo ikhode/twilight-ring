@@ -95,10 +95,10 @@ export function DailyBriefing() {
                 <div className="flex items-center justify-between">
                     <CardTitle className="flex items-center gap-2 text-lg font-display">
                         <Sparkles className="w-5 h-5 text-primary" />
-                        Daily Briefing
+                        Resumen Diario
                     </CardTitle>
                     <Badge variant="outline" className="bg-background/50 backdrop-blur-sm border-primary/20 text-primary">
-                        {visibleInsights.length} Pendientes
+                        {visibleInsights.length} Pendiente{visibleInsights.length !== 1 ? 's' : ''}
                     </Badge>
                 </div>
             </CardHeader>

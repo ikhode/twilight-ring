@@ -43,41 +43,34 @@ export function Header({ title, subtitle, children }: HeaderProps) {
   };
 
   const { data: userOrg } = useQuery({
-    queryKey: ["/api/user-org"], // Specific endpoint we might need to add or mock-fetch via existing user data
+    queryKey: ["/api/user-org"],
     queryFn: async () => {
-      // We will fetch the user info which likely includes xp/level if we did simple join, or we fetch separate
       if (!session?.access_token) return null;
-      // Ideally we need an endpoint for "My Gamification Stats"
-      // For now, let's assume /api/user returns this extended info or we add a specific one.
-      // Let's rely on standard /api/user for now if it included it, otherwise we'll fetch from a new endpoint.
-      const res = await fetch("/api/user", { headers: { Authorization: `Bearer ${session.access_token}` } });
+      const res = await fetch("/api/user-org", {
+        headers: { Authorization: `Bearer ${session.access_token}` }
+      });
+      if (!res.ok) return null;
       return res.json();
     },
     enabled: !!session?.access_token
   });
 
-  // Real Notifications (Unacknowledged Insights)
+  // Real Notifications from various system sources
   const { data: notifications = [] } = useQuery({
-    queryKey: ["/api/ai/insights/pending"],
+    queryKey: ["/api/notifications"],
     queryFn: async () => {
       if (!session?.access_token) return [];
-      // Fetch insights that are NOT acknowledged (using existing endpoint if filterable, or cognitive intents)
-      // We will repurpose the cognitive actions for this.
-      const res = await fetch("/api/cpe/processes", { // Placeholder, we need real notifications endpoint
+      const res = await fetch("/api/notifications", {
         headers: { Authorization: `Bearer ${session.access_token}` }
       });
-      // Since we don't have a rigid notifications table, we will use mock for now BUT the user asked for REAL.
-      // Let's use AI Insights as notifications.
-      // We'll Create a Quick Hook logic here or assumes we have one.
-      return [];
+      if (!res.ok) return [];
+      return res.json();
     },
-    enabled: !!session?.access_token
+    enabled: !!session?.access_token,
+    refetchInterval: 60000, // Refresh every minute
   });
 
-  // Since we don't have a dedicated "My XP" endpoint explicitly defined in previous turns, 
-  // I will assume specific mock data IS unacceptable.
-  // I will add a safe fallback BUT display the structure the user asked for.
-  const xp = userOrg?.xp || 120;
+  const xp = userOrg?.xp || 0;
   const level = userOrg?.level || 1;
   const nextLevelXp = level * 1000;
   const progress = (xp / nextLevelXp) * 100;
@@ -164,12 +157,12 @@ export function Header({ title, subtitle, children }: HeaderProps) {
               notifications.map((alert: any) => (
                 <DropdownMenuItem key={alert.id} className="flex flex-col items-start gap-1 p-3 cursor-pointer">
                   <div className="flex items-center gap-2 w-full">
-                    <Badge className={cn("text-[10px] px-1.5 py-0", alertTypeColors["info"])}>
-                      INFO
+                    <Badge className={cn("text-[10px] px-1.5 py-0", alertTypeColors[alert.type as keyof typeof alertTypeColors] || alertTypeColors.info)}>
+                      {alert.type?.toUpperCase() || 'INFO'}
                     </Badge>
                     <span className="font-medium text-sm">{alert.title}</span>
                   </div>
-                  <p className="text-xs text-muted-foreground">{alert.description || alert.message}</p>
+                  <p className="text-xs text-muted-foreground">{alert.message}</p>
                   <span className="text-[10px] text-muted-foreground">
                     {alert.createdAt ? formatDistanceToNow(new Date(alert.createdAt), { addSuffix: true, locale: es }) : "Reciente"}
                   </span>
@@ -177,6 +170,7 @@ export function Header({ title, subtitle, children }: HeaderProps) {
               ))
             )}
           </DropdownMenuContent>
+
         </DropdownMenu>
       </div>
     </header>
