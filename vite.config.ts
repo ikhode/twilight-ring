@@ -44,38 +44,35 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
-            // Core UI and Framework
-            if (id.includes('react') || id.includes('react-dom') || id.includes('wouter')) {
-              return 'react-core';
-            }
-            // Heavy AI/ML Libraries
-            if (id.includes('@tensorflow') || id.includes('face-api') || id.includes('@vladmandic')) {
-              return 'ai-vendor';
+            // Core UI and Framework (Keep very stable)
+            if (id.includes('react') || id.includes('react-dom') || id.includes('wouter') || id.includes('scheduler')) {
+              return 'vendor-core';
             }
             // Visualization and Charts
             if (id.includes('recharts') || id.includes('d3')) {
-              return 'charts-vendor';
+              return 'vendor-charts';
             }
             // Maps
             if (id.includes('leaflet') || id.includes('react-leaflet')) {
-              return 'maps-vendor';
+              return 'vendor-maps';
             }
             // Onboarding
             if (id.includes('intro.js') || id.includes('driver.js')) {
-              return 'onboarding-vendor';
+              return 'vendor-onboarding';
             }
             // UI Component Libraries
             if (id.includes('@radix-ui') || id.includes('lucide-react') || id.includes('framer-motion') || id.includes('motion')) {
-              return 'ui-vendor';
+              return 'vendor-ui';
             }
             // Data and Utilities
             if (id.includes('@tanstack') || id.includes('zod') || id.includes('date-fns')) {
-              return 'utils-vendor';
+              return 'vendor-utils';
             }
             // Payments
             if (id.includes('stripe')) {
-              return 'payments-vendor';
+              return 'vendor-payments';
             }
+            // Note: We removed TensorFlow/AI from here to let Vite handle its complex dependencies
             return 'vendor';
           }
         },
