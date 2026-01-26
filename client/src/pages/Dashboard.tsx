@@ -146,36 +146,36 @@ export default function Dashboard() {
   if (enabledModules.length === 0) {
     return (
       <AppLayout title="Núcleo Cognitivo" subtitle="Inicialización del Sistema">
-        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-8 animate-in fade-in duration-1000">
+        <div className="flex flex-col items-center justify-center min-h-[85vh] w-full text-center space-y-10 animate-in fade-in duration-1000">
 
           {/* Visual: Sleeping Brain */}
           <div className="relative">
-            <div className="w-32 h-32 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center relative z-10">
-              <Brain className="w-16 h-16 text-slate-700" />
+            <div className="w-40 h-40 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center relative z-10 shadow-[0_0_50px_rgba(0,0,0,0.5)]">
+              <Brain className="w-20 h-20 text-slate-700" />
             </div>
             {/* Pulse rings */}
             <div className="absolute inset-0 rounded-full border border-slate-800 animate-ping opacity-20" />
-            <div className="absolute inset-[-10px] rounded-full border border-slate-800 animate-ping opacity-10 [animation-delay:0.5s]" />
+            <div className="absolute inset-[-15px] rounded-full border border-slate-800 animate-ping opacity-10 [animation-delay:0.5s]" />
           </div>
 
-          <div className="max-w-md space-y-4">
-            <h2 className="text-2xl font-black uppercase tracking-widest text-slate-300">Sistema en Espera</h2>
-            <p className="text-slate-500">
+          <div className="max-w-xl space-y-6">
+            <h2 className="text-3xl font-black uppercase tracking-[0.2em] text-slate-200 drop-shadow-lg">Sistema en Espera</h2>
+            <p className="text-lg text-slate-500 font-medium leading-relaxed">
               El Núcleo Cognitivo está activo pero no tiene módulos conectados.
               Para comenzar, activa los módulos operativos necesarios para tu industria.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-lg">
-            <Link href="/settings">
-              <Button className="w-full h-14 bg-primary text-black hover:bg-primary/90 font-bold uppercase tracking-widest">
-                <Zap className="w-5 h-5 mr-2" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full max-w-2xl px-4">
+            <Link href="/settings" className="w-full block">
+              <Button className="w-full h-16 text-lg bg-primary text-black hover:bg-primary/90 font-black uppercase tracking-widest shadow-[0_0_20px_rgba(var(--primary),0.3)] hover:shadow-[0_0_30px_rgba(var(--primary),0.5)] transition-all">
+                <Zap className="w-6 h-6 mr-3" />
                 Activar Módulos
               </Button>
             </Link>
-            <Link href="/workflows">
-              <Button variant="outline" className="w-full h-14 border-slate-700 hover:bg-slate-800 text-slate-300 uppercase tracking-widest">
-                <Settings2 className="w-5 h-5 mr-2" />
+            <Link href="/workflows" className="w-full block">
+              <Button variant="outline" className="w-full h-16 text-lg border-slate-700 hover:bg-slate-800 text-slate-300 font-bold uppercase tracking-widest transition-all">
+                <Settings2 className="w-6 h-6 mr-3" />
                 Asistente de Configuración
               </Button>
             </Link>

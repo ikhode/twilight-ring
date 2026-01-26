@@ -94,6 +94,8 @@ function Router() {
  * Root Application component setting up providers and router.
  * @returns {JSX.Element} The root application component.
  */
+import { OnboardingGuard } from "@/components/layout/OnboardingGuard";
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -105,7 +107,9 @@ function App() {
                 <Toaster />
                 <CognitiveBridge />
                 <Copilot />
-                <Router />
+                <OnboardingGuard>
+                  <Router />
+                </OnboardingGuard>
               </OnboardingProvider>
             </TooltipProvider>
           </RealtimeProvider>

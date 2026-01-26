@@ -12,4 +12,10 @@ if ('serviceWorker' in navigator) {
     });
 }
 
-createRoot(document.getElementById("root")!).render(<App />);
+import { GlobalErrorBoundary } from "./components/layout/GlobalErrorBoundary";
+
+createRoot(document.getElementById("root")!).render(
+    <GlobalErrorBoundary>
+        <App />
+    </GlobalErrorBoundary>
+);
