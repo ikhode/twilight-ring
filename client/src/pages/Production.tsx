@@ -959,32 +959,33 @@ export default function Production() {
               <DataTable
                 data={tickets || []}
                 columns={[
-                  { header: "Folio", accessorKey: "id", cell: (info: any) => <span className="font-mono text-xs text-slate-500">#{info.getValue().toString().substring(0, 8)}</span> },
-                  { header: "Fecha", accessorKey: "createdAt", cell: (info: any) => <div className="flex flex-col"><span className="text-xs text-white">{new Date(info.getValue()).toLocaleDateString()}</span><span className="text-[10px] text-slate-500">{new Date(info.getValue()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></div> },
+                  { key: "id", header: "Folio", render: (item: any) => <span className="font-mono text-xs text-slate-500">#{item.id.toString().substring(0, 8)}</span> },
+                  { key: "createdAt", header: "Fecha", render: (item: any) => <div className="flex flex-col"><span className="text-xs text-white">{new Date(item.createdAt).toLocaleDateString()}</span><span className="text-[10px] text-slate-500">{new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></div> },
                   {
+                    key: "employeeId",
                     header: "Empleado",
-                    accessorKey: "employeeId",
-                    cell: (info: any) => {
-                      const emp = employees?.find((e: any) => e.id === info.getValue());
+                    render: (item: any) => {
+                      const emp = employees?.find((e: any) => e.id === item.employeeId);
                       return <span className="font-bold text-white text-sm">{emp ? (emp.name || `${emp.firstName} ${emp.lastName}`) : 'Desconocido'}</span>;
                     }
                   },
-                  { header: "Concepto", accessorKey: "taskName", cell: (info: any) => <span className="text-xs text-slate-300">{info.getValue() || "Producción"}</span> },
-                  { header: "Cantidad", accessorKey: "quantity", cell: (info: any) => <span className="font-mono font-bold text-white">{info.getValue()} <span className="text-slate-500 text-[10px] font-normal">{info.row.original.unit || 'pza'}</span></span> },
-                  { header: "Monto", accessorKey: "totalAmount", cell: (info: any) => <span className="text-emerald-400 font-bold">${((info.getValue() || 0) / 100).toFixed(2)}</span> },
-                  { header: "Estado", accessorKey: "status", cell: (info: any) => <Badge variant="outline" className={cn("text-[10px] uppercase", info.getValue() === "paid" ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-yellow-500/10 text-yellow-500 border-yellow-500/20")}>{info.getValue() === "paid" ? "PAGADO" : "PENDIENTE"}</Badge> },
+                  { key: "taskName", header: "Concepto", render: (item: any) => <span className="text-xs text-slate-300">{item.taskName || "Producción"}</span> },
+                  { key: "quantity", header: "Cantidad", render: (item: any) => <span className="font-mono font-bold text-white">{item.quantity} <span className="text-slate-500 text-[10px] font-normal">{item.unit || 'pza'}</span></span> },
+                  { key: "totalAmount", header: "Monto", render: (item: any) => <span className="text-emerald-400 font-bold">${((item.totalAmount || 0) / 100).toFixed(2)}</span> },
+                  { key: "status", header: "Estado", render: (item: any) => <Badge variant="outline" className={cn("text-[10px] uppercase", item.status === "paid" ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-yellow-500/10 text-yellow-500 border-yellow-500/20")}>{item.status === "paid" ? "PAGADO" : "PENDIENTE"}</Badge> },
                   {
-                    header: "Acciones", id: "actions", cell: (info: any) => (
+                    key: "actions",
+                    header: "Acciones",
+                    render: (item: any) => (
                       <div className="flex gap-2 justify-end">
                         <Button size="sm" variant="ghost" className="h-8 w-8 p-0 hover:bg-slate-800" title="Imprimir Ticket" onClick={() => {
-                          // Re-construct print object with resolved names
-                          const emp = employees?.find((e: any) => e.id === info.row.original.employeeId);
+                          const emp = employees?.find((e: any) => e.id === item.employeeId);
                           const empName = emp ? (emp.name || `${emp.firstName} ${emp.lastName}`) : 'Desconocido';
-                          printThermalTicket({ ...info.row.original, employeeName: empName });
+                          printThermalTicket({ ...item, employeeName: empName });
                         }}><TicketIcon className="w-4 h-4 text-slate-400" /></Button>
-                        {info.row.original.status !== 'paid' && (
+                        {item.status !== 'paid' && (
                           <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-emerald-600 hover:text-emerald-500 hover:bg-emerald-950" title="Pagar Ticket" onClick={() => {
-                            if (confirm("¿Marcar este ticket como PAGADO?")) payMutation.mutate(info.row.original.id);
+                            if (confirm("¿Marcar este ticket como PAGADO?")) payMutation.mutate(item.id);
                           }}><DollarSign className="w-4 h-4" /></Button>
                         )}
                       </div>

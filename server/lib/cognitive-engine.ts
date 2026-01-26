@@ -113,13 +113,16 @@ export class CognitiveEngine {
         await db.insert(aiInsights).values({
             organizationId: insight.organizationId,
             type: insight.type,
+            severity: insight.impact === "positive" ? "low" : insight.impact,
             title: insight.title,
             description: insight.description,
-            impact: insight.impact,
-            confidence: Math.floor(insight.confidence * 100),
-            metadata: insight.metadata || {},
-            createdAt: new Date(),
-            isRead: false
+            data: {
+                ...insight.metadata,
+                confidence: Math.floor(insight.confidence * 100),
+                impact: insight.impact
+            },
+            acknowledged: false,
+            createdAt: new Date()
         });
         console.log(`[Cognitive] Insight generated: ${insight.title}`);
     }

@@ -170,7 +170,13 @@ function PurchasesTable({ data }: { data: any[] }) {
                     <Badge variant={it.paymentStatus === 'paid' ? 'default' : 'secondary'} className="w-fit text-[10px] px-1 h-4">
                         {it.paymentStatus === 'paid' ? 'Pagado' : 'Por Pagar'}
                     </Badge>
-                    <Badge variant={it.deliveryStatus === 'received' ? 'success' : 'outline'} className={cn("w-fit text-[10px] px-1 h-4", it.deliveryStatus === 'pending' && "bg-amber-100 text-amber-700 border-amber-200")}>
+                    <Badge
+                        variant="outline"
+                        className={cn(
+                            "w-fit text-[10px] px-1 h-4",
+                            it.deliveryStatus === 'received' ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                        )}
+                    >
                         {it.deliveryStatus === 'received' ? 'Recibido' : 'Pendiente'}
                     </Badge>
                 </div>

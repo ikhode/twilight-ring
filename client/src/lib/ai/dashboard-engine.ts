@@ -1,6 +1,6 @@
 
 export type UserRoleType = 'admin' | 'production' | 'logistics' | 'sales';
-export type IndustryType = "manufacturing" | "retail" | "logistics" | "services" | "generic";
+export type IndustryType = "manufacturing" | "retail" | "logistics" | "services" | "generic" | string;
 
 
 export interface WidgetConfig {

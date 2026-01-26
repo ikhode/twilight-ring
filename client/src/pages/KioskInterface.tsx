@@ -61,9 +61,9 @@ const KIOSK_CAPABILITIES = [
  * Interfaz de Kiosco Multipropropósito de NexusERP.
  * Soporta control de asistencia, producción, FaceID y logística.
  * 
- * @returns {JSX.Element} El componente de interfaz de kiosco.
+ * @returns {React.JSX.Element} El componente de interfaz de kiosco.
  */
-export default function KioskInterface(): JSX.Element {
+export default function KioskInterface(): React.JSX.Element {
   const { id } = useParams();
   const { session } = useAuth();
   const [, setLocation] = useLocation();

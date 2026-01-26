@@ -19,7 +19,7 @@ export interface CognitiveFieldProps {
 
 export function CognitiveField({ children, label, value, context, semanticType, className, id, options, onAcceptPrediction }: CognitiveFieldProps) {
     const fieldId = React.useMemo(() => id || `field-${Math.random().toString(36).substr(2, 9)}`, [id]);
-    const [feedback, setFeedback] = React.useState<{ message: string, type: 'info' | 'warning' | 'success', confidence?: number } | null>(null);
+    const [feedback, setFeedback] = React.useState<{ message: string, type: 'info' | 'warning' | 'error' | 'success', confidence?: number } | null>(null);
     const { findSemanticMatches, isUSELoading } = useNLPEngine();
     const diagContext = useCognitiveDiagnostics();
     const { registerDiagnostic, unregisterDiagnostic, acceptPrediction, predictions, diagnostics } = diagContext || {};

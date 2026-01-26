@@ -1,3 +1,4 @@
+import * as React from "react";
 import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -180,7 +181,7 @@ export default function BankAccounts() {
                     isOpen={isDialogOpen}
                     onOpenChange={setIsDialogOpen}
                     account={editingAccount}
-                    onSubmit={(data) => {
+                    onSubmit={(data: any) => {
                         if (editingAccount) {
                             updateMutation.mutate({ ...data, id: editingAccount.id });
                         } else {
@@ -203,7 +204,7 @@ function AccountDialog({ isOpen, onOpenChange, account, onSubmit, isPending }: a
         balance: "0",
     });
 
-    useState(() => {
+    React.useEffect(() => {
         if (account) {
             setFormData({
                 name: account.name,
@@ -216,19 +217,6 @@ function AccountDialog({ isOpen, onOpenChange, account, onSubmit, isPending }: a
             setFormData({ name: "", bankName: "", accountNumber: "", currency: "MXN", balance: "0" });
         }
     }, [account, isOpen]);
-
-    // Re-sync on open if editing
-    useState(() => {
-        if (isOpen && account) {
-            setFormData({
-                name: account.name,
-                bankName: account.bankName || "",
-                accountNumber: account.accountNumber || "",
-                currency: account.currency,
-                balance: (account.balance / 100).toString(),
-            });
-        }
-    }, [isOpen]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
