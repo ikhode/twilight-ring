@@ -84,7 +84,8 @@ export const useAppStore = create<AppState>()(
                         industryName: template.name,
                         productCategories: template.categories,
                         defaultUnits: template.units,
-                        productTypeLabels: template.productTypeLabels
+                        productTypeLabels: template.productTypeLabels,
+                        enabledModules: template.modules || []
                     });
                 }
             }

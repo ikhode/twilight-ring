@@ -34,6 +34,13 @@ export function IntroJsOnboarding() {
     const [selectedIndustry, setSelectedIndustry] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
 
+    // Sync from store on mount
+    useEffect(() => {
+        if (store.industry && store.industry !== 'generic') {
+            setSelectedIndustry(store.industry);
+        }
+    }, [store.industry]);
+
     // Initial check handled by AppLayout enforcement, but redundant check here is fine
     useEffect(() => {
         const hasCompletedOnboarding = localStorage.getItem('nexus_introjs_completed');
