@@ -4,15 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { useConfiguration } from "@/context/ConfigurationContext";
 import { cn } from "@/lib/utils";
 import {
-    ShoppingCart, Plus, Minus, Trash2, CreditCard,
-    Search, Package, Truck, CheckCircle, ShoppingBag, Loader2,
+    Plus, Trash2,
+    Search, Truck, CheckCircle, ShoppingBag, Loader2,
     Activity
 } from "lucide-react";
 import {
@@ -37,7 +36,8 @@ export default function Purchases() {
         queryFn: async () => {
             const res = await fetch("/api/purchases", { headers: { Authorization: `Bearer ${session?.access_token}` } });
             if (!res.ok) return [];
-            return res.json();
+            const data = await res.json();
+            return Array.isArray(data) ? data : [];
         },
         enabled: !!session?.access_token
     });
@@ -45,7 +45,7 @@ export default function Purchases() {
     // Calculate Metrics
     const pendingCount = purchases.filter((p: any) => p.deliveryStatus === "pending").length;
     const receivedCount = purchases.filter((p: any) => p.deliveryStatus === "received").length;
-    const totalSpent = purchases.reduce((acc: number, p: any) => acc + p.totalAmount, 0) / 100; // cents to unit
+    const totalSpent = purchases.reduce((acc: number, p: any) => acc + (p.totalAmount || 0), 0) / 100;
 
     return (
         <AppLayout title="Compras" subtitle="Gestión de abastecimiento y proveedores">
@@ -104,8 +104,6 @@ export default function Purchases() {
 
 function PurchasesTable({ data }: { data: any[] }) {
     const { session } = useAuth();
-    const { enabledModules } = useConfiguration();
-    const hasInventory = enabledModules.some(m => m.id === "inventory");
     const queryClient = useQueryClient();
     const { toast } = useToast();
     const formatCurrency = (amount: number) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(amount);
@@ -165,7 +163,7 @@ function PurchasesTable({ data }: { data: any[] }) {
                 </div>
             )
         },
-        { key: "total", header: "Total", render: (it: any) => <span className="font-bold">{formatCurrency(it.totalAmount / 100)}</span> },
+        { key: "total", header: "Total", render: (it: any) => <span className="font-bold">{formatCurrency((it.totalAmount || 0) / 100)}</span> },
         {
             key: "status", header: "Estado", render: (it: any) => (
                 <div className="flex flex-col gap-1">
@@ -213,7 +211,7 @@ function CreateProductDialog() {
         category: "Materia Prima",
         productType: "purchase", // Default
         stock: 0,
-        unit: "", // Let user define or default
+        unit: "",
         price: 0,
         cost: 0,
     });
@@ -321,7 +319,7 @@ function CreateSupplierDialog() {
 
     const createMutation = useMutation({
         mutationFn: async (data: typeof formData) => {
-            const res = await fetch("/api/operations/suppliers", { // Fixed endpoint to existing one
+            const res = await fetch("/api/operations/suppliers", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -375,18 +373,25 @@ function CreateSupplierDialog() {
     );
 }
 
-// Renamed and adapted to be a Dialog
 function CreatePurchaseDialog() {
     const { session } = useAuth();
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const [open, setOpen] = useState(false);
 
-    const [cart, setCart] = useState<{ id: string; name: string; cost: number; quantity: number }[]>([]);
+    // Cart State with Unique ID for multiples
+    const [cart, setCart] = useState<{
+        uniqueId: string;
+        productId: string;
+        name: string;
+        cost: number;
+        quantity: number;
+        note: string
+    }[]>([]);
+
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedSupplier, setSelectedSupplier] = useState<string>("");
 
-    // New Fields
     const [paymentMethod, setPaymentMethod] = useState<string>("transfer");
     const [logisticsMethod, setLogisticsMethod] = useState<string>("delivery");
     const [driverId, setDriverId] = useState<string>("");
@@ -395,13 +400,21 @@ function CreatePurchaseDialog() {
 
     const { data: dbProducts = [] } = useQuery({
         queryKey: ["/api/inventory/products"],
-        queryFn: async () => (await fetch("/api/inventory/products", { headers: { Authorization: `Bearer ${session?.access_token}` } })).json(),
+        queryFn: async () => {
+            const res = await fetch("/api/inventory/products", { headers: { Authorization: `Bearer ${session?.access_token}` } });
+            if (!res.ok) return [];
+            return res.json();
+        },
         enabled: open
     });
 
     const { data: suppliers = [] } = useQuery({
         queryKey: ["/api/operations/suppliers"],
-        queryFn: async () => (await fetch("/api/operations/suppliers", { headers: { Authorization: `Bearer ${session?.access_token}` } })).json(),
+        queryFn: async () => {
+            const res = await fetch("/api/operations/suppliers", { headers: { Authorization: `Bearer ${session?.access_token}` } });
+            if (!res.ok) return [];
+            return res.json();
+        },
         enabled: open
     });
 
@@ -428,9 +441,10 @@ function CreatePurchaseDialog() {
     const purchaseMutation = useMutation({
         mutationFn: async () => {
             const items = cart.map(item => ({
-                productId: item.id,
+                productId: item.productId,
                 quantity: item.quantity,
-                cost: Math.round(item.cost * 100)
+                cost: Math.round(item.cost * 100),
+                notes: item.note || undefined
             }));
             const res = await fetch("/api/purchases", {
                 method: "POST",
@@ -462,13 +476,20 @@ function CreatePurchaseDialog() {
 
     const addToCart = (product: any) => {
         setCart(prev => {
-            if (prev.find(i => i.id === product.id)) return prev;
-            return [...prev, { id: product.id, name: product.name, cost: (product.cost || 0) / 100, quantity: 1 }];
+            // Allow multiple!
+            return [...prev, {
+                uniqueId: `${product.id}-${Date.now()}`,
+                productId: product.id,
+                name: product.name,
+                cost: (product.cost || 0) / 100,
+                quantity: 1,
+                note: ""
+            }];
         });
     };
 
-    const updateItem = (id: string, field: string, val: number) => {
-        setCart(prev => prev.map(i => i.id === id ? { ...i, [field]: val } : i));
+    const updateItem = (uniqueId: string, field: string, val: any) => {
+        setCart(prev => prev.map(i => i.uniqueId === uniqueId ? { ...i, [field]: val } : i));
     };
 
     const cartTotal = cart.reduce((acc, i) => acc + (i.cost * i.quantity), 0);
@@ -542,6 +563,7 @@ function CreatePurchaseDialog() {
                                     <Select value={driverId} onValueChange={setDriverId}>
                                         <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Elegir..." /></SelectTrigger>
                                         <SelectContent>
+                                            <SelectItem value="none">Ninguno</SelectItem>
                                             {drivers.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
                                         </SelectContent>
                                     </Select>
@@ -551,6 +573,7 @@ function CreatePurchaseDialog() {
                                     <Select value={vehicleId} onValueChange={setVehicleId}>
                                         <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Elegir..." /></SelectTrigger>
                                         <SelectContent>
+                                            <SelectItem value="none">Ninguno</SelectItem>
                                             {vehicles.map((v: any) => <SelectItem key={v.id} value={v.id}>{v.plate} - {v.model}</SelectItem>)}
                                         </SelectContent>
                                     </Select>
@@ -569,20 +592,28 @@ function CreatePurchaseDialog() {
                         <div className="space-y-2 max-h-80 overflow-y-auto pr-2">
                             {cart.length === 0 && <p className="text-sm text-muted-foreground text-center py-10 italic">Carrito vacío</p>}
                             {cart.map(item => (
-                                <div key={item.id} className="p-2 bg-muted/30 rounded border text-sm space-y-2">
+                                <div key={item.uniqueId} className="p-2 bg-muted/30 rounded border text-sm space-y-2">
                                     <div className="flex justify-between font-medium">
                                         <span>{item.name}</span>
-                                        <Trash2 className="w-4 h-4 text-destructive cursor-pointer opacity-50 hover:opacity-100" onClick={() => setCart(c => c.filter(x => x.id !== item.id))} />
+                                        <Trash2 className="w-4 h-4 text-destructive cursor-pointer opacity-50 hover:opacity-100" onClick={() => setCart(c => c.filter(x => x.uniqueId !== item.uniqueId))} />
                                     </div>
                                     <div className="grid grid-cols-2 gap-2">
                                         <div>
                                             <Label className="text-[10px]">Cant.</Label>
-                                            <Input type="number" className="h-7 text-xs" value={item.quantity} onChange={e => updateItem(item.id, 'quantity', parseInt(e.target.value) || 1)} />
+                                            <Input type="number" className="h-7 text-xs" value={item.quantity} onChange={e => updateItem(item.uniqueId, 'quantity', parseInt(e.target.value) || 1)} />
                                         </div>
                                         <div>
                                             <Label className="text-[10px]">Costo Unit.</Label>
-                                            <Input type="number" className="h-7 text-xs" value={item.cost} onChange={e => updateItem(item.id, 'cost', parseFloat(e.target.value) || 0)} />
+                                            <Input type="number" className="h-7 text-xs" value={item.cost} onChange={e => updateItem(item.uniqueId, 'cost', parseFloat(e.target.value) || 0)} />
                                         </div>
+                                    </div>
+                                    <div>
+                                        <Input
+                                            className="h-7 text-xs border-dashed"
+                                            placeholder="Variante / Nota (ej. Calidad A)"
+                                            value={item.note}
+                                            onChange={e => updateItem(item.uniqueId, 'note', e.target.value)}
+                                        />
                                     </div>
                                 </div>
                             ))}
@@ -606,22 +637,7 @@ function CreatePurchaseDialog() {
                             <div className="space-y-1.5 text-[10px] text-slate-400">
                                 <div className="flex items-center gap-2">
                                     <div className="w-1 h-1 rounded-full bg-blue-500" />
-                                    <p>Impacto en flujo de caja: <span className="text-slate-200">-{formatCurrency(totalWithFreight)}</span> programado.</p>
-                                </div>
-                                {logisticsMethod === 'pickup' ? (
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-1 h-1 rounded-full bg-amber-500" />
-                                        <p>Logística propia activada: <span className="text-amber-200/80">Costo de flete</span> incluido en operativo.</p>
-                                    </div>
-                                ) : (
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-1 h-1 rounded-full bg-emerald-500" />
-                                        <p>Entrega de proveedor: <span className="text-emerald-200/80">Sin asignación</span> de activos logísticos internos.</p>
-                                    </div>
-                                )}
-                                <div className="flex items-center gap-2">
-                                    <div className="w-1 h-1 rounded-full bg-emerald-500" />
-                                    <p>Actualización automática de <span className="text-emerald-200/80">costos promedio</span> al recibir.</p>
+                                    <p>Impacto programado: <span className="text-slate-200">-{formatCurrency(totalWithFreight)}</span></p>
                                 </div>
                             </div>
                         </div>

@@ -29,7 +29,8 @@ import {
   Check,
   X,
   AlertTriangle,
-  Trash2
+  Trash2,
+  Sparkles
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -197,6 +198,7 @@ export default function Production() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/production/summary"] });
       toast({ title: "Lote Iniciado" });
+      setIsStartLotOpen(false);
     },
   });
 
@@ -216,6 +218,7 @@ export default function Production() {
   });
 
   const [isRatesOpen, setIsRatesOpen] = useState(false);
+  const [isStartLotOpen, setIsStartLotOpen] = useState(false);
 
   const createTaskMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -465,71 +468,118 @@ export default function Production() {
               <TabsContent value="active-batches" className="space-y-6">
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-bold font-display">Lotes en Ejecución</h2>
-                  <Dialog>
-                    <DialogTrigger asChild><Button className="gap-2 bg-emerald-600"><Play className="w-4 h-4" />Nuevo Lote</Button></DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader><DialogTitle>Iniciar Lote</DialogTitle></DialogHeader>
+                  <Dialog open={isStartLotOpen} onOpenChange={setIsStartLotOpen}>
+                    <DialogTrigger asChild><Button className="gap-2 bg-emerald-600 shadow-lg shadow-emerald-500/20 hover:bg-emerald-500 hover:scale-105 transition-all"><Play className="w-4 h-4" />Nuevo Lote</Button></DialogTrigger>
+                    <DialogContent className="border-emerald-500/20 bg-slate-950">
+                      <DialogHeader><DialogTitle className="text-emerald-500">Iniciar Nuevo Lote</DialogTitle></DialogHeader>
                       <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); createInstanceMutation.mutate({ processId: fd.get("processId") }); }} className="space-y-4 py-4">
                         <div className="space-y-2">
                           <Label>Proceso a Ejecutar</Label>
-                          <Select name="processId" required><SelectTrigger><SelectValue placeholder="Seleccionar Proceso" /></SelectTrigger><SelectContent>{processes?.map((p: any) => (<SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>))}</SelectContent></Select>
+                          <Select name="processId" required><SelectTrigger className="bg-slate-900 border-slate-800"><SelectValue placeholder="Seleccionar Proceso" /></SelectTrigger><SelectContent>{processes?.map((p: any) => (<SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>))}</SelectContent></Select>
                         </div>
-                        <div className="p-3 bg-slate-900/50 rounded text-xs text-muted-foreground">
-                          El sistema generará automáticamente un ID de Lote único para trazabilidad.
+                        <div className="p-3 bg-emerald-500/5 border border-emerald-500/10 rounded text-xs text-emerald-200/70 flex gap-2">
+                          <Info className="w-4 h-4 text-emerald-500 shrink-0" />
+                          El sistema generará automáticamente un ID de Lote único y comenzará el tracking de tiempo real.
                         </div>
-                        <Button type="submit" className="w-full">Iniciar</Button>
+                        <Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-500" disabled={createInstanceMutation.isPending}>
+                          {createInstanceMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Iniciar Producción"}
+                        </Button>
                       </form>
                     </DialogContent>
                   </Dialog>
                 </div>
-                {summary?.recentInstances?.filter((i: any) => i.status === "active").map((instance: any) => (
-                  <Card key={instance.id} className="border-l-4 border-l-emerald-500">
-                    <CardContent className="flex items-center justify-between py-4">
-                      <div className="flex items-center gap-4">
-                        <RefreshCw className="w-5 h-5 text-emerald-500 animate-spin-slow" />
-                        <div>
-                          <p className="font-bold">{instance.aiContext?.loteName || `Lote #${instance.id.substring(0, 8)}`}</p>
-                          <p className="text-xs text-muted-foreground">{new Date(instance.startedAt).toLocaleTimeString()} - {instance.processId.split('-')[0]}</p>
-                          {/* Ticket Summary */}
-                          <div className="mt-2 flex gap-2">
-                            <Badge variant="secondary" className="text-[10px] bg-emerald-500/10 text-emerald-400 border-none">
-                              {(tickets || []).filter(t => t.batchId === instance.id).length} Tickets
-                            </Badge>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Dialog>
-                          <DialogTrigger asChild><Button variant="outline" size="sm" className="gap-2"><AlertTriangle className="w-3 h-3 text-warning" />Merma</Button></DialogTrigger>
-                          <DialogContent>
-                            <DialogHeader><DialogTitle>Registrar Merma</DialogTitle></DialogHeader>
-                            <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); logEventMutation.mutate({ instanceId: instance.id, eventType: "anomaly", data: { mermaType: fd.get("type"), quantity: Number(fd.get("quantity")), reason: fd.get("reason"), productId: fd.get("productId") } }); }} className="space-y-4 py-4">
-                              <div className="space-y-2">
-                                <Label>Producto Afectado</Label>
-                                <Select name="productId" required>
-                                  <SelectTrigger><SelectValue placeholder="Seleccionar Producto" /></SelectTrigger>
-                                  <SelectContent>
-                                    {inventory.map((i: any) => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}
-                                  </SelectContent>
-                                </Select>
+
+                <div className="grid grid-cols-1 gap-4">
+                  {summary?.recentInstances?.filter((i: any) => i.status === "active").map((instance: any) => {
+                    const activeTickets = tickets.filter(t => t.batchId === instance.id);
+                    const uniqueWorkers = new Set(activeTickets.map(t => t.employeeName)).size;
+
+                    return (
+                      <Card key={instance.id} className="border-l-4 border-l-emerald-500 bg-slate-900/40 hover:bg-slate-900/60 transition-all group overflow-hidden relative">
+                        {/* Background Progress Hint */}
+                        <div className="absolute top-0 left-0 h-full bg-gradient-to-r from-emerald-500/5 to-transparent w-[30%] -skew-x-12 opacity-50 z-0 pointer-events-none" />
+
+                        <CardContent className="flex flex-col md:flex-row items-start md:items-center justify-between py-6 relative z-10 gap-6">
+                          <div className="flex items-start gap-4">
+                            <div className="p-3 bg-emerald-500/10 rounded-xl relative">
+                              <RefreshCw className="w-6 h-6 text-emerald-500 animate-spin-slow" />
+                              <div className="absolute inset-0 bg-emerald-500/20 blur-xl rounded-full" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2 mb-1">
+                                <h3 className="font-bold text-lg text-white tracking-tight">{instance.aiContext?.loteName || `Lote #${instance.id.substring(0, 8)}`}</h3>
+                                <Badge variant="outline" className="text-[9px] border-emerald-500/30 text-emerald-400 bg-emerald-500/5 uppercase tracking-wider">En Proceso</Badge>
                               </div>
-                              <Select name="type" defaultValue="quality"><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="quality">Calidad</SelectItem><SelectItem value="mechanical">Mecánica</SelectItem></SelectContent></Select>
-                              <Input name="quantity" type="number" step="0.1" placeholder="Cantidad" />
-                              <Button type="submit" className="w-full">Registrar</Button>
-                            </form>
-                          </DialogContent>
-                        </Dialog>
-                        <FinalizeBatchDialog
-                          instance={instance}
-                          tickets={tickets.filter(t => t.batchId === instance.id)}
-                          onConfirm={(data) => { finishBatchMutation.mutate({ instanceId: instance.id, ...data }); }}
-                          isVisionEnabled={isVisionEnabled}
-                          isLoading={finishBatchMutation.isPending}
-                        />
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                              <div className="flex items-center gap-4 text-xs text-slate-400 font-medium">
+                                <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {new Date(instance.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                <span className="flex items-center gap-1"><Factory className="w-3 h-3" /> {instance.processId.split('-')[0]}</span>
+                              </div>
+
+                              {/* Live Metrics */}
+                              <div className="flex items-center gap-2 mt-3">
+                                <div className="flex -space-x-2">
+                                  {/* Mock Avatars for active workers */}
+                                  {activeTickets.length > 0 ? (
+                                    Array.from({ length: Math.min(3, uniqueWorkers) }).map((_, i) => (
+                                      <div key={i} className="w-6 h-6 rounded-full bg-slate-800 border-2 border-slate-900 flex items-center justify-center text-[8px] font-bold text-slate-400">
+                                        <User className="w-3 h-3" />
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <span className="text-[10px] text-slate-600 italic">Esperando operarios...</span>
+                                  )}
+                                  {uniqueWorkers > 3 && <div className="w-6 h-6 rounded-full bg-slate-800 border-2 border-slate-900 flex items-center justify-center text-[8px] font-bold text-slate-400">+{uniqueWorkers - 3}</div>}
+                                </div>
+                                {activeTickets.length > 0 && <span className="text-[10px] text-emerald-400/80 font-bold ml-1">{activeTickets.length} Piezas procesadas</span>}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3 w-full md:w-auto">
+                            <Dialog>
+                              <DialogTrigger asChild><Button variant="ghost" size="sm" className="gap-2 text-warning hover:text-warning hover:bg-warning/10"><AlertTriangle className="w-4 h-4" /> Reportar Merma</Button></DialogTrigger>
+                              <DialogContent className="bg-slate-950 border-warning/20">
+                                <DialogHeader><DialogTitle className="text-warning">Registrar Merma / Incidencia</DialogTitle></DialogHeader>
+                                <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); logEventMutation.mutate({ instanceId: instance.id, eventType: "anomaly", data: { mermaType: fd.get("type"), quantity: Number(fd.get("quantity")), reason: fd.get("reason"), productId: fd.get("productId") } }); }} className="space-y-4 py-4">
+                                  <div className="space-y-2">
+                                    <Label>Producto Afectado</Label>
+                                    <Select name="productId" required>
+                                      <SelectTrigger className="bg-slate-900 border-slate-800"><SelectValue placeholder="Seleccionar Producto" /></SelectTrigger>
+                                      <SelectContent>
+                                        {inventory.map((i: any) => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <CognitiveField label="Tipo" semanticType="category">
+                                      <Select name="type" defaultValue="quality"><SelectTrigger className="bg-slate-900 border-slate-800"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="quality">Calidad</SelectItem><SelectItem value="mechanical">Mecánica</SelectItem></SelectContent></Select>
+                                    </CognitiveField>
+                                    <div className="space-y-2">
+                                      <Label>Cantidad</Label>
+                                      <Input name="quantity" type="number" step="0.1" placeholder="0.0" className="bg-slate-900 border-slate-800" />
+                                    </div>
+                                  </div>
+                                  <Input name="reason" placeholder="Razón / Observaciones" className="bg-slate-900 border-slate-800" />
+                                  <Button type="submit" className="w-full bg-warning hover:bg-warning/90 text-black font-bold">Registrar Incidencia</Button>
+                                </form>
+                              </DialogContent>
+                            </Dialog>
+
+                            <div className="h-8 w-px bg-white/10 hidden md:block" />
+
+                            <FinalizeBatchDialog
+                              instance={instance}
+                              tickets={tickets.filter(t => t.batchId === instance.id)}
+                              onConfirm={(data) => { finishBatchMutation.mutate({ instanceId: instance.id, ...data }); }}
+                              isVisionEnabled={isVisionEnabled}
+                              isLoading={finishBatchMutation.isPending}
+                            />
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
               </TabsContent>
 
               <TabsContent value="traceability" className="space-y-6">
@@ -681,15 +731,20 @@ export default function Production() {
               <StatCard title="Pagados" value={ticketStats.paid} icon={DollarSign} variant="primary" />
               <StatCard title="Total" value={formatCurrency(ticketStats.totalAmount / 100)} icon={DollarSign} />
             </div>
-            <Card className="mt-6"><CardContent className="pt-6"><DataTable columns={[{ key: "id", header: "ID", render: (i) => i.id.slice(0, 8) }, { key: "employee", header: "Empleado", render: (i) => i.employeeName }, { key: "taskName", header: "Proceso" }, {
-              key: "quantity", header: "Cant.", render: (i) => {
-                const task = pieceworkTasks.find((t: any) => t.name === i.taskName);
-                return `${i.quantity} ${task?.unit || 'pza'}`;
-              }
-            },
-            { key: "status", header: "Estado" },
-            { key: "totalAmount", header: "Monto", render: (i) => formatCurrency(i.totalAmount / 100) },
-            { key: "actions", header: "Acciones", render: (i) => i.status === 'pending' ? <Button size="sm" onClick={() => { approveMutation.mutate(i.id); }}>Aprobar</Button> : null }]} data={tickets} /></CardContent></Card>
+            <Card className="mt-6"><CardContent className="pt-6"><DataTable columns={[
+              { key: "id", header: "ID", render: (i) => `#${i.id.toString().padStart(6, '0')}` },
+              { key: "employee", header: "Empleado", render: (i) => i.employeeName },
+              { key: "taskName", header: "Proceso" },
+              {
+                key: "quantity", header: "Cant.", render: (i) => {
+                  const task = pieceworkTasks.find((t: any) => t.name === i.taskName);
+                  return `${i.quantity} ${task?.unit || 'pza'}`;
+                }
+              },
+              { key: "status", header: "Estado" },
+              { key: "totalAmount", header: "Monto", render: (i) => formatCurrency((i.totalAmount || 0) / 100) },
+              { key: "actions", header: "Acciones", render: (i) => i.status === 'pending' ? <Button size="sm" onClick={() => { approveMutation.mutate(i.id); }}>Aprobar</Button> : null }
+            ]} data={tickets} /></CardContent></Card>
           </TabsContent >
         </Tabs >
       </div >

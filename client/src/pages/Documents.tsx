@@ -21,8 +21,7 @@ import {
     Receipt,
     ScrollText,
     FileDigit,
-    Users,
-    Scan
+    Users
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";

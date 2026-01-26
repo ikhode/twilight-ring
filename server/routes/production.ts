@@ -236,7 +236,14 @@ router.post("/instances/:id/finish", async (req, res): Promise<void> => {
             }
 
             // 2. Producción Producto Principal (e.g. Pulpa)
-            const outputProductId = workflow?.outputProductId || workflow?.meta?.outputProductId;
+            // Support multiple outputs: Take the first one as MAIN for automatic stock increment.
+            let outputProductId = workflow?.outputProductId || workflow?.meta?.outputProductId;
+
+            // New Array Support
+            if (Array.isArray(workflow?.outputProductIds) && workflow.outputProductIds.length > 0) {
+                outputProductId = workflow.outputProductIds[0];
+            }
+
             if (outputProductId && inferredOutputQty > 0) {
                 await db.update(products)
                     .set({ stock: sql`${products.stock} + ${inferredOutputQty}` })
@@ -248,7 +255,7 @@ router.post("/instances/:id/finish", async (req, res): Promise<void> => {
                     quantity: inferredOutputQty,
                     type: "production",
                     referenceId: instanceId,
-                    notes: `Producción (Basado en Tickets): ${inferredOutputQty} kg/u.`,
+                    notes: `Producción Principal (Inferencia): ${inferredOutputQty} kg/u.`,
                     date: new Date()
                 });
             }

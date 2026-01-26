@@ -79,7 +79,8 @@ router.post("/", async (req, res): Promise<void> => {
                     freightCost: freightCost || 0,
                     date: new Date(),
                     paidAt: status === "paid" ? new Date() : null,
-                    receivedAt: status === "received" ? new Date() : null
+                    receivedAt: status === "received" ? new Date() : null,
+                    notes: item.notes || null // Save quality/variant metadata
                 }).returning();
 
                 createdIds.push(record.id);

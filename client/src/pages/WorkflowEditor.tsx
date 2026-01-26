@@ -27,7 +27,8 @@ import {
     Search,
     Layers,
     Bot,
-    ArrowLeft
+    ArrowLeft,
+    Check
 } from "lucide-react";
 import {
     Dialog,
@@ -35,7 +36,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import { Link, useSearch } from "wouter";
+import { Link, useSearch, useLocation } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -74,18 +75,22 @@ interface Catalog {
 interface WorkflowData {
     nodes: Node[];
     edges: Edge[];
-    outputProductId?: string;
+    outputProductIds?: string[];
+    outputProductId?: string; // Legacy support
+    inputProductId?: string;
 }
 
 interface ProcessData {
     id: string;
     name: string;
     workflowData: WorkflowData;
+    description?: string;
 }
 
 interface Product {
     id: string;
     name: string;
+    unit: string;
 }
 
 interface Suggestion {
@@ -106,6 +111,7 @@ export default function WorkflowEditorWrapper() {
 function WorkflowEditor() {
     const { session } = useAuth();
     const { toast } = useToast();
+    const [location, setLocation] = useLocation();
     const searchString = useSearch();
     const searchParams = new URLSearchParams(searchString);
     const processId = searchParams.get("processId");
@@ -118,11 +124,17 @@ function WorkflowEditor() {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [processName, setProcessName] = useState("");
     const [selectedInputProductId, setSelectedInputProductId] = useState<string | null>(null);
-    const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+    const [selectedOutputProductIds, setSelectedOutputProductIds] = useState<string[]>([]);
+    const [pieceworkConfig, setPieceworkConfig] = useState({
+        enabled: false,
+        rate: 0,
+        unit: 'pza',
+        basis: 'output'
+    });
     const [activePlaceholderId, setActivePlaceholderId] = useState<string | null>(null);
 
     // Load Existing Process
-    const { data: existingProcess } = useQuery<ProcessData>({
+    const { data: existingProcess } = useQuery<ProcessData | null>({
         queryKey: [`/api/cpe/processes/${processId}`],
         queryFn: async () => {
             if (!processId) return null;
@@ -140,8 +152,27 @@ function WorkflowEditor() {
             if (existingProcess.workflowData) {
                 setNodes(existingProcess.workflowData.nodes || []);
                 setEdges(existingProcess.workflowData.edges || []);
-                setSelectedProductId(existingProcess.workflowData.outputProductId || null);
-                setSelectedInputProductId((existingProcess.workflowData as any).inputProductId || null);
+
+                const wd = existingProcess.workflowData as any;
+                if (Array.isArray(wd.outputProductIds)) {
+                    setSelectedOutputProductIds(wd.outputProductIds);
+                } else if (wd.outputProductId) {
+                    setSelectedOutputProductIds([wd.outputProductId]);
+                } else {
+                    setSelectedOutputProductIds([]);
+                }
+
+                setSelectedInputProductId(wd.inputProductId || null);
+
+                // Hydrate Piecework Config
+                if (wd.piecework) {
+                    setPieceworkConfig({
+                        enabled: wd.piecework.enabled || false,
+                        rate: (wd.piecework.rate || 0) / 100, // Convert from cents
+                        unit: wd.piecework.unit || 'pza',
+                        basis: wd.piecework.basis || 'output'
+                    });
+                }
             }
         } else if (!processId) {
             // Default start node for new workflows
@@ -319,16 +350,34 @@ function WorkflowEditor() {
         toast({ title: "IA: Proceso Sugerido Aplicado", description: suggestion.name });
     };
 
+    const toggleOutputProduct = (productId: string) => {
+        setSelectedOutputProductIds(prev => {
+            if (prev.includes(productId)) {
+                return prev.filter(id => id !== productId);
+            } else {
+                return [...prev, productId];
+            }
+        });
+    };
+
     const saveMutation = useMutation({
         mutationFn: async () => {
             const payload = {
                 name: processName || existingProcess?.name || "Nuevo Flujo",
-                description: (existingProcess as any)?.description || "Sin descripción",
+                description: existingProcess?.description || "Sin descripción",
                 workflowData: {
                     nodes,
                     edges,
-                    outputProductId: selectedProductId,
-                    inputProductId: selectedInputProductId
+                    outputProductIds: selectedOutputProductIds,
+                    // Backward compatibility
+                    outputProductId: selectedOutputProductIds.length > 0 ? selectedOutputProductIds[0] : null,
+                    inputProductId: selectedInputProductId,
+                    piecework: {
+                        enabled: pieceworkConfig.enabled,
+                        rate: Math.round(pieceworkConfig.rate * 100), // Store in cents
+                        unit: pieceworkConfig.unit,
+                        basis: pieceworkConfig.basis
+                    }
                 },
                 type: "production"
             };
@@ -373,8 +422,8 @@ function WorkflowEditor() {
                 <div className="flex-1 flex flex-col bg-slate-950/20 rounded-3xl border border-white/5 overflow-hidden relative">
                     <div className="h-14 bg-slate-900/60 backdrop-blur-md border-b border-white/5 flex items-center justify-between px-6 z-10">
                         <div className="flex items-center gap-4">
-                            <Button variant="ghost" size="icon" asChild className="rounded-xl">
-                                <Link href="/dashboard"><ArrowLeft className="w-4 h-4" /></Link>
+                            <Button variant="ghost" size="icon" className="rounded-xl" onClick={() => setLocation("/dashboard")}>
+                                <ArrowLeft className="w-4 h-4" />
                             </Button>
                             <div className="flex items-center gap-2">
                                 <span className="text-sm font-black uppercase italic tracking-tighter">Nexus <span className="text-primary">Architect</span></span>
@@ -590,7 +639,7 @@ function WorkflowEditor() {
             </Dialog>
 
             <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-                <DialogContent className="bg-slate-900 border-slate-800">
+                <DialogContent className="bg-slate-900 border-slate-800 max-h-[80vh] overflow-y-auto w-full max-w-lg">
                     <DialogHeader>
                         <DialogTitle className="text-white">Configuración del Proceso</DialogTitle>
                     </DialogHeader>
@@ -603,27 +652,135 @@ function WorkflowEditor() {
                                 className="bg-slate-950 border-slate-800"
                             />
                         </div>
+
                         <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-400 uppercase">Producto Resultante (Output)</label>
-                            <p className="text-[10px] text-slate-500">Al finalizar un lote de este proceso, se incrementará el stock de este producto.</p>
-                            <ScrollArea className="h-48 rounded-md border border-slate-800 bg-slate-950 p-2">
+                            <label className="text-xs font-bold text-slate-400 uppercase">Insumo Principal (Input)</label>
+                            <p className="text-[10px] text-slate-500">Materia prima que se consume automáticamete al iniciar o finalizar lotes.</p>
+                            <ScrollArea className="h-32 rounded-md border border-slate-800 bg-slate-950 p-2">
                                 <div className="space-y-1">
                                     {products.map((p) => (
                                         <div
-                                            key={p.id}
-                                            onClick={() => { setSelectedProductId(p.id); }}
+                                            key={`in-${p.id}`}
+                                            onClick={() => { setSelectedInputProductId(p.id); }}
                                             className={cn(
-                                                "p-2 rounded cursor-pointer flex justify-between items-center text-xs",
-                                                selectedProductId === p.id ? "bg-primary/20 text-primary" : "text-slate-400 hover:bg-slate-900"
+                                                "p-2 rounded cursor-pointer flex justify-between items-center text-xs transition-colors",
+                                                selectedInputProductId === p.id
+                                                    ? "bg-amber-500/20 text-amber-500 border border-amber-500/30"
+                                                    : "text-slate-400 hover:bg-slate-900 border border-transparent"
                                             )}
                                         >
-                                            <span>{p.name}</span>
-                                            {selectedProductId === p.id && <Zap className="w-3 h-3" />}
+                                            <div className="flex flex-col">
+                                                <span className="font-semibold">{p.name}</span>
+                                                <span className="text-[9px] opacity-70">Unidad: {p.unit}</span>
+                                            </div>
+                                            {selectedInputProductId === p.id && <Zap className="w-3 h-3" />}
                                         </div>
                                     ))}
                                 </div>
                             </ScrollArea>
                         </div>
+
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-400 uppercase">Producto Resultante (Output)</label>
+                            <p className="text-[10px] text-slate-500">Selecciona uno o más productos que se generan. <span className="text-primary font-bold">El primero seleccionado será el principal.</span></p>
+                            <ScrollArea className="h-48 rounded-md border border-slate-800 bg-slate-950 p-2">
+                                <div className="space-y-1">
+                                    {products.map((p) => {
+                                        const isSelected = selectedOutputProductIds.includes(p.id);
+                                        const isMain = selectedOutputProductIds[0] === p.id;
+
+                                        return (
+                                            <div
+                                                key={`out-${p.id}`}
+                                                onClick={() => { toggleOutputProduct(p.id); }}
+                                                className={cn(
+                                                    "p-2 rounded cursor-pointer flex justify-between items-center text-xs transition-colors group",
+                                                    isSelected
+                                                        ? "bg-primary/20 text-primary border border-primary/30"
+                                                        : "text-slate-400 hover:bg-slate-900 border border-transparent"
+                                                )}
+                                            >
+                                                <div className="flex flex-col">
+                                                    <span className="font-semibold">{p.name}</span>
+                                                    <span className="text-[9px] opacity-70">Unidad: {p.unit}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    {isMain && <span className="text-[8px] bg-primary text-white px-1 rounded uppercase font-bold">Principal</span>}
+                                                    {isSelected && <Check className="w-3 h-3" />}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </ScrollArea>
+                        </div>
+
+                        <div className="pt-4 border-t border-slate-800 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <label className="text-xs font-bold text-slate-400 uppercase">Configuración de Destajo</label>
+                                    <p className="text-[10px] text-slate-500">Habilitar pago automático por producción reportada.</p>
+                                </div>
+                                <div
+                                    className={cn("w-10 h-5 rounded-full cursor-pointer transition-colors relative", pieceworkConfig.enabled ? "bg-primary" : "bg-slate-800")}
+                                    onClick={() => setPieceworkConfig(prev => ({ ...prev, enabled: !prev.enabled }))}
+                                >
+                                    <div className={cn("absolute top-1 w-3 h-3 bg-white rounded-full transition-all", pieceworkConfig.enabled ? "left-6" : "left-1")} />
+                                </div>
+                            </div>
+
+                            {pieceworkConfig.enabled && (
+                                <div className="p-3 bg-slate-950 rounded-lg border border-slate-800 grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-bold text-slate-500 uppercase">Tarifa ($)</label>
+                                        <Input
+                                            type="number"
+                                            value={pieceworkConfig.rate || ''}
+                                            onChange={e => setPieceworkConfig(prev => ({ ...prev, rate: parseFloat(e.target.value) }))}
+                                            className="h-8 text-xs bg-slate-900 border-slate-700"
+                                            placeholder="0.00"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-bold text-slate-500 uppercase">Unidad de Pago</label>
+                                        <select
+                                            className="w-full h-8 text-xs bg-slate-900 border border-slate-700 rounded px-2 text-white"
+                                            value={pieceworkConfig.unit}
+                                            onChange={e => setPieceworkConfig(prev => ({ ...prev, unit: e.target.value }))}
+                                        >
+                                            <option value="pza">Por Pieza</option>
+                                            <option value="kg">Por Kilo</option>
+                                            <option value="100u">Por Ciento (100)</option>
+                                            <option value="1000u">Por Millar (1000)</option>
+                                        </select>
+                                    </div>
+                                    <div className="col-span-2 space-y-2">
+                                        <label className="text-[10px] font-bold text-slate-500 uppercase">Base de Cálculo</label>
+                                        <div className="flex gap-2">
+                                            <div
+                                                onClick={() => setPieceworkConfig(prev => ({ ...prev, basis: 'input' }))}
+                                                className={cn(
+                                                    "flex-1 p-2 rounded border text-xs cursor-pointer text-center transition-all",
+                                                    pieceworkConfig.basis === 'input' ? "bg-blue-500/20 border-blue-500 text-blue-400" : "bg-slate-900 border-slate-800 text-slate-400"
+                                                )}
+                                            >
+                                                Input (Mat. Prima Consumida)
+                                            </div>
+                                            <div
+                                                onClick={() => setPieceworkConfig(prev => ({ ...prev, basis: 'output' }))}
+                                                className={cn(
+                                                    "flex-1 p-2 rounded border text-xs cursor-pointer text-center transition-all",
+                                                    pieceworkConfig.basis === 'output' ? "bg-emerald-500/20 border-emerald-500 text-emerald-400" : "bg-slate-900 border-slate-800 text-slate-400"
+                                                )}
+                                            >
+                                                Output (Producto Generado)
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
                     </div>
                 </DialogContent>
             </Dialog>
