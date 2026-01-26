@@ -39,7 +39,14 @@ async function buildAll() {
     external: externals,
     logLevel: "info",
     banner: {
-      js: `import { createRequire } from 'module';const require = createRequire(import.meta.url);`,
+      js: `
+import { createRequire } from 'module';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+const require = createRequire(import.meta.url);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+`.trim(),
     },
   });
 }
