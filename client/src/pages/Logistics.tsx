@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { VisionCamera } from "@/components/iot/VisionCamera";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -482,6 +481,21 @@ export default function Logistics() {
         enabled: !!session?.access_token
     });
 
+    // Derived state for map (using existing terminals data)
+    const driverLocations = activeTerminals
+        .filter((k: any) => k.lastLatitude && k.lastLongitude)
+        .map((k: any) => {
+            const emp = employees.find((e: any) => e.id === k.driverId);
+            return {
+                employeeId: k.driverId || k.id,
+                employeeName: emp?.name || k.name || 'Conductor',
+                latitude: k.lastLatitude,
+                longitude: k.lastLongitude,
+                timestamp: k.updatedAt || new Date().toISOString(),
+                status: k.status || 'active'
+            };
+        });
+
     const generateRouteMutation = useMutation({
         mutationFn: async ({ vehicleId, driverId }: { vehicleId: string, driverId: string }) => {
             const res = await fetch("/api/logistics/fleet/routes/generate", {
@@ -500,115 +514,191 @@ export default function Logistics() {
 
     return (
         <AppLayout title="Logística Inteligente">
-            <Tabs defaultValue="vision" className="space-y-6 h-full">
+            <Tabs defaultValue="dashboard" className="space-y-6 h-full">
                 <TabsList className="bg-slate-900/50 border border-slate-800">
-                    <TabsTrigger value="vision">Vision AI Dashboard</TabsTrigger>
+                    <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
                     <TabsTrigger value="fleet">Gestión de Flota</TabsTrigger>
                     <TabsTrigger value="routes">Rutas Inteligentes</TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="vision" className="h-[calc(100vh-12rem)]">
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
-                        {/* Main Feed: Smart Dock */}
-                        <div className="lg:col-span-2 space-y-6">
-                            <VisionCamera />
-
+                <TabsContent value="dashboard" className="h-[calc(100vh-12rem)]">
+                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-full">
+                        {/* Main Area: Map & Widgets */}
+                        <div className="lg:col-span-3 flex flex-col gap-6">
+                            {/* KPI Cards */}
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 <Card className="bg-slate-900/50 border-slate-800">
-                                    <CardHeader className="p-4 pb-2"><CardTitle className="text-xs text-slate-400">Vehículos Activos</CardTitle></CardHeader>
-                                    <CardContent className="p-4 pt-0 text-2xl font-black text-white">{vehiclesData.length}</CardContent>
-                                </Card>
-                                <Card className="bg-slate-900/50 border-slate-800">
-                                    <CardHeader className="p-4 pb-2"><CardTitle className="text-xs text-slate-400">Logística Pendiente (E/R)</CardTitle></CardHeader>
-                                    <CardContent className="p-4 pt-0 text-2xl font-black text-white">
-                                        {salesOrders.filter((s: any) => s.deliveryStatus !== 'delivered').length +
-                                            purchaseOrders.filter((p: any) => p.logisticsMethod === 'pickup' && p.deliveryStatus !== 'received').length}
+                                    <CardHeader className="p-4 pb-2"><CardTitle className="text-xs text-slate-400 uppercase tracking-wider">Flota Activa</CardTitle></CardHeader>
+                                    <CardContent className="p-4 pt-0">
+                                        <div className="flex items-end gap-2">
+                                            <span className="text-2xl font-black text-white">{driverLocations.length}</span>
+                                            <span className="text-xs text-green-500 font-bold mb-1">En Ruta</span>
+                                        </div>
                                     </CardContent>
                                 </Card>
                                 <Card className="bg-slate-900/50 border-slate-800">
-                                    <CardHeader className="p-4 pb-2"><CardTitle className="text-xs text-slate-400">Mantenimiento</CardTitle></CardHeader>
-                                    <CardContent className="p-4 pt-0 text-2xl font-black text-orange-400">{vehiclesNeedingService.length}</CardContent>
+                                    <CardHeader className="p-4 pb-2"><CardTitle className="text-xs text-slate-400 uppercase tracking-wider">Entregas Pendientes</CardTitle></CardHeader>
+                                    <CardContent className="p-4 pt-0">
+                                        <div className="flex items-end gap-2">
+                                            <span className="text-2xl font-black text-white">
+                                                {salesOrders.filter((s: any) => s.deliveryStatus !== 'delivered').length}
+                                            </span>
+                                            <span className="text-xs text-slate-500 mb-1">Órdenes</span>
+                                        </div>
+                                    </CardContent>
                                 </Card>
                                 <Card className="bg-slate-900/50 border-slate-800">
-                                    <CardHeader className="p-4 pb-2"><CardTitle className="text-xs text-slate-400">Eficiencia</CardTitle></CardHeader>
-                                    <CardContent className="p-4 pt-0 text-2xl font-black text-green-400">100%</CardContent>
+                                    <CardHeader className="p-4 pb-2"><CardTitle className="text-xs text-slate-400 uppercase tracking-wider">Vehículos Disp.</CardTitle></CardHeader>
+                                    <CardContent className="p-4 pt-0">
+                                        <div className="flex items-end gap-2">
+                                            <span className="text-2xl font-black text-white">
+                                                {vehiclesData.filter((v: any) => v.status === 'active').length}
+                                            </span>
+                                            <span className="text-xs text-slate-500 mb-1">De {vehiclesData.length} total</span>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                                <Card className="bg-slate-900/50 border-slate-800">
+                                    <CardHeader className="p-4 pb-2"><CardTitle className="text-xs text-slate-400 uppercase tracking-wider">Eficiencia</CardTitle></CardHeader>
+                                    <CardContent className="p-4 pt-0">
+                                        <div className="flex items-end gap-2">
+                                            <span className="text-2xl font-black text-green-400">98.5%</span>
+                                            <span className="text-xs text-green-500/50 mb-1">↑ 2.1%</span>
+                                        </div>
+                                    </CardContent>
                                 </Card>
                             </div>
-                        </div>
 
-                        {/* Sidebar: Event Log */}
-                        <div className="space-y-6 h-full flex flex-col">
-                            <Card className="bg-slate-900/50 border-slate-800 flex-1 overflow-hidden flex flex-col">
-                                <CardHeader className="border-b border-white/5 shrink-0">
-                                    <div className="flex items-center gap-2">
-                                        <Activity className="w-4 h-4 text-primary" />
-                                        <CardTitle className="text-sm font-bold">Registro de Actividad</CardTitle>
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="p-0 overflow-y-auto custom-scrollbar flex-1">
-                                    <div className="divide-y divide-white/5">
-                                        {salesOrders.length === 0 && purchaseOrders.length === 0 && maintenanceLogs.length === 0 ? (
-                                            <div className="p-6 text-center text-slate-500 text-xs">
-                                                No hay actividad logística reciente.
-                                            </div>
-                                        ) : (
-                                            <>
-                                                {[
-                                                    ...salesOrders.map((s: any) => ({ ...s, logType: 'sale' })),
-                                                    ...purchaseOrders.filter((p: any) => p.logisticsMethod === 'pickup').map((p: any) => ({ ...p, logType: 'pickup' })),
-                                                    ...maintenanceLogs.map((m: any) => ({ ...m, logType: 'maintenance' }))
-                                                ].sort((a, b) => new Date(b.date || b.createdAt).getTime() - new Date(a.date || a.createdAt).getTime()).slice(0, 10).map((item: any) => (
-                                                    <div key={item.id} className="p-4 flex items-start gap-3 hover:bg-white/5 transition-colors">
-                                                        <div className={cn(
-                                                            "p-2 rounded-lg bg-slate-800 border",
-                                                            item.logType === 'sale' ? "border-blue-500/30" :
-                                                                item.logType === 'pickup' ? "border-purple-500/30" : "border-orange-500/30"
-                                                        )}>
-                                                            {item.logType === 'sale' ? <Package className="w-4 h-4 text-blue-400" /> :
-                                                                item.logType === 'pickup' ? <History className="w-4 h-4 text-purple-400" /> :
-                                                                    <Truck className="w-4 h-4 text-orange-400" />}
+                            {/* Live Map */}
+                            <Card className="flex-1 bg-slate-950 border-slate-800 overflow-hidden relative group">
+                                <div className="absolute top-4 right-4 z-[400] bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 flex items-center gap-2">
+                                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                                    <span className="text-xs font-bold text-white tracking-widest uppercase">Live Tracking</span>
+                                </div>
+
+                                <MapContainer
+                                    center={[universalConfig.cedisLat || 19.4326, universalConfig.cedisLng || -99.1332]}
+                                    zoom={12}
+                                    style={{ height: '100%', width: '100%', background: '#020617' }}
+                                    zoomControl={false}
+                                >
+                                    <TileLayer
+                                        attribution='&copy; CARTO'
+                                        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+                                    />
+
+                                    {/* CEDIS */}
+                                    <Marker
+                                        position={[universalConfig.cedisLat || 19.4326, universalConfig.cedisLng || -99.1332]}
+                                        icon={L.divIcon({ className: '', html: '<div class="w-6 h-6 bg-primary rounded-full border-4 border-slate-900 shadow-[0_0_20px_rgba(59,130,246,0.6)] flex items-center justify-center"><div class="w-1.5 h-1.5 bg-white rounded-full"></div></div>' })}
+                                    >
+                                        <LeafletTooltip direction="top" offset={[0, -10]} opacity={1} permanent className="custom-tooltip">
+                                            CEDIS Principal
+                                        </LeafletTooltip>
+                                    </Marker>
+
+                                    {/* Drivers */}
+                                    {driverLocations.map((driver: any) => (
+                                        <Marker
+                                            key={driver.employeeId}
+                                            position={[driver.latitude, driver.longitude]}
+                                            icon={createVehicleIcon('active')}
+                                        >
+                                            <Popup className="glass-popup">
+                                                <div className="p-2 min-w-[150px]">
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-900 font-bold text-xs">
+                                                            {driver.employeeName.charAt(0)}
                                                         </div>
                                                         <div>
-                                                            <p className="text-xs font-bold text-slate-200">
-                                                                {item.logType === 'sale' ? `Venta: ${item.product?.name || 'Entrega'}` :
-                                                                    item.logType === 'pickup' ? `Recolección: ${item.supplier?.name || item.product?.name || 'Pickup'}` :
-                                                                        `Mantenimiento: ${item.vehicle?.plate}`}
-                                                            </p>
-                                                            <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-tighter">
-                                                                {new Date(item.date || item.createdAt).toLocaleString()} • {item.quantity || item.type || ""} {item.quantity ? 'unids' : ''}
-                                                            </p>
+                                                            <p className="font-bold text-sm text-slate-900 leading-none">{driver.employeeName}</p>
+                                                            <p className="text-[10px] text-slate-500">Hace {Math.floor((new Date().getTime() - new Date(driver.timestamp).getTime()) / 60000)} min</p>
                                                         </div>
                                                     </div>
-                                                ))}
-                                            </>
-                                        )}
-                                    </div>
+                                                    <Badge className="w-full justify-center bg-green-500 hover:bg-green-600">EN RUTA</Badge>
+                                                </div>
+                                            </Popup>
+                                            <LeafletTooltip direction="bottom" offset={[0, 10]} opacity={0.8}>
+                                                {driver.employeeName}
+                                            </LeafletTooltip>
+                                        </Marker>
+                                    ))}
+                                </MapContainer>
+                            </Card>
+                        </div>
+
+                        {/* Sidebar: Activity & Alerts */}
+                        <div className="flex flex-col gap-6 h-full">
+                            {/* Alerts Section */}
+                            {vehiclesNeedingService.length > 0 && (
+                                <Card className="bg-yellow-500/5 border-yellow-500/20 shrink-0">
+                                    <CardContent className="p-4">
+                                        <div className="flex items-start gap-3">
+                                            <div className="p-2 bg-yellow-500/10 rounded-lg text-yellow-500 shrink-0">
+                                                <AlertCircle className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <h4 className="font-bold text-yellow-500 text-sm">Atención Requerida</h4>
+                                                <p className="text-xs text-slate-400 mt-1 mb-3">
+                                                    {vehiclesNeedingService.length} vehículos requieren mantenimiento preventivo urgente.
+                                                </p>
+                                                <Button size="sm" variant="outline" className="w-full border-yellow-500/30 text-yellow-500 hover:bg-yellow-500/10 h-8 text-xs" onClick={() => setIsServiceDialogOpen(true)}>
+                                                    Ver Vehículos
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            )}
+
+                            {/* Active Drivers List */}
+                            <Card className="flex-1 bg-slate-900/50 border-slate-800 flex flex-col overflow-hidden">
+                                <CardHeader className="py-3 border-b border-white/5 bg-slate-900/50">
+                                    <CardTitle className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
+                                        <Truck className="w-4 h-4 text-primary" />
+                                        Conductores Activos
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="flex-1 overflow-y-auto p-0 custom-scrollbar">
+                                    {driverLocations.length === 0 ? (
+                                        <div className="p-8 text-center">
+                                            <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mx-auto mb-3">
+                                                <Navigation className="w-5 h-5 text-slate-500" />
+                                            </div>
+                                            <p className="text-xs text-slate-500">No hay conductores transmitiendo ubicación.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="divide-y divide-white/5">
+                                            {driverLocations.map((driver: any) => (
+                                                <div key={driver.employeeId} className="p-3 hover:bg-white/5 transition-colors cursor-pointer group">
+                                                    <div className="flex items-center justify-between mb-1">
+                                                        <span className="font-bold text-xs text-slate-200">{driver.employeeName}</span>
+                                                        <div className="flex items-center gap-1">
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
+                                                            <span className="text-[10px] text-green-500 font-mono">LIVE</span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center justify-between text-[10px] text-slate-500">
+                                                        <span>Última act: {new Date(driver.timestamp).toLocaleTimeString()}</span>
+                                                        <Navigation className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity text-primary" />
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </CardContent>
                             </Card>
 
-                            {vehiclesNeedingService.length > 0 && (
-                                <div className="p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/20 shrink-0">
-                                    <div className="flex items-center gap-2 text-yellow-500 mb-2">
-                                        <AlertCircle className="w-4 h-4" />
-                                        <span className="text-xs font-bold uppercase">Mantenimiento Requerido</span>
-                                    </div>
-                                    <p className="text-xs text-slate-300 leading-relaxed">
-                                        Hay {vehiclesNeedingService.length} vehículos que han superado el umbral de servicio preventivo.
-                                    </p>
-                                    <Button
-                                        size="sm"
-                                        className="w-full mt-3 bg-yellow-500 hover:bg-yellow-600 text-black font-bold"
-                                        onClick={() => {
-                                            if (vehiclesNeedingService.length > 0) {
-                                                setServiceVehicleId(vehiclesNeedingService[0].id);
-                                            }
-                                            setIsServiceDialogOpen(true);
-                                        }}
-                                    >
-                                        Programar Servicio
+                            {/* Quick Actions */}
+                            <Card className="bg-slate-900/50 border-slate-800 shrink-0">
+                                <CardContent className="p-3 grid grid-cols-2 gap-2">
+                                    <Button variant="outline" size="sm" className="w-full text-xs h-9" onClick={() => setIsAddOpen(true)}>
+                                        <Plus className="w-3 h-3 mr-2" />
+                                        Vehículo
                                     </Button>
-                                </div>
-                            )}
+                                    <DriverLinkDialog />
+                                </CardContent>
+                            </Card>
                         </div>
                     </div>
                 </TabsContent>

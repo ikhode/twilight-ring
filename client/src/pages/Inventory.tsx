@@ -904,6 +904,11 @@ function MovementHistoryDialog({ isOpen, onOpenChange, product }: { isOpen: bool
                       <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1 font-mono">
                         <HistoryIcon className="w-3 h-3" />
                         {new Date(m.date || m.createdAt).toLocaleString()}
+                        {m.userName && (
+                          <span className="ml-2 flex items-center gap-1 text-primary/80">
+                            • Por: {m.userName}
+                          </span>
+                        )}
                       </p>
                     </div>
                   </div>

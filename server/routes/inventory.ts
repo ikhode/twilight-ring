@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "../storage";
-import { products, inventoryMovements, insertProductSchema } from "../../shared/schema";
+import { products, inventoryMovements, insertProductSchema, users } from "../../shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { getOrgIdFromRequest } from "../auth_util";
 
@@ -153,9 +153,13 @@ router.patch("/products/:id", async (req, res): Promise<void> => {
             if (diff !== 0) {
                 updates.stock = stock;
 
+                // Get userId from session for full traceability
+                const userId = req.user?.id; // Assumes auth middleware sets req.user
+
                 await db.insert(inventoryMovements).values({
                     organizationId: orgId,
                     productId: productId,
+                    userId: userId || null, // Who made this change
                     quantity: diff,
                     type: "adjustment",
                     beforeStock: product.stock,
@@ -198,15 +202,28 @@ router.get("/products/:id/history", async (req, res): Promise<void> => {
 
         if (!product) return res.status(404).json({ message: "Product not found" });
 
-        // Fetch movements with all traceability information
-        const movements = await db.query.inventoryMovements.findMany({
-            where: and(
+        // Fetch movements with user information for full traceability
+        const movements = await db
+            .select({
+                id: inventoryMovements.id,
+                quantity: inventoryMovements.quantity,
+                type: inventoryMovements.type,
+                referenceId: inventoryMovements.referenceId,
+                beforeStock: inventoryMovements.beforeStock,
+                afterStock: inventoryMovements.afterStock,
+                date: inventoryMovements.date,
+                notes: inventoryMovements.notes,
+                userId: inventoryMovements.userId,
+                userName: sql<string>`COALESCE(users.email, 'Sistema')`.as('user_name')
+            })
+            .from(inventoryMovements)
+            .leftJoin(sql`users`, eq(inventoryMovements.userId, sql`users.id`))
+            .where(and(
                 eq(inventoryMovements.organizationId, orgId),
                 eq(inventoryMovements.productId, productId)
-            ),
-            orderBy: [desc(inventoryMovements.date)],
-            limit: 50 // Last 50 movements
-        });
+            ))
+            .orderBy(desc(inventoryMovements.date))
+            .limit(50);
 
         res.json(movements);
     } catch (error) {

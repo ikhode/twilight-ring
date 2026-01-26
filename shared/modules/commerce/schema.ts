@@ -52,6 +52,7 @@ export const inventoryMovements = pgTable("inventory_movements", {
     id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
     organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
     productId: varchar("product_id").notNull().references(() => products.id),
+    userId: varchar("user_id").references(() => users.id), // Who performed this movement
     quantity: integer("quantity").notNull(), // positive = in, negative = out
     type: text("type").notNull(), // "sale", "purchase", "production", "adjustment"
     referenceId: varchar("reference_id"), // Can be saleId, purchaseId, etc.
