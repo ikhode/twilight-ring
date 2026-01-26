@@ -44,14 +44,37 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
-            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
-              return 'react-vendor';
+            // Core UI and Framework
+            if (id.includes('react') || id.includes('react-dom') || id.includes('wouter')) {
+              return 'react-core';
             }
-            if (id.includes('@tanstack') || id.includes('zod')) {
-              return 'data-vendor';
+            // Heavy AI/ML Libraries
+            if (id.includes('@tensorflow') || id.includes('face-api') || id.includes('@vladmandic')) {
+              return 'ai-vendor';
             }
-            if (id.includes('lucide-react') || id.includes('framer-motion') || id.includes('recharts') || id.includes('@radix-ui')) {
+            // Visualization and Charts
+            if (id.includes('recharts') || id.includes('d3')) {
+              return 'charts-vendor';
+            }
+            // Maps
+            if (id.includes('leaflet') || id.includes('react-leaflet')) {
+              return 'maps-vendor';
+            }
+            // Onboarding
+            if (id.includes('intro.js') || id.includes('driver.js')) {
+              return 'onboarding-vendor';
+            }
+            // UI Component Libraries
+            if (id.includes('@radix-ui') || id.includes('lucide-react') || id.includes('framer-motion') || id.includes('motion')) {
               return 'ui-vendor';
+            }
+            // Data and Utilities
+            if (id.includes('@tanstack') || id.includes('zod') || id.includes('date-fns')) {
+              return 'utils-vendor';
+            }
+            // Payments
+            if (id.includes('stripe')) {
+              return 'payments-vendor';
             }
             return 'vendor';
           }
