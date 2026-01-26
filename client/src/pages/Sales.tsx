@@ -413,6 +413,14 @@ function POSView() {
     table: 'products',
     queryKey: ["/api/inventory/products"],
   });
+  useSupabaseRealtime({
+    table: 'sales',
+    queryKey: ["/api/sales/orders", "/api/sales/stats", "/api/finance/summary"],
+  });
+  useSupabaseRealtime({
+    table: 'customers',
+    queryKey: ["/api/crm/customers"],
+  });
 
   const products = useMemo(() => {
     const list = Array.isArray(dbProducts) ? dbProducts : [];

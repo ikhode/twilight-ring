@@ -345,7 +345,7 @@ router.get("/advanced/:type", async (req, res) => {
         if (type === 'income_statement' || type === 'balance_sheet' || type === 'cash_flow') {
             // Calculate totals
             const revenue = allSales.reduce((acc, s) => acc + s.totalPrice, 0) +
-                allPayments.filter(p => p.type === 'income').reduce((acc, p) => acc + p.amount, 0);
+                allPayments.filter(p => p.type === 'income' && !p.referenceId?.toUpperCase().includes('SALE')).reduce((acc, p) => acc + p.amount, 0);
             const cogs = allExpenses.filter(e => e.category === 'inventory').reduce((acc, e) => acc + e.amount, 0); // Estimate
             const opex = allExpenses.filter(e => e.category !== 'inventory').reduce((acc, e) => acc + e.amount, 0);
 
