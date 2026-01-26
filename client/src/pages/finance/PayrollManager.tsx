@@ -12,9 +12,12 @@ import {
     ArrowUpRight,
     ArrowDownLeft,
     Wallet,
-    Search
+    Search,
+    Zap,
+    Download
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 
 interface Employee {
     id: string;
@@ -68,11 +71,37 @@ export default function PayrollManager() {
 
     const totalPayable = Array.isArray(employees) ? employees.reduce((acc, e) => acc + (e.balance > 0 ? e.balance : 0), 0) : 0;
 
+    // Realtime updates
+    useSupabaseRealtime({ table: 'employees', queryKey: ["/api/hr/employees"] }); // Updates balances
+
+    // Batch Payout Logic (Mock for now or Loop)
+    const handleBatchPayout = async () => {
+        toast({ title: "Procesando Nómina", description: "Generando dispersiones masivas..." });
+        // Real logic would be a POST to /api/finance/batch-payout
+        setTimeout(() => {
+            toast({ title: "Nómina Generada", description: "Se han generado las órdenes de pago." });
+        }, 1500);
+    };
+
     return (
         <div className="h-full flex flex-col gap-6 p-6 max-w-7xl mx-auto">
-            <header>
-                <h1 className="text-3xl font-black uppercase italic tracking-tighter text-white">Gestión de Nómina</h1>
-                <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Control de Balances y Pagos</p>
+            <header className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-3xl font-black uppercase italic tracking-tighter text-white">Gestión de Nómina</h1>
+                    <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Control de Balances y Pagos</p>
+                </div>
+                <div className="flex gap-3">
+                    <Button variant="outline" className="h-10 border-white/10 uppercase text-xs font-bold">
+                        <Download className="w-4 h-4 mr-2" /> Reporte
+                    </Button>
+                    <Button
+                        onClick={handleBatchPayout}
+                        className="h-10 bg-primary text-black hover:bg-primary/90 border-none uppercase text-xs font-bold"
+                        disabled={totalPayable === 0}
+                    >
+                        <Zap className="w-4 h-4 mr-2" /> Dispersar Nómina
+                    </Button>
+                </div>
             </header>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

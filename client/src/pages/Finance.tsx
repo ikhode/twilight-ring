@@ -54,11 +54,13 @@ import { cn } from "@/lib/utils";
 import { CashControl } from "@/components/finance/CashControl";
 import { Link } from "wouter";
 import { useConfiguration } from "@/context/ConfigurationContext";
+import { ReportViewerDialog } from "@/components/finance/ReportViewerDialog";
 
 export default function Finance() {
   const { session } = useAuth();
   const { toast } = useToast();
   const { enabledModules } = useConfiguration();
+  const [activeReport, setActiveReport] = useState<any>(null);
   const { data: summary, isLoading } = useQuery({
     queryKey: ["/api/finance/summary"],
     queryFn: async () => {
@@ -440,31 +442,19 @@ export default function Finance() {
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {[
-                    { name: "Estado de Resultados", icon: TrendingUp },
-                    { name: "Balance General", icon: PiggyBank },
-                    { name: "Flujo de Efectivo", icon: Wallet },
-                    { name: "Cuentas por Cobrar", icon: ArrowUpRight },
-                    { name: "Cuentas por Pagar", icon: ArrowDownRight },
-                    { name: "Reporte de Nómina", icon: Receipt },
-                  ].map((report, index) => (
+                    { id: "income_statement", name: "Estado de Resultados", icon: TrendingUp },
+                    { id: "balance_sheet", name: "Balance General", icon: PiggyBank },
+                    { id: "cash_flow", name: "Flujo de Efectivo", icon: Wallet },
+                    { id: "receivables", name: "Cuentas por Cobrar", icon: ArrowUpRight },
+                    { id: "payables", name: "Cuentas por Pagar", icon: ArrowDownRight },
+                    { id: "payroll", name: "Reporte de Nómina", icon: Receipt },
+                  ].map((report) => (
                     <Button
-                      key={index}
+                      key={report.id}
                       variant="outline"
                       className="h-24 flex-col gap-2 hover:border-primary/50 transition-colors"
-                      data-testid={`button-report-${index}`}
-                      onClick={() => {
-                        toast({
-                          title: `Generando ${report.name}`,
-                          description: "El reporte se está procesando con Inteligencia Cognitiva...",
-                        });
-                        // Simulate generation delay
-                        setTimeout(() => {
-                          toast({
-                            title: "Reporte Listo",
-                            description: `Se ha generado el ${report.name} exitosamente.`,
-                          });
-                        }, 1500);
-                      }}
+                      data-testid={`button-report-${report.id}`}
+                      onClick={() => setActiveReport(report.id as any)}
                     >
                       <report.icon className="w-6 h-6 text-primary" />
                       <span>{report.name}</span>
@@ -475,6 +465,12 @@ export default function Finance() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        <ReportViewerDialog
+          reportType={activeReport}
+          open={!!activeReport}
+          onOpenChange={(open) => !open && setActiveReport(null)}
+        />
       </div>
     </AppLayout>
   );

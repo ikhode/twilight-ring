@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { useLocation } from "wouter";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -149,6 +150,7 @@ interface CartItem {
   name: string;
   price: number;
   quantity: number;
+  maxStock: number;
 }
 
 // --- Main Components ---
@@ -276,6 +278,7 @@ function CustomerCombobox({
 
 function POSView() {
   const { session } = useAuth();
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { enabledModules, industry } = useConfiguration();
   const hasInventory = enabledModules.includes("inventory");
@@ -430,22 +433,38 @@ function POSView() {
 
   // Cart Functions
   const addToCart = (product: any) => {
+    if (hasInventory && product.stock <= 0) return;
+
     setCart((prev) => {
       const existing = prev.find((item) => item.id === product.id);
+      const maxStock = hasInventory ? product.stock : 999999;
+
       if (existing) {
+        if (existing.quantity >= maxStock) {
+          toast({ title: "Límite de Stock", description: "No hay más unidades disponibles.", variant: "destructive" });
+          return prev;
+        }
         return prev.map((item) =>
           item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
         );
       }
-      return [...prev, { id: product.id, name: product.name, price: product.price, quantity: 1 }];
+      return [...prev, { id: product.id, name: product.name, price: product.price, quantity: 1, maxStock }];
     });
   };
 
   const updateQuantity = (id: number, delta: number) => {
     setCart((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, quantity: Math.max(0, item.quantity + delta) } : item
-      ).filter((item) => item.quantity > 0)
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        const newQty = item.quantity + delta;
+
+        if (delta > 0 && newQty > item.maxStock) {
+          toast({ title: "Límite de Stock", description: "No puedes agregar más de lo disponible.", variant: "destructive" });
+          return item;
+        }
+
+        return { ...item, quantity: Math.max(0, newQty) };
+      }).filter((item) => item.quantity > 0)
     );
   };
 
@@ -523,6 +542,21 @@ function POSView() {
                 </button>
               ))}
             </div>
+            {filteredProducts.length === 0 && (
+              <div className="flex flex-col items-center justify-center p-12 bg-muted/20 rounded-xl border border-dashed border-border mt-6 text-center">
+                <div className="w-16 h-16 bg-muted/50 rounded-full flex items-center justify-center mb-4">
+                  <Package className="w-8 h-8 text-muted-foreground" />
+                </div>
+                <h3 className="text-lg font-bold mb-2">No se encontraron productos</h3>
+                <p className="text-muted-foreground max-w-sm mb-6">
+                  {searchQuery ? "Intenta con otros términos de búsqueda." : "El inventario está vacío. Comienza creando tus productos."}
+                </p>
+                <Button onClick={() => setLocation('/inventory')}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Crear Nuevo Producto
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

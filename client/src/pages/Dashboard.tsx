@@ -35,6 +35,7 @@ import { ScenarioSimulator } from "@/components/dashboard/ScenarioSimulator";
 import { TrustTimeline } from "@/components/dashboard/TrustTimeline";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 
+import { DailyBriefing } from "@/components/cognitive/DailyBriefing";
 import { useConfiguration } from "@/context/ConfigurationContext";
 
 export default function Dashboard() {
@@ -185,6 +186,10 @@ export default function Dashboard() {
       subtitle="Ecosistema de Inteligencia Empresarial Adaptativo"
     >
       <div className="space-y-8 pb-12 text-slate-200">
+
+        {/* Daily Briefing / Audit Log Review */}
+        <DailyBriefing />
+
         {/* Role Selector */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">

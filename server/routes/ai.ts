@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../storage";
 import { aiInsights, aiConfigurations } from "../../shared/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { getOrgIdFromRequest } from "../auth_util";
 
 /**
@@ -43,26 +43,50 @@ export function registerAIRoutes(app: Express) {
         }
     });
 
-    // Get Pending Insights (Notifications)
+    // Get Pending Insights (Notifications/Briefing)
     app.get("/api/ai/insights/pending", async (req: Request, res: Response) => {
         try {
             const organizationId = await getOrgIdFromRequest(req);
             if (!organizationId) return res.status(401).json({ message: "Unauthorized" });
 
-            // In a real system we would have an 'acknowledged' field.
-            // For now, we fetch 'recent' items that are critical or warning/suggestions
             const insights = await db.query.aiInsights.findMany({
                 where: and(
                     eq(aiInsights.organizationId, organizationId),
-                    // Logic for "Unread": For now just last 5 items to simulate notification stream
+                    eq(aiInsights.acknowledged, false)
                 ),
                 orderBy: [desc(aiInsights.createdAt)],
-                limit: 5,
+                limit: 20,
             });
 
             res.json(insights);
         } catch (error) {
             console.error("Get pending insights error:", error);
+            res.status(500).json({ message: "Internal server error" });
+        }
+    });
+
+    // Acknowledge/Dismiss Insight
+    app.patch("/api/ai/insights/:id", async (req: Request, res: Response) => {
+        try {
+            const organizationId = await getOrgIdFromRequest(req);
+            if (!organizationId) return res.status(401).json({ message: "Unauthorized" });
+
+            const { id } = req.params;
+            const { acknowledged, feedback } = req.body; // feedback can be 'agreed', 'disagreed'
+
+            await db.update(aiInsights)
+                .set({
+                    acknowledged: acknowledged,
+                    data: sql`jsonb_set(coalesce(data, '{}'), '{feedback}', ${JSON.stringify(feedback)})`
+                })
+                .where(and(
+                    eq(aiInsights.id, id),
+                    eq(aiInsights.organizationId, organizationId)
+                ));
+
+            res.json({ message: "Insight updated" });
+        } catch (error) {
+            console.error("Update insight error:", error);
             res.status(500).json({ message: "Internal server error" });
         }
     });
