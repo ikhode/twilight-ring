@@ -5,7 +5,7 @@ import {
     insertSaleSchema
 } from "../../shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
-import { getOrgIdFromRequest } from "../auth_util";
+import { getOrgIdFromRequest, getAuthenticatedUser } from "../auth_util";
 
 import { requireModule } from "../middleware/moduleGuard";
 
@@ -14,10 +14,11 @@ router.use(requireModule("/sales"));
 
 /**
  * Registra una venta, actualiza inventario, genera movimiento y registra el pago.
- * @route POST /api/sales
  */
-router.post("/", async (req, res): Promise<void> => {
+router.post("/", async (req, res) => {
     try {
+        const user = await getAuthenticatedUser(req);
+        if (!user) return res.status(401).json({ message: "Unauthorized" });
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
 
@@ -103,7 +104,8 @@ router.post("/", async (req, res): Promise<void> => {
                             type: 'in',
                             category: 'sales',
                             description: `Venta POS - Efectivo`,
-                            date: new Date()
+                            timestamp: new Date(),
+                            performedBy: user.id
                         });
                         await db.update(cashRegisters).set({ balance: sql`${cashRegisters.balance} + ${totalAmount}` }).where(eq(cashRegisters.id, register.id));
                     }
@@ -138,7 +140,7 @@ router.post("/", async (req, res): Promise<void> => {
  * Obtiene el historial de pedidos de venta.
  * @route GET /api/sales/orders
  */
-router.get("/orders", async (req, res): Promise<void> => {
+router.get("/orders", async (req, res) => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -161,7 +163,7 @@ router.get("/orders", async (req, res): Promise<void> => {
  * Obtiene estadísticas de ventas para el dashboard (Tendencias).
  * @route GET /api/sales/stats
  */
-router.get("/stats", async (req, res): Promise<void> => {
+router.get("/stats", async (req, res) => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -209,7 +211,7 @@ router.get("/stats", async (req, res): Promise<void> => {
         // Enrich with Product Names
         const topProductIds = Object.keys(productSales).sort((a, b) => productSales[b].revenue - productSales[a].revenue).slice(0, 5);
 
-        let topProducts = [];
+        let topProducts: { name: string; revenue: number; quantity: number }[] = [];
         if (topProductIds.length > 0) {
             const productsInfo = await db.select({ id: products.id, name: products.name })
                 .from(products)
@@ -240,8 +242,10 @@ router.get("/stats", async (req, res): Promise<void> => {
  * Registra el pago de una venta pendiente.
  * @route PATCH /api/sales/:id/pay
  */
-router.patch("/:id/pay", async (req, res): Promise<void> => {
+router.patch("/:id/pay", async (req, res) => {
     try {
+        const user = await getAuthenticatedUser(req);
+        if (!user) return res.status(401).json({ message: "Unauthorized" });
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
 
@@ -270,7 +274,8 @@ router.patch("/:id/pay", async (req, res): Promise<void> => {
                     type: 'in',
                     category: 'sales',
                     description: `Pago Venta #${sale.id.slice(0, 8)}`,
-                    date: new Date()
+                    timestamp: new Date(),
+                    performedBy: user.id
                 });
                 await db.update(cashRegisters).set({ balance: sql`${cashRegisters.balance} + ${sale.totalPrice}` }).where(eq(cashRegisters.id, register.id));
             }
@@ -297,7 +302,7 @@ router.patch("/:id/pay", async (req, res): Promise<void> => {
  * Actualiza el estado de entrega.
  * @route PATCH /api/sales/:id/delivery
  */
-router.patch("/:id/delivery", async (req, res): Promise<void> => {
+router.patch("/:id/delivery", async (req, res) => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         const { status } = req.body;

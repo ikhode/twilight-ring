@@ -15,7 +15,10 @@ const router = Router();
 router.get("/fleet/vehicles", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const fleet = await db.query.vehicles.findMany({
             where: eq(vehicles.organizationId, orgId),
@@ -35,11 +38,15 @@ router.get("/fleet/vehicles", async (req, res): Promise<void> => {
 router.post("/fleet/vehicles", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const parsed = insertVehicleSchema.safeParse({ ...req.body, organizationId: orgId });
         if (!parsed.success) {
-            return res.status(400).json({ message: "Invalid vehicle data", errors: parsed.error });
+            res.status(400).json({ message: "Invalid vehicle data", errors: parsed.error });
+            return;
         }
 
         const [vehicle] = await db.insert(vehicles).values(parsed.data).returning();
@@ -57,7 +64,10 @@ router.post("/fleet/vehicles/:id/maintenance", async (req, res): Promise<void> =
     try {
         const { id: vehicleId } = req.params;
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const data = req.body;
 
@@ -83,7 +93,8 @@ router.post("/fleet/vehicles/:id/maintenance", async (req, res): Promise<void> =
         });
 
         if (isDuplicate) {
-            return res.status(200).json(existing[0]); // Return existing to be idempotent
+            res.status(200).json(existing[0]); // Return existing to be idempotent
+            return;
         }
 
         // Update mileage if provided (and greater than current)
@@ -129,7 +140,10 @@ router.post("/fleet/vehicles/:id/maintenance", async (req, res): Promise<void> =
 router.get("/fleet/maintenance", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const result = await db.select().from(maintenanceLogs)
             .innerJoin(vehicles, eq(maintenanceLogs.vehicleId, vehicles.id))
@@ -151,7 +165,10 @@ router.get("/fleet/maintenance", async (req, res): Promise<void> => {
 router.get("/fleet/fuel", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const result = await db.select().from(fuelLogs)
             .innerJoin(vehicles, eq(fuelLogs.vehicleId, vehicles.id))
@@ -172,7 +189,10 @@ router.post("/fleet/vehicles/:id/fuel", async (req, res): Promise<void> => {
     try {
         const { id: vehicleId } = req.params;
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
         const data = req.body;
 
         const [vehicle] = await db.select().from(vehicles).where(and(eq(vehicles.id, vehicleId), eq(vehicles.organizationId, orgId))).limit(1);
@@ -192,7 +212,8 @@ router.post("/fleet/vehicles/:id/fuel", async (req, res): Promise<void> => {
         });
 
         if (isDuplicate) {
-            return res.status(200).json(existing[0]);
+            res.status(200).json(existing[0]);
+            return;
         }
 
         if (data.mileage > vehicle.currentMileage) {
@@ -231,7 +252,10 @@ router.post("/fleet/vehicles/:id/fuel", async (req, res): Promise<void> => {
 router.get("/fleet/routes/active", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const activeRoutes = await db.query.routes.findMany({
             where: and(eq(routes.organizationId, orgId), eq(routes.status, "active")),
@@ -259,7 +283,10 @@ router.get("/fleet/routes/active", async (req, res): Promise<void> => {
 router.post("/fleet/routes/generate", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const { vehicleId, driverId } = req.body;
 
@@ -278,7 +305,8 @@ router.post("/fleet/routes/generate", async (req, res): Promise<void> => {
         });
 
         if (pendingSales.length === 0 && pendingCollections.length === 0) {
-            return res.status(400).json({ message: "No tasks found for new route" });
+            res.status(400).json({ message: "No tasks found for new route" });
+            return;
         }
 
         // 3. Create Route
@@ -331,7 +359,10 @@ router.get("/fleet/routes/driver/:driverId", async (req, res): Promise<void> => 
     try {
         const { driverId } = req.params;
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const route = await db.query.routes.findFirst({
             where: and(eq(routes.driverId, driverId), eq(routes.status, "active")),
@@ -342,7 +373,8 @@ router.get("/fleet/routes/driver/:driverId", async (req, res): Promise<void> => 
         });
 
         if (!route) {
-            return res.status(404).json({ message: "No active route found" });
+            res.status(404).json({ message: "No active route found" });
+            return;
         }
 
         res.json(route);
@@ -360,7 +392,10 @@ router.post("/fleet/routes/stops/:id/complete", async (req, res): Promise<void> 
         const { id } = req.params;
         const { signature, lat, lng, isPaid, paymentAmount, paymentMethod } = req.body;
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const [stop] = await db.update(routeStops)
             .set({
@@ -376,7 +411,10 @@ router.post("/fleet/routes/stops/:id/complete", async (req, res): Promise<void> 
             .where(eq(routeStops.id, id))
             .returning();
 
-        if (!stop) return res.status(404).json({ message: "Stop not found" });
+        if (!stop) {
+            res.status(404).json({ message: "Stop not found" });
+            return;
+        }
 
         res.json(stop);
     } catch (error) {

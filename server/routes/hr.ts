@@ -22,7 +22,7 @@ const router = Router();
  * @param {import("express").Response} res - Respuesta de Express
  * @returns {Promise<void>}
  */
-router.get("/employees", async (req, res): Promise<void> => {
+router.get("/employees", async (req, res) => {
     const orgId = await getOrgIdFromRequest(req);
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
@@ -37,7 +37,7 @@ router.get("/employees", async (req, res): Promise<void> => {
  * @param {import("express").Response} res - Respuesta de Express
  * @returns {Promise<void>}
  */
-router.post("/employees", async (req, res): Promise<void> => {
+router.post("/employees", async (req, res) => {
     const orgId = await getOrgIdFromRequest(req);
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
@@ -51,7 +51,7 @@ router.post("/employees", async (req, res): Promise<void> => {
 /**
  * Obtiene un empleado individual por ID.
  */
-router.get("/employees/:id", async (req, res): Promise<void> => {
+router.get("/employees/:id", async (req, res) => {
     const orgId = await getOrgIdFromRequest(req);
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
@@ -68,7 +68,7 @@ router.get("/employees/:id", async (req, res): Promise<void> => {
 /**
  * Actualiza la información de un empleado.
  */
-router.patch("/employees/:id", async (req, res): Promise<void> => {
+router.patch("/employees/:id", async (req, res) => {
     const orgId = await getOrgIdFromRequest(req);
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
@@ -85,7 +85,7 @@ router.patch("/employees/:id", async (req, res): Promise<void> => {
 /**
  * Elimina un empleado.
  */
-router.delete("/employees/:id", async (req, res): Promise<void> => {
+router.delete("/employees/:id", async (req, res) => {
     const orgId = await getOrgIdFromRequest(req);
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
@@ -106,7 +106,7 @@ router.delete("/employees/:id", async (req, res): Promise<void> => {
  * @param {import("express").Response} res - Respuesta de Express
  * @returns {Promise<void>}
  */
-router.get("/payroll/advances", async (req, res): Promise<void> => {
+router.get("/payroll/advances", async (req, res) => {
     const orgId = await getOrgIdFromRequest(req);
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
@@ -121,7 +121,7 @@ router.get("/payroll/advances", async (req, res): Promise<void> => {
  * @param {import("express").Response} res - Respuesta de Express
  * @returns {Promise<void>}
  */
-router.post("/invite", async (req, res): Promise<void> => {
+router.post("/invite", async (req, res) => {
     const orgId = await getOrgIdFromRequest(req);
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
@@ -159,7 +159,7 @@ router.post("/invite", async (req, res): Promise<void> => {
         await db.insert(userOrganizations).values({
             userId: userId,
             organizationId: orgId,
-            role: role as "admin" | "member" | "owner", // Fixed 'any'
+            role: (role === "owner" ? "admin" : (role === "member" ? "user" : role)) as "admin" | "manager" | "user" | "viewer" | "cashier",
             xp: 0,
             level: 1
         });
@@ -193,7 +193,7 @@ router.post("/invite", async (req, res): Promise<void> => {
  */
 
 // Documents
-router.post("/employees/:id/documents", async (req, res): Promise<void> => {
+router.post("/employees/:id/documents", async (req, res) => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ error: "Unauthorized" });
@@ -216,7 +216,7 @@ router.post("/employees/:id/documents", async (req, res): Promise<void> => {
     }
 });
 
-router.get("/employees/:id/documents", async (req, res): Promise<void> => {
+router.get("/employees/:id/documents", async (req, res) => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ error: "Unauthorized" });
@@ -232,7 +232,7 @@ router.get("/employees/:id/documents", async (req, res): Promise<void> => {
 });
 
 // Performance Reviews
-router.post("/employees/:id/reviews", async (req, res): Promise<void> => {
+router.post("/employees/:id/reviews", async (req, res) => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ error: "Unauthorized" });
@@ -255,7 +255,7 @@ router.post("/employees/:id/reviews", async (req, res): Promise<void> => {
 });
 
 // Work History
-router.get("/employees/:id/history", async (req, res): Promise<void> => {
+router.get("/employees/:id/history", async (req, res) => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ error: "Unauthorized" });
@@ -272,7 +272,7 @@ router.get("/employees/:id/history", async (req, res): Promise<void> => {
 });
 
 // Org Chart
-router.get("/org-chart", async (req, res): Promise<void> => {
+router.get("/org-chart", async (req, res) => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ error: "Unauthorized" });

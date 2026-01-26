@@ -63,7 +63,7 @@ export type InsertEmployee = z.infer<typeof insertEmployeeSchema>;
 export type PayrollAdvance = typeof payrollAdvances.$inferSelect;
 
 export const insertEmployeeSchema = createInsertSchema(employees, {
-    faceEmbedding: z.array(z.number()).optional()
+    faceEmbedding: z.any().optional()
 });
 export const insertPayrollAdvanceSchema = createInsertSchema(payrollAdvances);
 

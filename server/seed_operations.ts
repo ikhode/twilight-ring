@@ -41,9 +41,10 @@ export async function seedOperations() {
         }).onConflictDoNothing().returning();
 
         if (!product) {
-            product = await db.query.products.findFirst({
+            const foundProduct = await db.query.products.findFirst({
                 where: eq(products.sku, "COCO-V-001")
             });
+            if (foundProduct) product = foundProduct;
         }
 
         // Seed Vehicles
@@ -59,13 +60,14 @@ export async function seedOperations() {
         // Seed Maintenance
         if (vehicle) {
             await db.insert(maintenanceLogs).values({
+                organizationId: orgId,
                 vehicleId: vehicle.id,
-                type: "Oil Change",
+                type: "preventive",
                 description: "Cambio de aceite y filtros preventivo",
                 mileageIn: 44500,
                 mileageOut: 44550,
                 cost: 2500,
-                partsUsed: [{ name: "Aceite Sintético", quantity: 1, cost: 1800 }] as any as any
+                partsUsed: [{ name: "Aceite Sintético", quantity: 1, cost: 1800 }]
             });
         }
 

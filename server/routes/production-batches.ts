@@ -24,14 +24,15 @@ router.get("/batches", async (req, res): Promise<void> => {
             id: products.id,
             name: products.name,
             sku: products.sku,
-            currentStock: products.currentStock,
+            currentStock: products.stock,
             unit: products.unit,
-            category: products.category
+            category: products.category,
+            organizationId: products.organizationId
         })
             .from(products)
             .where(and(
                 eq(products.organizationId, orgId),
-                gte(products.currentStock, 1) // Only products with stock
+                gte(products.stock, 1) // Only products with stock
             ))
             .limit(50);
 

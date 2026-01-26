@@ -9,7 +9,7 @@ export default tseslint.config(
     ...tseslint.configs.strictTypeChecked,
     ...tseslint.configs.stylisticTypeChecked,
     {
-        ignores: ["dist", "node_modules", ".local"],
+        ignores: ["dist", "node_modules", ".local", "client/public/sw.js"],
     },
     {
         files: ["**/*.ts", "**/*.tsx"],

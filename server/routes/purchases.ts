@@ -15,7 +15,10 @@ const router = Router();
 router.get("/", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const data = await db.query.purchases.findMany({
             where: eq(purchases.organizationId, orgId),
@@ -41,14 +44,19 @@ router.get("/", async (req, res): Promise<void> => {
 router.post("/", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const { supplierId, items, logisticsMethod, driverId, vehicleId, freightCost, paymentMethod, status } = req.body;
 
         if (!items || !Array.isArray(items)) {
-            return res.status(400).json({ message: "Items array required" });
+            res.status(400).json({ message: "Items array required" });
+            return;
         }
 
+        // ... rest of logic
         const stats = { success: 0, errors: 0 };
         const createdIds = [];
 
@@ -163,13 +171,11 @@ async function recordPurchasePayment(orgId: string, purchase: any) {
     // 2. Record Financial Expense
     await db.insert(expenses).values({
         organizationId: orgId,
-        type: "expense",
         amount: purchase.totalAmount,
         description: `Pago Compra: ${product?.name || 'Insumo'} (${purchase.quantity} u.)`,
         date: new Date(),
-        status: "completed",
         category: "Abastecimiento",
-        metadata: { purchaseId: purchase.id, supplierId: purchase.supplierId }
+        supplierId: purchase.supplierId
     });
 
     // 3. Update Purchase Status
@@ -184,28 +190,35 @@ async function recordPurchasePayment(orgId: string, purchase: any) {
 async function recordFreightExpense(orgId: string, purchase: any, amount: number) {
     await db.insert(expenses).values({
         organizationId: orgId,
-        type: "expense",
         amount: amount,
         description: `Flete de Compra #${purchase.id.slice(0, 8)}`,
         date: new Date(),
-        status: "completed",
         category: "Logística",
-        metadata: { purchaseId: purchase.id, logistics: true }
+        // metadata not supported in current schema
     });
 }
 
 router.patch("/:id/receive", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const { id } = req.params;
         const [purchase] = await db.query.purchases.findMany({
             where: and(eq(purchases.id, id), eq(purchases.organizationId, orgId)),
         });
 
-        if (!purchase) return res.status(404).json({ message: "Purchase not found" });
-        if (purchase.deliveryStatus === "received") return res.status(400).json({ message: "Already received" });
+        if (!purchase) {
+            res.status(404).json({ message: "Purchase not found" });
+            return;
+        }
+        if (purchase.deliveryStatus === "received") {
+            res.status(400).json({ message: "Already received" });
+            return;
+        }
 
         await receivePurchaseStock(orgId, purchase);
         res.json({ message: "Stock updated successfully." });
@@ -218,7 +231,10 @@ router.patch("/:id/receive", async (req, res): Promise<void> => {
 router.patch("/:id/pay", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const { id } = req.params;
         const { paymentMethod } = req.body;
@@ -227,8 +243,14 @@ router.patch("/:id/pay", async (req, res): Promise<void> => {
             where: and(eq(purchases.id, id), eq(purchases.organizationId, orgId)),
         });
 
-        if (!purchase) return res.status(404).json({ message: "Purchase not found" });
-        if (purchase.paymentStatus === "paid") return res.status(400).json({ message: "Already paid" });
+        if (!purchase) {
+            res.status(404).json({ message: "Purchase not found" });
+            return;
+        }
+        if (purchase.paymentStatus === "paid") {
+            res.status(400).json({ message: "Already paid" });
+            return;
+        }
 
         // Update method if provided
         if (paymentMethod) {
@@ -247,13 +269,19 @@ router.patch("/:id/pay", async (req, res): Promise<void> => {
 router.patch("/:id/logistics", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const { id } = req.params;
         const { driverId, vehicleId, freightCost, logisticsMethod } = req.body;
 
         const [existing] = await db.select().from(purchases).where(and(eq(purchases.id, id), eq(purchases.organizationId, orgId))).limit(1);
-        if (!existing) return res.status(404).json({ message: "Purchase not found" });
+        if (!existing) {
+            res.status(404).json({ message: "Purchase not found" });
+            return;
+        }
 
         const updateData: any = {};
         if (driverId !== undefined) updateData.driverId = driverId;
@@ -285,7 +313,10 @@ router.patch("/:id/logistics", async (req, res): Promise<void> => {
 router.get("/suppliers", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const allSuppliers = await db.query.suppliers.findMany({
             where: eq(suppliers.organizationId, orgId)
@@ -299,10 +330,16 @@ router.get("/suppliers", async (req, res): Promise<void> => {
 router.post("/suppliers", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const parsed = insertSupplierSchema.safeParse({ ...req.body, organizationId: orgId });
-        if (!parsed.success) return res.status(400).json(parsed.error);
+        if (!parsed.success) {
+            res.status(400).json(parsed.error);
+            return;
+        }
 
         const [supplier] = await db.insert(suppliers).values(parsed.data).returning();
         res.status(201).json(supplier);
@@ -314,7 +351,10 @@ router.post("/suppliers", async (req, res): Promise<void> => {
 router.put("/suppliers/:id", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
         const { id } = req.params;
 
         const [updated] = await db.update(suppliers)
@@ -322,8 +362,12 @@ router.put("/suppliers/:id", async (req, res): Promise<void> => {
             .where(and(eq(suppliers.id, id), eq(suppliers.organizationId, orgId)))
             .returning();
 
-        if (!updated) return res.status(404).json({ message: "Supplier not found" });
+        if (!updated) {
+            res.status(404).json({ message: "Supplier not found" });
+            return;
+        }
         res.json(updated);
+
     } catch (error) {
         res.status(500).json({ message: "Failed to update supplier" });
     }
@@ -333,7 +377,10 @@ router.put("/suppliers/:id", async (req, res): Promise<void> => {
 router.get("/history/cost-analysis", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         // Get purchases grouped by product to see cost evolution
         // For MVP, we just return the purchase history as raw data for the frontend to chart
