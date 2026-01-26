@@ -52,6 +52,25 @@ export function registerBusinessDocumentRoutes(app: Express) {
                         duration: "Indefinido",
                         startDate: new Date().toISOString().split('T')[0]
                     };
+                } else if (lowerName.includes("constancia") || lowerName.includes("csf") || lowerName.includes("situacion")) {
+                    detectedType = "tax_id"; // Cédula Fiscal
+                    confidence = 98;
+                    extracted = {
+                        rfc: "XAXX010101000",
+                        razonSocial: "EMPRESA EJEMPLO S.A. DE C.V.",
+                        regimen: "601 - General de Ley Personas Morales",
+                        cp: "06600",
+                        fecha: new Date().toISOString().split('T')[0]
+                    };
+                } else if (lowerName.includes("ine") || lowerName.includes("identificacion")) {
+                    detectedType = "identification";
+                    confidence = 92;
+                    extracted = {
+                        nombre: "JUAN PEREZ",
+                        curp: "PEPJ900101HDFRRA01",
+                        edad: 34,
+                        domicilio: "AV. REFORMA 100"
+                    };
                 } else {
                     detectedType = "receipt";
                     confidence = 60;

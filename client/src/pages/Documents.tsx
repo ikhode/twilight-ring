@@ -20,7 +20,9 @@ import {
     Sparkles,
     Receipt,
     ScrollText,
-    FileDigit
+    FileDigit,
+    Users,
+    Scan
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -94,9 +96,13 @@ export default function Documents() {
         switch (type) {
             case "invoice": return <Receipt className="w-5 h-5 text-blue-500" />;
             case "contract": return <ScrollText className="w-5 h-5 text-purple-500" />;
+            case "tax_id": return <Scan className="w-5 h-5 text-emerald-500" />;
+            case "identification": return <Users className="w-5 h-5 text-amber-500" />;
             default: return <FileIcon className="w-5 h-5 text-gray-500" />;
         }
     };
+
+
 
     return (
         <AppLayout title="Gestión Documental" subtitle="Smart Inbox & Procesamiento Inteligente">
@@ -215,6 +221,32 @@ export default function Documents() {
                                                         </div>
                                                     </>
                                                 )}
+                                                {doc.type === "tax_id" && (
+                                                    <>
+                                                        <div className="flex flex-col gap-1">
+                                                            <span className="font-bold text-foreground text-[10px] leading-tight">{doc.extractedData?.razonSocial}</span>
+                                                            <div className="flex justify-between">
+                                                                <span>RFC:</span>
+                                                                <span className="font-mono text-foreground">{doc.extractedData?.rfc}</span>
+                                                            </div>
+                                                            <div className="flex justify-between">
+                                                                <span>CP:</span>
+                                                                <span className="text-foreground">{doc.extractedData?.cp}</span>
+                                                            </div>
+                                                        </div>
+                                                    </>
+                                                )}
+                                                {doc.type === "identification" && (
+                                                    <>
+                                                        <div className="flex flex-col gap-1">
+                                                            <span className="font-bold text-foreground text-amber-500 text-[10px]">{doc.extractedData?.nombre}</span>
+                                                            <div className="flex justify-between">
+                                                                <span>CURP:</span>
+                                                                <span className="font-mono text-foreground">{doc.extractedData?.curp}</span>
+                                                            </div>
+                                                        </div>
+                                                    </>
+                                                )}
                                                 {doc.type === "contract" && (
                                                     <>
                                                         <div className="flex justify-between">
@@ -225,9 +257,19 @@ export default function Documents() {
                                                 )}
                                             </div>
 
-                                            <Button size="sm" className="w-full h-8 text-xs gap-2" variant="default">
-                                                <CheckCircle2 className="w-3 h-3" />
-                                                {doc.type === "invoice" ? "Crear Gasto" : "Validar"}
+                                            <Button size="sm" className="w-full h-8 text-xs gap-2" variant={doc.type === 'tax_id' ? 'default' : 'secondary'}
+                                                onClick={() => {
+                                                    if (doc.type === 'tax_id') toast({ title: "Cliente Creado", description: `${doc.extractedData?.razonSocial || 'Cliente'} ha sido registrado.` });
+                                                    if (doc.type === 'identification') toast({ title: "Empleado Vinculado", description: "Datos personales actualizados." });
+                                                    if (doc.type === 'invoice') toast({ title: "Gasto Registrado", description: "Factura procesada y enviada a contabilidad." });
+                                                }}
+                                            >
+                                                {doc.type === "invoice" && <><CheckCircle2 className="w-3 h-3" /> Crear Gasto</>}
+                                                {doc.type === "tax_id" && <><CheckCircle2 className="w-3 h-3" /> Crear Cliente</>}
+                                                {doc.type === "identification" && <><CheckCircle2 className="w-3 h-3" /> Alta Empleado</>}
+                                                {doc.type === "contract" && <><CheckCircle2 className="w-3 h-3" /> Validar</>}
+                                                {doc.type === "receipt" && <><CheckCircle2 className="w-3 h-3" /> Procesar</>}
+                                                {!["invoice", "tax_id", "identification", "contract", "receipt"].includes(doc.type) && <><CheckCircle2 className="w-3 h-3" /> Procesar</>}
                                             </Button>
                                         </CardContent>
                                     </Card>

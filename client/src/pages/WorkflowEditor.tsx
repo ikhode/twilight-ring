@@ -40,7 +40,7 @@ import {
     DialogTitle,
     DialogTrigger
 } from "@/components/ui/dialog";
-import { Link } from "wouter";
+import { Link, useSearch } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -71,6 +71,10 @@ export default function WorkflowEditorWrapper() {
 function WorkflowEditor() {
     const { session, profile } = useAuth();
     const { toast } = useToast();
+    const searchString = useSearch();
+    const searchParams = new URLSearchParams(searchString);
+    const processId = searchParams.get("processId");
+
     const [nodes, setNodes] = useState<Node[]>([]);
     const [edges, setEdges] = useState<Edge[]>([]);
     const [isCatalogOpen, setIsCatalogOpen] = useState(false);
@@ -79,6 +83,30 @@ function WorkflowEditor() {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [processName, setProcessName] = useState("");
     const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+
+    // Load Existing Process
+    const { data: existingProcess } = useQuery({
+        queryKey: [`/api/cpe/processes/${processId}`],
+        queryFn: async () => {
+            if (!processId) return null;
+            const res = await fetch(`/api/cpe/processes/${processId}`);
+            if (!res.ok) throw new Error("Failed to load process");
+            return res.json();
+        },
+        enabled: !!processId
+    });
+
+    // Hydrate State from Process
+    useEffect(() => {
+        if (existingProcess) {
+            setProcessName(existingProcess.name);
+            if (existingProcess.workflowData) {
+                setNodes(existingProcess.workflowData.nodes || []);
+                setEdges(existingProcess.workflowData.edges || []);
+                setSelectedProductId(existingProcess.workflowData.outputProductId || null);
+            }
+        }
+    }, [existingProcess]);
 
     // Fetch Products for Settings
     const { data: products = [] } = useQuery({

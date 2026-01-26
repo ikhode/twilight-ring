@@ -519,6 +519,7 @@ const calculateEstimate = () => {
                             tickets={tickets.filter(t => t.batchId === instance.id)}
                             onConfirm={(data) => finishBatchMutation.mutate({ instanceId: instance.id, ...data })}
                             isVisionEnabled={isVisionEnabled}
+                            isLoading={finishBatchMutation.isPending}
                           />
                         </div>
                       </CardContent>
@@ -543,35 +544,17 @@ const calculateEstimate = () => {
                       <form onSubmit={(e) => {
                         e.preventDefault();
                         const fd = new FormData(e.currentTarget);
-                        const isRecipe = fd.get("isRecipe") === "on";
 
                         const payload: any = {
                           name: fd.get("name"),
                           unitPrice: Number(fd.get("price")) * 100, // to cents
-                          unit: fd.get("unit") || "pza",
-                          isRecipe,
-                          recipeData: {}
+                          unit: "pza", // Default
+                          isRecipe: false,
+                          recipeData: {} // Empty (Use Inference)
                         };
-
-                        if (isRecipe) {
-                          // Collect all inputs from the form (handling dynamic list)
-                          const inputItems = fd.getAll("inputItem");
-                          const inputQtys = fd.getAll("inputQty");
-                          const inputs = inputItems.map((item, idx) => ({
-                            itemId: item,
-                            quantity: Number(inputQtys[idx])
-                          })).filter(i => i.itemId && i.quantity);
-
-                          payload.recipeData = {
-                            inputs,
-                            inputSelectionMode: fd.get("inputSelectionMode") || "all", // 'all' (composite) or 'single' (alternatives)
-                            outputs: fd.get("outputItem") ? [{ itemId: fd.get("outputItem"), quantity: Number(fd.get("outputQty")) }] : []
-                          };
-                        }
 
                         createTaskMutation.mutate(payload);
                         (e.target as HTMLFormElement).reset();
-                        setIsRecipeMode(false);
                       }} className="space-y-4 py-4">
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
@@ -584,75 +567,16 @@ const calculateEstimate = () => {
                           </div>
                         </div>
 
-                        <CognitiveField value={isRecipeMode} className="py-2">
-                          <div className="flex items-center gap-2">
-                            <input type="checkbox" name="isRecipe" id="isRecipe" className="w-4 h-4 rounded border-slate-700 bg-slate-900"
-                              onChange={(e) => setIsRecipeMode(e.target.checked)}
-                            />
-                            <Label htmlFor="isRecipe" className="cursor-pointer">Activar Control de Inventario (Receta)</Label>
-                          </div>
-                        </CognitiveField>
+                        <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                          <p className="text-[10px] text-blue-300 flex items-start gap-2">
+                            <Sparkles className="w-3 h-3 mt-0.5 shrink-0" />
+                            El sistema inferirá automáticamente si esta tarea consume materia prima o produce producto terminado basándose en su uso en el flujo de producción.
+                          </p>
+                        </div>
 
-                        {isRecipeMode && (
-                          <div className="p-4 rounded-lg bg-slate-900/50 border border-slate-800 space-y-4">
-                            <div className="space-y-2">
-                              <div className="flex justify-between items-center">
-                                <Label className="text-xs uppercase text-amber-500 font-bold">Consumo (Input)</Label>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[10px] text-muted-foreground mr-1">Modo:</span>
-                                  <select name="inputSelectionMode" className="text-[10px] bg-slate-800 border-none rounded p-1">
-                                    <option value="all">Compuesto (Requiere Todos)</option>
-                                    <option value="single">Alternativo (Seleccionar Uno)</option>
-                                  </select>
-                                </div>
-                              </div>
-                              {/* Support up to 2 inputs UI-wise for MVP simplicity, or user can assume 1st one if only 1 added */}
-                              <div className="space-y-2">
-                                {inputList.map((id, idx) => (
-                                  <div key={id} className="flex gap-2 items-end">
-                                    <div className="flex-1 space-y-1">
-                                      <Label className="text-[10px] text-muted-foreground">Insumo {idx + 1}</Label>
-                                      <Select name="inputItem">
-                                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Seleccionar Insumo" /></SelectTrigger>
-                                        <SelectContent>
-                                          {inventory.map((i: any) => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}
-                                        </SelectContent>
-                                      </Select>
-                                    </div>
-                                    <Input name="inputQty" type="number" step="0.01" placeholder="Cant." className="w-20 h-8" />
-
-                                    {inputList.length > 1 && (
-                                      <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-rose-500" onClick={() => removeInputRow(id)}>
-                                        <Trash2 className="w-3 h-3" />
-                                      </Button>
-                                    )}
-                                  </div>
-                                ))}
-
-                                <Button type="button" variant="outline" size="sm" className="w-full text-xs h-7 gap-1 dashed border-slate-700 text-slate-400 hover:text-slate-200" onClick={addInputRow}>
-                                  <Plus className="w-3 h-3" /> Agregar Insumo
-                                </Button>
-                                <p className="text-[10px] text-slate-500 italic">* Para recetas alternativas (ej. Coco Bueno vs Desecho), selecciona "Alternativo" arriba.</p>
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              <Label className="text-xs uppercase text-emerald-500 font-bold">Producción (Output)</Label>
-                              <div className="flex gap-2">
-                                <div className="flex-1">
-                                  <Select name="outputItem">
-                                    <SelectTrigger><SelectValue placeholder="Seleccionar Producto Final" /></SelectTrigger>
-                                    <SelectContent>
-                                      {inventory.map((i: any) => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <Input name="outputQty" type="number" step="0.01" placeholder="Cant." className="w-24" />
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        <Button type="submit" className="w-full" disabled={createTaskMutation.isPending}>{createTaskMutation.isPending ? "Guardando..." : "Guardar Tarifa"}</Button>
+                        <Button type="submit" className="w-full" disabled={createTaskMutation.isPending}>
+                          {createTaskMutation.isPending ? "Guardando..." : "Guardar Tarifa"}
+                        </Button>
                       </form>
                       <div className="mt-4 pt-4 border-t border-slate-800">
                         <p className="text-xs font-bold uppercase text-slate-500 mb-2">Tarifas Activas</p>
@@ -761,22 +685,20 @@ const calculateEstimate = () => {
               { key: "status", header: "Estado" },
               { key: "totalAmount", header: "Monto", render: (i) => formatCurrency(i.totalAmount / 100) },
               { key: "actions", header: "Acciones", render: (i) => i.status === 'pending' ? <Button size="sm" onClick={() => approveMutation.mutate(i.id)}>Aprobar</Button> : null }]} data={tickets} /></CardContent></Card>
-            </TabsContent>
-          </Tabs>
+            </TabsContent >
+          </Tabs >
         </div >
       </AppLayout >
     );
   }
 
-  function FinalizeBatchDialog({ instance, tickets = [], onConfirm, isVisionEnabled }: { instance: any, tickets?: any[], onConfirm: (data: any) => void, isVisionEnabled: boolean }) {
+  function FinalizeBatchDialog({ instance, tickets = [], onConfirm, isVisionEnabled, isLoading }: { instance: any, tickets?: any[], onConfirm: (data: any) => void, isVisionEnabled: boolean, isLoading?: boolean }) {
     const [step, setStep] = useState(1);
     const [outputs, setOutputs] = useState({ water: 0, pulp: 0, shells: 0 });
     const [estimatedInput, setEstimatedInput] = useState(0);
     const [visionCount, setVisionCount] = useState(0);
 
     const [coProducts, setCoProducts] = useState<{ productId: string, quantity: number }[]>([]);
-
-    // ... (existing logic)
 
     const addCoProduct = () => setCoProducts([...coProducts, { productId: "", quantity: 0 }]);
     const updateCoProduct = (index: number, field: string, value: any) => {
@@ -785,70 +707,30 @@ const calculateEstimate = () => {
       setCoProducts(newCoProducts);
     };
 
-    // ... (inside render, probably step 2 or 3)
-
-    {/* Co-Products Section */ }
-    <div className="space-y-2 pt-4 border-t border-slate-700">
-      <div className="flex justify-between items-center">
-        <Label className="text-xs uppercase text-blue-400 font-bold">Co-Productos / Subproductos</Label>
-        <Button type="button" variant="ghost" size="sm" onClick={addCoProduct} className="h-6 text-[10px]"><Plus className="w-3 h-3 mr-1" /> Agregar (Agua, Hueso...)</Button>
-      </div>
-      {coProducts.map((cp, idx) => (
-        <div key={idx} className="flex gap-2 items-center">
-          <div className="flex-1">
-            <Select value={cp.productId} onValueChange={(v) => updateCoProduct(idx, 'productId', v)}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Producto" /></SelectTrigger>
-              <SelectContent>
-                {/* We need inventory here. Assuming we can pass it or fetch it. 
-                                Since this is inside a component, inventory might not be prop. 
-                                Let's assume passed or we can't render list. 
-                                Edit: Production component has inventory. We need to pass it down. */}
-                <SelectItem value="coproduct-1">Agua de Coco</SelectItem>
-                <SelectItem value="coproduct-2">Hueso / Copra</SelectItem>
-                <SelectItem value="coproduct-3">Estopa</SelectItem>
-                {/* Ideal: Pass inventory prop */}
-              </SelectContent>
-            </Select>
-          </div>
-          <Input
-            type="number"
-            className="w-24 h-8 text-xs"
-            placeholder="Cant."
-            value={cp.quantity || ''}
-            onChange={(e) => updateCoProduct(idx, 'quantity', Number(e.target.value))}
-          />
-        </div>
-      ))}
-    </div>
-
-    // ... in onConfirm
-    // onConfirm({ yields: outputs.pulp, estimatedInput, coProducts });
+    // Auto-calculate from tickets (The "Smart" part requested)
+    const stats = {
+      pelado: tickets.filter(t => t.taskName?.toLowerCase().includes('pelad')).reduce((a, b) => a + (b.quantity || 0), 0),
+      destopado: tickets.filter(t => t.taskName?.toLowerCase().includes('destop')).reduce((a, b) => a + (b.quantity || 0), 0),
+      deshuesado: tickets.filter(t => t.taskName?.toLowerCase().includes('hues')).reduce((a, b) => a + (b.quantity || 0), 0),
+    };
 
     const getUnitForTask = (name: string) => {
-      // Basic heuristic to match tasks to units if pieceworkTasks is not readily available or for specific known steps
       if (name.toLowerCase().includes('pelad')) return 'kg';
       return 'pza';
     };
 
     const calculateEstimate = () => {
-      // If we have Destopado count (Input), that is the most accurate "Input" count (Piecework verified)
       if (stats.destopado > 0) {
         setEstimatedInput(stats.destopado);
       }
-
-      // If we have Pelado count (Pulp Kg), pre-fill the output
-      if (stats.pelado > 0 && outputs.pulp === 0) { // Only if not manually overridden
-        // Assuming Pelado tickets are in Kg or Units? User said "nos dice cuantos kilos"
-        // If unit is 'kg', direct map. If 'pza', we might need factor. 
-        // For MVP we assume the Pelado Ticket quantity IS the Kg (or user adjusts).
-        // Let's set it but allow override.
+      if (stats.pelado > 0 && outputs.pulp === 0) {
         setOutputs(prev => ({ ...prev, pulp: stats.pelado }));
       }
     };
 
     useEffect(() => {
       calculateEstimate();
-    }, [tickets]); // Run once when tickets load/change
+    }, [tickets]);
 
     return (
       <Dialog>
@@ -868,7 +750,6 @@ const calculateEstimate = () => {
                   Flujo de Proceso (Tickets Registrados)
                 </h4>
                 <div className="flex items-center justify-between text-xs relative">
-                  {/* Visual Connector Line */}
                   <div className="absolute top-1/2 left-0 w-full h-0.5 bg-slate-800 -z-0"></div>
 
                   <div className="relative z-10 bg-slate-900 px-2 flex flex-col items-center gap-1">
@@ -895,7 +776,32 @@ const calculateEstimate = () => {
               <div className="p-4 bg-slate-900 rounded-lg space-y-3">
                 <h4 className="font-bold text-sm uppercase text-slate-400">Captura de Producción</h4>
                 <div className="space-y-2">
-                  <Label className="flex justify-between">
+                  <div className="flex justify-between items-center">
+                    <Label className="text-xs uppercase text-blue-400 font-bold">Co-Productos / Subproductos</Label>
+                    <Button type="button" variant="ghost" size="sm" onClick={addCoProduct} className="h-6 text-[10px]"><Plus className="w-3 h-3 mr-1" /> Agregar</Button>
+                  </div>
+                  {coProducts.map((cp, idx) => (
+                    <div key={idx} className="flex gap-2 items-center">
+                      <div className="flex-1">
+                        <Select value={cp.productId} onValueChange={(v) => updateCoProduct(idx, 'productId', v)}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Producto" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="coproduct-1">Agua de Coco</SelectItem>
+                            <SelectItem value="coproduct-2">Hueso / Copra</SelectItem>
+                            <SelectItem value="coproduct-3">Estopa</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Input
+                        type="number"
+                        className="w-24 h-8 text-xs"
+                        placeholder="Cant."
+                        value={cp.quantity || ''}
+                        onChange={(e) => updateCoProduct(idx, 'quantity', Number(e.target.value))}
+                      />
+                    </div>
+                  ))}
+                  <Label className="flex justify-between pt-2">
                     Agua Recolectada (Litros)
                     <span className="text-[10px] text-blue-400 font-normal">No pagada en destajo</span>
                   </Label>
@@ -966,7 +872,7 @@ const calculateEstimate = () => {
           </div>
 
           <DialogFooter>
-            <Button onClick={() => onConfirm({ yields: outputs, estimatedInput: visionCount > 0 ? visionCount : estimatedInput })}>
+            <Button onClick={() => onConfirm({ yields: outputs, estimatedInput: visionCount > 0 ? visionCount : estimatedInput, coProducts })} isLoading={isLoading}>
               Confirmar Cierre e Inventario
             </Button>
           </DialogFooter>
