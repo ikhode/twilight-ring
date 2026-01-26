@@ -37,6 +37,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 import { VisionCounter } from "@/components/production/VisionCounter";
 import { useConfiguration } from "@/context/ConfigurationContext";
+import { CognitiveInput, CognitiveField } from "@/components/cognitive";
 
 interface Ticket {
   id: number;
@@ -383,8 +384,13 @@ export default function Production() {
                     <DialogContent>
                       <DialogHeader><DialogTitle>Nuevo Proceso</DialogTitle></DialogHeader>
                       <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); createMutation.mutate({ name: fd.get("name"), description: fd.get("description"), type: fd.get("type"), isTemplate: false }); }} className="space-y-4 py-4">
-                        <div className="space-y-2"><Label>Nombre</Label><Input name="name" required /></div>
-                        <div className="space-y-2"><Label>Tipo</Label><Select name="type" defaultValue="production"><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="production">Producción</SelectItem></SelectContent></Select></div>
+                        <div className="space-y-2">
+                          <Label>Nombre</Label>
+                          <CognitiveInput name="name" required semanticType="name" />
+                        </div>
+                        <CognitiveField label="Tipo" semanticType="method">
+                          <Select name="type" defaultValue="production"><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="production">Producción</SelectItem></SelectContent></Select>
+                        </CognitiveField>
                         <DialogFooter><Button type="submit">Guardar</Button></DialogFooter>
                       </form>
                     </DialogContent>
@@ -535,18 +541,24 @@ export default function Production() {
                       setIsRecipeMode(false);
                     }} className="space-y-4 py-4">
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2"><Label>Nombre de la Tarea</Label><Input name="name" placeholder="Ej. Pelado" required /></div>
-                        <div className="space-y-2"><Label>Pago por Unidad ($)</Label><Input name="price" type="number" step="0.01" placeholder="0.00" required /></div>
+                        <div className="space-y-2">
+                          <Label>Nombre de la Tarea</Label>
+                          <CognitiveInput name="name" placeholder="Ej. Pelado" required semanticType="name" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Pago por Unidad ($)</Label>
+                          <Input name="price" type="number" step="0.01" placeholder="0.00" required />
+                        </div>
                       </div>
 
-                      <div className="flex items-center space-x-2 py-2">
+                      <CognitiveField value={isRecipeMode} className="py-2">
                         <div className="flex items-center gap-2">
                           <input type="checkbox" name="isRecipe" id="isRecipe" className="w-4 h-4 rounded border-slate-700 bg-slate-900"
                             onChange={(e) => setIsRecipeMode(e.target.checked)}
                           />
                           <Label htmlFor="isRecipe" className="cursor-pointer">Activar Control de Inventario (Receta)</Label>
                         </div>
-                      </div>
+                      </CognitiveField>
 
                       {isRecipeMode && (
                         <div className="p-4 rounded-lg bg-slate-900/50 border border-slate-800 space-y-4">

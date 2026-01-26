@@ -26,7 +26,9 @@ import {
   History,
   Receipt,
   Building2,
-  ArrowUpRight
+  ArrowUpRight,
+  Activity,
+  CheckCircle2
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
@@ -45,6 +47,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { CognitiveInput, CognitiveField, CognitiveProvider, GuardianDiagnostic, GuardianSafeStatus } from "@/components/cognitive";
 
 // --- Dialogs & Types ---
 
@@ -413,136 +416,180 @@ function POSView() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {cart.length > 0 && (
-              <div className="space-y-3 p-3 rounded-lg bg-primary/5 border border-primary/10">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Cliente</label>
-                  <select className="w-full bg-background border border-border rounded-md p-2 text-sm" value={selectedCustomer} onChange={(e) => setSelectedCustomer(e.target.value)}>
-                    <option value="">Consumidor Final</option>
-                    {customers.map((c: any) => (<option key={c.id} value={c.id}>{c.name}</option>))}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Conductor</label>
-                  <select className="w-full bg-background border border-border rounded-md p-2 text-sm" value={selectedDriver} onChange={(e) => setSelectedDriver(e.target.value)}>
-                    <option value="">Sin asignar</option>
-                    {drivers.map((d: any) => (<option key={d.id} value={d.id}>{d.name}</option>))}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Vehículo</label>
-                  <select className="w-full bg-background border border-border rounded-md p-2 text-sm" value={selectedVehicle} onChange={(e) => setSelectedVehicle(e.target.value)}>
-                    <option value="">Sin asignar</option>
-                    {vehicles.map((v: any) => (<option key={v.id} value={v.id}>{v.plate} - {v.model}</option>))}
-                  </select>
-                </div>
-              </div>
-            )}
+            <CognitiveProvider>
+              <GuardianDiagnostic />
+              <GuardianSafeStatus />
 
-            {cart.length === 0 ? (
-              <div className="text-center py-8">
-                <ShoppingCart className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-                <p className="text-muted-foreground">Carrito vacío</p>
-                <p className="text-sm text-muted-foreground/70">Seleccione productos para agregar</p>
-              </div>
-            ) : (
-              <>
-                <div className="space-y-3 max-h-64 overflow-y-auto scrollbar-thin">
-                  {cart.map((item) => (
-                    <div key={item.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm truncate">{item.name}</p>
-                        <p className="text-xs text-muted-foreground font-mono">{formatCurrency(item.price)} x {item.quantity}</p>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Button variant="outline" size="icon" className="w-7 h-7" onClick={() => updateQuantity(item.id, -1)}><Minus className="w-3 h-3" /></Button>
-                        <span className="w-8 text-center font-mono font-semibold">{item.quantity}</span>
-                        <Button variant="outline" size="icon" className="w-7 h-7" onClick={() => updateQuantity(item.id, 1)}><Plus className="w-3 h-3" /></Button>
-                        <Button variant="ghost" size="icon" className="w-7 h-7 text-destructive hover:text-destructive" onClick={() => removeFromCart(item.id)}><Trash2 className="w-3 h-3" /></Button>
-                      </div>
-                      <p className="font-semibold font-mono min-w-20 text-right">{formatCurrency(item.price * item.quantity)}</p>
-                    </div>
-                  ))}
+              {cart.length > 0 && (
+                <div className="space-y-3 p-3 rounded-lg bg-primary/5 border border-primary/10">
+                  <CognitiveField label="Cliente" value={selectedCustomer} semanticType="category" options={customers.map((c: any) => c.name)}>
+                    <select className="w-full bg-background border border-border rounded-md p-2 text-sm" value={selectedCustomer} onChange={(e) => setSelectedCustomer(e.target.value)}>
+                      <option value="">Consumidor Final</option>
+                      {customers.map((c: any) => (<option key={c.id} value={c.id}>{c.name}</option>))}
+                    </select>
+                  </CognitiveField>
+                  <CognitiveField label="Conductor" value={selectedDriver} semanticType="method">
+                    <select className="w-full bg-background border border-border rounded-md p-2 text-sm" value={selectedDriver} onChange={(e) => setSelectedDriver(e.target.value)}>
+                      <option value="">Sin asignar</option>
+                      {drivers.map((d: any) => (<option key={d.id} value={d.id}>{d.name}</option>))}
+                    </select>
+                  </CognitiveField>
+                  <CognitiveField label="Vehículo" value={selectedVehicle} semanticType="method">
+                    <select className="w-full bg-background border border-border rounded-md p-2 text-sm" value={selectedVehicle} onChange={(e) => setSelectedVehicle(e.target.value)}>
+                      <option value="">Sin asignar</option>
+                      {vehicles.map((v: any) => (<option key={v.id} value={v.id}>{v.plate} - {v.model}</option>))}
+                    </select>
+                  </CognitiveField>
                 </div>
-                <Separator />
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm"><span className="text-muted-foreground">Subtotal</span><span className="font-mono">{formatCurrency(subtotal)}</span></div>
-                  <div className="flex justify-between text-sm"><span className="text-muted-foreground">IVA (16%)</span><span className="font-mono">{formatCurrency(tax)}</span></div>
+              )}
+
+              {cart.length === 0 ? (
+                <div className="text-center py-8">
+                  <ShoppingCart className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground">Carrito vacío</p>
+                  <p className="text-sm text-muted-foreground/70">Seleccione productos para agregar</p>
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-3 max-h-64 overflow-y-auto scrollbar-thin">
+                    {cart.map((item) => (
+                      <div key={item.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{item.name}</p>
+                          <p className="text-xs text-muted-foreground font-mono">{formatCurrency(item.price)} x {item.quantity}</p>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button variant="outline" size="icon" className="w-7 h-7" onClick={() => updateQuantity(item.id, -1)}><Minus className="w-3 h-3" /></Button>
+                          <span className="w-8 text-center font-mono font-semibold">{item.quantity}</span>
+                          <Button variant="outline" size="icon" className="w-7 h-7" onClick={() => updateQuantity(item.id, 1)}><Plus className="w-3 h-3" /></Button>
+                          <Button variant="ghost" size="icon" className="w-7 h-7 text-destructive hover:text-destructive" onClick={() => removeFromCart(item.id)}><Trash2 className="w-3 h-3" /></Button>
+                        </div>
+                        <p className="font-semibold font-mono min-w-20 text-right">{formatCurrency(item.price * item.quantity)}</p>
+                      </div>
+                    ))}
+                  </div>
                   <Separator />
-                  <div className="flex justify-between text-lg font-bold"><span>Total</span><span className="font-mono text-primary">{formatCurrency(total)}</span></div>
-                </div>
-                <div className="grid grid-cols-1 gap-3">
-                  <Dialog open={isPayDialogOpen} onOpenChange={setIsPayDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button className="h-16 text-lg font-bold" disabled={cart.length === 0}>
-                        <CreditCard className="w-6 h-6 mr-2" />
-                        Finalizar Venta
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Confirmar Pago</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4 py-4">
-                        <div className="flex justify-between items-center p-4 bg-muted rounded-lg">
-                          <span className="text-lg font-medium">Total a Pagar:</span>
-                          <span className="text-2xl font-bold text-primary">{formatCurrency(total)}</span>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>Método de Pago</Label>
-                          <div className="grid grid-cols-2 gap-3">
-                            <Button
-                              type="button"
-                              variant={paymentMethod === 'cash' ? 'default' : 'outline'}
-                              className="h-12"
-                              onClick={() => setPaymentMethod('cash')}
-                            >
-                              <Banknote className="w-4 h-4 mr-2" /> Efectivo
-                            </Button>
-                            <Button
-                              type="button"
-                              variant={paymentMethod === 'transfer' ? 'default' : 'outline'}
-                              className="h-12"
-                              onClick={() => setPaymentMethod('transfer')}
-                            >
-                              <Building2 className="w-4 h-4 mr-2" /> Transferencia
-                            </Button>
-                          </div>
-                        </div>
-
-                        {paymentMethod === 'transfer' && (
-                          <div className="space-y-2">
-                            <Label>Cuenta Bancaria de Destino</Label>
-                            <select
-                              className="w-full bg-background border border-border rounded-md p-2 text-sm"
-                              value={selectedBankId}
-                              onChange={(e) => setSelectedBankId(e.target.value)}
-                            >
-                              <option value="">Seleccione cuenta...</option>
-                              {bankAccounts.map((a: any) => (
-                                <option key={a.id} value={a.id}>{a.name} ({a.bankName})</option>
-                              ))}
-                            </select>
-                          </div>
-                        )}
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm"><span className="text-muted-foreground">Subtotal</span><span className="font-mono">{formatCurrency(subtotal)}</span></div>
+                    <div className="flex justify-between text-sm">
+                      <div className="flex items-center gap-1">
+                        <span className="text-muted-foreground">IVA (16%)</span>
+                        <span className="text-[10px] text-muted-foreground/50 italic px-1 bg-muted rounded">Fiscal</span>
                       </div>
-                      <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsPayDialogOpen(false)}>Cancelar</Button>
-                        <Button
-                          onClick={handlePay}
-                          disabled={payMutation.isPending || (paymentMethod === 'transfer' && !selectedBankId)}
-                        >
-                          {payMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                          Confirmar Venta
+                      <span className="font-mono">{formatCurrency(tax)}</span>
+                    </div>
+                    <Separator />
+                    <div className="flex justify-between text-lg font-bold"><span>Total</span><span className="font-mono text-primary">{formatCurrency(total)}</span></div>
+                  </div>
+
+                  {/* Operational Insight Pattern - Results Oriented */}
+                  <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Activity className="w-3.5 h-3.5 text-primary" />
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Optimización Comercial</span>
+                    </div>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-1 h-1 rounded-full bg-emerald-500" />
+                        <p className="text-[10px] text-slate-400">
+                          {cart.length} items listos para <span className="text-slate-200">reserva de inventario</span>.
+                        </p>
+                      </div>
+                      {selectedCustomer ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-1 h-1 rounded-full bg-emerald-500" />
+                          <p className="text-[10px] text-slate-400">
+                            Afectando <span className="text-slate-200">historial de crédito</span> del cliente seleccionado.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <div className="w-1 h-1 rounded-full bg-amber-500" />
+                          <p className="text-[10px] text-slate-400 font-medium italic">
+                            Venta sin cliente: se registrará como <span className="text-amber-200/80">público general</span>.
+                          </p>
+                        </div>
+                      )}
+                      {(selectedDriver || selectedVehicle) && (
+                        <div className="flex items-center gap-2">
+                          <div className="w-1 h-1 rounded-full bg-blue-500" />
+                          <p className="text-[10px] text-slate-400">
+                            Despacho logístico <span className="text-blue-200">auditado</span> habilitado.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3">
+                    <Dialog open={isPayDialogOpen} onOpenChange={setIsPayDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button className="h-16 text-lg font-bold" disabled={cart.length === 0}>
+                          <CreditCard className="w-6 h-6 mr-2" />
+                          Finalizar Venta
                         </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-                </div>
-                <Button variant="outline" className="w-full" onClick={() => {
-                  const win = window.open('', '', 'width=300,height=600');
-                  win?.document.write(`
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Confirmar Pago</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                          <div className="flex justify-between items-center p-4 bg-muted rounded-lg">
+                            <span className="text-lg font-medium">Total a Pagar:</span>
+                            <span className="text-2xl font-bold text-primary">{formatCurrency(total)}</span>
+                          </div>
+
+                          <CognitiveField label="Método de Pago" value={paymentMethod} semanticType="method">
+                            <div className="grid grid-cols-2 gap-3">
+                              <Button
+                                type="button"
+                                variant={paymentMethod === 'cash' ? 'default' : 'outline'}
+                                className="h-12"
+                                onClick={() => setPaymentMethod('cash')}
+                              >
+                                <Banknote className="w-4 h-4 mr-2" /> Efectivo
+                              </Button>
+                              <Button
+                                type="button"
+                                variant={paymentMethod === 'transfer' ? 'default' : 'outline'}
+                                className="h-12"
+                                onClick={() => setPaymentMethod('transfer')}
+                              >
+                                <Building2 className="w-4 h-4 mr-2" /> Transferencia
+                              </Button>
+                            </div>
+                          </CognitiveField>
+
+                          {paymentMethod === 'transfer' && (
+                            <CognitiveField label="Cuenta Bancaria de Destino" value={selectedBankId} semanticType="category">
+                              <select
+                                className="w-full bg-background border border-border rounded-md p-2 text-sm"
+                                value={selectedBankId}
+                                onChange={(e) => setSelectedBankId(e.target.value)}
+                              >
+                                <option value="">Seleccione cuenta...</option>
+                                {bankAccounts.map((a: any) => (
+                                  <option key={a.id} value={a.id}>{a.name} ({a.bankName})</option>
+                                ))}
+                              </select>
+                            </CognitiveField>
+                          )}
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setIsPayDialogOpen(false)}>Cancelar</Button>
+                          <Button
+                            onClick={handlePay}
+                            disabled={payMutation.isPending || (paymentMethod === 'transfer' && !selectedBankId)}
+                          >
+                            {payMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                            Confirmar Venta
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                  <Button variant="outline" className="w-full" onClick={() => {
+                    const win = window.open('', '', 'width=300,height=600');
+                    win?.document.write(`
                     <html>
                       <head><title>Ticket de Venta</title><style>body { font-family: monospace; padding: 20px; }</style></head>
                       <body>
@@ -555,14 +602,15 @@ function POSView() {
                         <p style="text-align:center; margin-top:20px;">¡Gracias por su compra!</p>
                       </body>
                     </html>`);
-                  win?.print();
-                  win?.close();
-                }}>
-                  <Printer className="w-4 h-4 mr-2" />
-                  Imprimir Ticket
-                </Button>
-              </>
-            )}
+                    win?.print();
+                    win?.close();
+                  }}>
+                    <Printer className="w-4 h-4 mr-2" />
+                    Imprimir Ticket
+                  </Button>
+                </>
+              )}
+            </CognitiveProvider>
           </CardContent>
         </Card>
       </div>

@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,21 +35,25 @@ import {
   Filter,
   Download,
   ChevronRight,
-  History as HistoryIcon
+  History as HistoryIcon,
+  Bot,
+  Activity
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { AliveValue } from "@/components/cognitive/AliveValue";
-import { CognitiveButton } from "@/components/cognitive/CognitiveButton";
+import { apiRequest } from "@/lib/queryClient";
+import { CognitiveButton, AliveValue, CognitiveInput, CognitiveField, CognitiveProvider, GuardianDiagnostic, GuardianSafeStatus } from "@/components/cognitive";
 import { useConfiguration } from "@/context/ConfigurationContext";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
+import { useAppStore } from "@/store/app-store";
 
 export default function Inventory() {
   const { session } = useAuth();
   const { toast } = useToast();
   const { universalConfig } = useConfiguration();
+  const { productTypeLabels } = useAppStore();
   const [searchQuery, setSearchQuery] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
@@ -139,15 +144,9 @@ export default function Inventory() {
 
   const createProductMutation = useMutation({
     mutationFn: async (productData: any) => {
-      const res = await fetch("/api/inventory/products", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session?.access_token}`
-        },
-        body: JSON.stringify(productData)
+      const res = await apiRequest("POST", "/api/inventory/products", productData, {
+        Authorization: `Bearer ${session?.access_token}`
       });
-      if (!res.ok) throw new Error("Failed");
       return res.json();
     },
     onSuccess: () => {
@@ -156,10 +155,10 @@ export default function Inventory() {
       toast({ title: "Producto Creado", description: "El producto se ha registrado correctamente." });
       setNewProduct({ name: "", sku: "", category: categories[0], productType: "both", stock: 0, unit: "pza", price: 0, cost: 0 });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
-        title: "Error",
-        description: error.message || "No se pudo crear el producto. Verifique si el SKU ya existe.",
+        title: "Error de Registro",
+        description: error.message,
         variant: "destructive"
       });
     }
@@ -167,45 +166,33 @@ export default function Inventory() {
 
   const archiveProductMutation = useMutation({
     mutationFn: async (productId: string) => {
-      const res = await fetch(`/api/inventory/products/${productId}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session?.access_token}`
-        },
-        body: JSON.stringify({ isActive: false })
+      const res = await apiRequest("PATCH", `/api/inventory/products/${productId}`, { isActive: false }, {
+        Authorization: `Bearer ${session?.access_token}`
       });
-      if (!res.ok) throw new Error("Failed");
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/inventory/products"] });
       toast({ title: "Producto Archivado", description: "El producto se ha desactivado correctamente." });
     },
-    onError: () => {
-      toast({ title: "Error", description: "No se pudo archivar el producto.", variant: "destructive" });
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     }
   });
 
   const adjustStockMutation = useMutation({
     mutationFn: async ({ productId, stock, reason }: { productId: string, stock: number, reason?: string }) => {
-      const res = await fetch(`/api/inventory/products/${productId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`
-        },
-        body: JSON.stringify({ stock, reason })
+      const res = await apiRequest("PATCH", `/api/inventory/products/${productId}`, { stock, reason }, {
+        Authorization: `Bearer ${session?.access_token}`
       });
-      if (!res.ok) throw new Error("Failed to update stock");
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/inventory/products"] });
       toast({ title: "Inventario Actualizado", description: "El stock se ha ajustado correctamente." });
     },
-    onError: (error: any) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+    onError: (error: Error) => {
+      toast({ title: "Error de Ajuste", description: error.message, variant: "destructive" });
     }
   });
 
@@ -284,93 +271,201 @@ export default function Inventory() {
                       Nuevo Producto
                     </CognitiveButton>
                   </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Alta de Nuevo Producto / Insumo</DialogTitle>
-                      <DialogDescription>
-                        Ingrese los detalles para registrar un nuevo item en el catálogo.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="name" className="text-right">Nombre</Label>
-                        <Input id="name" value={newProduct.name} onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })} className="col-span-3" />
-                      </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="sku" className="text-right">SKU</Label>
-                        <Input id="sku" value={newProduct.sku} onChange={(e) => setNewProduct({ ...newProduct, sku: e.target.value })} className="col-span-3" />
-                      </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="category" className="text-right">Categoría</Label>
-                        <Select onValueChange={(v) => setNewProduct({ ...newProduct, category: v })} defaultValue={newProduct.category}>
-                          <SelectTrigger className="col-span-3">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {categories.map(c => (
-                              <SelectItem key={c} value={c}>{c}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="productType" className="text-right">Tipo</Label>
-                        <Select onValueChange={(v) => setNewProduct({ ...newProduct, productType: v })} defaultValue={newProduct.productType}>
-                          <SelectTrigger className="col-span-3">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="both">Compra y Venta</SelectItem>
-                            <SelectItem value="purchase">Materia Prima (Compra)</SelectItem>
-                            <SelectItem value="sale">Producto Terminado (Venta)</SelectItem>
-                            <SelectItem value="internal">Insumo Interno / Producido</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {(newProduct.productType === "both" || newProduct.productType === "sale") && (
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="price" className="text-right">Precio Venta</Label>
-                          <Input id="price" type="number" step="0.01" value={newProduct.price} onChange={(e) => setNewProduct({ ...newProduct, price: parseFloat(e.target.value) || 0 })} className="col-span-3" />
+                  <DialogContent className="max-w-2xl bg-slate-950/95 backdrop-blur-xl border-slate-800 shadow-[0_0_50px_rgba(0,0,0,0.5)] border-t-primary/20 overflow-y-auto max-h-[90vh]" data-tour="add-product-modal">
+                    <CognitiveProvider>
+                      <DialogHeader className="pb-4 border-b border-white/5">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center border border-primary/30">
+                            <Package className="w-5 h-5 text-primary" />
+                          </div>
+                          <div>
+                            <DialogTitle className="text-xl font-bold tracking-tight uppercase italic">Alta de Nuevo Producto</DialogTitle>
+                            <DialogDescription className="text-slate-500 text-xs">Complete los campos técnicos para la optimización cognitiva del inventario.</DialogDescription>
+                          </div>
                         </div>
-                      )}
+                      </DialogHeader>
 
-                      {(newProduct.productType === "both" || newProduct.productType === "purchase") && (
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="cost" className="text-right">Costo Unit.</Label>
-                          <Input id="cost" type="number" step="0.01" value={newProduct.cost} onChange={(e) => setNewProduct({ ...newProduct, cost: parseFloat(e.target.value) || 0 })} className="col-span-3" />
+                      <div className="pt-4 px-1">
+                        <GuardianDiagnostic />
+                        <GuardianSafeStatus />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-x-8 gap-y-5 py-6">
+                        {/* Row 1 */}
+                        <div className="space-y-2" data-tour="product-name-field">
+                          <Label htmlFor="name" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Nombre del Item</Label>
+                          <CognitiveInput
+                            id="name"
+                            placeholder="Ej: Vestido Rosa Seda"
+                            value={newProduct.name}
+                            onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
+                            semanticType="name"
+                            context={newProduct.category}
+                          />
                         </div>
-                      )}
+                        <div className="space-y-2">
+                          <Label htmlFor="sku" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Referencia / SKU</Label>
+                          <CognitiveInput
+                            id="sku"
+                            placeholder="Auto-generado si vacío"
+                            value={newProduct.sku}
+                            onChange={(e) => setNewProduct({ ...newProduct, sku: e.target.value })}
+                            semanticType="sku"
+                          />
+                        </div>
 
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="unit" className="text-right">UOM</Label>
-                        <Select onValueChange={(v) => setNewProduct({ ...newProduct, unit: v })} defaultValue={newProduct.unit}>
-                          <SelectTrigger className="col-span-3">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="pza">Pieza (pza)</SelectItem>
-                            <SelectItem value="kg">Kilogramo (kg)</SelectItem>
-                            <SelectItem value="lt">Litro (lt)</SelectItem>
-                            <SelectItem value="g">Gramo (g)</SelectItem>
-                            <SelectItem value="ml">Mililitro (ml)</SelectItem>
-                            <SelectItem value="m">Metro (m)</SelectItem>
-                            <SelectItem value="paq">Paquete (paq)</SelectItem>
-                            <SelectItem value="caja">Caja</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        {/* Row 2 */}
+                        <CognitiveField
+                          label="Categoría"
+                          value={newProduct.category}
+                          context={newProduct.name}
+                          semanticType="category"
+                          options={categories}
+                          onAcceptPrediction={(v) => setNewProduct({ ...newProduct, category: v })}
+                        >
+                          <Select onValueChange={(v) => setNewProduct({ ...newProduct, category: v })} defaultValue={newProduct.category}>
+                            <SelectTrigger className="bg-slate-900/50 border-slate-800 focus:border-primary/50 transition-all">
+                              <SelectValue placeholder="Seleccionar..." />
+                            </SelectTrigger>
+                            <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                              {categories.map(c => (
+                                <SelectItem key={c} value={c}>{c}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </CognitiveField>
+
+                        <CognitiveField
+                          label="Lógica de Operación"
+                          value={newProduct.productType}
+                          semanticType="method"
+                        >
+                          <Select onValueChange={(v) => setNewProduct({ ...newProduct, productType: v })} defaultValue={newProduct.productType}>
+                            <SelectTrigger className="bg-slate-900/50 border-slate-800 focus:border-primary/50 transition-all">
+                              <SelectValue placeholder="Definir tipo..." />
+                            </SelectTrigger>
+                            <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                              <SelectItem value="both">{productTypeLabels.both.label}</SelectItem>
+                              <SelectItem value="purchase">{productTypeLabels.purchase.label}</SelectItem>
+                              <SelectItem value="sale">{productTypeLabels.sale.label}</SelectItem>
+                              <SelectItem value="internal">{productTypeLabels.internal.label}</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </CognitiveField>
+
+                        {/* Operational Context Box - Option B: Dynamic & Results-Oriented */}
+                        {newProduct.productType && (
+                          <div className="col-span-2">
+                            <motion.div
+                              initial={{ opacity: 0, scale: 0.98 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              className="relative overflow-hidden group"
+                            >
+                              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-purple-500/5 to-transparent opacity-30" />
+                              <div className="relative bg-slate-900/40 border border-primary/20 rounded-xl p-5 flex gap-5 items-center backdrop-blur-md shadow-2xl">
+                                <div className="w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center shrink-0 border border-primary/30 shadow-[0_0_20px_rgba(59,130,246,0.15)] group-hover:scale-110 transition-transform duration-500">
+                                  <Activity className="w-6 h-6 text-primary animate-pulse" />
+                                </div>
+                                <div className="space-y-1.5 w-full">
+                                  <div className="flex justify-between items-center mb-1">
+                                    <div className="flex items-center gap-2">
+                                      <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em]">Optimización de Inventario</p>
+                                      <div className="w-1 h-1 rounded-full bg-primary/40" />
+                                      <span className="text-[9px] font-medium text-slate-500 uppercase tracking-widest leading-none">Análisis Predictivo</span>
+                                    </div>
+                                    {newProduct.price > 0 && newProduct.cost > 0 && (
+                                      <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[10px] font-mono px-2 py-0">
+                                        {Math.round(((newProduct.price - newProduct.cost) / newProduct.price) * 100)}% MARGEN
+                                      </Badge>
+                                    )}
+                                  </div>
+
+                                  {((productTypeLabels as any)[newProduct.productType].context?.length > 0) && (
+                                    <p className="text-slate-400 text-[11px] leading-relaxed italic font-medium opacity-80 border-l-2 border-primary/20 pl-3 py-0.5">
+                                      "{(productTypeLabels as any)[newProduct.productType].context}"
+                                    </p>
+                                  )}
+
+                                  <div className="flex gap-5 mt-3 border-t border-white/5 pt-3">
+                                    <div className="flex items-center gap-2">
+                                      <div className={cn(
+                                        "w-2 h-2 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.3)]",
+                                        newProduct.stock < 10 ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'
+                                      )} />
+                                      <span className="text-[9px] text-slate-400 uppercase font-black tracking-tighter">
+                                        {newProduct.stock < 10 ? 'Reposición Preventiva' : 'Stock Operativo Saludable'}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-slate-500 opacity-50" />
+                                      <span className="text-[9px] text-slate-400 uppercase font-black tracking-tighter">Auditoría Habilitada</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </motion.div>
+                          </div>
+                        )}
+
+                        {/* Financials */}
+                        {(newProduct.productType === "both" || newProduct.productType === "sale") && (
+                          <div className="space-y-2">
+                            <Label htmlFor="price" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Precio Venta</Label>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs">$</span>
+                              <Input id="price" type="number" step="0.01" value={newProduct.price} onChange={(e) => setNewProduct({ ...newProduct, price: parseFloat(e.target.value) || 0 })} className="pl-7 bg-slate-900/50 border-slate-800 focus:border-primary/50 transition-all" />
+                            </div>
+                          </div>
+                        )}
+
+                        {(newProduct.productType === "both" || newProduct.productType === "purchase") && (
+                          <div className="space-y-2" data-tour="product-cost-field">
+                            <Label htmlFor="cost" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Costo Unitario</Label>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs">$</span>
+                              <Input id="cost" type="number" step="0.01" value={newProduct.cost} onChange={(e) => setNewProduct({ ...newProduct, cost: parseFloat(e.target.value) || 0 })} className="pl-7 bg-slate-900/50 border-slate-800 focus:border-primary/50 transition-all" />
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Logistics */}
+                        <div className="space-y-2">
+                          <Label htmlFor="unit" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Unidad de Medida (UOM)</Label>
+                          <Select onValueChange={(v) => setNewProduct({ ...newProduct, unit: v })} defaultValue={newProduct.unit}>
+                            <SelectTrigger className="bg-slate-900/50 border-slate-800 focus:border-primary/50 transition-all">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                              <SelectItem value="pza">Pieza (pza)</SelectItem>
+                              <SelectItem value="kg">Kilogramo (kg)</SelectItem>
+                              <SelectItem value="lt">Litro (lt)</SelectItem>
+                              <SelectItem value="g">Gramo (g)</SelectItem>
+                              <SelectItem value="ml">Mililitro (ml)</SelectItem>
+                              <SelectItem value="m">Metro (m)</SelectItem>
+                              <SelectItem value="paq">Paquete (paq)</SelectItem>
+                              <SelectItem value="caja">Caja</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="stock" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Stock Inicial</Label>
+                          <Input id="stock" type="number" value={newProduct.stock} onChange={(e) => setNewProduct({ ...newProduct, stock: parseInt(e.target.value) || 0 })} className="bg-slate-900/50 border-slate-800 focus:border-primary/50 transition-all" />
+                        </div>
                       </div>
 
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="stock" className="text-right">Stock Inicial</Label>
-                        <Input id="stock" type="number" value={newProduct.stock} onChange={(e) => setNewProduct({ ...newProduct, stock: parseInt(e.target.value) || 0 })} className="col-span-3" />
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button onClick={handleAddProduct} disabled={createProductMutation.isPending}>
-                        {createProductMutation.isPending ? "Guardando..." : "Confirmar Registro"}
-                      </Button>
-                    </DialogFooter>
+                      <DialogFooter className="pt-6 border-t border-white/5" data-tour="product-save-footer">
+                        <Button
+                          className="bg-primary hover:bg-primary/90 text-white font-bold px-8 shadow-[0_0_20px_rgba(59,130,246,0.3)] transition-all hover:scale-105"
+                          onClick={() => {
+                            // In real scenario we'd use useCognitiveDiagnostics here but it's inside provider
+                            handleAddProduct();
+                          }}
+                          disabled={createProductMutation.isPending}
+                        >
+                          {createProductMutation.isPending ? "Guardando..." : "Confirmar Registro"}
+                        </Button>
+                      </DialogFooter>
+                    </CognitiveProvider>
                   </DialogContent>
                 </Dialog>
               </div>
@@ -621,7 +716,7 @@ export default function Inventory() {
           </Card>
         </div>
       </div>
-    </AppLayout>
+    </AppLayout >
   );
 }
 

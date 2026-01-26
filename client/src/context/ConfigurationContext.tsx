@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useEffect } from "react";
 import { UserRoleType } from "@/lib/ai/dashboard-engine";
-import { ERP_MODULES } from "@/lib/modules";
-
-export type IndustryType = "manufacturing" | "retail" | "logistics" | "services" | "generic";
+import { useAppStore, IndustryType } from "@/store/app-store";
+import { useAuth } from "@/hooks/use-auth";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 interface ConfigurationContextType {
     industry: IndustryType;
@@ -22,10 +23,13 @@ interface ConfigurationContextType {
     };
     setAiConfig: (config: any) => void;
     universalConfig: {
-        placeTypes: string[];
-        productAttributes: { name: string; type: string }[];
-        processFlows: { name: string; type: string }[];
         productCategories: string[];
+        defaultUnits: string[];
+        industryName: string;
+        // Legacy stubs for compatibility
+        placeTypes: string[];
+        productAttributes: any[];
+        processFlows: any[];
         cedisAddress: string;
     };
     updateUniversalConfig: (config: any) => void;
@@ -33,34 +37,18 @@ interface ConfigurationContextType {
 
 const ConfigurationContext = createContext<ConfigurationContextType | undefined>(undefined);
 
-import { useAuth } from "@/hooks/use-auth";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-
 export function ConfigurationProvider({ children }: { children: React.ReactNode }) {
     const { session } = useAuth();
     const queryClient = useQueryClient();
+    const store = useAppStore();
 
-    // Default State (Fallback or Loading)
-    const [industry, setIndustryState] = useState<IndustryType>(() => (localStorage.getItem("nexus_industry") as IndustryType) || "generic");
-    const [enabledModules, setEnabledModules] = useState<string[]>(() => {
-        const saved = localStorage.getItem("nexus_modules");
-        return saved ? JSON.parse(saved) : ERP_MODULES.map(m => m.id);
-    });
-    const [theme, setThemeState] = useState<"glass" | "compact">(() => (localStorage.getItem("nexus_theme") as "glass" | "compact") || "glass");
-    const [role, setRoleState] = useState<UserRoleType>('admin');
-    const [aiConfig, setAiConfig] = useState({
+    // Roles and AI config still managed locally for now, 
+    // but industry/theme/modules are now reactive via Store
+    const [role, setRoleState] = React.useState<UserRoleType>('admin');
+    const [aiConfig, setAiConfig] = React.useState({
         guardianEnabled: true,
         copilotEnabled: true,
         adaptiveUiEnabled: true
-    });
-    const [themeColor, setThemeColorState] = useState<string>("#3b82f6");
-
-    const [universalConfig, setUniversalConfig] = useState({
-        placeTypes: [] as string[],
-        productAttributes: [] as { name: string; type: string }[],
-        processFlows: [] as { name: string; type: string }[],
-        productCategories: [] as string[],
-        cedisAddress: "",
     });
 
     // Fetch Config from Backend
@@ -68,45 +56,39 @@ export function ConfigurationProvider({ children }: { children: React.ReactNode 
         queryKey: ["/api/config"],
         queryFn: async () => {
             if (!session?.access_token) return null;
-            const orgId = localStorage.getItem("nexus_active_org") || "";
             const res = await fetch("/api/config", {
                 headers: {
-                    Authorization: `Bearer ${session.access_token}`,
-                    "x-organization-id": orgId
+                    Authorization: `Bearer ${session.access_token}`
                 }
             });
             if (!res.ok) throw new Error("Failed to fetch config");
             return res.json();
         },
         enabled: !!session?.access_token,
-        staleTime: 1000 * 60 * 5, // 5 minutes
     });
 
-    // Sync Remote to Local on Load
+    // Sync Remote to Zustand Store on Load
     useEffect(() => {
         if (remoteConfig) {
-            if (remoteConfig.industry) setIndustryState(remoteConfig.industry);
-            if (remoteConfig.theme) setThemeState(remoteConfig.theme);
-            if (remoteConfig.themeColor) setThemeColorState(remoteConfig.themeColor);
-            if (remoteConfig.enabledModules) setEnabledModules(remoteConfig.enabledModules);
+            if (remoteConfig.industry) store.setIndustry(remoteConfig.industry);
+            if (remoteConfig.theme) store.setTheme(remoteConfig.theme);
+            if (remoteConfig.themeColor) {
+                store.setThemeColor(remoteConfig.themeColor);
+                document.documentElement.style.setProperty('--primary', remoteConfig.themeColor);
+            }
+            if (remoteConfig.enabledModules) store.setModules(remoteConfig.enabledModules);
             if (remoteConfig.ai) setAiConfig(prev => ({ ...prev, ...remoteConfig.ai }));
-            if (remoteConfig.universal) setUniversalConfig(prev => ({ ...prev, ...remoteConfig.universal }));
+            if (remoteConfig.universal) {
+                store.setUniversalConfig(remoteConfig.universal);
+            }
         }
     }, [remoteConfig]);
 
-    // Mutation for Updates
     const mutation = useMutation({
         mutationFn: async (payload: any) => {
             if (!session?.access_token) return;
-            const orgId = localStorage.getItem("nexus_active_org") || "";
-            await fetch("/api/config", {
-                method: "PATCH",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${session.access_token}`,
-                    "x-organization-id": orgId
-                },
-                body: JSON.stringify(payload)
+            await apiRequest("PATCH", "/api/config", payload, {
+                Authorization: `Bearer ${session.access_token}`
             });
         },
         onSuccess: () => {
@@ -114,69 +96,63 @@ export function ConfigurationProvider({ children }: { children: React.ReactNode 
         }
     });
 
-    // Actions (Optimistic + Persist)
+    // Wrapped Actions
     const setThemeColor = (c: string) => {
-        setThemeColorState(c);
+        store.setThemeColor(c);
         document.documentElement.style.setProperty('--primary', c);
         mutation.mutate({ themeColor: c });
     };
 
     const updateUniversalConfig = (config: any) => {
-        setUniversalConfig(prev => {
-            const next = { ...prev, ...config };
-            mutation.mutate({ universal: next });
-            return next;
-        });
+        store.setUniversalConfig(config);
+        mutation.mutate({ universal: config });
     };
 
-    const updateAiConfig = (config: any) => {
-        setAiConfig(prev => {
-            const next = { ...prev, ...config };
-            mutation.mutate({ ai: next });
-            return next;
-        });
-    };
     const setIndustry = (ind: IndustryType) => {
-        setIndustryState(ind);
-        localStorage.setItem("nexus_industry", ind);
+        store.setIndustry(ind);
         mutation.mutate({ industry: ind });
     };
 
     const setTheme = (t: "glass" | "compact") => {
-        setThemeState(t);
-        localStorage.setItem("nexus_theme", t);
+        store.setTheme(t);
         mutation.mutate({ theme: t });
     };
 
-    const setRole = (r: UserRoleType) => {
-        setRoleState(r);
-    };
-
     const toggleModule = (moduleId: string) => {
-        const next = enabledModules.includes(moduleId)
-            ? enabledModules.filter(id => id !== moduleId)
-            : [...enabledModules, moduleId];
-
-        setEnabledModules(next);
-        localStorage.setItem("nexus_modules", JSON.stringify(next));
+        const next = store.enabledModules.includes(moduleId)
+            ? store.enabledModules.filter(id => id !== moduleId)
+            : [...store.enabledModules, moduleId];
+        store.setModules(next);
         mutation.mutate({ enabledModules: next });
     };
 
     return (
         <ConfigurationContext.Provider value={{
-            industry,
+            industry: store.industry,
             setIndustry,
-            enabledModules,
+            enabledModules: store.enabledModules,
             toggleModule,
-            theme,
+            theme: store.theme,
             setTheme,
-            themeColor,
+            themeColor: store.themeColor,
             setThemeColor,
             role,
-            setRole,
+            setRole: setRoleState,
             aiConfig,
-            setAiConfig: updateAiConfig,
-            universalConfig,
+            setAiConfig: (c: any) => {
+                setAiConfig(prev => ({ ...prev, ...c }));
+                mutation.mutate({ ai: c });
+            },
+            universalConfig: {
+                productCategories: store.productCategories,
+                defaultUnits: store.defaultUnits,
+                industryName: store.industryName,
+                // Stubs
+                placeTypes: [],
+                productAttributes: [],
+                processFlows: [],
+                cedisAddress: ""
+            },
             updateUniversalConfig,
         }}>
             {children}
@@ -191,3 +167,4 @@ export function useConfiguration() {
     }
     return context;
 }
+

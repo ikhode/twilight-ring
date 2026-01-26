@@ -38,11 +38,18 @@ router.get("/", async (req, res) => {
             }).returning();
         }
 
+        const settings = (org.settings as any) || {};
+
         res.json({
             industry: org.industry,
-            theme: (org.settings as any)?.theme || "glass",
-            themeColor: (org.settings as any)?.themeColor || "#3b82f6",
-            universal: (org.settings as any)?.universal || {},
+            theme: settings.theme || "glass",
+            themeColor: settings.themeColor || "#3b82f6",
+            universal: {
+                ...(settings.universal || {}),
+                productCategories: settings.productCategories || settings.universal?.productCategories || [],
+                defaultUnits: settings.defaultUnits || settings.universal?.defaultUnits || [],
+                industryName: settings.industryName || settings.universal?.industryName || ""
+            },
             enabledModules: enabledModules.filter(m => m.enabled).map(m => m.moduleId),
             ai: {
                 guardianEnabled: aiConfig?.guardianEnabled,

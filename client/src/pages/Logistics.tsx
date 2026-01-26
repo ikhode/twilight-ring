@@ -23,6 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 import { useConfiguration } from "@/context/ConfigurationContext";
+import { CognitiveInput, CognitiveField } from "@/components/cognitive";
 import { MapContainer, TileLayer, Marker, Popup, useMap, Tooltip as LeafletTooltip } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -143,8 +144,7 @@ function DriverLinkDialog() {
 
                 {!generatedLink ? (
                     <div className="space-y-4 py-4">
-                        <div className="space-y-2">
-                            <Label>Conductor</Label>
+                        <CognitiveField label="Conductor" value={selectedDriver} semanticType="category">
                             <Select onValueChange={setSelectedDriver}>
                                 <SelectTrigger><SelectValue placeholder="Seleccionar Conductor" /></SelectTrigger>
                                 <SelectContent>
@@ -153,9 +153,8 @@ function DriverLinkDialog() {
                                     ))}
                                 </SelectContent>
                             </Select>
-                        </div>
-                        <div className="space-y-2">
-                            <Label>Vehículo</Label>
+                        </CognitiveField>
+                        <CognitiveField label="Vehículo" value={selectedVehicle} semanticType="method">
                             <Select onValueChange={setSelectedVehicle}>
                                 <SelectTrigger><SelectValue placeholder="Seleccionar Vehículo" /></SelectTrigger>
                                 <SelectContent>
@@ -164,7 +163,7 @@ function DriverLinkDialog() {
                                     ))}
                                 </SelectContent>
                             </Select>
-                        </div>
+                        </CognitiveField>
                         <Button
                             className="w-full"
                             onClick={() => generateMutation.mutate()}
@@ -491,11 +490,11 @@ export default function Logistics() {
                                                 <div className="grid grid-cols-2 gap-4">
                                                     <div className="space-y-2">
                                                         <Label>Placa / ID</Label>
-                                                        <Input name="plate" required placeholder="XYZ-123" />
+                                                        <CognitiveInput name="plate" required placeholder="XYZ-123" semanticType="sku" />
                                                     </div>
                                                     <div className="space-y-2">
                                                         <Label>Modelo</Label>
-                                                        <Input name="model" required placeholder="Ford Transit" />
+                                                        <CognitiveInput name="model" required placeholder="Ford Transit" semanticType="name" />
                                                     </div>
                                                 </div>
                                                 <div className="grid grid-cols-2 gap-4">

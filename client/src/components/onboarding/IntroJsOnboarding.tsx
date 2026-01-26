@@ -14,12 +14,20 @@ import {
     DollarSign,
     Users,
     Workflow,
+    CheckCircle2,
+    Zap,
+    ArrowRight,
+    Building2,
+    ChevronRight as ChevronIcon,
     TrendingUp,
     Truck,
-    FileText,
-    Zap,
-    ArrowRight
+    FileText
 } from 'lucide-react';
+import { INDUSTRY_TEMPLATES } from '@/lib/industry-templates';
+import { useAuth } from '@/hooks/use-auth';
+import { useQueryClient } from '@tanstack/react-query';
+import { useAppStore } from '@/store/app-store';
+import { apiRequest } from '@/lib/queryClient';
 
 interface OnboardingStep {
     id: string;
@@ -53,12 +61,27 @@ const onboardingSteps: OnboardingStep[] = [
             },
             {
                 element: '[data-tour="add-product-btn"]',
-                intro: '<strong>✨ ¡Ahora crea tu producto!</strong><br/><br/>Haz clic en este botón y registra un producto real:<br/>• Nombre (ej: "Laptop Dell XPS")<br/>• SKU (se genera automático)<br/>• Precio de venta<br/>• Stock inicial<br/><br/>⚠️ <strong>Importante:</strong> Guarda el producto antes de continuar.',
+                intro: '<strong>✨ ¡Ahora crea tu producto!</strong><br/><br/>Haz clic en este botón para abrir el formulario de registro y crear un ítem real.',
                 position: 'bottom'
             },
             {
+                element: '[data-tour="product-name-field"]',
+                intro: '<strong>🏷️ Nombre del Ítem</strong><br/><br/>Escribe un nombre real (ej: "Camisa Oxford XL"). Esto servirá para identificarlo en ventas.',
+                position: 'right'
+            },
+            {
+                element: '[data-tour="product-cost-field"]',
+                intro: '<strong>💰 Costo y Margen</strong><br/><br/>Ingresa el costo unitario de compra o producción. La IA lo usará para calcular tu rentabilidad.',
+                position: 'right'
+            },
+            {
+                element: '[data-tour="product-save-footer"]',
+                intro: '<strong>✅ ¡Listo para guardar!</strong><br/><br/>Haz clic en "Confirmar Registro" para dar de alta el producto. Después de guardarlo, aparecerá en tu lista principal.',
+                position: 'top'
+            },
+            {
                 element: '[data-tour="product-list"]',
-                intro: '<strong>✅ ¡Excelente!</strong><br/><br/>Aquí verás el producto que acabas de crear. Puedes:<br/>• Editar detalles<br/>• Ajustar stock<br/>• Ver historial de movimientos<br/><br/>Este producto lo usaremos en el siguiente paso para crear una venta.',
+                intro: '<strong>✅ ¡Excelente!</strong><br/><br/>Aquí verás el producto que acabas de crear. Ya tienes tu primer activo registrado.',
                 position: 'top'
             },
             {
@@ -305,9 +328,14 @@ const onboardingSteps: OnboardingStep[] = [
 
 export function IntroJsOnboarding() {
     const [, setLocation] = useLocation();
+    const { session } = useAuth();
+    const queryClient = useQueryClient();
+    const store = useAppStore();
     const [currentStepIndex, setCurrentStepIndex] = useState<number | null>(null);
     const [completedSteps, setCompletedSteps] = useState<string[]>([]);
     const [showWelcome, setShowWelcome] = useState(true);
+    const [selectedIndustry, setSelectedIndustry] = useState<string | null>(null);
+    const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
         // Check if user has completed onboarding
@@ -316,6 +344,38 @@ export function IntroJsOnboarding() {
             setLocation('/dashboard');
         }
     }, [setLocation]);
+
+    const handleIndustrySelect = async (industryKey: string) => {
+        setIsSaving(true);
+        setSelectedIndustry(industryKey);
+
+        // Optimistic Update: Apply template locally immediately
+        store.applyIndustryTemplate(industryKey);
+
+        try {
+            const template = INDUSTRY_TEMPLATES[industryKey];
+            await apiRequest('PATCH', '/api/organization', {
+                industry: industryKey,
+                settings: {
+                    productCategories: template.categories,
+                    defaultUnits: template.units,
+                    industryName: template.name
+                }
+            }, {
+                'Authorization': `Bearer ${session?.access_token}`
+            });
+
+            // Invalidate configurations to reflect new categories and trigger data fetch
+            queryClient.invalidateQueries({ queryKey: ["/api/config"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/auth/profile"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/organization"] });
+
+        } catch (error) {
+            console.error("Error setting industry:", error);
+        } finally {
+            setIsSaving(false);
+        }
+    };
 
     const startTour = (stepIndex: number) => {
         const step = onboardingSteps[stepIndex];
@@ -459,7 +519,7 @@ export function IntroJsOnboarding() {
                             >
                                 <Sparkles className="w-4 h-4 text-primary" />
                                 <span className="text-xs font-bold uppercase tracking-widest text-primary">
-                                    Bienvenido a Nexus ERP
+                                    {selectedIndustry ? `Nexus ERP para ${INDUSTRY_TEMPLATES[selectedIndustry].name}` : 'Bienvenido a Nexus ERP'}
                                 </span>
                             </motion.div>
 
@@ -469,7 +529,10 @@ export function IntroJsOnboarding() {
                                 transition={{ delay: 0.3 }}
                                 className="text-5xl font-black uppercase italic tracking-tighter mb-4"
                             >
-                                Aprende a <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-purple-500">Dominar</span> tu Sistema
+                                {selectedIndustry
+                                    ? <>Aprende a <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-purple-500">Dominar</span> tu Negocio</>
+                                    : <>Configura tu <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-purple-500">Experiencia</span></>
+                                }
                             </motion.h2>
 
                             <motion.p
@@ -478,82 +541,100 @@ export function IntroJsOnboarding() {
                                 transition={{ delay: 0.4 }}
                                 className="text-slate-400 text-lg max-w-2xl mx-auto"
                             >
-                                Selecciona cualquier módulo para comenzar un tour interactivo.
-                                Aprende a crear productos, procesar ventas, gestionar nómina y más.
+                                {selectedIndustry
+                                    ? "Selecciona un módulo para comenzar un tour interactivo personalizado para tu industria."
+                                    : "Para ofrecerte una experiencia personalizada, cuéntanos: ¿Cuál es el giro de tu negocio?"
+                                }
                             </motion.p>
-
-                            {/* Progress Indicator */}
-                            {completedSteps.length > 0 && (
-                                <motion.div
-                                    initial={{ opacity: 0, scale: 0.9 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    className="mt-6 inline-flex items-center gap-3 px-6 py-3 bg-green-500/10 border border-green-500/20 rounded-full"
-                                >
-                                    <Zap className="w-5 h-5 text-green-500" />
-                                    <span className="text-sm font-bold text-green-500">
-                                        {completedSteps.length} de {onboardingSteps.length} módulos completados
-                                    </span>
-                                </motion.div>
-                            )}
                         </div>
 
-                        {/* Onboarding Steps Grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                            {onboardingSteps.map((step, index) => {
-                                const Icon = step.icon;
-                                const isCompleted = completedSteps.includes(step.id);
-
-                                return (
+                        {!selectedIndustry ? (
+                            /* Industry Selection Grid */
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
+                                {Object.entries(INDUSTRY_TEMPLATES).map(([key, template], idx) => (
                                     <motion.div
-                                        key={step.id}
-                                        initial={{ opacity: 0, y: 20 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ delay: 0.1 * index }}
+                                        key={key}
+                                        initial={{ opacity: 0, scale: 0.9 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        transition={{ delay: idx * 0.05 }}
+                                        onClick={() => handleIndustrySelect(key)}
+                                        className="group relative cursor-pointer"
                                     >
-                                        <Card
-                                            className={`
-                                                group relative overflow-hidden bg-slate-900/40 border-slate-800 
-                                                hover:border-primary/50 transition-all duration-300 cursor-pointer
-                                                hover:shadow-[0_0_30px_rgba(59,130,246,0.2)] hover:scale-105
-                                                ${isCompleted ? 'border-green-500/50 bg-green-500/5' : ''}
-                                            `}
-                                            onClick={() => startTour(index)}
-                                        >
-                                            {/* Gradient Background */}
-                                            <div className={`absolute inset-0 bg-gradient-to-br ${step.color} opacity-0 group-hover:opacity-10 transition-opacity`} />
-
-                                            {/* Completed Badge */}
-                                            {isCompleted && (
-                                                <div className="absolute top-3 right-3 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
-                                                    <span className="text-white text-xs">✓</span>
-                                                </div>
-                                            )}
-
-                                            <CardContent className="p-6 relative z-10">
-                                                <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${step.color} p-0.5 mb-4`}>
-                                                    <div className="w-full h-full bg-slate-900 rounded-2xl flex items-center justify-center">
-                                                        <Icon className="w-7 h-7 text-white" />
-                                                    </div>
-                                                </div>
-
-                                                <h3 className="text-lg font-black uppercase tracking-tight mb-2">
-                                                    {step.title}
-                                                </h3>
-
-                                                <p className="text-sm text-slate-400 leading-relaxed mb-4">
-                                                    {step.description}
-                                                </p>
-
-                                                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary group-hover:gap-3 transition-all">
-                                                    {isCompleted ? 'Revisar Tour' : 'Iniciar Tour'}
-                                                    <ArrowRight className="w-4 h-4" />
-                                                </div>
-                                            </CardContent>
+                                        <Card className="bg-slate-900/40 border-slate-800 hover:border-primary/50 transition-all duration-300 p-6 h-full flex flex-col items-center text-center group-hover:bg-slate-900/60 overflow-hidden">
+                                            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                                            <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                                                <Building2 className="w-8 h-8 text-primary" />
+                                            </div>
+                                            <h3 className="text-xl font-bold mb-2">{template.name}</h3>
+                                            <p className="text-xs text-slate-400 mb-4 px-4 line-clamp-2">
+                                                Incluye categorías como: {template.categories.slice(0, 3).join(", ")} y más.
+                                            </p>
+                                            <div className="mt-auto flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-primary opacity-0 group-hover:opacity-100 group-hover:gap-3 transition-all">
+                                                Seleccionar <ChevronIcon className="w-4 h-4" />
+                                            </div>
                                         </Card>
                                     </motion.div>
-                                );
-                            })}
-                        </div>
+                                ))}
+                            </div>
+                        ) : (
+                            /* Modules Grid (Original logic with minor tweaks) */
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                {onboardingSteps.map((step, index) => {
+                                    const Icon = step.icon;
+                                    const isCompleted = completedSteps.includes(step.id);
+
+                                    return (
+                                        <motion.div
+                                            key={step.id}
+                                            initial={{ opacity: 0, y: 20 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            transition={{ delay: 0.1 * index }}
+                                        >
+                                            <Card
+                                                className={`
+                                                    group relative overflow-hidden bg-slate-900/40 border-slate-800 
+                                                    hover:border-primary/50 transition-all duration-300 cursor-pointer
+                                                    hover:shadow-[0_0_30px_rgba(59,130,246,0.2)] hover:scale-105
+                                                    ${isCompleted ? 'border-green-500/50 bg-green-500/5' : ''}
+                                                `}
+                                                onClick={() => startTour(index)}
+                                            >
+                                                {/* Gradient Background */}
+                                                <div className={`absolute inset-0 bg-gradient-to-br ${step.color} opacity-0 group-hover:opacity-10 transition-opacity`} />
+
+                                                {/* Completed Badge */}
+                                                {isCompleted && (
+                                                    <div className="absolute top-3 right-3 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                                                        <span className="text-white text-xs">✓</span>
+                                                    </div>
+                                                )}
+
+                                                <CardContent className="p-6 relative z-10">
+                                                    <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${step.color} p-0.5 mb-4`}>
+                                                        <div className="w-full h-full bg-slate-900 rounded-2xl flex items-center justify-center">
+                                                            <Icon className="w-7 h-7 text-white" />
+                                                        </div>
+                                                    </div>
+
+                                                    <h3 className="text-lg font-black uppercase tracking-tight mb-2">
+                                                        {step.title}
+                                                    </h3>
+
+                                                    <p className="text-sm text-slate-400 leading-relaxed mb-4">
+                                                        {step.description}
+                                                    </p>
+
+                                                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary group-hover:gap-3 transition-all">
+                                                        {isCompleted ? 'Revisar Tour' : 'Iniciar Tour'}
+                                                        <ArrowRight className="w-4 h-4" />
+                                                    </div>
+                                                </CardContent>
+                                            </Card>
+                                        </motion.div>
+                                    );
+                                })}
+                            </div>
+                        )}
 
                         {/* Complete Onboarding Button */}
                         {completedSteps.length === onboardingSteps.length && (

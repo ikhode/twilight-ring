@@ -33,7 +33,6 @@ import { useAuth } from "@/hooks/use-auth";
 import { CognitiveKPI } from "@/components/dashboard/CognitiveKPI";
 import { ScenarioSimulator } from "@/components/dashboard/ScenarioSimulator";
 import { TrustTimeline } from "@/components/dashboard/TrustTimeline";
-import { ChatInterface } from "@/components/chat/ChatInterface";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 
 import { useConfiguration } from "@/context/ConfigurationContext";
@@ -468,9 +467,6 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
-
-      {/* AI Chat Assistant */}
-      <ChatInterface />
     </AppLayout>
   );
 }

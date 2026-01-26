@@ -21,7 +21,8 @@ import {
   Zap,
   Brain,
   MessageSquare,
-  AlertTriangle
+  AlertTriangle,
+  Activity
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
@@ -33,7 +34,7 @@ import { Label } from "@/components/ui/label";
 import { useConfiguration } from "@/context/ConfigurationContext";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
-import { CognitiveButton, AliveValue } from "@/components/cognitive";
+import { CognitiveButton, AliveValue, CognitiveInput } from "@/components/cognitive";
 import { useCognitiveEngine } from "@/lib/cognitive/engine";
 
 function CreateCustomerDialog() {
@@ -85,26 +86,29 @@ function CreateCustomerDialog() {
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <Label>Nombre de la Empresa / Persona</Label>
-            <Input
+            <CognitiveInput
               value={formData.name}
               onChange={e => setFormData({ ...formData, name: e.target.value })}
               placeholder="Ej. Acme Corp"
+              semanticType="name"
             />
           </div>
           <div className="space-y-2">
             <Label>Email</Label>
-            <Input
+            <CognitiveInput
               value={formData.email}
               onChange={e => setFormData({ ...formData, email: e.target.value })}
               placeholder="contacto@acme.com"
+              semanticType="email"
             />
           </div>
           <div className="space-y-2">
             <Label>Teléfono</Label>
-            <Input
+            <CognitiveInput
               value={formData.phone}
               onChange={e => setFormData({ ...formData, phone: e.target.value })}
               placeholder="+52 55..."
+              semanticType="phone"
             />
           </div>
         </div>
@@ -239,7 +243,7 @@ export default function CRM() {
 
   if (!isEnabled) {
     return (
-      <AppLayout>
+      <AppLayout title="Gestión Comercial (CRM)" subtitle="Administración de relaciones">
         <div className="flex flex-col items-center justify-center h-[80vh] text-center space-y-4">
           <div className="p-4 bg-muted rounded-full">
             <Users className="w-12 h-12 text-muted-foreground" />
@@ -352,43 +356,43 @@ export default function CRM() {
           {/* CLIENTS TAB */}
           <TabsContent value="clients" className="space-y-6">
 
-            {/* Cognitive Action Layer */}
+            {/* Portfolio Analysis Layer - Results Oriented */}
             <AnimatePresence>
               <motion.div
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="p-4 rounded-xl border border-accent/20 bg-accent/5 backdrop-blur-sm relative overflow-hidden"
+                className="p-4 rounded-xl border border-primary/20 bg-primary/5 backdrop-blur-sm relative overflow-hidden"
               >
-                <div className="absolute inset-0 bg-gradient-to-r from-accent/10 to-transparent pointer-events-none" />
+                <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent pointer-events-none" />
                 <div className="flex items-start gap-3 relative z-10">
-                  <div className="p-2 rounded-lg bg-accent/20 text-accent">
-                    <Brain className="w-5 h-5" />
+                  <div className="p-2 rounded-lg bg-primary/20 text-primary">
+                    <Activity className="w-5 h-5" />
                   </div>
                   <div className="flex-1">
-                    <h4 className="text-sm font-semibold text-accent flex items-center gap-2">
-                      Sugerencia Cognitiva
-                      <Badge variant="outline" className="text-[10px] h-4 border-accent/30 text-accent/80">98% Relevancia</Badge>
+                    <h4 className="text-sm font-semibold text-primary flex items-center gap-2">
+                      Diagnóstico de Salud Crediticia
+                      <Badge variant="outline" className="text-[10px] h-4 border-primary/30 text-primary/80">Monitor Activo</Badge>
                     </h4>
-                    <p className="text-sm text-muted-foreground mt-1">
+                    <p className="text-sm text-slate-400 mt-1">
                       {analysisData?.segments?.atRisk > 0
-                        ? `He detectado ${analysisData.segments.atRisk} clientes en "Alto Riesgo" con facturas pendientes.`
-                        : "No he detectado clientes en riesgo inminente. La cartera está saludable."}
-                      {analysisData?.segments?.atRisk > 0 && " ¿Deseas enviar un recordatorio automático?"}
+                        ? `Se identificaron ${analysisData.segments.atRisk} clientes con pagos demorados que requieren conciliación inmediata.`
+                        : "No se detectan discrepancias en los ciclos de cobro. La liquidez de cartera es óptima."}
                     </p>
-                    <div className="mt-3 flex gap-2">
-                      <CognitiveButton
-                        size="sm"
-                        className="h-8 text-xs"
-                        intent="send_reminders"
-                        showConfidence
-                        onClick={() => remindersMutation.mutate()}
-                        disabled={remindersMutation.isPending}
-                      >
-                        <MessageSquare className="w-3 h-3 mr-1.5" />
-                        {remindersMutation.isPending ? "Enviando..." : "Enviar Recordatorios"}
-                      </CognitiveButton>
-                      <Button size="sm" variant="ghost" className="h-8 text-xs">Ignorar</Button>
-                    </div>
+                    {analysisData?.segments?.atRisk > 0 && (
+                      <div className="mt-3 flex gap-2">
+                        <CognitiveButton
+                          size="sm"
+                          className="h-8 text-xs bg-primary hover:bg-primary/90"
+                          intent="send_reminders"
+                          onClick={() => remindersMutation.mutate()}
+                          disabled={remindersMutation.isPending}
+                        >
+                          <MessageSquare className="w-3 h-3 mr-1.5" />
+                          {remindersMutation.isPending ? "Procesando..." : "Ejecutar Cobranza Preventiva"}
+                        </CognitiveButton>
+                        <Button size="sm" variant="ghost" className="h-8 text-xs">Omitir Ciclo</Button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </motion.div>
@@ -447,8 +451,8 @@ export default function CRM() {
                     {loadingCustomers && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
 
                     <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20">
-                      <Zap className="w-3 h-3 text-primary" />
-                      <span className="text-[10px] font-bold text-primary uppercase tracking-wide">Cognitive List</span>
+                      <Activity className="w-3 h-3 text-primary" />
+                      <span className="text-[10px] font-bold text-primary uppercase tracking-wide">Monitor de Clientes</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">

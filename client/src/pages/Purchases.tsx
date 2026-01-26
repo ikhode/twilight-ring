@@ -12,7 +12,8 @@ import { useConfiguration } from "@/context/ConfigurationContext";
 import { cn } from "@/lib/utils";
 import {
     ShoppingCart, Plus, Minus, Trash2, CreditCard,
-    Search, Package, Truck, CheckCircle, ShoppingBag, Loader2
+    Search, Package, Truck, CheckCircle, ShoppingBag, Loader2,
+    Activity
 } from "lucide-react";
 import {
     Dialog,
@@ -25,6 +26,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataTable } from "@/components/shared/DataTable";
+import { CognitiveInput, CognitiveField } from "@/components/cognitive";
 
 export default function Purchases() {
     const { session } = useAuth();
@@ -258,13 +260,22 @@ function CreateProductDialog() {
                 <div className="space-y-4 py-4">
                     <div className="space-y-2">
                         <Label>Nombre / Descripción</Label>
-                        <Input value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="Ej. Papel Bond o Servicio Limpieza" />
+                        <CognitiveInput
+                            value={formData.name}
+                            onChange={e => setFormData({ ...formData, name: e.target.value })}
+                            placeholder="Ej. Papel Bond o Servicio Limpieza"
+                            semanticType="name"
+                        />
                     </div>
                     {hasInventory && (
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label>SKU</Label>
-                                <Input value={formData.sku} onChange={e => setFormData({ ...formData, sku: e.target.value })} />
+                                <CognitiveInput
+                                    value={formData.sku}
+                                    onChange={e => setFormData({ ...formData, sku: e.target.value })}
+                                    semanticType="sku"
+                                />
                             </div>
                             <div className="space-y-2">
                                 <Label>Unidad</Label>
@@ -275,11 +286,21 @@ function CreateProductDialog() {
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label>Costo Unitario (MXN)</Label>
-                            <Input type="number" value={formData.cost} onChange={e => setFormData({ ...formData, cost: parseFloat(e.target.value) })} />
+                            <CognitiveInput
+                                type="number"
+                                value={formData.cost}
+                                onChange={e => setFormData({ ...formData, cost: parseFloat(e.target.value) })}
+                                semanticType="price"
+                            />
                         </div>
                         <div className="space-y-2">
                             <Label>Precio Venta (MXN)</Label>
-                            <Input type="number" value={formData.price} onChange={e => setFormData({ ...formData, price: parseFloat(e.target.value) })} />
+                            <CognitiveInput
+                                type="number"
+                                value={formData.price}
+                                onChange={e => setFormData({ ...formData, price: parseFloat(e.target.value) })}
+                                semanticType="price"
+                            />
                         </div>
                     </div>
                 </div>
@@ -484,17 +505,15 @@ function CreatePurchaseDialog() {
 
                     {/* Order Details */}
                     <div className="space-y-4 border-r pr-4">
-                        <div className="space-y-2">
-                            <Label>Proveedor</Label>
+                        <CognitiveField label="Proveedor" value={selectedSupplier} semanticType="category">
                             <Select value={selectedSupplier} onValueChange={setSelectedSupplier}>
                                 <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                                 <SelectContent>{suppliers.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
                             </Select>
-                        </div>
+                        </CognitiveField>
 
                         <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label>Método de Pago</Label>
+                            <CognitiveField label="Método de Pago" value={paymentMethod} semanticType="method">
                                 <Select value={paymentMethod} onValueChange={setPaymentMethod}>
                                     <SelectTrigger><SelectValue /></SelectTrigger>
                                     <SelectContent>
@@ -503,9 +522,8 @@ function CreatePurchaseDialog() {
                                         <SelectItem value="credit">Crédito</SelectItem>
                                     </SelectContent>
                                 </Select>
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Logística</Label>
+                            </CognitiveField>
+                            <CognitiveField label="Logística" value={logisticsMethod} semanticType="method">
                                 <Select value={logisticsMethod} onValueChange={setLogisticsMethod}>
                                     <SelectTrigger><SelectValue /></SelectTrigger>
                                     <SelectContent>
@@ -513,7 +531,7 @@ function CreatePurchaseDialog() {
                                         <SelectItem value="pickup">Recoger Parcela</SelectItem>
                                     </SelectContent>
                                 </Select>
-                            </div>
+                            </CognitiveField>
                         </div>
 
                         {logisticsMethod === 'pickup' && (
@@ -576,6 +594,35 @@ function CreatePurchaseDialog() {
                             <div className="flex justify-between font-bold text-lg pt-1 border-t text-primary mt-1">
                                 <span>TOTAL</span>
                                 <span>{formatCurrency(totalWithFreight)}</span>
+                            </div>
+                        </div>
+
+                        {/* Operational Insight for Purchases */}
+                        <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-3 space-y-2 animate-in fade-in zoom-in-95">
+                            <div className="flex items-center gap-2">
+                                <Activity className="w-3.5 h-3.5 text-blue-400" />
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-blue-400">Optimización de Abastecimiento</span>
+                            </div>
+                            <div className="space-y-1.5 text-[10px] text-slate-400">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-1 h-1 rounded-full bg-blue-500" />
+                                    <p>Impacto en flujo de caja: <span className="text-slate-200">-{formatCurrency(totalWithFreight)}</span> programado.</p>
+                                </div>
+                                {logisticsMethod === 'pickup' ? (
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-1 h-1 rounded-full bg-amber-500" />
+                                        <p>Logística propia activada: <span className="text-amber-200/80">Costo de flete</span> incluido en operativo.</p>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-1 h-1 rounded-full bg-emerald-500" />
+                                        <p>Entrega de proveedor: <span className="text-emerald-200/80">Sin asignación</span> de activos logísticos internos.</p>
+                                    </div>
+                                )}
+                                <div className="flex items-center gap-2">
+                                    <div className="w-1 h-1 rounded-full bg-emerald-500" />
+                                    <p>Actualización automática de <span className="text-emerald-200/80">costos promedio</span> al recibir.</p>
+                                </div>
                             </div>
                         </div>
                     </div>
