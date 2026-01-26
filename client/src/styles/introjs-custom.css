@@ -4,6 +4,7 @@
 .introjs-overlay {
   background-color: rgba(2, 6, 23, 0.85) !important;
   backdrop-filter: blur(4px);
+  z-index: 9999 !important;
 }
 
 /* Tooltip container */
@@ -15,6 +16,7 @@
   color: #fff !important;
   max-width: 450px !important;
   padding: 0 !important;
+  z-index: 99999 !important;
 }
 
 /* Tooltip content */
@@ -188,6 +190,7 @@
   border: 2px solid #3b82f6 !important;
   border-radius: 0.75rem !important;
   box-shadow: 0 0 0 5000px rgba(2, 6, 23, 0.85), 0 0 40px rgba(59, 130, 246, 0.5) !important;
+  z-index: 9999 !important;
 }
 
 /* Tooltip buttons container */
@@ -225,9 +228,11 @@
   0% {
     box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
   }
+
   70% {
     box-shadow: 0 0 0 10px rgba(59, 130, 246, 0);
   }
+
   100% {
     box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
   }
@@ -238,12 +243,12 @@
   .introjs-tooltip {
     max-width: 90vw !important;
   }
-  
+
   .introjs-tooltiptext {
     padding: 1rem !important;
     font-size: 0.875rem !important;
   }
-  
+
   .introjs-button {
     font-size: 0.7rem !important;
     padding: 0.5rem 1rem !important;
