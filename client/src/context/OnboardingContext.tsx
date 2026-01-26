@@ -201,14 +201,18 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
         });
 
         intro.onchange((targetElement) => {
+            // Safe access to internal Intro.js properties
             // @ts-ignore
             const items = intro._introItems;
             // @ts-ignore
             const stepIndex = intro._currentStep;
+
+            if (!items || typeof stepIndex === 'undefined' || !items[stepIndex]) return;
+
             const currentStepData = items[stepIndex];
 
-            if (items && items[stepIndex] && !localStorage.getItem('nexus_tts_muted')) {
-                speak(items[stepIndex].intro);
+            if (!localStorage.getItem('nexus_tts_muted')) {
+                speak(currentStepData.intro);
             }
 
             // Handle Action Requirements (Disable Next Button)
@@ -218,7 +222,6 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
 
                 if (currentStepData?.actionRequirement || currentStepData?.actionTrigger) {
                     if (nextBtn) nextBtn.style.display = 'none';
-                    // We keep skip button visible so they can exit if stuck
                 } else {
                     if (nextBtn) nextBtn.style.display = 'inline-block';
                 }

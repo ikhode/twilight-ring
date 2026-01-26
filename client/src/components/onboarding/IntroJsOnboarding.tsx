@@ -133,6 +133,7 @@ export function IntroJsOnboarding() {
                     >
                         {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
                     </Button>
+                    {/* ENFORCED: Tutorial cannot be skipped
                     <Button
                         variant="ghost"
                         onClick={skipOnboarding}
@@ -140,6 +141,7 @@ export function IntroJsOnboarding() {
                     >
                         Saltar Tutorial
                     </Button>
+                    */}
                 </div>
             </header>
 
