@@ -73,7 +73,10 @@ router.post("/fleet/vehicles/:id/maintenance", async (req, res): Promise<void> =
 
         // Security: Verify vehicle belongs to org
         const [vehicle] = await db.select().from(vehicles).where(and(eq(vehicles.id, vehicleId), eq(vehicles.organizationId, orgId))).limit(1);
-        if (!vehicle) return res.status(404).json({ message: "Vehicle not found" });
+        if (!vehicle) {
+            res.status(404).json({ message: "Vehicle not found" });
+            return;
+        }
 
         // DUPLICATE CHECK: Prevent double submission
         // Check for same vehicle, same type, same date (approx), same description within the last minute or same day
@@ -196,7 +199,10 @@ router.post("/fleet/vehicles/:id/fuel", async (req, res): Promise<void> => {
         const data = req.body;
 
         const [vehicle] = await db.select().from(vehicles).where(and(eq(vehicles.id, vehicleId), eq(vehicles.organizationId, orgId))).limit(1);
-        if (!vehicle) return res.status(404).json({ message: "Vehicle not found" });
+        if (!vehicle) {
+            res.status(404).json({ message: "Vehicle not found" });
+            return;
+        }
 
         // DUPLICATE CHECK
         const existing = await db.select().from(fuelLogs).where(and(
