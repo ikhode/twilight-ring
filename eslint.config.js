@@ -6,8 +6,8 @@ import reactRefresh from "eslint-plugin-react-refresh";
 
 export default tseslint.config(
     eslint.configs.recommended,
-    ...tseslint.configs.recommended,
-    ...tseslint.configs.stylistic,
+    ...tseslint.configs.strictTypeChecked,
+    ...tseslint.configs.stylisticTypeChecked,
     {
         ignores: ["dist", "node_modules", ".local"],
     },
@@ -25,10 +25,14 @@ export default tseslint.config(
             },
         },
         rules: {
-            // --- Strong Typing ---
-            "@typescript-eslint/explicit-function-return-type": "error",
-            "@typescript-eslint/no-explicit-any": "warn",
-            "@typescript-eslint/explicit-module-boundary-types": "error",
+            // --- Strong Typing & Corrections ---
+            "@typescript-eslint/explicit-function-return-type": "off", // Too noisy for React components, relying on inference
+            "@typescript-eslint/no-explicit-any": "error",
+            "@typescript-eslint/no-unsafe-assignment": "warn", // Start with warn to not break everything immediately
+            "@typescript-eslint/no-unsafe-member-access": "warn",
+            "@typescript-eslint/no-unsafe-call": "warn",
+            "@typescript-eslint/no-unsafe-return": "warn",
+            "@typescript-eslint/no-floating-promises": "error", // Critical for backend correctness
 
             // --- Documentation (JSDoc) ---
             "jsdoc/require-jsdoc": [

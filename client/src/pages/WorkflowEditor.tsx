@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import ReactFlow, {
     Background,
     Controls,
@@ -10,7 +10,6 @@ import ReactFlow, {
     Connection,
     OnNodesChange,
     OnEdgesChange,
-    Panel,
     ReactFlowProvider,
     BackgroundVariant,
 } from "reactflow";
@@ -25,11 +24,8 @@ import {
     Settings2,
     Save,
     Play,
-    Plus,
     Search,
-    Grid,
     Layers,
-    GitBranch,
     Bot,
     ArrowLeft
 } from "lucide-react";
@@ -38,7 +34,6 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
-    DialogTrigger
 } from "@/components/ui/dialog";
 import { Link, useSearch } from "wouter";
 import { Badge } from "@/components/ui/badge";
@@ -60,6 +55,46 @@ const nodeTypes = {
     placeholder: PlaceholderNode,
 };
 
+// --- Strong Types ---
+interface CatalogItem {
+    id: string;
+    name: string;
+    description: string;
+    icon?: string;
+    category?: string;
+    type?: 'trigger' | 'action' | 'condition';
+}
+
+interface Catalog {
+    triggers: CatalogItem[];
+    actions: CatalogItem[];
+    conditions: CatalogItem[];
+}
+
+interface WorkflowData {
+    nodes: Node[];
+    edges: Edge[];
+    outputProductId?: string;
+}
+
+interface ProcessData {
+    id: string;
+    name: string;
+    workflowData: WorkflowData;
+}
+
+interface Product {
+    id: string;
+    name: string;
+}
+
+interface Suggestion {
+    id: string;
+    name: string;
+    description: string;
+    workflow: any;
+}
+
 export default function WorkflowEditorWrapper() {
     return (
         <ReactFlowProvider>
@@ -69,7 +104,7 @@ export default function WorkflowEditorWrapper() {
 }
 
 function WorkflowEditor() {
-    const { session, profile } = useAuth();
+    const { session } = useAuth();
     const { toast } = useToast();
     const searchString = useSearch();
     const searchParams = new URLSearchParams(searchString);
@@ -82,16 +117,18 @@ function WorkflowEditor() {
     const [activeTab, setActiveTab] = useState("all");
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [processName, setProcessName] = useState("");
+    const [selectedInputProductId, setSelectedInputProductId] = useState<string | null>(null);
     const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+    const [activePlaceholderId, setActivePlaceholderId] = useState<string | null>(null);
 
     // Load Existing Process
-    const { data: existingProcess } = useQuery({
+    const { data: existingProcess } = useQuery<ProcessData>({
         queryKey: [`/api/cpe/processes/${processId}`],
         queryFn: async () => {
             if (!processId) return null;
             const res = await fetch(`/api/cpe/processes/${processId}`);
             if (!res.ok) throw new Error("Failed to load process");
-            return res.json();
+            return res.json() as Promise<ProcessData>;
         },
         enabled: !!processId
     });
@@ -104,70 +141,10 @@ function WorkflowEditor() {
                 setNodes(existingProcess.workflowData.nodes || []);
                 setEdges(existingProcess.workflowData.edges || []);
                 setSelectedProductId(existingProcess.workflowData.outputProductId || null);
+                setSelectedInputProductId((existingProcess.workflowData as any).inputProductId || null);
             }
-        }
-    }, [existingProcess]);
-
-    // Fetch Products for Settings
-    const { data: products = [] } = useQuery({
-        queryKey: ["/api/inventory/products"],
-        queryFn: async () => {
-            const res = await fetch("/api/inventory/products");
-            if (!res.ok) return [];
-            return res.json();
-        }
-    });
-
-    // Fetch Catalog & Suggestions
-    const { data: catalog } = useQuery({
-        queryKey: ["/api/automation/catalog"],
-        queryFn: async () => {
-            const res = await fetch("/api/automation/catalog");
-            if (!res.ok) throw new Error("Failed to fetch catalog");
-            return res.json();
-        }
-    });
-
-    const { data: suggestions } = useQuery({
-        queryKey: ["/api/automation/suggestions"],
-        queryFn: async () => {
-            const res = await fetch("/api/automation/suggestions");
-            if (!res.ok) throw new Error("Failed to fetch suggestions");
-            return res.json();
-        }
-    });
-
-    // Initial flow with placeholders
-    // Load Process if ID provided
-    const searchParams = new URLSearchParams(window.location.search);
-    const processId = searchParams.get("processId");
-
-    const { data: existingProcess, isLoading: isLoadingProcess } = useQuery({
-        queryKey: ["/api/cpe/processes", processId],
-        queryFn: async () => {
-            if (!processId) return null;
-            const res = await fetch(`/api/cpe/processes/${processId}`, {
-                headers: { Authorization: `Bearer ${session?.access_token}` }
-            });
-            if (!res.ok) throw new Error("Failed to load process");
-            return res.json();
-        },
-        enabled: !!processId && !!session?.access_token
-    });
-
-    // Initial flow initialization
-    useEffect(() => {
-        if (existingProcess) {
-            if (existingProcess.workflowData) {
-                setNodes(existingProcess.workflowData.nodes || []);
-                setEdges(existingProcess.workflowData.edges || []);
-                // Load metadata
-                const meta = existingProcess.workflowData as any;
-                if (meta.outputProductId) setSelectedProductId(meta.outputProductId);
-            }
-            setProcessName(existingProcess.name);
         } else if (!processId) {
-            // Only set default placeholders if NOT loading a process (or if new/empty)
+            // Default start node for new workflows
             setNodes([
                 {
                     id: "p-start",
@@ -185,25 +162,52 @@ function WorkflowEditor() {
         }
     }, [existingProcess, processId]);
 
-    const [activePlaceholderId, setActivePlaceholderId] = useState<string | null>(null);
+    // Fetch Products
+    const { data: products = [] } = useQuery<Product[]>({
+        queryKey: ["/api/inventory/products"],
+        queryFn: async () => {
+            const res = await fetch("/api/inventory/products");
+            if (!res.ok) return [];
+            return res.json() as Promise<Product[]>;
+        }
+    });
+
+    // Fetch Catalog
+    const { data: catalog } = useQuery<Catalog>({
+        queryKey: ["/api/automation/catalog"],
+        queryFn: async () => {
+            const res = await fetch("/api/automation/catalog");
+            if (!res.ok) throw new Error("Failed to fetch catalog");
+            return res.json() as Promise<Catalog>;
+        }
+    });
+
+    // Fetch Suggestions
+    const { data: suggestions } = useQuery<Suggestion[]>({
+        queryKey: ["/api/automation/suggestions"],
+        queryFn: async () => {
+            const res = await fetch("/api/automation/suggestions");
+            if (!res.ok) throw new Error("Failed to fetch suggestions");
+            return res.json() as Promise<Suggestion[]>;
+        }
+    });
 
     const onNodesChange: OnNodesChange = useCallback(
-        (changes) => setNodes((nds) => applyNodeChanges(changes, nds)),
+        (changes) => { setNodes((nds) => applyNodeChanges(changes, nds)); },
         []
     );
 
     const onEdgesChange: OnEdgesChange = useCallback(
-        (changes) => setEdges((eds) => applyEdgeChanges(changes, eds)),
+        (changes) => { setEdges((eds) => applyEdgeChanges(changes, eds)); },
         []
     );
 
     const onConnect = useCallback(
-        (params: Connection) => setEdges((eds) => addEdge({ ...params, animated: true }, eds)),
+        (params: Connection) => { setEdges((eds) => addEdge({ ...params, animated: true }, eds)); },
         []
     );
 
-    // Node addition logic
-    const addStep = (item: any, type: 'action' | 'trigger' | 'condition') => {
+    const addStep = (item: CatalogItem, type: 'action' | 'trigger' | 'condition') => {
         const id = `${type}-${Date.now()}`;
         const targetId = activePlaceholderId;
 
@@ -221,7 +225,6 @@ function WorkflowEditor() {
             let newNodes = nds.filter(n => n.id !== targetPlaceholder.id);
 
             if (type === 'condition') {
-                // Add two placeholders for condition branches
                 const yesPlaceholder: Node = {
                     id: `p-${id}-yes`,
                     type: "placeholder",
@@ -248,7 +251,6 @@ function WorkflowEditor() {
                 };
                 newNodes = [...newNodes, newNode, yesPlaceholder, noPlaceholder];
             } else {
-                // Regular node placeholder
                 const nextPlaceholder: Node = {
                     id: `p-${id}`,
                     type: "placeholder",
@@ -264,11 +266,8 @@ function WorkflowEditor() {
                 newNodes = [...newNodes, newNode, nextPlaceholder];
             }
 
-            // Update edges
             setEdges(eds => {
                 let newEdges = [...eds];
-
-                // Find edge that was pointing to the placeholder
                 const incomingEdge = eds.find(e => e.target === targetPlaceholder.id);
                 if (incomingEdge) {
                     newEdges = newEdges.map(e =>
@@ -276,7 +275,6 @@ function WorkflowEditor() {
                     );
                 }
 
-                // If condition, add initial branch edges to placeholders
                 if (type === 'condition') {
                     newEdges.push(
                         {
@@ -297,7 +295,6 @@ function WorkflowEditor() {
                         }
                     );
                 } else {
-                    // Normal child placeholder edge
                     newEdges.push({
                         id: `e-${id}-next`,
                         source: id,
@@ -305,7 +302,6 @@ function WorkflowEditor() {
                         animated: true,
                     });
                 }
-
                 return newEdges;
             });
 
@@ -327,13 +323,14 @@ function WorkflowEditor() {
         mutationFn: async () => {
             const payload = {
                 name: processName || existingProcess?.name || "Nuevo Flujo",
-                description: existingProcess?.description || "Sin descripción",
+                description: (existingProcess as any)?.description || "Sin descripción",
                 workflowData: {
                     nodes,
                     edges,
-                    outputProductId: selectedProductId // Save the link!
+                    outputProductId: selectedProductId,
+                    inputProductId: selectedInputProductId
                 },
-                type: "production" // Force type to production for now
+                type: "production"
             };
 
             const url = processId
@@ -358,13 +355,12 @@ function WorkflowEditor() {
 
             return res.json();
         },
-        onSuccess: (data) => {
+        onSuccess: () => {
             toast({ title: "Flujo Guardado", description: "Los cambios se han sincronizado." });
-            // If created new, we might want to redirect, but for now just toast.
         }
     });
 
-    const filteredActions = (catalog as any)?.actions?.filter((a: any) =>
+    const filteredActions = catalog?.actions?.filter((a) =>
         a.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
@@ -374,10 +370,7 @@ function WorkflowEditor() {
             subtitle="Diseña y automatiza el sistema operativo de tu empresa"
         >
             <div className="flex flex-row h-[calc(100vh-180px)] gap-6">
-
-                {/* Main Editor */}
                 <div className="flex-1 flex flex-col bg-slate-950/20 rounded-3xl border border-white/5 overflow-hidden relative">
-                    {/* Toolbar */}
                     <div className="h-14 bg-slate-900/60 backdrop-blur-md border-b border-white/5 flex items-center justify-between px-6 z-10">
                         <div className="flex items-center gap-4">
                             <Button variant="ghost" size="icon" asChild className="rounded-xl">
@@ -392,7 +385,7 @@ function WorkflowEditor() {
                             <Button
                                 variant="outline"
                                 className="h-8 border-white/10 text-[10px] uppercase font-black"
-                                onClick={() => setIsSettingsOpen(true)}
+                                onClick={() => { setIsSettingsOpen(true); }}
                             >
                                 <Settings2 className="w-3.5 h-3.5 mr-2" /> Config
                             </Button>
@@ -400,7 +393,7 @@ function WorkflowEditor() {
                                 <Play className="w-3.5 h-3.5 mr-2" /> Simular
                             </Button>
                             <Button
-                                onClick={() => saveMutation.mutate()}
+                                onClick={() => { saveMutation.mutate(); }}
                                 className="h-8 bg-primary hover:bg-primary/90 text-[10px] uppercase font-black uppercase glow-xs"
                             >
                                 <Save className="w-3.5 h-3.5 mr-2" /> Guardar
@@ -425,7 +418,6 @@ function WorkflowEditor() {
                     </div>
                 </div>
 
-                {/* AI Suggestions Sidebar */}
                 <div className="w-[320px] flex flex-col gap-4">
                     <Card className="bg-slate-900/50 border-slate-800 p-5 flex flex-col gap-4">
                         <div className="flex items-center gap-2 text-primary">
@@ -435,10 +427,10 @@ function WorkflowEditor() {
                         <p className="text-[10px] text-slate-500 font-bold uppercase">Workflows diseñados para tu empresa:</p>
 
                         <div className="space-y-3">
-                            {(suggestions as any[])?.map((s: any) => (
+                            {suggestions?.map((s) => (
                                 <div
                                     key={s.id}
-                                    onClick={() => applySuggestion(s)}
+                                    onClick={() => { applySuggestion(s); }}
                                     className="p-3 bg-white/5 border border-white/5 rounded-xl hover:bg-primary/5 hover:border-primary/30 cursor-pointer group transition-all"
                                 >
                                     <div className="flex items-center justify-between mb-1">
@@ -462,7 +454,7 @@ function WorkflowEditor() {
                                 placeholder="Buscar acciones..."
                                 className="h-9 pl-9 bg-slate-950 border-slate-800 text-xs placeholder:text-slate-700"
                                 value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
+                                onChange={(e) => { setSearchTerm(e.target.value); }}
                             />
                         </div>
 
@@ -471,10 +463,10 @@ function WorkflowEditor() {
                                 <div>
                                     <p className="text-[8px] font-black uppercase text-slate-600 mb-2">Populares</p>
                                     <div className="grid gap-2">
-                                        {filteredActions?.map((a: any) => (
+                                        {filteredActions?.map((a) => (
                                             <div
                                                 key={a.id}
-                                                onClick={() => addStep(a, a.type || 'action')}
+                                                onClick={() => { addStep(a, a.type || 'action'); }}
                                                 className="p-2 bg-slate-800/50 rounded-lg hover:bg-slate-800 transition-all cursor-pointer flex items-center gap-2"
                                             >
                                                 <div className="w-6 h-6 rounded bg-slate-700 flex items-center justify-center">
@@ -491,11 +483,9 @@ function WorkflowEditor() {
                 </div>
             </div>
 
-            {/* Catalog Dialog (Categorized) */}
             <Dialog open={isCatalogOpen} onOpenChange={setIsCatalogOpen}>
                 <DialogContent className="max-w-4xl bg-slate-950 border-slate-800 p-0 overflow-hidden">
                     <div className="flex h-[600px]">
-                        {/* Sidebar */}
                         <div className="w-64 bg-slate-900/50 border-r border-slate-800 p-6 flex flex-col gap-8">
                             <div>
                                 <h2 className="text-xl font-black uppercase italic tracking-widest text-white mb-2">Catálogo</h2>
@@ -507,7 +497,7 @@ function WorkflowEditor() {
                                     <Button
                                         key={cat}
                                         variant="ghost"
-                                        onClick={() => setActiveTab(cat)}
+                                        onClick={() => { setActiveTab(cat); }}
                                         className={cn(
                                             "justify-start h-9 text-[10px] font-black uppercase tracking-widest",
                                             activeTab === cat ? "bg-primary/10 text-primary" : "text-slate-500 hover:text-slate-300"
@@ -519,7 +509,6 @@ function WorkflowEditor() {
                             </nav>
                         </div>
 
-                        {/* Content */}
                         <div className="flex-1 flex flex-col p-8 overflow-hidden">
                             <div className="relative mb-6">
                                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-600" />
@@ -527,13 +516,12 @@ function WorkflowEditor() {
                                     className="h-12 pl-12 bg-white/5 border-slate-800 text-sm placeholder:text-slate-700 rounded-2xl"
                                     placeholder="De qué se trata el siguiente paso?"
                                     value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    onChange={(e) => { setSearchTerm(e.target.value); }}
                                 />
                             </div>
 
                             <ScrollArea className="flex-1">
                                 <div className="grid grid-cols-2 gap-4">
-                                    {/* Filtering Logic */}
                                     {(() => {
                                         const categoryMap: Record<string, string> = {
                                             'transacciones': 'transactions',
@@ -545,18 +533,12 @@ function WorkflowEditor() {
                                         };
                                         const targetCategory = categoryMap[activeTab] || 'all';
 
-                                        const filterItem = (item: any) => {
+                                        const filterItem = (item: CatalogItem) => {
                                             if (!item) return false;
                                             const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                                                 item.description.toLowerCase().includes(searchTerm.toLowerCase());
 
-                                            // 'utility' and 'communication' show up in 'todos' or appropriate context? 
-                                            // Let's assume 'todos' shows everything.
-                                            // For specific tabs, strictly filter by category.
-                                            // We can also allow 'utility' to show in 'transacciones' if we want, but let's be strict for now.
                                             let matchesCategory = targetCategory === 'all' || item.category === targetCategory;
-
-                                            // Fallback: if category is not defined on item (older items), show in 'todos' only
                                             if (targetCategory !== 'all' && !item.category) matchesCategory = false;
 
                                             return matchesSearch && matchesCategory;
@@ -564,10 +546,10 @@ function WorkflowEditor() {
 
                                         return (
                                             <>
-                                                {(catalog as any)?.triggers?.filter(filterItem).map((t: any) => (
+                                                {catalog?.triggers?.filter(filterItem).map((t) => (
                                                     <Card
                                                         key={t.id}
-                                                        onClick={() => addStep(t, 'trigger')}
+                                                        onClick={() => { addStep(t, 'trigger'); }}
                                                         className="p-5 bg-white/5 border-white/5 hover:border-primary/50 transition-all cursor-pointer group"
                                                     >
                                                         <Badge className="bg-primary/20 text-primary border-none text-[8px] mb-2">DISPARADOR</Badge>
@@ -575,10 +557,10 @@ function WorkflowEditor() {
                                                         <p className="text-[10px] text-slate-500 mt-1">{t.description}</p>
                                                     </Card>
                                                 ))}
-                                                {(catalog as any)?.conditions?.filter(filterItem).map((c: any) => (
+                                                {catalog?.conditions?.filter(filterItem).map((c) => (
                                                     <Card
                                                         key={c.id}
-                                                        onClick={() => addStep(c, 'condition')}
+                                                        onClick={() => { addStep(c, 'condition'); }}
                                                         className="p-5 bg-white/5 border-white/5 hover:border-orange-500/50 transition-all cursor-pointer group"
                                                     >
                                                         <Badge className="bg-orange-500/20 text-orange-500 border-none text-[8px] mb-2">CONDICIÓN</Badge>
@@ -586,10 +568,10 @@ function WorkflowEditor() {
                                                         <p className="text-[10px] text-slate-500 mt-1">{c.description}</p>
                                                     </Card>
                                                 ))}
-                                                {(catalog as any)?.actions?.filter(filterItem).map((a: any) => (
+                                                {catalog?.actions?.filter(filterItem).map((a) => (
                                                     <Card
                                                         key={a.id}
-                                                        onClick={() => addStep(a, 'action')}
+                                                        onClick={() => { addStep(a, 'action'); }}
                                                         className="p-5 bg-white/5 border-white/5 hover:border-primary/50 transition-all cursor-pointer group"
                                                     >
                                                         <Badge className="bg-slate-800 text-slate-400 border-none text-[8px] mb-2">ACCIÓN</Badge>
@@ -606,7 +588,7 @@ function WorkflowEditor() {
                     </div>
                 </DialogContent>
             </Dialog>
-            {/* Process Settings Dialog */}
+
             <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
                 <DialogContent className="bg-slate-900 border-slate-800">
                     <DialogHeader>
@@ -617,7 +599,7 @@ function WorkflowEditor() {
                             <label className="text-xs font-bold text-slate-400 uppercase">Nombre del Proceso</label>
                             <Input
                                 value={processName}
-                                onChange={(e) => setProcessName(e.target.value)}
+                                onChange={(e) => { setProcessName(e.target.value); }}
                                 className="bg-slate-950 border-slate-800"
                             />
                         </div>
@@ -626,10 +608,10 @@ function WorkflowEditor() {
                             <p className="text-[10px] text-slate-500">Al finalizar un lote de este proceso, se incrementará el stock de este producto.</p>
                             <ScrollArea className="h-48 rounded-md border border-slate-800 bg-slate-950 p-2">
                                 <div className="space-y-1">
-                                    {products.map((p: any) => (
+                                    {products.map((p) => (
                                         <div
                                             key={p.id}
-                                            onClick={() => setSelectedProductId(p.id)}
+                                            onClick={() => { setSelectedProductId(p.id); }}
                                             className={cn(
                                                 "p-2 rounded cursor-pointer flex justify-between items-center text-xs",
                                                 selectedProductId === p.id ? "bg-primary/20 text-primary" : "text-slate-400 hover:bg-slate-900"

@@ -55,6 +55,13 @@ interface Ticket {
 
 
 
+/**
+ *
+ * @param root0
+ * @param root0.tasks
+ * @param root0.inventory
+ * @param root0.isError
+ */
 function TaskSelector({ tasks, inventory, isError }: { tasks: any[], inventory: any[], isError: boolean }) {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const selectedTask = tasks?.find(t => t.id === selectedTaskId);
@@ -108,6 +115,9 @@ function TaskSelector({ tasks, inventory, isError }: { tasks: any[], inventory: 
   );
 }
 
+/**
+ *
+ */
 export default function Production() {
   const { session } = useAuth();
   const { toast } = useToast();
@@ -331,6 +341,10 @@ export default function Production() {
     totalAmount: tickets.reduce((acc, t) => acc + (t.totalAmount || 0), 0),
   };
 
+  /**
+   *
+   * @param amount
+   */
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(amount);
 
@@ -349,8 +363,15 @@ export default function Production() {
   const [isRecipeMode, setIsRecipeMode] = useState(false);
   const [inputList, setInputList] = useState([0]);
 
-  const addInputRow = () => setInputList(prev => [...prev, Date.now()]);
-  const removeInputRow = (id: number) => setInputList(prev => prev.length > 1 ? prev.filter(item => item !== id) : prev);
+  /**
+   *
+   */
+  const addInputRow = () => { setInputList(prev => [...prev, Date.now()]); };
+  /**
+   *
+   * @param id
+   */
+  const removeInputRow = (id: number) => { setInputList(prev => prev.length > 1 ? prev.filter(item => item !== id) : prev); };
 
   return (
     <AppLayout title="Producción" subtitle="Control de procesos y destajo">
@@ -501,7 +522,7 @@ export default function Production() {
                         <FinalizeBatchDialog
                           instance={instance}
                           tickets={tickets.filter(t => t.batchId === instance.id)}
-                          onConfirm={(data) => finishBatchMutation.mutate({ instanceId: instance.id, ...data })}
+                          onConfirm={(data) => { finishBatchMutation.mutate({ instanceId: instance.id, ...data }); }}
                           isVisionEnabled={isVisionEnabled}
                           isLoading={finishBatchMutation.isPending}
                         />
@@ -668,7 +689,7 @@ export default function Production() {
             },
             { key: "status", header: "Estado" },
             { key: "totalAmount", header: "Monto", render: (i) => formatCurrency(i.totalAmount / 100) },
-            { key: "actions", header: "Acciones", render: (i) => i.status === 'pending' ? <Button size="sm" onClick={() => approveMutation.mutate(i.id)}>Aprobar</Button> : null }]} data={tickets} /></CardContent></Card>
+            { key: "actions", header: "Acciones", render: (i) => i.status === 'pending' ? <Button size="sm" onClick={() => { approveMutation.mutate(i.id); }}>Aprobar</Button> : null }]} data={tickets} /></CardContent></Card>
           </TabsContent >
         </Tabs >
       </div >
@@ -676,6 +697,15 @@ export default function Production() {
   );
 }
 
+/**
+ *
+ * @param root0
+ * @param root0.instance
+ * @param root0.tickets
+ * @param root0.onConfirm
+ * @param root0.isVisionEnabled
+ * @param root0.isLoading
+ */
 function FinalizeBatchDialog({ instance, tickets = [], onConfirm, isVisionEnabled, isLoading }: { instance: any, tickets?: any[], onConfirm: (data: any) => void, isVisionEnabled: boolean, isLoading?: boolean }) {
   const [step, setStep] = useState(1);
   const [outputs, setOutputs] = useState({ water: 0, pulp: 0, shells: 0 });
@@ -684,7 +714,16 @@ function FinalizeBatchDialog({ instance, tickets = [], onConfirm, isVisionEnable
 
   const [coProducts, setCoProducts] = useState<{ productId: string, quantity: number }[]>([]);
 
-  const addCoProduct = () => setCoProducts([...coProducts, { productId: "", quantity: 0 }]);
+  /**
+   *
+   */
+  const addCoProduct = () => { setCoProducts([...coProducts, { productId: "", quantity: 0 }]); };
+  /**
+   *
+   * @param index
+   * @param field
+   * @param value
+   */
   const updateCoProduct = (index: number, field: string, value: any) => {
     const newCoProducts = [...coProducts];
     (newCoProducts as any)[index][field] = value;
@@ -698,11 +737,18 @@ function FinalizeBatchDialog({ instance, tickets = [], onConfirm, isVisionEnable
     deshuesado: tickets.filter(t => t.taskName?.toLowerCase().includes('hues')).reduce((a, b) => a + (b.quantity || 0), 0),
   };
 
+  /**
+   *
+   * @param name
+   */
   const getUnitForTask = (name: string) => {
     if (name.toLowerCase().includes('pelad')) return 'kg';
     return 'pza';
   };
 
+  /**
+   *
+   */
   const calculateEstimate = () => {
     if (stats.destopado > 0) {
       setEstimatedInput(stats.destopado);
@@ -767,7 +813,7 @@ function FinalizeBatchDialog({ instance, tickets = [], onConfirm, isVisionEnable
                 {coProducts.map((cp, idx) => (
                   <div key={idx} className="flex gap-2 items-center">
                     <div className="flex-1">
-                      <Select value={cp.productId} onValueChange={(v) => updateCoProduct(idx, 'productId', v)}>
+                      <Select value={cp.productId} onValueChange={(v) => { updateCoProduct(idx, 'productId', v); }}>
                         <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Producto" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="coproduct-1">Agua de Coco</SelectItem>
@@ -781,7 +827,7 @@ function FinalizeBatchDialog({ instance, tickets = [], onConfirm, isVisionEnable
                       className="w-24 h-8 text-xs"
                       placeholder="Cant."
                       value={cp.quantity || ''}
-                      onChange={(e) => updateCoProduct(idx, 'quantity', Number(e.target.value))}
+                      onChange={(e) => { updateCoProduct(idx, 'quantity', Number(e.target.value)); }}
                     />
                   </div>
                 ))}
@@ -794,7 +840,7 @@ function FinalizeBatchDialog({ instance, tickets = [], onConfirm, isVisionEnable
                   step="0.1"
                   className="border-blue-500/30 focus:border-blue-500 bg-blue-950/20"
                   placeholder="0.0 L"
-                  onChange={(e) => setOutputs({ ...outputs, water: Number(e.target.value) })}
+                  onChange={(e) => { setOutputs({ ...outputs, water: Number(e.target.value) }); }}
                 />
               </div>
               <div className="space-y-2">
@@ -806,7 +852,7 @@ function FinalizeBatchDialog({ instance, tickets = [], onConfirm, isVisionEnable
                     className="border-white/20 pl-20"
                     placeholder="0.0 Kg"
                     value={outputs.pulp > 0 ? outputs.pulp : ''}
-                    onChange={(e) => setOutputs({ ...outputs, pulp: Number(e.target.value) })}
+                    onChange={(e) => { setOutputs({ ...outputs, pulp: Number(e.target.value) }); }}
                   />
                   <div className="absolute left-3 top-2.5 text-xs text-purple-400 font-bold">
                     ∑ Tickets
@@ -856,7 +902,7 @@ function FinalizeBatchDialog({ instance, tickets = [], onConfirm, isVisionEnable
         </div>
 
         <DialogFooter>
-          <Button onClick={() => onConfirm({ yields: outputs, estimatedInput: visionCount > 0 ? visionCount : estimatedInput, coProducts })} isLoading={isLoading}>
+          <Button onClick={() => { onConfirm({ yields: outputs, estimatedInput: visionCount > 0 ? visionCount : estimatedInput, coProducts }); }} isLoading={isLoading}>
             Confirmar Cierre e Inventario
           </Button>
         </DialogFooter>
