@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "../storage";
 import {
     vehicles, fuelLogs, maintenanceLogs, routes, routeStops, sales, purchases,
-    insertVehicleSchema, insertRouteSchema, insertRouteStopSchema
+    insertVehicleSchema, insertRouteSchema, insertRouteStopSchema, expenses
 } from "../../shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { getOrgIdFromRequest } from "../auth_util";
@@ -105,6 +105,17 @@ router.post("/fleet/vehicles/:id/maintenance", async (req, res): Promise<void> =
             organizationId: orgId
         }).returning();
 
+        // INTEGRATION: Finance
+        if (data.cost > 0) {
+            await db.insert(expenses).values({
+                organizationId: orgId,
+                amount: data.cost,
+                category: "Mantenimiento",
+                description: `Mantenimiento ${vehicle.plate}: ${data.description || data.type}`,
+                date: new Date(data.date)
+            });
+        }
+
         res.status(201).json(log);
     } catch (error) {
         console.error("Maintenance log error:", error);
@@ -195,6 +206,17 @@ router.post("/fleet/vehicles/:id/fuel", async (req, res): Promise<void> => {
             cost: data.cost,
             mileage: data.mileage
         }).returning();
+
+        // INTEGRATION: Finance
+        if (data.cost > 0) {
+            await db.insert(expenses).values({
+                organizationId: orgId,
+                amount: data.cost,
+                category: "Combustible",
+                description: `Combustible ${vehicle.plate}: ${data.liters}L`,
+                date: new Date(data.date || new Date())
+            });
+        }
 
         res.status(201).json(log);
     } catch (error) {

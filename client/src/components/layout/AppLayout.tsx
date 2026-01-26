@@ -1,4 +1,5 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { cn } from "@/lib/utils";
@@ -18,12 +19,25 @@ import { NeuralSearch } from "@/components/cognitive/NeuralSearch";
 
 export function AppLayout({ children, title, subtitle }: AppLayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [location, setLocation] = useLocation();
+
+  useEffect(() => {
+    // Onboarding Enforcement
+    // Ensure no user accesses the dashboard without completing the intro tour
+    const isCompleted = localStorage.getItem('nexus_introjs_completed');
+    const isTourActive = localStorage.getItem('nexus_tour_active');
+
+    if (!isCompleted && !isTourActive && location !== '/onboarding') {
+      // Small delay to prevent race conditions during hydration/login
+      const t = setTimeout(() => setLocation('/onboarding'), 100);
+      return () => clearTimeout(t);
+    }
+  }, [location, setLocation]);
 
   return (
     <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
       <NeuralSearch />
-      <div className="min-h-screen bg-[#020617] text-white overflow-hidden">
-
+      <div className="min-h-screen bg-background text-foreground overflow-hidden">
         <AliveBackground />
 
         {/* Desktop Sidebar */}
@@ -33,7 +47,7 @@ export function AppLayout({ children, title, subtitle }: AppLayoutProps) {
           <Header title={title} subtitle={subtitle}>
             {/* Mobile Trigger */}
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="md:hidden text-muted-foreground hover:text-white">
+              <Button variant="ghost" size="icon" className="md:hidden text-muted-foreground hover:text-foreground">
                 <Menu className="w-6 h-6" />
               </Button>
             </SheetTrigger>
@@ -46,7 +60,7 @@ export function AppLayout({ children, title, subtitle }: AppLayoutProps) {
       </div>
 
       {/* Mobile Sidebar Content */}
-      <SheetContent side="left" className="p-0 border-r border-white/10 bg-[#020617] w-[280px]">
+      <SheetContent side="left" className="p-0 border-r border-sidebar-border bg-sidebar w-[280px]">
         <Sidebar className="w-full h-full relative" onLinkClick={() => setMobileOpen(false)} />
       </SheetContent>
     </Sheet>

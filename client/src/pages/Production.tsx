@@ -343,6 +343,10 @@ export default function Production() {
   });
 
   const [isRecipeMode, setIsRecipeMode] = useState(false);
+  const [inputList, setInputList] = useState([0]);
+
+  const addInputRow = () => setInputList(prev => [...prev, Date.now()]);
+  const removeInputRow = (id: number) => setInputList(prev => prev.length > 1 ? prev.filter(item => item !== id) : prev);
 
   return (
     <AppLayout title="Producción" subtitle="Control de procesos y destajo">
@@ -474,7 +478,16 @@ export default function Production() {
                           <DialogTrigger asChild><Button variant="outline" size="sm" className="gap-2"><AlertTriangle className="w-3 h-3 text-warning" />Merma</Button></DialogTrigger>
                           <DialogContent>
                             <DialogHeader><DialogTitle>Registrar Merma</DialogTitle></DialogHeader>
-                            <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); logEventMutation.mutate({ instanceId: instance.id, eventType: "anomaly", data: { mermaType: fd.get("type"), quantity: Number(fd.get("quantity")), reason: fd.get("reason") } }); }} className="space-y-4 py-4">
+                            <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); logEventMutation.mutate({ instanceId: instance.id, eventType: "anomaly", data: { mermaType: fd.get("type"), quantity: Number(fd.get("quantity")), reason: fd.get("reason"), productId: fd.get("productId") } }); }} className="space-y-4 py-4">
+                              <div className="space-y-2">
+                                <Label>Producto Afectado</Label>
+                                <Select name="productId" required>
+                                  <SelectTrigger><SelectValue placeholder="Seleccionar Producto" /></SelectTrigger>
+                                  <SelectContent>
+                                    {inventory.map((i: any) => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}
+                                  </SelectContent>
+                                </Select>
+                              </div>
                               <Select name="type" defaultValue="quality"><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="quality">Calidad</SelectItem><SelectItem value="mechanical">Mecánica</SelectItem></SelectContent></Select>
                               <Input name="quantity" type="number" step="0.1" placeholder="Cantidad" />
                               <Button type="submit" className="w-full">Registrar</Button>
@@ -575,19 +588,30 @@ export default function Production() {
                             </div>
                             {/* Support up to 2 inputs UI-wise for MVP simplicity, or user can assume 1st one if only 1 added */}
                             <div className="space-y-2">
-                              {[0, 1].map((idx) => (
-                                <div key={idx} className="flex gap-2">
-                                  <div className="flex-1">
+                              {inputList.map((id, idx) => (
+                                <div key={id} className="flex gap-2 items-end">
+                                  <div className="flex-1 space-y-1">
+                                    <Label className="text-[10px] text-muted-foreground">Insumo {idx + 1}</Label>
                                     <Select name="inputItem">
-                                      <SelectTrigger h-8 text-xs><SelectValue placeholder={`Opción ${idx + 1} (Opcional)`} /></SelectTrigger>
+                                      <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Seleccionar Insumo" /></SelectTrigger>
                                       <SelectContent>
                                         {inventory.map((i: any) => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}
                                       </SelectContent>
                                     </Select>
                                   </div>
-                                  <Input name="inputQty" type="number" step="0.01" placeholder="Cant." className="w-24 h-8" />
+                                  <Input name="inputQty" type="number" step="0.01" placeholder="Cant." className="w-20 h-8" />
+
+                                  {inputList.length > 1 && (
+                                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-rose-500" onClick={() => removeInputRow(id)}>
+                                      <Trash2 className="w-3 h-3" />
+                                    </Button>
+                                  )}
                                 </div>
                               ))}
+
+                              <Button type="button" variant="outline" size="sm" className="w-full text-xs h-7 gap-1 dashed border-slate-700 text-slate-400 hover:text-slate-200" onClick={addInputRow}>
+                                <Plus className="w-3 h-3" /> Agregar Insumo
+                              </Button>
                               <p className="text-[10px] text-slate-500 italic">* Para recetas alternativas (ej. Coco Bueno vs Desecho), selecciona "Alternativo" arriba.</p>
                             </div>
                           </div>

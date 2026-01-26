@@ -96,14 +96,14 @@ export function Header({ title, subtitle, children }: HeaderProps) {
 
       <div className="flex items-center gap-6">
         {/* XP Widget (User Request) */}
-        <div className="hidden md:flex items-center gap-3 px-4 py-1.5 rounded-full bg-slate-900/50 border border-slate-800">
+        <div className="hidden md:flex items-center gap-3 px-4 py-1.5 rounded-full bg-secondary/50 border border-border">
           <div className="flex flex-col items-end">
             <span className="text-[10px] font-black uppercase text-primary tracking-widest">Nivel {level}</span>
-            <span className="text-xs font-bold text-white tabular-nums">{xp} XP</span>
+            <span className="text-xs font-bold text-foreground tabular-nums">{xp} XP</span>
           </div>
           <div className="relative w-8 h-8 flex items-center justify-center">
             <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
-              <path className="text-slate-800" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="4" />
+              <path className="text-muted/30" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="4" />
               <path className="text-primary transition-all duration-1000 ease-out" strokeDasharray={`${progress}, 100`} d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="4" />
             </svg>
             <Trophy className="w-3.5 h-3.5 text-yellow-500 absolute" />
@@ -114,9 +114,9 @@ export function Header({ title, subtitle, children }: HeaderProps) {
           {enabledModules.length > 0 ? (
             <GuardianStatus />
           ) : (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/50 border border-slate-800">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-secondary/50 border border-border">
               <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-              <span className="text-[10px] uppercase font-black tracking-widest text-slate-500">System Standby</span>
+              <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">System Standby</span>
             </div>
           )}
         </div>

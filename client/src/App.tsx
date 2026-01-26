@@ -88,6 +88,7 @@ import { ConfigurationProvider } from "@/context/ConfigurationContext";
 
 
 import { CognitiveBridge } from "@/lib/cognitive/CognitiveBridge";
+import { OnboardingProvider } from "@/context/OnboardingContext";
 
 function App() {
   return (
@@ -96,10 +97,12 @@ function App() {
         <ConfigurationProvider>
           <RealtimeProvider>
             <TooltipProvider>
-              <Toaster />
-              <CognitiveBridge />
-              <Copilot />
-              <Router />
+              <OnboardingProvider>
+                <Toaster />
+                <CognitiveBridge />
+                <Copilot />
+                <Router />
+              </OnboardingProvider>
             </TooltipProvider>
           </RealtimeProvider>
         </ConfigurationProvider>

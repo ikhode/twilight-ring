@@ -42,7 +42,7 @@ export function Sidebar({ className, onLinkClick }: SidebarProps) {
   return (
     <div
       className={cn(
-        "bg-[#020617]/95 backdrop-blur-xl border-r border-white/5 flex flex-col z-40 transition-all duration-300",
+        "bg-sidebar/95 backdrop-blur-xl border-r border-sidebar-border flex flex-col z-40 transition-all duration-300",
         collapsed ? "w-[72px]" : "w-[260px]",
         // Default fixed unless overridden
         !className?.includes("relative") && "fixed left-0 top-0 h-screen",
@@ -61,10 +61,10 @@ export function Sidebar({ className, onLinkClick }: SidebarProps) {
       </div>
 
       {/* Brand */}
-      <div className="h-12 flex items-center px-6 border-b border-white/5 bg-gradient-to-r from-primary/5 to-transparent overflow-hidden mb-2">
-        <Menu className="w-5 h-5 text-slate-400 mr-3 flex-shrink-0" />
+      <div className="h-12 flex items-center px-6 border-b border-sidebar-border bg-gradient-to-r from-primary/5 to-transparent overflow-hidden mb-2">
+        <Menu className="w-5 h-5 text-muted-foreground mr-3 flex-shrink-0" />
         {!collapsed && (
-          <h1 className="font-black text-xl tracking-tighter italic text-white whitespace-nowrap">
+          <h1 className="font-black text-xl tracking-tighter italic text-sidebar-foreground whitespace-nowrap">
             COGNITIVE<span className="text-primary text-xs align-top ml-0.5">OS</span>
           </h1>
         )}
@@ -106,8 +106,8 @@ export function Sidebar({ className, onLinkClick }: SidebarProps) {
                     className={cn(
                       "relative flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group cursor-pointer overflow-hidden",
                       isActive
-                        ? "bg-primary text-white shadow-[0_0_20px_rgba(59,130,246,0.5)]"
-                        : "text-slate-400 hover:text-white hover:bg-white/5"
+                        ? "bg-primary text-primary-foreground shadow-[0_0_20px_rgba(59,130,246,0.5)]"
+                        : "text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent"
                     )}
                   >
                     {isActive && (
@@ -149,7 +149,7 @@ export function Sidebar({ className, onLinkClick }: SidebarProps) {
       </LayoutGroup>
 
       {/* User Footer */}
-      <div className="p-4 border-t border-slate-800">
+      <div className="p-4 border-t border-sidebar-border">
         <LevelIndicator />
         <div className={cn("mt-4 flex items-center gap-3", collapsed ? "justify-center" : "")}>
           <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-primary to-purple-500 border-2 border-slate-900 flex items-center justify-center text-xs font-black text-white shadow-lg flex-shrink-0">
@@ -157,8 +157,8 @@ export function Sidebar({ className, onLinkClick }: SidebarProps) {
           </div>
           {!collapsed && (
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold text-white truncate">{user?.email || "Usuario"}</p>
-              <p className="text-[10px] text-slate-500 font-bold uppercase truncate">{role}</p>
+              <p className="text-xs font-bold text-sidebar-foreground truncate">{user?.email || "Usuario"}</p>
+              <p className="text-[10px] text-muted-foreground font-bold uppercase truncate">{role}</p>
             </div>
           )}
           {!collapsed && (
@@ -178,7 +178,7 @@ export function Sidebar({ className, onLinkClick }: SidebarProps) {
         variant="ghost"
         size="icon"
         onClick={() => setCollapsed(!collapsed)}
-        className="absolute -right-3 top-24 w-6 h-6 rounded-full border border-slate-800 bg-[#020617] shadow-xl hover:bg-slate-800 text-slate-400 group z-50 transition-all"
+        className="absolute -right-3 top-24 w-6 h-6 rounded-full border border-sidebar-border bg-sidebar shadow-xl hover:bg-sidebar-accent text-muted-foreground group z-50 transition-all"
       >
         {collapsed ? <ChevronRight className="w-3 h-3 group-hover:text-primary" /> : <ChevronLeft className="w-3 h-3 group-hover:text-primary" />}
       </Button>
