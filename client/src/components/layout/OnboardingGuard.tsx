@@ -19,6 +19,10 @@ export function OnboardingGuard({ children }: { children: React.ReactNode }) {
     const [location, setLocation] = useLocation();
 
     useEffect(() => {
+        // Optimization: Check local flag first
+        const isCompletedLocally = localStorage.getItem("nexus_onboarding_completed") === "true";
+        if (isCompletedLocally) return;
+
         if (loading) return;
 
         // Exempt public routes and auth routes
@@ -40,6 +44,9 @@ export function OnboardingGuard({ children }: { children: React.ReactNode }) {
                     console.log("🚀 Redirecting to onboarding. Status:", organization.onboardingStatus, "Industry:", organization.industry);
                     setLocation("/onboarding");
                 }
+            } else {
+                // If we passed the check, set the flag for future
+                localStorage.setItem("nexus_onboarding_completed", "true");
             }
         }
     }, [organization, loading, user, location, setLocation]);

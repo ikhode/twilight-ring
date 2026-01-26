@@ -15,17 +15,32 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+// Helper to get auth headers with active organization context
+function getHeaders(customHeaders?: Record<string, string>): Record<string, string> {
+  const headers: Record<string, string> = { ...customHeaders };
+
+  // Inject Active Organization ID if present
+  const activeOrgId = localStorage.getItem("nexus_active_org");
+  if (activeOrgId) {
+    headers["x-organization-id"] = activeOrgId;
+  }
+
+  return headers;
+}
+
 export async function apiRequest(
   method: string,
   url: string,
   data?: unknown | undefined,
-  headers?: Record<string, string>
+  customHeaders?: Record<string, string>
 ): Promise<Response> {
+  const headers = getHeaders(customHeaders);
+
   const res = await fetch(url, {
     method,
     headers: {
       ...(data ? { "Content-Type": "application/json" } : {}),
-      ...(headers || {})
+      ...headers
     },
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
@@ -41,7 +56,11 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
     async ({ queryKey }) => {
-      const res = await fetch(queryKey.join("/") as string, {
+      const url = queryKey.join("/");
+      const headers = getHeaders();
+
+      const res = await fetch(url as string, {
+        headers,
         credentials: "include",
       });
 
