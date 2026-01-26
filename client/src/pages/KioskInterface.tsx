@@ -44,6 +44,7 @@ import ProductionTerminal from "./kiosks/ProductionTerminal";
 import CashierTerminal from "./kiosks/CashierTerminal";
 import AdminTerminal from "./kiosks/AdminTerminal";
 import LogisticsTerminal from "./kiosks/LogisticsTerminal";
+import { DriverTerminalMobile } from "./kiosks/DriverMobileTerminal";
 import { FaceAuthCamera } from "@/components/kiosks/FaceAuthCamera";
 import { format } from "date-fns";
 
@@ -339,7 +340,7 @@ export default function KioskInterface(): JSX.Element {
     );
   }
 
-  // 1.5 Driver Terminal
+  // 1.5 Driver Terminal - Mobile Optimized
   if (kioskInfo?.capabilities?.includes("driver_kiosk")) {
     if (!authenticatedEmployee) {
       return (
@@ -349,18 +350,7 @@ export default function KioskInterface(): JSX.Element {
         />
       );
     }
-    return (
-      <LogisticsTerminal
-        sessionContext={{
-          terminal: kioskInfo as Terminal,
-          driver: authenticatedEmployee
-        }}
-        onLogout={() => {
-          setAuthenticatedEmployee(null);
-          localStorage.removeItem("last_auth_employee_id");
-        }}
-      />
-    );
+    return <DriverTerminalMobile />;
   }
 
   // 1.5 Worker Activity (Mapped to Production)
