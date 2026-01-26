@@ -35,9 +35,19 @@ import TerminalLink from "@/pages/TerminalLink";
 import SubscriptionSuccess from "@/pages/SubscriptionSuccess";
 import WorkflowEditor from "@/pages/WorkflowEditor";
 import Operations from "@/pages/Operations";
-
 import Kiosk from "@/pages/Kiosk";
 
+import { AuthProvider } from "@/hooks/use-auth";
+import { RealtimeProvider } from "@/lib/realtime";
+import { Copilot } from "@/components/ai/Copilot";
+import { ConfigurationProvider } from "@/context/ConfigurationContext";
+import { CognitiveBridge } from "@/lib/cognitive/CognitiveBridge";
+import { OnboardingProvider } from "@/context/OnboardingContext";
+
+/**
+ * Main Router component handling application routes.
+ * @returns {JSX.Element} The router switch based on current path.
+ */
 function Router() {
   return (
     <Switch>
@@ -80,16 +90,10 @@ function Router() {
   );
 }
 
-
-import { AuthProvider } from "@/hooks/use-auth";
-import { RealtimeProvider } from "@/lib/realtime";
-import { Copilot } from "@/components/ai/Copilot";
-import { ConfigurationProvider } from "@/context/ConfigurationContext";
-
-
-import { CognitiveBridge } from "@/lib/cognitive/CognitiveBridge";
-import { OnboardingProvider } from "@/context/OnboardingContext";
-
+/**
+ * Root Application component setting up providers and router.
+ * @returns {JSX.Element} The root application component.
+ */
 function App() {
   return (
     <QueryClientProvider client={queryClient}>

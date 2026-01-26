@@ -141,12 +141,76 @@ export function registerAuthRoutes(app: Express) {
         try {
             const userId = req.params.uid;
 
-            const user = await db.query.users.findFirst({
+            let user = await db.query.users.findFirst({
                 where: eq(users.id, userId),
             });
 
             if (!user) {
-                return res.status(404).json({ message: "User not found" });
+                // [Recovery Logic] Check Supabase Auth
+                const { data: { user: sbUser }, error: sbError } = await supabaseAdmin.auth.admin.getUserById(userId);
+
+                if (sbUser && !sbError && sbUser.email) {
+                    console.log(`[Auth] Recovering missing profile for ${userId}`);
+
+                    const email = sbUser.email;
+                    const name = sbUser.user_metadata?.name || email.split("@")[0] || "User";
+                    const industry = sbUser.user_metadata?.industry || "other";
+                    const orgName = sbUser.user_metadata?.organizationName || `${name}'s Organization`;
+
+                    // 1. Create User
+                    const [newUser] = await db.insert(users).values({
+                        id: userId,
+                        email,
+                        name,
+                    }).returning();
+                    user = newUser;
+
+                    // 2. Create Organization (Default Recovery)
+                    // Note: In a complex app, we might check if they were invited to an existing org, 
+                    // but here we restore them as a fresh Admin of their own org.
+                    const [organization] = await db.insert(organizations).values({
+                        name: orgName,
+                        industry,
+                        subscriptionTier: "trial",
+                    }).returning();
+
+                    // 3. Link User to Org
+                    await db.insert(userOrganizations).values({
+                        userId: user.id,
+                        organizationId: organization.id,
+                        role: "admin",
+                        xp: 0,
+                        level: 1
+                    });
+
+                    // 4. AI Config
+                    await db.insert(aiConfigurations).values({
+                        organizationId: organization.id,
+                        guardianEnabled: true,
+                        guardianSensitivity: 5,
+                        copilotEnabled: true,
+                        adaptiveUiEnabled: true,
+                    });
+
+                    // 5. Modules
+                    const templateKey = industry as keyof typeof industryTemplates;
+                    const moduleIds = industryTemplates[templateKey] || industryTemplates.other || ["crm", "commerce"];
+
+                    for (const moduleId of moduleIds) {
+                        try {
+                            await db.insert(organizationModules).values({
+                                organizationId: organization.id,
+                                moduleId,
+                                enabled: true,
+                            });
+                        } catch (e) {
+                            console.warn(`[Auth] Failed to restore module ${moduleId}`, e);
+                        }
+                    }
+
+                } else {
+                    return res.status(404).json({ message: "User not found" });
+                }
             }
 
             const userOrgs = await db.query.userOrganizations.findMany({

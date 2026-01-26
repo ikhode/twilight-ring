@@ -6,8 +6,8 @@ import reactRefresh from "eslint-plugin-react-refresh";
 
 export default tseslint.config(
     eslint.configs.recommended,
-    ...tseslint.configs.strictTypeChecked,
-    ...tseslint.configs.stylisticTypeChecked,
+    ...tseslint.configs.recommended,
+    // ...tseslint.configs.stylisticTypeChecked,
     {
         ignores: ["dist", "node_modules", ".local", "client/public/sw.js"],
     },

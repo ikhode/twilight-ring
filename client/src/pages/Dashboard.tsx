@@ -41,6 +41,14 @@ import { SalesFunnelWidget } from "@/components/widgets/SalesFunnelWidget";
 import { TopCustomersWidget } from "@/components/widgets/TopCustomersWidget";
 import { MarketTrendsWidget } from "@/components/widgets/MarketTrendsWidget";
 
+/**
+ * Dashboard Component
+ * 
+ * Central hub for the application, displaying key metrics, AI insights,
+ * and navigating to different modules based on the active role.
+ * 
+ * @returns {JSX.Element} The rendered dashboard page.
+ */
 export default function Dashboard() {
   const { role, setRole, industry, enabledModules } = useConfiguration();
   const [predictions, setPredictions] = useState<number[]>([]);
