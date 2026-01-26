@@ -311,7 +311,8 @@ router.get("/summary", async (req, res): Promise<void> => {
         const bankBalance = accounts.reduce((acc, curr) => acc + curr.balance, 0);
 
         // Simplified Logic for Summary
-        const currentBalance = totalIncome - totalOutflow + cashInRegisters + bankBalance;
+        // Activos Líquidos (Real Balance)
+        const currentBalance = cashInRegisters + bankBalance;
 
         // --- NEW: Fetch Recent Transactions for History ---
         const [recentExpenses, recentPayments] = await Promise.all([

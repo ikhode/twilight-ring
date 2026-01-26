@@ -92,8 +92,8 @@ export default function Finance() {
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <StatCard
-            title="Caja Actual"
-            value={isLoading ? "..." : formatCurrency(balance / 100)}
+            title="Efectivo en Caja"
+            value={isLoading ? "..." : formatCurrency((summary?.cashInRegisters || 0) / 100)}
             icon={Wallet}
             variant="primary"
           />
