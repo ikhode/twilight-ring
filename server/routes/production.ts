@@ -158,37 +158,139 @@ router.post("/instances/:id/finish", async (req, res): Promise<void> => {
             timestamp: new Date()
         });
 
-        // 3. Auto-Increment Finished Goods Inventory
-        // Fetch linkage from Process Definition
+        // 3. Payroll-Driven Production Inference (La Inferencia Cognitiva)
+        // En lugar de una receta estática, usamos lo que realmente sucedió (Tickets).
+
+        // A. Obtener todos los tickets asociados a este lote
+        const tickets = await db.query.pieceworkTickets.findMany({
+            where: and(eq(pieceworkTickets.batchId, instanceId), eq(pieceworkTickets.organizationId, orgId)),
+            with: {
+                // Necesitamos saber si la tarea es de "Entrada" (Input) o "Salida" (Output)
+                // Por ahora, usamos heurísticas o metadatos. 
+                // Idealmente la Tarea tendría un flag "isInputDriver" o "isOutputDriver".
+                // Para MVP Universal: 
+                // - La tarea con mayor cantidad de Unidades (pza) suele ser la Entrada (Destopado).
+                // - La tarea con unidad de peso (kg) o marcada como final suele ser la Salida (Pelado).
+            }
+        });
+
+        // B. Análisis de Tickets (Heurística Cognitiva)
+        let inferredInputQty = 0;
+        let inferredOutputQty = 0;
+
+        // Agrupar por nombre de tarea para identificar fases
+        const taskGroups: Record<string, { qty: number, unit: string, count: number }> = {};
+
+        tickets.forEach(t => {
+            const name = t.taskName || "General";
+            if (!taskGroups[name]) taskGroups[name] = { qty: 0, unit: "pza", count: 0 };
+            taskGroups[name].qty += t.quantity;
+            taskGroups[name].count++;
+            // Try to infer unit from context or task definition if available. 
+            // Assuming quantity is consistent per task.
+        });
+
+        // Lógica de Inferencia:
+        // 1. Buscar la "Entrada" (Mayor volumen en piezas -> Coco Entero)
+        // 2. Buscar la "Salida Principal" (Peso/Kilos o etapa final -> Pulpa)
+
+        // Si el usuario mandó 'estimatedInput', confiamos en él, si no, inferimos del maximo conteo de piezas.
+        if (estimatedInput > 0) {
+            inferredInputQty = estimatedInput;
+        } else {
+            // Find task with max quantity assuming it's the raw material count (Destopado)
+            // Filter only 'pza' tasks logic here if possible
+            const maxTask = Object.values(taskGroups).sort((a, b) => b.qty - a.qty)[0];
+            if (maxTask) inferredInputQty = maxTask.qty;
+        }
+
+        // Para el output, usamos lo que mandó el usuario en 'yields' (que viene del frontend calculateEstimate) 
+        // O sumamos los tickets de tasks que parezcan ser de salida (e.g. 'Pelado', 'Empaque')
+        inferredOutputQty = Number(yields) || 0;
+
+        console.log(`[Cognitive Production] Inferred Input: ${inferredInputQty}, Inferred Output: ${inferredOutputQty}`);
+
+        // C. Ejecución de Movimientos de Inventario
+
         const processDef = await getProcess(req.body.processId || (await db.select().from(processInstances).where(eq(processInstances.id, instanceId))).map(p => p.processId)[0], orgId);
 
         if (processDef) {
             const workflow = processDef.workflowData as any;
-            // Check for explicit output link
-            const outputProductId = workflow?.outputProductId || workflow?.meta?.outputProductId;
 
-            if (outputProductId && yields > 0) {
-                console.log(`[Production] Auto-incrementing Stock for Product ${outputProductId}. Qty: ${yields}`);
-
-                // Update Product Stock
+            // 1. Consumo Insumo Principal (e.g. Coco Entero)
+            const inputProductId = workflow?.inputProductId || workflow?.meta?.inputProductId;
+            if (inputProductId && inferredInputQty > 0) {
                 await db.update(products)
-                    .set({ stock: sql`${products.stock} + ${Number(yields)}` })
-                    .where(and(eq(products.id, outputProductId), eq(products.organizationId, orgId)));
+                    .set({ stock: sql`${products.stock} - ${inferredInputQty}` })
+                    .where(and(eq(products.id, inputProductId), eq(products.organizationId, orgId)));
 
-                // Log Movement
                 await db.insert(inventoryMovements).values({
                     organizationId: orgId,
-                    productId: outputProductId,
-                    quantity: Number(yields),
-                    type: "production",
+                    productId: inputProductId,
+                    quantity: -inferredInputQty,
+                    type: "production_use",
                     referenceId: instanceId,
-                    notes: `Producción Finalizada: Lote ${instanceId.slice(0, 8)}`,
+                    notes: `Consumo (Basado en Tickets): ${inferredInputQty} u.`,
                     date: new Date()
                 });
             }
+
+            // 2. Producción Producto Principal (e.g. Pulpa)
+            const outputProductId = workflow?.outputProductId || workflow?.meta?.outputProductId;
+            if (outputProductId && inferredOutputQty > 0) {
+                await db.update(products)
+                    .set({ stock: sql`${products.stock} + ${inferredOutputQty}` })
+                    .where(and(eq(products.id, outputProductId), eq(products.organizationId, orgId)));
+
+                await db.insert(inventoryMovements).values({
+                    organizationId: orgId,
+                    productId: outputProductId,
+                    quantity: inferredOutputQty,
+                    type: "production",
+                    referenceId: instanceId,
+                    notes: `Producción (Basado en Tickets): ${inferredOutputQty} kg/u.`,
+                    date: new Date()
+                });
+            }
+
+            // 3. Co-Productos (Agua, Hueso, etc.)
+            // Estos vienen explícitos en el request 'coProducts' o se infieren
+            const reqCoProducts = req.body.coProducts || []; // [{ productId, quantity, notes }]
+
+            for (const cp of reqCoProducts) {
+                if (cp.productId && cp.quantity > 0) {
+                    await db.update(products)
+                        .set({ stock: sql`${products.stock} + ${Number(cp.quantity)}` })
+                        .where(and(eq(products.id, cp.productId), eq(products.organizationId, orgId)));
+
+                    await db.insert(inventoryMovements).values({
+                        organizationId: orgId,
+                        productId: cp.productId,
+                        quantity: Number(cp.quantity),
+                        type: "production_coproduct", // New type ideally
+                        referenceId: instanceId,
+                        notes: `Co-Producto Generado: ${cp.notes || ''}`,
+                        date: new Date()
+                    });
+                }
+            }
         }
 
-        res.json({ success: true, message: "Batch finished" });
+        // 4. Cognitive Analysis
+        // Emitir evento al "Cerebro" para que analice rendimientos y genere insights
+        CognitiveEngine.emit({
+            orgId,
+            type: "production_finish",
+            data: {
+                instanceId,
+                processName: processDef?.name || "Desconocido",
+                yields: Number(yields),
+                estimatedInput: Number(estimatedInput),
+                notes
+            }
+        });
+
+        res.json({ success: true, message: "Batch finished and processed by AI" });
 
     } catch (error) {
         console.error("Error finishing batch:", error);

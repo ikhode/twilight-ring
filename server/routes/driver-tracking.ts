@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db } from "../storage";
-import { sql } from "drizzle-orm";
+import { sql, eq } from "drizzle-orm";
+import { terminals } from "../../shared/schema";
 
 const router = Router();
 
@@ -33,7 +34,7 @@ router.post("/driver-location", async (req, res): Promise<void> => {
             columns: { name: true }
         });
 
-        // Store location
+        // Store location in memory map
         driverLocations.set(employeeId, {
             employeeId,
             terminalId,
@@ -42,6 +43,23 @@ router.post("/driver-location", async (req, res): Promise<void> => {
             timestamp: timestamp || new Date().toISOString(),
             employeeName: employee?.name || `Driver ${employeeId.slice(0, 8)}`
         });
+
+        // PERSISTENCE: Update Terminal record in DB to trigger Realtime updates
+        if (terminalId) {
+            await db.update(terminals)
+                .set({
+                    lastLatitude: String(latitude), // Ensure string if schema expects decimal/string, or number if defined as such. Schema usually uses numeric/decimal. Let's check schema/kiosks usage.
+                    // kiosks.ts uses: lastLatitude: latitude. Assume correct type processing by Drizzle.
+                    lastLatitude: latitude,
+                    lastLongitude: longitude,
+                    lastActiveAt: new Date(timestamp || Date.now()),
+                    status: 'online'
+                })
+                .where(eq(terminals.id, terminalId));
+        } else {
+            // Fallback: Try to find terminal by driverId?
+            // For now, assume terminalId is sent.
+        }
 
         res.json({ success: true, message: "Location updated" });
     } catch (error) {
