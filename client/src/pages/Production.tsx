@@ -1028,6 +1028,9 @@ function FinalizeBatchDialog({ instance, process, inventory = [], tickets = [], 
 
   const stats = {
     totalPieces: tickets.reduce((a, b) => a + (b.quantity || 0), 0),
+    destopado: tickets.filter(t => t.taskName?.toLowerCase().includes('destop')).reduce((a, b) => a + (b.quantity || 0), 0),
+    deshuesado: tickets.filter(t => t.taskName?.toLowerCase().includes('deshue')).reduce((a, b) => a + (b.quantity || 0), 0),
+    pelado: tickets.filter(t => t.taskName?.toLowerCase().includes('pela')).reduce((a, b) => a + (b.quantity || 0), 0),
     // Heuristic: sum of tickets where task name matches common output stages
     mainOutputQty: tickets.filter(t => t.taskName?.toLowerCase().includes('pela') || t.taskName?.toLowerCase().includes('termina')).reduce((a, b) => a + (b.quantity || 0), 0),
   };

@@ -78,6 +78,14 @@ export const pieceworkTicketsRelations = relations(schema.pieceworkTickets, ({ o
         fields: [schema.pieceworkTickets.employeeId],
         references: [schema.employees.id],
     }),
+    creator: one(schema.users, {
+        fields: [schema.pieceworkTickets.creatorId],
+        references: [schema.users.id],
+    }),
+    approver: one(schema.users, {
+        fields: [schema.pieceworkTickets.approvedBy],
+        references: [schema.users.id],
+    }),
 }));
 
 // Cash Management Relations
@@ -199,3 +207,67 @@ export const chatMessagesRelations = relations(schema.chatMessages, ({ one }) =>
     }),
 }));
 
+// HR Relations
+export const employeesRelations = relations(schema.employees, ({ many }) => ({
+    workSessions: many(schema.workSessions),
+    payrollAdvances: many(schema.payrollAdvances),
+    documents: many(schema.employeeDocs),
+    reviews: many(schema.performanceReviews),
+    history: many(schema.workHistory),
+}));
+
+export const workSessionsRelations = relations(schema.workSessions, ({ one }) => ({
+    employee: one(schema.employees, {
+        fields: [schema.workSessions.employeeId],
+        references: [schema.employees.id],
+    }),
+}));
+
+export const payrollAdvancesRelations = relations(schema.payrollAdvances, ({ one }) => ({
+    employee: one(schema.employees, {
+        fields: [schema.payrollAdvances.employeeId],
+        references: [schema.employees.id],
+    }),
+}));
+
+export const employeeDocsRelations = relations(schema.employeeDocs, ({ one }) => ({
+    employee: one(schema.employees, {
+        fields: [schema.employeeDocs.employeeId],
+        references: [schema.employees.id],
+    }),
+}));
+
+export const performanceReviewsRelations = relations(schema.performanceReviews, ({ one }) => ({
+    employee: one(schema.employees, {
+        fields: [schema.performanceReviews.employeeId],
+        references: [schema.employees.id],
+    }),
+}));
+
+export const workHistoryRelations = relations(schema.workHistory, ({ one }) => ({
+    employee: one(schema.employees, {
+        fields: [schema.workHistory.employeeId],
+        references: [schema.employees.id],
+    }),
+}));
+
+// Production Relations
+export const processesRelations = relations(schema.processes, ({ many }) => ({
+    steps: many(schema.processSteps),
+    instances: many(schema.processInstances),
+}));
+
+export const processInstancesRelations = relations(schema.processInstances, ({ one, many }) => ({
+    process: one(schema.processes, {
+        fields: [schema.processInstances.processId],
+        references: [schema.processes.id],
+    }),
+    events: many(schema.processEvents),
+}));
+
+export const processEventsRelations = relations(schema.processEvents, ({ one }) => ({
+    instance: one(schema.processInstances, {
+        fields: [schema.processEvents.instanceId],
+        references: [schema.processInstances.id],
+    }),
+}));

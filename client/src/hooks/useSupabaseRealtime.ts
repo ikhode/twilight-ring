@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
 import { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
-interface UseSupabaseRealtimeOptions<T = any> {
+interface UseSupabaseRealtimeOptions<T extends { [key: string]: any } = any> {
     table: string;
     queryKey?: string[];
     filter?: string;
@@ -32,7 +32,7 @@ interface UseSupabaseRealtimeOptions<T = any> {
  * });
  * ```
  */
-export function useSupabaseRealtime<T = any>({
+export function useSupabaseRealtime<T extends { [key: string]: any } = any>({
     table,
     queryKey,
     filter,
@@ -42,10 +42,10 @@ export function useSupabaseRealtime<T = any>({
     enabled = true,
 }: UseSupabaseRealtimeOptions<T>) {
     const queryClient = useQueryClient();
-    const { user } = useAuth();
+    const { user, organization } = useAuth();
 
     useEffect(() => {
-        if (!enabled || !user) return;
+        if (!enabled || !user || !organization) return;
 
         let channel: RealtimeChannel;
 
@@ -56,7 +56,7 @@ export function useSupabaseRealtime<T = any>({
             channel = supabase.channel(channelName);
 
             // Build filter string for organization_id if not provided
-            const filterString = filter || `organization_id=eq.${user.organizationId}`;
+            const filterString = filter || `organization_id=eq.${organization.id}`;
 
             // Subscribe to INSERT events
             if (onInsert) {

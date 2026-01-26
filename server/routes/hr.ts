@@ -2,7 +2,15 @@ import { Router } from "express";
 import { storage, db } from "../storage";
 import { getOrgIdFromRequest } from "../auth_util";
 import { supabaseAdmin } from "../supabase";
-import { insertEmployeeSchema, users, userOrganizations, employees } from "@shared/schema";
+import {
+    insertEmployeeSchema,
+    users,
+    userOrganizations,
+    employees,
+    employeeDocs,
+    performanceReviews,
+    workHistory
+} from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 
 const router = Router();
@@ -193,7 +201,7 @@ router.post("/employees/:id/documents", async (req, res): Promise<void> => {
         const { name, type, fileUrl, expiresAt } = req.body;
 
         // In a real app, 'fileUrl' comes from storage upload (S3/Supabase Storage) pre-step
-        const [doc] = await db.insert(require("@shared/schema").employeeDocs).values({
+        const [doc] = await db.insert(employeeDocs).values({
             organizationId: orgId,
             employeeId,
             name,
@@ -214,8 +222,8 @@ router.get("/employees/:id/documents", async (req, res): Promise<void> => {
         if (!orgId) return res.status(401).json({ error: "Unauthorized" });
         const { id: employeeId } = req.params;
 
-        const docs = await db.select().from(require("@shared/schema").employeeDocs)
-            .where(and(eq(require("@shared/schema").employeeDocs.employeeId, employeeId), eq(require("@shared/schema").employeeDocs.organizationId, orgId)));
+        const docs = await db.select().from(employeeDocs)
+            .where(and(eq(employeeDocs.employeeId, employeeId), eq(employeeDocs.organizationId, orgId)));
 
         res.json(docs);
     } catch (error) {
@@ -231,7 +239,7 @@ router.post("/employees/:id/reviews", async (req, res): Promise<void> => {
         const { id: employeeId } = req.params;
         const { score, feedback, period } = req.body;
 
-        const [review] = await db.insert(require("@shared/schema").performanceReviews).values({
+        const [review] = await db.insert(performanceReviews).values({
             organizationId: orgId,
             employeeId,
             score,
@@ -253,9 +261,9 @@ router.get("/employees/:id/history", async (req, res): Promise<void> => {
         if (!orgId) return res.status(401).json({ error: "Unauthorized" });
         const { id: employeeId } = req.params;
 
-        const history = await db.select().from(require("@shared/schema").workHistory)
-            .where(and(eq(require("@shared/schema").workHistory.employeeId, employeeId), eq(require("@shared/schema").workHistory.organizationId, orgId)))
-            .orderBy(desc(require("@shared/schema").workHistory.date));
+        const history = await db.select().from(workHistory)
+            .where(and(eq(workHistory.employeeId, employeeId), eq(workHistory.organizationId, orgId)))
+            .orderBy(desc(workHistory.date));
 
         res.json(history);
     } catch (error) {

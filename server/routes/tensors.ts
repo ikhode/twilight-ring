@@ -34,8 +34,8 @@ router.get("/tensors", async (req, res): Promise<void> => {
         // Inventory Tensor: [ItemId, StockLevel, ReorderPoint]
         const inventoryData = await db.select({
             itemId: products.id,
-            stockLevel: products.currentStock,
-            reorderPoint: products.minimumStock
+            stockLevel: products.stock,
+            reorderPoint: products.minStock
         })
             .from(products)
             .where(eq(products.organizationId, orgId))

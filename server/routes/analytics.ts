@@ -57,7 +57,7 @@ router.get("/kpis", async (req, res): Promise<void> => {
             // Low stock products
             db.select({ count: sql<number>`count(*)` })
                 .from(products)
-                .where(and(eq(products.organizationId, orgId), sql`${products.currentStock} < ${products.minimumStock}`)),
+                .where(and(eq(products.organizationId, orgId), sql`${products.stock} < ${products.minStock}`)),
 
             // Total products
             db.select({ count: sql<number>`count(*)` })

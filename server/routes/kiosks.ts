@@ -15,7 +15,7 @@ const router = Router();
  * @param {import("express").Response} res - Respuesta de Express
  * @returns {Promise<void>}
  */
-router.get("/", async (req, res): Promise<void> => {
+router.get("/", async (req, res) => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -36,7 +36,7 @@ router.get("/", async (req, res): Promise<void> => {
  * @param {import("express").Response} res - Respuesta de Express
  * @returns {Promise<void>}
  */
-router.get("/:id", async (req, res): Promise<void> => {
+router.get("/:id", async (req, res) => {
     try {
         // Note: This endpoint might be accessed publicly by the kiosk device.
         // For now, we'll assume it's protected or correct ID is enough.
@@ -62,7 +62,7 @@ router.get("/:id", async (req, res): Promise<void> => {
  * @param {import("express").Response} res - Respuesta de Express
  * @returns {Promise<void>}
  */
-router.get("/device/:deviceId", async (req, res): Promise<void> => {
+router.get("/device/:deviceId", async (req, res) => {
     try {
         const deviceId = req.params.deviceId;
         if (!deviceId) return res.status(400).json({ message: "Device ID Required" });
@@ -85,7 +85,7 @@ router.get("/device/:deviceId", async (req, res): Promise<void> => {
  * @param {import("express").Response} res - Respuesta de Express
  * @returns {Promise<void>}
  */
-router.post("/", async (req, res): Promise<void> => {
+router.post("/", async (req, res) => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -105,7 +105,7 @@ router.post("/", async (req, res): Promise<void> => {
 });
 
 // POST /api/kiosks/:id/provisioning - Generate a 6-digit provisioning token
-router.post("/:id/provisioning", async (req, res): Promise<void> => {
+router.post("/:id/provisioning", async (req, res) => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -131,7 +131,7 @@ router.post("/:id/provisioning", async (req, res): Promise<void> => {
 });
 
 // POST /api/kiosks/bind - Bind a device using a token
-router.post("/bind", async (req, res): Promise<void> => {
+router.post("/bind", async (req, res) => {
     try {
         const { token, deviceId } = req.body;
         if (!token || !deviceId) return res.status(400).json({ message: "Token and Device ID required" });
@@ -176,7 +176,7 @@ router.post("/bind", async (req, res): Promise<void> => {
  * @param {import("express").Response} res - Respuesta de Express
  * @returns {Promise<void>}
  */
-router.post("/register", async (req, res): Promise<void> => {
+router.post("/register", async (req, res) => {
     try {
         const { name, deviceId, organizationId, type, location } = req.body;
 
@@ -215,7 +215,7 @@ router.post("/register", async (req, res): Promise<void> => {
  * @param {import("express").Response} res - Respuesta de Express
  * @returns {Promise<void>}
  */
-router.patch("/:id/heartbeat", async (req, res): Promise<void> => {
+router.patch("/:id/heartbeat", async (req, res) => {
     try {
         const kioskId = req.params.id;
         const deviceAuth = req.headers["x-device-auth"] as string; // format: "deviceId:salt"
@@ -260,7 +260,7 @@ router.patch("/:id/heartbeat", async (req, res): Promise<void> => {
  * @param {import("express").Response} res - Respuesta de Express
  * @returns {Promise<void>}
  */
-router.post("/:id/provisioning", async (req, res): Promise<void> => {
+router.post("/:id/provisioning", async (req, res) => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -295,7 +295,7 @@ router.post("/:id/provisioning", async (req, res): Promise<void> => {
  * @param {import("express").Response} res - Respuesta de Express
  * @returns {Promise<void>}
  */
-router.post("/bind", async (req, res): Promise<void> => {
+router.post("/bind", async (req, res) => {
     try {
         const { token, deviceId, salt } = req.body;
         if (!token || !deviceId || !salt) {
@@ -361,7 +361,7 @@ router.post("/bind", async (req, res): Promise<void> => {
  * @param {import("express").Response} res - Respuesta de Express
  * @returns {Promise<void>}
  */
-router.post("/identify", async (req, res): Promise<void> => {
+router.post("/identify", async (req, res) => {
     try {
         const { descriptor, terminalId } = req.body; // Expect terminalId now
         if (!descriptor || !Array.isArray(descriptor) || descriptor.length !== 128) {
@@ -399,7 +399,7 @@ router.post("/identify", async (req, res): Promise<void> => {
  * @param {import("express").Response} res - Respuesta de Express
  * @returns {Promise<void>}
  */
-router.post("/action", async (req, res): Promise<void> => {
+router.post("/action", async (req, res) => {
     try {
         const { employeeId, action, area, notes, terminalId } = req.body;
         // action: "check_in", "check_out", "switch_area", "break", "resume"
@@ -464,7 +464,7 @@ router.post("/action", async (req, res): Promise<void> => {
  * @param {import("express").Response} res - Respuesta de Express
  * @returns {Promise<void>}
  */
-router.post("/enroll", async (req, res): Promise<void> => {
+router.post("/enroll", async (req, res) => {
     try {
         const { employeeId, descriptor } = req.body;
         await storage.updateEmployeeEmbedding(employeeId, descriptor);
@@ -484,7 +484,7 @@ router.post("/enroll", async (req, res): Promise<void> => {
  * @param {import("express").Response} res - Respuesta de Express
  * @returns {Promise<void>}
  */
-router.post("/driver/link/generate", async (req, res): Promise<void> => {
+router.post("/driver/link/generate", async (req, res) => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -521,7 +521,7 @@ router.post("/driver/link/generate", async (req, res): Promise<void> => {
  * @param {import("express").Response} res - Respuesta de Express
  * @returns {Promise<void>}
  */
-router.post("/driver/link/verify", async (req, res): Promise<void> => {
+router.post("/driver/link/verify", async (req, res) => {
     try {
         const { token, deviceId } = req.body; // deviceId generated by client (fingerprint)
 
@@ -581,7 +581,7 @@ router.post("/driver/link/verify", async (req, res): Promise<void> => {
  * @param {import("express").Response} res - Respuesta de Express
  * @returns {Promise<void>}
  */
-router.get("/driver/session/:deviceId", async (req, res): Promise<void> => {
+router.get("/driver/session/:deviceId", async (req, res) => {
     try {
         const { deviceId } = req.params;
         if (!deviceId) return res.status(400).json({ message: "Device ID required" });

@@ -20,7 +20,6 @@ export const employees = pgTable("employees", {
     // T-CAC Fields
     currentArea: text("current_area"), // Where they are now
     currentStatus: text("current_status").default("offline"), // "active", "break", "lunch", "offline"
-    // @ts-expect-error - Vector type handled by customType
     faceEmbedding: customType<{ data: number[] }>({
         dataType() {
             return "vector(128)"; // Standard for face-api.js descriptors
@@ -63,7 +62,9 @@ export type Employee = typeof employees.$inferSelect;
 export type InsertEmployee = z.infer<typeof insertEmployeeSchema>;
 export type PayrollAdvance = typeof payrollAdvances.$inferSelect;
 
-export const insertEmployeeSchema = createInsertSchema(employees);
+export const insertEmployeeSchema = createInsertSchema(employees, {
+    faceEmbedding: z.array(z.number()).optional()
+});
 export const insertPayrollAdvanceSchema = createInsertSchema(payrollAdvances);
 
 // 1. Employee Documents (Confidential)

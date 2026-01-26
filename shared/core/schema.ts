@@ -178,7 +178,6 @@ export const embeddings = pgTable("embeddings", {
     entityType: text("entity_type").notNull(), // "product", "process_step", "log"
     entityId: varchar("entity_id").notNull(),
     content: text("content").notNull(), // The text representation
-    // @ts-expect-error - Drizzle Kit handles vector type
     vector: customType<{ data: number[] }>({
         dataType() {
             return "vector(1536)";
