@@ -207,7 +207,7 @@ function PurchasesTable({ data }: { data: any[] }) {
 function CreateProductDialog() {
     const { session } = useAuth();
     const { enabledModules } = useConfiguration();
-    const hasInventory = enabledModules.some(m => m.id === "inventory");
+    const hasInventory = enabledModules.includes("inventory");
     const queryClient = useQueryClient();
     const { toast } = useToast();
     const [open, setOpen] = useState(false);

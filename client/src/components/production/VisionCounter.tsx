@@ -15,7 +15,7 @@ export function VisionCounter({ onCountChange }: { onCountChange: (count: number
     const [detectedObjects, setDetectedObjects] = useState<string[]>([]);
 
     // Simulation interval ref
-    const intervalRef = useRef<NodeJS.Timeout>();
+    const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
     const startCamera = async () => {
         setModelLoading(true);

@@ -275,7 +275,7 @@ export default function TimeClock() {
                 Registros Recientes
               </h3>
               <div className="space-y-3">
-                {recentRecords.map((record: any) => {
+                {(recentRecords as any[]).map((record: any) => {
                   const action = actionLabels[record.notes?.includes("activity") ? "activity_start" : "entry"]; // Placeholder logic
                   const ActionIcon = action.icon;
                   return (
@@ -315,7 +315,7 @@ export default function TimeClock() {
           </DialogHeader>
           <ScrollArea className="h-[400px] pr-4">
             <div className="space-y-2 py-4">
-              {availableProcesses.map((process: any) => (
+              {(availableProcesses as any[]).map((process: any) => (
                 <button
                   key={process.id}
                   onClick={() => handleAction("activity_start", process.name)}
@@ -328,7 +328,7 @@ export default function TimeClock() {
                   <ChevronRight className="w-5 h-5 text-slate-600 group-hover:text-primary group-hover:translate-x-1 transition-all" />
                 </button>
               ))}
-              {availableProcesses.length === 0 && (
+              {(availableProcesses as any[]).length === 0 && (
                 <p className="text-center py-8 text-slate-500 font-bold uppercase text-xs">No hay procesos disponibles para este empleado</p>
               )}
             </div>

@@ -449,7 +449,8 @@ router.post("/budgets", async (req, res): Promise<void> => {
             organizationId: orgId,
             category,
             amount: amountLimit,
-            period
+            period,
+            year: new Date().getFullYear()
         }).returning();
         res.json(budget);
     } catch (error) {

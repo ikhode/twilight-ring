@@ -9,7 +9,7 @@ export function NeuralMaintenanceForecast() {
     const [training, setTraining] = useState(true);
 
     // Consume Global Tensor State
-    const { inventory } = useTensorBridge();
+    const tensorBridge = useTensorBridge();
 
     useEffect(() => {
         async function runModel() {
@@ -21,18 +21,9 @@ export function NeuralMaintenanceForecast() {
 
             let xs, ys;
 
-            if (inventory) {
-                console.log("🧠 Neural Forecast: Consuming Global Tensor State");
-                // Extract columns 1 (Stock) as X and 2 (Reorder) as Y
-                const stock = inventory.slice([0, 1], [-1, 1]);
-                const reorder = inventory.slice([0, 2], [-1, 1]);
-                xs = stock;
-                ys = reorder;
-            } else {
-                // Fallback training data
-                xs = tf.tensor2d([1, 2, 3, 4, 5], [5, 1]);
-                ys = tf.tensor2d([5, 6, 5, 7, 8], [5, 1]);
-            }
+            // Fallback training data (inventory not available in TensorState)
+            xs = tf.tensor2d([1, 2, 3, 4, 5], [5, 1]);
+            ys = tf.tensor2d([5, 6, 5, 7, 8], [5, 1]);
 
             // Define Model
             const model = tf.sequential();
@@ -49,15 +40,14 @@ export function NeuralMaintenanceForecast() {
             setPrediction(Math.round(predictedValue));
             setTraining(false);
 
-            if (!inventory) { // Only dispose if we created them locally
-                xs.dispose();
-                ys.dispose();
-            }
+            // Only dispose if we created them locally (which is always the case now)
+            xs.dispose();
+            ys.dispose();
             output.dispose();
         }
 
         runModel();
-    }, [inventory]);
+    }, []); // Removed 'inventory' from dependency array as it's not defined.
 
     return (
         <Card className="border-purple-500/20 bg-purple-500/5">
@@ -69,11 +59,11 @@ export function NeuralMaintenanceForecast() {
                     </div>
                     {prediction !== null && (
                         <div className="text-xs font-mono text-purple-400">
-                            {inventory ? "TENSOR: CONNECTED" : "TENSOR: LOCAL"}
+                            TENSOR: LOCAL
                         </div>
                     )}
                 </div>
-                <CardDescription>Predicción basada en {inventory ? "Tensor Global" : "Datos Locales"}</CardDescription>
+                <CardDescription>Predicción basada en Datos Locales</CardDescription>
             </CardHeader>
             <CardContent>
                 <div className="flex items-end justify-between">

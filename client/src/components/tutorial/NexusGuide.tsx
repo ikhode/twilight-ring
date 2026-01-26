@@ -74,7 +74,7 @@ export function NexusGuide() {
                         </div>
 
                         <p className="text-sm text-slate-300 leading-relaxed">
-                            ¡Hola <span className="text-white font-bold">{user?.name}</span>! Soy tu copiloto cognitivo.
+                            ¡Hola <span className="text-white font-bold">{user?.email?.split('@')[0]}</span>! Soy tu copiloto cognitivo.
                             He preparado un tour rápido para mostrarte las herramientas clave de tu nuevo sistema operativo.
                         </p>
 
