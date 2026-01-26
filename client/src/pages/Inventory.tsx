@@ -200,6 +200,9 @@ export default function Inventory() {
       setIsAddDialogOpen(false);
       toast({ title: "Producto Creado", description: "El producto se ha registrado correctamente." });
       setNewProduct({ name: "", sku: "", category: categories[0], productType: "both", stock: 0, unit: "pza", price: 0, cost: 0 });
+
+      // Onboarding Action
+      window.dispatchEvent(new CustomEvent('NEXUS_ONBOARDING_ACTION', { detail: 'product_created' }));
     },
     onError: (error: Error) => {
       toast({
@@ -319,6 +322,9 @@ export default function Inventory() {
                       data-testid="button-add-product"
                       data-tour="add-product-btn"
                       intent="register_inventory"
+                      onClick={() => {
+                        window.dispatchEvent(new CustomEvent('NEXUS_ONBOARDING_ACTION', { detail: 'modal_opened_inventory' }));
+                      }}
                     >
                       <Plus className="w-4 h-4" />
                       Nuevo Producto

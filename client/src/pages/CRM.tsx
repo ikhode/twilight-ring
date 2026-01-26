@@ -73,6 +73,9 @@ function CreateCustomerDialog() {
       setOpen(false);
       setFormData({ name: "", email: "", phone: "" });
       toast({ title: "Registro Exitoso", description: "Se ha dado de alta correctamente." });
+
+      // Onboarding Action
+      window.dispatchEvent(new CustomEvent('NEXUS_ONBOARDING_ACTION', { detail: 'customer_created' }));
     },
     onError: () => {
       toast({ variant: "destructive", title: "Error", description: "No se pudo crear el registro." });
@@ -86,6 +89,10 @@ function CreateCustomerDialog() {
           className="gap-2 bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20"
           intent="create_customer"
           title="Registrar nuevo cliente con análisis de riesgo inicial"
+          data-tour="new-customer-btn"
+          onClick={() => {
+            window.dispatchEvent(new CustomEvent('NEXUS_ONBOARDING_ACTION', { detail: 'modal_opened_crm' }));
+          }}
         >
           <Plus className="w-4 h-4" /> {currentLabels.title}
         </CognitiveButton>
@@ -125,7 +132,7 @@ function CreateCustomerDialog() {
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-          <Button onClick={() => createMutation.mutate(formData)} disabled={createMutation.isPending}>
+          <Button onClick={() => createMutation.mutate(formData)} disabled={createMutation.isPending} data-tour="customer-save-btn">
             {createMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             Guardar Registro
           </Button>

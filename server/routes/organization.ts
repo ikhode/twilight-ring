@@ -73,12 +73,13 @@ router.patch("/", async (req, res) => {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
 
-        const { name, industry, settings } = req.body;
+        const { name, industry, settings, onboardingStatus } = req.body;
 
         const updateData: any = {};
         if (name) updateData.name = name;
         if (industry) updateData.industry = industry;
         if (settings) updateData.settings = settings;
+        if (onboardingStatus) updateData.onboardingStatus = onboardingStatus;
 
         if (Object.keys(updateData).length === 0) return res.status(400).json({ message: "Nothing to update" });
 

@@ -35,8 +35,13 @@ export function Sidebar({ className, onLinkClick }: SidebarProps) {
     setItems(contextEngine.getAdaptiveNavigation(role, enabledModules));
   }, [role, enabledModules]);
 
-  const handleLinkClick = () => {
+  const handleLinkClick = (href: string) => {
     if (onLinkClick) onLinkClick();
+
+    // Onboarding Action Trigger
+    window.dispatchEvent(new CustomEvent('NEXUS_ONBOARDING_ACTION', {
+      detail: `nav_${href}`
+    }));
   };
 
   return (
@@ -100,7 +105,7 @@ export function Sidebar({ className, onLinkClick }: SidebarProps) {
 
             return (
               <motion.div key={item.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                <Link href={item.href} onClick={handleLinkClick}>
+                <Link href={item.href} onClick={() => handleLinkClick(item.href)}>
                   <div
                     data-tour={dataTourMap[item.href]}
                     className={cn(

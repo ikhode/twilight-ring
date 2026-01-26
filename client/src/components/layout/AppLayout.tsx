@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/use-auth";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -21,18 +22,27 @@ export function AppLayout({ children, title, subtitle }: AppLayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [location, setLocation] = useLocation();
 
-  useEffect(() => {
-    // Onboarding Enforcement
-    // Ensure no user accesses the dashboard without completing the intro tour
-    const isCompleted = localStorage.getItem('nexus_introjs_completed');
-    const isTourActive = localStorage.getItem('nexus_tour_active');
+  const { organization, loading } = useAuth();
 
-    if (!isCompleted && !isTourActive && location !== '/onboarding') {
-      // Small delay to prevent race conditions during hydration/login
+  useEffect(() => {
+    if (loading) return;
+
+    // Onboarding Enforcement
+    // If authenticated but organization onboarding is pending, force them to the onboarding page
+    if (organization?.onboardingStatus === 'pending' && location !== '/onboarding') {
       const t = setTimeout(() => setLocation('/onboarding'), 100);
       return () => clearTimeout(t);
     }
-  }, [location, setLocation]);
+
+    // Default legacy enforcement for tour active state
+    const isCompleted = localStorage.getItem('nexus_introjs_completed');
+    const isTourActive = localStorage.getItem('nexus_tour_active');
+
+    if (!isCompleted && !isTourActive && location !== '/onboarding' && organization?.onboardingStatus === 'completed') {
+      // If DB says completed but local tour isn't done (maybe new device), let them decide, but here we enforce tour
+      // Or we can just let it be. The user wants to choose experience first.
+    }
+  }, [location, setLocation, organization, loading]);
 
   return (
     <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>

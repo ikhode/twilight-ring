@@ -341,6 +341,9 @@ function POSView() {
       queryClient.invalidateQueries({ queryKey: ["/api/sales/stats"] });
       queryClient.invalidateQueries({ queryKey: ["/api/finance/summary"] });
 
+      // Onboarding Action
+      window.dispatchEvent(new CustomEvent('NEXUS_ONBOARDING_ACTION', { detail: 'sale_completed' }));
+
       toast({
         title: "Venta Exitosa",
         description: `Se procesaron ${data.stats.success} items.`
@@ -691,7 +694,7 @@ function POSView() {
                   <div className="grid grid-cols-1 gap-3">
                     <Dialog open={isPayDialogOpen} onOpenChange={setIsPayDialogOpen}>
                       <DialogTrigger asChild>
-                        <Button className="h-16 text-lg font-bold" disabled={cart.length === 0}>
+                        <Button className="h-16 text-lg font-bold" disabled={cart.length === 0} data-tour="new-sale-btn">
                           <CreditCard className="w-6 h-6 mr-2" />
                           Finalizar Venta
                         </Button>

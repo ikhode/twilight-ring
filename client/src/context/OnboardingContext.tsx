@@ -147,6 +147,39 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
 
     }, [activeStepId, location]);
 
+    // Handle Onboarding Actions (Real UI Interaction)
+    useEffect(() => {
+        const handleAction = (e: any) => {
+            const action = e.detail;
+            if (!introRef.current) return;
+
+            const intro = introRef.current;
+            const currentStepIndex = intro._currentStep;
+            const currentStepData = intro._options.steps[currentStepIndex];
+
+            if (!currentStepData) return;
+
+            // Trigger Automatic Next
+            if (currentStepData.actionTrigger === action) {
+                intro.nextStep();
+            }
+
+            // Unlock Requirement
+            if (currentStepData.actionRequirement === action) {
+                // Show the next button
+                const nextBtn = document.querySelector('.introjs-nextbutton') as HTMLElement;
+                if (nextBtn) {
+                    nextBtn.style.display = 'inline-block';
+                    // Optional: Highlight it or click it automatically
+                    // intro.nextStep(); 
+                }
+            }
+        };
+
+        window.addEventListener('NEXUS_ONBOARDING_ACTION' as any, handleAction);
+        return () => window.removeEventListener('NEXUS_ONBOARDING_ACTION' as any, handleAction);
+    }, [activeStepId]);
+
     const initIntro = (step: OnboardingStep) => {
         // Prevent double init
         if (introRef.current) return; // Actually, we might want to restart? 
@@ -172,10 +205,24 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
             const items = intro._introItems;
             // @ts-ignore
             const stepIndex = intro._currentStep;
+            const currentStepData = items[stepIndex];
 
             if (items && items[stepIndex] && !localStorage.getItem('nexus_tts_muted')) {
                 speak(items[stepIndex].intro);
             }
+
+            // Handle Action Requirements (Disable Next Button)
+            setTimeout(() => {
+                const nextBtn = document.querySelector('.introjs-nextbutton') as HTMLElement;
+                const skipBtn = document.querySelector('.introjs-skipbutton') as HTMLElement;
+
+                if (currentStepData?.actionRequirement || currentStepData?.actionTrigger) {
+                    if (nextBtn) nextBtn.style.display = 'none';
+                    // We keep skip button visible so they can exit if stuck
+                } else {
+                    if (nextBtn) nextBtn.style.display = 'inline-block';
+                }
+            }, 50);
         });
 
         intro.oncomplete(() => {

@@ -23,23 +23,20 @@ import { onboardingSteps } from '@/lib/onboarding-steps';
 
 export function IntroJsOnboarding() {
     const [, setLocation] = useLocation();
-    const { session } = useAuth();
+    const { session, organization } = useAuth();
     const queryClient = useQueryClient();
     const store = useAppStore();
     const { completedSteps, startTour, skipOnboarding, isMuted, toggleMute } = useOnboarding();
-
-    // showWelcome is mostly redundant now as we always show menu on /onboarding
-    const showWelcome = true;
 
     const [selectedIndustry, setSelectedIndustry] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
 
     // Sync from store on mount
     useEffect(() => {
-        if (store.industry && store.industry !== 'generic') {
-            setSelectedIndustry(store.industry);
+        if (organization?.industry && organization.industry !== 'other') {
+            setSelectedIndustry(organization.industry);
         }
-    }, [store.industry]);
+    }, [organization]);
 
     // Initial check handled by AppLayout enforcement, but redundant check here is fine
     useEffect(() => {
@@ -58,6 +55,7 @@ export function IntroJsOnboarding() {
             const template = INDUSTRY_TEMPLATES[industryKey];
             await apiRequest('PATCH', '/api/organization', {
                 industry: industryKey,
+                onboardingStatus: 'completed', // Once industry is chosen, core onboarding is "vetted"
                 settings: {
                     productCategories: template.categories,
                     defaultUnits: template.units,

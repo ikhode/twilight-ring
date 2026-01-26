@@ -21,6 +21,9 @@ export interface OnboardingStep {
         intro: string;
         title?: string;
         position?: 'top' | 'bottom' | 'left' | 'right';
+        // NEW: Action based triggers
+        actionTrigger?: string; // Event name that automatically triggers "Next"
+        actionRequirement?: string; // If present, "Next" button is hidden until this event occurs
     }[];
 }
 
@@ -38,12 +41,14 @@ export const onboardingSteps: OnboardingStep[] = [
             {
                 element: '[data-tour="inventory-nav"]',
                 intro: '<strong>Módulo de Inventario</strong><br/>Aquí gestionas todos tus productos, stock y movimientos.<br/><br/>👉 <em>Haz clic para ir a Inventario</em>',
-                position: 'right'
+                position: 'right',
+                actionTrigger: 'nav_/inventory'
             },
             {
                 element: '[data-tour="add-product-btn"]',
                 intro: '<strong>✨ ¡Ahora crea tu producto!</strong><br/><br/>Haz clic en este botón para abrir el formulario de registro y crear un ítem real.',
-                position: 'bottom'
+                position: 'bottom',
+                actionTrigger: 'modal_opened_inventory'
             },
             {
                 element: '[data-tour="product-name-field"]',
@@ -58,7 +63,8 @@ export const onboardingSteps: OnboardingStep[] = [
             {
                 element: '[data-tour="product-save-footer"]',
                 intro: '<strong>✅ Confirmar Registro</strong><br/><br/>Al guardar, el producto estará disponible para ventas y reportes inmediatos.',
-                position: 'top'
+                position: 'top',
+                actionRequirement: 'product_created'
             },
             {
                 element: '[data-tour="product-list"]',
@@ -83,7 +89,8 @@ export const onboardingSteps: OnboardingStep[] = [
             {
                 element: '[data-tour="crm-nav"]',
                 intro: '<strong>Módulo CRM</strong><br/>Aquí administras clientes, cotizaciones y oportunidades de venta.<br/><br/>👉 <em>Haz clic para ir a CRM</em>',
-                position: 'right'
+                position: 'right',
+                actionTrigger: 'nav_/crm'
             },
             {
                 element: '[data-tour="customers-list"]',
@@ -92,8 +99,15 @@ export const onboardingSteps: OnboardingStep[] = [
             },
             {
                 element: '[data-tour="new-customer-btn"]',
-                intro: '<strong>✨ ¡Crea tu primer cliente!</strong><br/><br/>Registra un cliente real con:<br/>• Nombre o razón social<br/>• Email<br/>• Teléfono<br/>• Dirección<br/><br/>⚠️ <strong>Importante:</strong> Guarda el cliente antes de continuar.',
-                position: 'bottom'
+                intro: '<strong>✨ ¡Crea tu primer cliente!</strong><br/><br/>Haz clic para abrir el formulario y registrar datos reales.',
+                position: 'bottom',
+                actionTrigger: 'modal_opened_crm'
+            },
+            {
+                element: '[data-tour="customer-save-btn"]',
+                intro: '<strong>💾 Guardar Cliente</strong><br/><br/>Ingresa el nombre y email. Al guardar, el cliente quedará vinculado a tu historial comercial.',
+                position: 'top',
+                actionRequirement: 'customer_created'
             },
             {
                 intro: '<div class="text-center"><h3 class="text-xl font-bold mb-2 text-green-500">✅ Paso 2 Completado</h3><p class="text-lg">Ya tienes un cliente registrado.<br/>Ahora sí, ¡vamos a hacer tu primera venta!</p></div>',
@@ -113,12 +127,14 @@ export const onboardingSteps: OnboardingStep[] = [
             {
                 element: '[data-tour="sales-nav"]',
                 intro: '<strong>Módulo de Ventas</strong><br/>Desde aquí gestionas todas tus ventas, cotizaciones y órdenes.<br/><br/>👉 <em>Haz clic para ir a Ventas</em>',
-                position: 'right'
+                position: 'right',
+                actionTrigger: 'nav_/sales'
             },
             {
                 element: '[data-tour="new-sale-btn"]',
-                intro: '<strong>✨ ¡Crea tu primera venta!</strong><br/><br/>1. Selecciona el cliente que creaste<br/>2. Agrega el producto que registraste<br/>3. Define la cantidad<br/>4. Genera la factura<br/><br/>⚠️ <strong>Importante:</strong> Completa la venta antes de continuar.',
-                position: 'bottom'
+                intro: '<strong>💰 Finalizar Venta</strong><br/><br/>Selecciona el cliente y producto, luego haz clic aquí para procesar el pago y cerrar la transacción.',
+                position: 'bottom',
+                actionRequirement: 'sale_completed'
             },
             {
                 element: '[data-tour="sales-dashboard"]',
