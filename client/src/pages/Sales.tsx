@@ -934,8 +934,8 @@ function PaySaleDialog({ sale }: { sale: any }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
-  const [method, setMethod] = useState<"cash" | "transfer">("cash");
-  const [bankId, setBankId] = useState("");
+  const [method, setMethod] = useState<"cash" | "transfer">((sale.paymentMethod as any) === 'transfer' ? 'transfer' : 'cash');
+  const [bankId, setBankId] = useState(sale.bankAccountId || "");
 
   const { data: accounts = [] } = useQuery({
     queryKey: ["/api/finance/accounts"],
@@ -960,31 +960,52 @@ function PaySaleDialog({ sale }: { sale: any }) {
       queryClient.invalidateQueries({ queryKey: ["/api/sales/orders"] });
       queryClient.invalidateQueries({ queryKey: ["/api/finance/summary"] });
       setOpen(false);
-      toast({ title: "Pago registrado exitosamente" });
+      toast({ title: method === 'transfer' ? "Transferencia validada" : "Pago registrado exitosamente" });
     },
     onError: () => {
       toast({ title: "Error", description: "No se pudo registrar el pago", variant: "destructive" });
     }
   });
 
+  const isTransferConfirmation = sale.paymentMethod === 'transfer';
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" variant="default" className="bg-green-600 hover:bg-green-700">
-          <DollarSign className="w-3 h-3 mr-1" /> Cobrar
+        <Button
+          size="sm"
+          variant={isTransferConfirmation ? "outline" : "default"}
+          className={cn(
+            isTransferConfirmation
+              ? "border-amber-500 text-amber-500 hover:bg-amber-50 hover:text-amber-600"
+              : "bg-green-600 hover:bg-green-700"
+          )}
+        >
+          {isTransferConfirmation ? <CheckCircle2 className="w-3 h-3 mr-1" /> : <DollarSign className="w-3 h-3 mr-1" />}
+          {isTransferConfirmation ? "Validar" : "Cobrar"}
         </Button>
       </DialogTrigger>
       <DialogContent>
-        <DialogHeader><DialogTitle>Registrar Pago: #{sale.id.slice(0, 6)}</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>{isTransferConfirmation ? "Validar Transferencia" : "Registrar Pago"}: #{sale.id.slice(0, 6)}</DialogTitle>
+        </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="p-4 bg-muted rounded-lg flex justify-between items-center">
-            <span className="font-medium">Monto a Cobrar:</span>
+            <span className="font-medium">Monto:</span>
             <span className="text-xl font-bold font-mono text-green-600">
               {new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(sale.totalPrice / 100)}
             </span>
           </div>
+
+          {isTransferConfirmation && (
+            <div className="p-3 bg-amber-50 border border-amber-100 rounded text-xs text-amber-700 mb-2">
+              <p className="font-bold mb-1">⚠️ Verificación Requerida</p>
+              Asegúrate de haber recibido los fondos en la cuenta bancaria antes de confirmar.
+            </div>
+          )}
+
           <div className="space-y-2">
-            <Label>Método</Label>
+            <Label>Método de Cobro</Label>
             <div className="grid grid-cols-2 gap-2">
               <Button variant={method === 'cash' ? 'default' : 'outline'} onClick={() => setMethod('cash')}>Efectivo</Button>
               <Button variant={method === 'transfer' ? 'default' : 'outline'} onClick={() => setMethod('transfer')}>Transferencia</Button>
@@ -1003,7 +1024,8 @@ function PaySaleDialog({ sale }: { sale: any }) {
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
           <Button onClick={() => payMutation.mutate()} disabled={payMutation.isPending || (method === 'transfer' && !bankId)}>
-            Confirmar Pago
+            {payMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+            {method === 'transfer' ? "Confirmar Recepción" : "Confirmar Pago"}
           </Button>
         </DialogFooter>
       </DialogContent>
