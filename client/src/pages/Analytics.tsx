@@ -287,24 +287,25 @@ function CashflowForecastSection() {
 
 
 
-function ScenarioSimulator() {
+function ScenarioSimulator({ baseRevenue = 0 }: { baseRevenue?: number }) {
   const [growth, setGrowth] = useState(15);
   const [costReduction, setCostReduction] = useState(5);
-  const baseRevenue = 150000; // Mock base, could come from props
+  // Use real revenue or fallback if 0
+  const effectiveBase = baseRevenue > 0 ? baseRevenue : 150000;
 
   const simulationData = useMemo(() => {
     const data = [];
-    let revenue = baseRevenue;
+    let revenue = effectiveBase;
     for (let i = 0; i < 12; i++) {
       revenue = revenue * (1 + (growth / 100 / 12));
       data.push({
         month: `M${i + 1}`,
         revenue: Math.round(revenue),
-        baseline: Math.round(baseRevenue * (1 + (0.05 / 12) * i)) // 5% baseline
+        baseline: Math.round(effectiveBase * (1 + (0.05 / 12) * i)) // 5% baseline
       });
     }
     return data;
-  }, [growth, costReduction]);
+  }, [growth, costReduction, effectiveBase]);
 
   return (
     <Card className="bg-slate-950/50 border-slate-800">
@@ -345,7 +346,7 @@ function ScenarioSimulator() {
               <p className="text-xs text-muted-foreground uppercase">Impacto Proyectado (Anual)</p>
               <p className="text-2xl font-black text-white mt-1">
                 {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(
-                  simulationData.reduce((acc, curr) => acc + curr.revenue, 0)
+                  simulationData.reduce((acc, curr) => acc + curr.revenue, 0) / 100
                 )}
               </p>
               <Badge variant="outline" className="mt-2 text-purple-400 border-purple-400/30">
@@ -364,10 +365,10 @@ function ScenarioSimulator() {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
                 <XAxis dataKey="month" stroke="#64748b" tick={{ fontSize: 12 }} />
-                <YAxis stroke="#64748b" tick={{ fontSize: 12 }} tickFormatter={(val) => `$${val / 1000}k`} />
+                <YAxis stroke="#64748b" tick={{ fontSize: 12 }} tickFormatter={(val) => `$${val / 100000}k`} />
                 <Tooltip
                   contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155' }}
-                  formatter={(val: number) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(val)}
+                  formatter={(val: number) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(val / 100)}
                 />
                 <Area type="monotone" dataKey="revenue" stroke="#c084fc" strokeWidth={3} fillOpacity={1} fill="url(#colorSim)" name="Proyección" />
                 <Area type="monotone" dataKey="baseline" stroke="#64748b" strokeDasharray="3 3" fill="none" name="Baseline (5%)" />
@@ -396,10 +397,10 @@ export default function Analytics() {
     queryKeyToInvalidate: ["/api/analytics/dashboard"]
   });
 
-  const { data, isLoading } = useQuery<{ metrics: AnalyticsMetric[], models: MetricModel[], hasEnoughData: boolean }>({
+  const { data, isLoading } = useQuery<{ metrics: AnalyticsMetric[], models: MetricModel[], hasEnoughData: boolean, currentRevenue: number }>({
     queryKey: ["/api/analytics/dashboard"],
     queryFn: async () => {
-      if (!session?.access_token) return { metrics: [], models: [], hasEnoughData: false };
+      if (!session?.access_token) return { metrics: [], models: [], hasEnoughData: false, currentRevenue: 0 };
       const res = await fetch("/api/analytics/dashboard", {
         headers: { Authorization: `Bearer ${session.access_token}` }
       });
@@ -462,7 +463,7 @@ export default function Analytics() {
         <CashflowForecastSection />
 
         {/* NEW: Scenario Simulator */}
-        <ScenarioSimulator />
+        <ScenarioSimulator baseRevenue={data?.currentRevenue} />
 
         {/* HERO SECTION: Cognitive Status */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

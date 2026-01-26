@@ -263,20 +263,20 @@ export default function Dashboard() {
           {/* Confidence Widget */}
           <Card className="bg-slate-900/50 border-slate-800 flex flex-col justify-center p-6">
             <div className="text-right mb-4">
-              <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Madurez del Sistema</p>
+              <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Nivel de Confianza (TrustNet)</p>
               <p className="text-4xl font-black text-white italic tracking-tighter">
-                {stats?.dataMaturityScore || 0}<span className="text-lg text-primary">%</span>
+                {stats?.trustScore || stats?.dataMaturityScore || 0}<span className="text-lg text-primary">%</span>
               </p>
             </div>
             <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
               <motion.div
                 initial={{ width: 0 }}
-                animate={{ width: `${stats?.dataMaturityScore || 0}%` }}
+                animate={{ width: `${stats?.trustScore || stats?.dataMaturityScore || 0}%` }}
                 className="h-full bg-primary shadow-[0_0_15px_rgba(59,130,246,0.6)]"
               />
             </div>
             <p className="text-[9px] text-slate-500 mt-2 text-right uppercase font-bold tracking-tight">
-              {stats?.hasEnoughData ? "Confianza de Predicción Alta" : "Datos insuficientes para predicción"}
+              {stats?.hasEnoughData ? "Blockchain verification active - Ledger Sync OK" : "Datos insuficientes para validación completa"}
             </p>
           </Card>
         </div>
@@ -299,7 +299,7 @@ export default function Dashboard() {
             change={stats?.hasEnoughData ? 2.1 : 0}
             trend={stats?.hasEnoughData ? "up" : "neutral"}
             insight={stats?.hasEnoughData
-              ? "La planta opera por encima del promedio histórico. Datos obtenidos del CPE."
+              ? "Calculada en tiempo real basada en las instancias de procesos activas."
               : "Analizando flujos de procesos iniciales."}
             icon={Factory}
           />

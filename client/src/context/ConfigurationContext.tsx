@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect } from "react";
 import { UserRoleType } from "@/lib/ai/dashboard-engine";
 import { useAppStore, IndustryType } from "@/store/app-store";
+export type { IndustryType };
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
