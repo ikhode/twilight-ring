@@ -1,5 +1,5 @@
 import { db } from "../storage";
-import { processInstances, processEvents, inventoryMovements, products } from "../../shared/schema";
+import { processInstances, processEvents, inventoryMovements, products, pieceworkTickets, processes } from "../../shared/schema";
 import { eq, sql, and } from "drizzle-orm";
 import { getOrgIdFromRequest } from "../auth_util";
 import { Router } from "express";
@@ -78,6 +78,51 @@ router.post("/events", async (req, res): Promise<void> => {
         res.status(201).json(event);
     } catch (error) {
         res.status(500).json({ message: "Failed to log event" });
+    }
+});
+
+/**
+ * Reporta producción de destajo (Genera Ticket).
+ */
+router.post("/report", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const { instanceId, employeeId, quantity, unit } = req.body;
+
+        // 1. Get Instance -> Process -> Rate
+        const [instance] = await db.select().from(processInstances).where(eq(processInstances.id, instanceId));
+        if (!instance) return res.status(404).json({ message: "Instance not found" });
+
+        const [process] = await db.select().from(processes).where(eq(processes.id, instance.processId));
+        if (!process) return res.status(404).json({ message: "Process not found" });
+
+        const workflow = process.workflowData as any;
+        const rate = workflow?.piecework?.rate || 0; // In cents
+        const amount = Math.round(quantity * rate);
+
+        // 2. Create Ticket
+        const [ticket] = await db.insert(pieceworkTickets).values({
+            organizationId: orgId,
+            batchId: instanceId,
+            employeeId: employeeId,
+            taskName: process.name,
+            quantity: Number(quantity),
+            unit: unit || workflow?.piecework?.unit || 'pza',
+            unitPrice: rate,
+            amount: amount,
+            status: "pending",
+            createdAt: new Date(),
+            approvedAt: null,
+            paidAt: null
+        }).returning();
+
+        res.status(201).json(ticket);
+
+    } catch (error) {
+        console.error("Error creating ticket:", error);
+        res.status(500).json({ message: "Failed to create ticket" });
     }
 });
 

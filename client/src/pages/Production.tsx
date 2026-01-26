@@ -27,16 +27,24 @@ import {
   Ticket as TicketIcon,
   DollarSign,
   Check,
-  X,
   AlertTriangle,
   Trash2,
-  Sparkles
+  Sparkles,
+  Info,
+  User,
+  Loader2,
+  Package,
+  Layers,
+  ArrowRight,
+  X
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 import { VisionCounter } from "@/components/production/VisionCounter";
+import { printThermalTicket } from "@/lib/printer";
+
 import { useConfiguration } from "@/context/ConfigurationContext";
 import { CognitiveInput, CognitiveField } from "@/components/cognitive";
 
@@ -217,6 +225,44 @@ export default function Production() {
     },
   });
 
+  const [editingProcess, setEditingProcess] = useState<any>(null); // Process being edited
+  const [isProcessDialogOpen, setIsProcessDialogOpen] = useState(false);
+
+  // Local state for visual selection in dialog
+  const [localOutputIds, setLocalOutputIds] = useState<string[]>([]);
+  const [localInputId, setLocalInputId] = useState<string | null>(null);
+
+  // Sync state when opening dialog
+  useEffect(() => {
+    if (isProcessDialogOpen) {
+      if (editingProcess) {
+        setLocalOutputIds(editingProcess.workflowData?.outputProductIds || []);
+        setLocalInputId(editingProcess.workflowData?.inputProductId || null);
+      } else {
+        setLocalOutputIds([]);
+        setLocalInputId(null);
+      }
+    }
+  }, [isProcessDialogOpen, editingProcess]);
+
+  const updateProcessMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const res = await fetch(`/api/cpe/processes/${editingProcess.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error("Error updating process");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/cpe/processes"] });
+      setIsProcessDialogOpen(false);
+      setEditingProcess(null);
+      toast({ title: "Proceso Actualizado" });
+    },
+  });
+
   const [isRatesOpen, setIsRatesOpen] = useState(false);
   const [isStartLotOpen, setIsStartLotOpen] = useState(false);
 
@@ -262,6 +308,50 @@ export default function Production() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/cpe/processes"] });
       toast({ title: "Proceso Eliminado" });
+    }
+  });
+
+  /* ----------------------------------------------------------------------------------
+   *  LOGIC FOR REPORTING PRODUCTION & GENERATING TICKETS
+   * ---------------------------------------------------------------------------------- */
+  const [selectedBatchForReport, setSelectedBatchForReport] = useState<any>(null);
+  const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
+
+
+
+  const reportProductionMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const res = await fetch("/api/production/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error("Failed to report production");
+      return res.json();
+    },
+    onSuccess: (data: any, variables: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/production/summary"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/piecework/tickets"] });
+      setIsReportDialogOpen(false);
+
+      // Auto-print ticket logic
+      const processName = processes?.find((p: any) => p.id === selectedBatchForReport?.processId)?.name;
+      const employee = employees?.find((e: any) => e.id === variables.employeeId);
+      const employeeName = employee ? `${employee.firstName} ${employee.lastName}` : "Empleado";
+
+      printThermalTicket({
+        id: data.id || Date.now(),
+        employeeName,
+        batchId: selectedBatchForReport?.id,
+        concept: processName,
+        quantity: variables.quantity,
+        amount: data.amount,
+        unitPrice: data.unitPrice,
+        unit: variables.unit
+      });
+
+      setSelectedBatchForReport(null);
+      toast({ title: "Ticket Generado", description: "Se ha enviado a la impresora térmica." });
     }
   });
 
@@ -411,19 +501,191 @@ export default function Production() {
               <TabsContent value="catalog" className="space-y-6">
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-bold font-display">Procesos Definidos</h2>
-                  <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-                    <DialogTrigger asChild><Button className="gap-2"><Plus className="w-4 h-4" />Crear Proceso</Button></DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader><DialogTitle>Nuevo Proceso</DialogTitle></DialogHeader>
-                      <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); createMutation.mutate({ name: fd.get("name"), description: fd.get("description"), type: fd.get("type"), isTemplate: false }); }} className="space-y-4 py-4">
-                        <div className="space-y-2">
-                          <Label>Nombre</Label>
-                          <CognitiveInput name="name" required semanticType="name" />
-                        </div>
-                        <CognitiveField label="Tipo" semanticType="method">
-                          <Select name="type" defaultValue="production"><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="production">Producción</SelectItem></SelectContent></Select>
-                        </CognitiveField>
-                        <DialogFooter><Button type="submit">Guardar</Button></DialogFooter>
+                  <Button className="gap-2" onClick={() => { setEditingProcess(null); setIsProcessDialogOpen(true); }}>
+                    <Plus className="w-4 h-4" /> Crear Proceso
+                  </Button>
+
+                  <Dialog open={isProcessDialogOpen} onOpenChange={setIsProcessDialogOpen}>
+                    <DialogContent className="max-w-2xl bg-slate-950 border-slate-800">
+                      <DialogHeader><DialogTitle>{editingProcess ? "Configuración del Proceso" : "Nuevo Proceso"}</DialogTitle></DialogHeader>
+                      <form onSubmit={(e) => {
+                        e.preventDefault();
+                        const fd = new FormData(e.currentTarget);
+
+                        const payload = {
+                          name: fd.get("name"),
+                          description: fd.get("description"),
+                          type: fd.get("type"),
+                          workflowData: {
+                            ...(editingProcess?.workflowData || {}),
+                            inputProductId: localInputId,
+                            outputProductIds: localOutputIds,
+                            outputProductId: localOutputIds.length > 0 ? localOutputIds[0] : null,
+                            piecework: {
+                              enabled: fd.get("piecework_enabled") === "on",
+                              rate: Math.round(Number(fd.get("rate") || 0) * 100),
+                              unit: fd.get("unit"),
+                              basis: fd.get("basis")
+                            }
+                          }
+                        };
+
+                        if (editingProcess) {
+                          updateProcessMutation.mutate(payload);
+                        } else {
+                          createMutation.mutate(payload);
+                        }
+                      }} className="py-4">
+
+                        <Tabs defaultValue="general" className="w-full">
+                          <TabsList className="grid w-full grid-cols-3 mb-6 bg-slate-900/50 p-1 rounded-lg">
+                            <TabsTrigger value="general" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white text-xs">Información General</TabsTrigger>
+                            <TabsTrigger value="transform" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary text-xs">Transformación</TabsTrigger>
+                            <TabsTrigger value="payment" className="data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-400 text-xs">Pago / Destajo</TabsTrigger>
+                          </TabsList>
+
+                          <TabsContent value="general" className="space-y-4 animate-in fade-in slide-in-from-left-2 duration-300">
+                            <div className="space-y-2">
+                              <Label className="text-xs uppercase text-slate-500 font-bold">Nombre del Proceso</Label>
+                              <Input name="name" defaultValue={editingProcess?.name} required placeholder="Ej. Destopado Manual" className="bg-slate-900 border-slate-700 h-11 text-lg" />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-xs uppercase text-slate-500 font-bold">Descripción Operativa</Label>
+                              <Textarea name="description" defaultValue={editingProcess?.description} placeholder="Instrucciones para el operario..." className="bg-slate-900 border-slate-700 resize-none min-h-[100px]" />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-xs uppercase text-slate-500 font-bold">Tipo de Control</Label>
+                              <Select name="type" defaultValue={editingProcess?.type || "production"}>
+                                <SelectTrigger className="bg-slate-900 border-slate-700 h-11"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="production">Producción Estándar</SelectItem>
+                                  <SelectItem value="quality">Inspección de Calidad</SelectItem>
+                                  <SelectItem value="logistics">Movimiento Logístico</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </TabsContent>
+
+                          <TabsContent value="transform" className="space-y-6 animate-in fade-in slide-in-from-right-2 duration-300">
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Package className="w-4 h-4 text-emerald-400" />
+                                <Label className="text-xs font-black uppercase text-slate-400">Productos Resultantes (Output)</Label>
+                              </div>
+                              <div className="grid grid-cols-2 gap-3 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                                {inventory.map((i: any) => {
+                                  const isSelected = localOutputIds.includes(i.id);
+                                  return (
+                                    <div
+                                      key={i.id}
+                                      onClick={() => setLocalOutputIds(prev => prev.includes(i.id) ? prev.filter(x => x !== i.id) : [...prev, i.id])}
+                                      className={cn(
+                                        "relative p-3 rounded-xl border cursor-pointer transition-all hover:scale-[1.02] flex items-center justify-between group",
+                                        isSelected
+                                          ? "bg-emerald-500/10 border-emerald-500/50 shadow-[0_0_15px_-5px_rgba(16,185,129,0.3)]"
+                                          : "bg-slate-900/50 border-slate-800 hover:border-slate-700 hover:bg-slate-900"
+                                      )}
+                                    >
+                                      <span className={cn("text-xs font-medium", isSelected ? "text-emerald-300" : "text-slate-400")}>{i.name}</span>
+                                      {isSelected && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                              <p className="text-[10px] text-slate-500 flex items-center gap-2">
+                                <Info className="w-3 h-3" />
+                                Al finalizar un lote, se incrementará el inventario de los productos seleccionados.
+                              </p>
+                            </div>
+
+                            <div className="relative">
+                              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-800"></div></div>
+                              <div className="relative flex justify-center text-xs uppercase"><span className="bg-slate-950 px-2 text-slate-600 font-bold">Consume (Opcional)</span></div>
+                            </div>
+
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Layers className="w-4 h-4 text-blue-400" />
+                                <Label className="text-xs font-black uppercase text-slate-400">Materia Prima (Input)</Label>
+                              </div>
+                              <Select value={localInputId || "none"} onValueChange={(v) => setLocalInputId(v === "none" ? null : v)}>
+                                <SelectTrigger className="bg-slate-900 border-slate-800 h-11">
+                                  <SelectValue placeholder="Seleccionar insumo..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">-- Sin consumo de inventario --</SelectItem>
+                                  {inventory.map((i: any) => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </TabsContent>
+
+                          <TabsContent value="payment" className="space-y-6 pt-2 animate-in fade-in zoom-in-95 duration-300">
+                            <div className="bg-slate-900/30 border border-emerald-500/20 rounded-xl p-5 space-y-6">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                                    <DollarSign className="w-4 h-4 text-emerald-500" />
+                                    Habilitar Pago a Destajo
+                                  </h4>
+                                  <p className="text-[10px] text-slate-400 mt-1">Generar tickets de pago automáticamente al reportar producción.</p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <input type="checkbox" name="piecework_enabled" className="w-5 h-5 accent-emerald-500 rounded cursor-pointer" defaultChecked={editingProcess?.workflowData?.piecework?.enabled} />
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <Label className="text-[10px] uppercase font-bold text-slate-500">Tarifa por Unidad ($)</Label>
+                                  <div className="relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">$</span>
+                                    <Input name="rate" type="number" step="0.01" defaultValue={(editingProcess?.workflowData?.piecework?.rate || 0) / 100} placeholder="0.00" className="pl-6 bg-slate-950 border-slate-800" />
+                                  </div>
+                                </div>
+                                <div className="space-y-2">
+                                  <Label className="text-[10px] uppercase font-bold text-slate-500">Unidad de Medida</Label>
+                                  <Select name="unit" defaultValue={editingProcess?.workflowData?.piecework?.unit || "pza"}>
+                                    <SelectTrigger className="bg-slate-950 border-slate-800"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="pza">Pieza (Unitario)</SelectItem>
+                                      <SelectItem value="kg">Kilogramo (Kg)</SelectItem>
+                                      <SelectItem value="100u">Ciento (100 u)</SelectItem>
+                                      <SelectItem value="1000u">Millar (1000 u)</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+
+                              <div className="space-y-2 pt-2 border-t border-white/5">
+                                <Label className="text-[10px] uppercase font-bold text-slate-500">Base de Cálculo</Label>
+                                <div className="grid grid-cols-2 gap-3">
+                                  <label className="cursor-pointer">
+                                    <input type="radio" name="basis" value="output" className="peer sr-only" defaultChecked={!editingProcess || editingProcess?.workflowData?.piecework?.basis === 'output'} />
+                                    <div className="p-3 rounded-lg border border-slate-800 bg-slate-950 peer-checked:border-emerald-500 peer-checked:bg-emerald-500/10 transition-all text-center">
+                                      <span className="block text-xs font-bold text-white mb-1">Output</span>
+                                      <span className="block text-[10px] text-slate-500">Pagar por lo producido</span>
+                                    </div>
+                                  </label>
+                                  <label className="cursor-pointer">
+                                    <input type="radio" name="basis" value="input" className="peer sr-only" defaultChecked={editingProcess?.workflowData?.piecework?.basis === 'input'} />
+                                    <div className="p-3 rounded-lg border border-slate-800 bg-slate-950 peer-checked:border-blue-500 peer-checked:bg-blue-500/10 transition-all text-center">
+                                      <span className="block text-xs font-bold text-white mb-1">Input</span>
+                                      <span className="block text-[10px] text-slate-500">Pagar por lo consumido</span>
+                                    </div>
+                                  </label>
+                                </div>
+                              </div>
+                            </div>
+                          </TabsContent>
+                        </Tabs>
+
+                        <DialogFooter className="mt-6 border-t border-slate-800 pt-4">
+                          <Button type="button" variant="ghost" onClick={() => setIsProcessDialogOpen(false)}>Cancelar</Button>
+                          <Button type="submit" className="bg-white text-black hover:bg-slate-200 font-bold" disabled={updateProcessMutation.isPending || createMutation.isPending}>
+                            {updateProcessMutation.isPending || createMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : "Guardar Configuración"}
+                          </Button>
+                        </DialogFooter>
                       </form>
                     </DialogContent>
                   </Dialog>
@@ -440,12 +702,10 @@ export default function Production() {
                       <CardContent>
                         <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{p.description || "Sin descripción"}</p>
                         <div className="flex gap-2">
-                          <Link href={`/workflows?processId=${p.id}`}>
-                            <Button variant="outline" size="sm" className="w-full">
-                              <Workflow className="w-3 h-3 mr-2" />
-                              Editor Visual
-                            </Button>
-                          </Link>
+                          <Button variant="outline" size="sm" className="w-full bg-slate-900/50 hover:bg-slate-800 border-dashed border-slate-700" onClick={() => { setEditingProcess(p); setIsProcessDialogOpen(true); }}>
+                            <Workflow className="w-3 h-3 mr-2 text-slate-500" />
+                            Configurar / Editar
+                          </Button>
                           <Button
                             variant="destructive"
                             size="icon"
@@ -493,6 +753,7 @@ export default function Production() {
                   {summary?.recentInstances?.filter((i: any) => i.status === "active").map((instance: any) => {
                     const activeTickets = tickets.filter(t => t.batchId === instance.id);
                     const uniqueWorkers = new Set(activeTickets.map(t => t.employeeName)).size;
+                    const processName = processes?.find((p: any) => p.id === instance.processId)?.name || 'Proceso';
 
                     return (
                       <Card key={instance.id} className="border-l-4 border-l-emerald-500 bg-slate-900/40 hover:bg-slate-900/60 transition-all group overflow-hidden relative">
@@ -508,7 +769,7 @@ export default function Production() {
                             <div>
                               <div className="flex items-center gap-2 mb-1">
                                 <h3 className="font-bold text-lg text-white tracking-tight">{instance.aiContext?.loteName || `Lote #${instance.id.substring(0, 8)}`}</h3>
-                                <Badge variant="outline" className="text-[9px] border-emerald-500/30 text-emerald-400 bg-emerald-500/5 uppercase tracking-wider">En Proceso</Badge>
+                                <Badge variant="outline" className="text-[9px] border-emerald-500/30 text-emerald-400 bg-emerald-500/5 uppercase tracking-wider">{processName}</Badge>
                               </div>
                               <div className="flex items-center gap-4 text-xs text-slate-400 font-medium">
                                 <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {new Date(instance.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
@@ -567,6 +828,16 @@ export default function Production() {
 
                             <div className="h-8 w-px bg-white/10 hidden md:block" />
 
+                            <Button
+                              size="sm"
+                              className="gap-2 bg-emerald-600/20 text-emerald-400 border border-emerald-600/50 hover:bg-emerald-600 hover:text-white"
+                              onClick={() => { setSelectedBatchForReport(instance); setIsReportDialogOpen(true); }}
+                            >
+                              <Users className="w-4 h-4" /> Reportar Avance
+                            </Button>
+
+                            <div className="h-8 w-px bg-white/10 hidden md:block" />
+
                             <FinalizeBatchDialog
                               instance={instance}
                               tickets={tickets.filter(t => t.batchId === instance.id)}
@@ -580,6 +851,87 @@ export default function Production() {
                     );
                   })}
                 </div>
+
+                <Dialog open={isReportDialogOpen} onOpenChange={setIsReportDialogOpen}>
+                  <DialogContent className="max-w-md bg-slate-950 border-emerald-500/20">
+                    <DialogHeader>
+                      <DialogTitle className="text-emerald-500 flex items-center gap-2">
+                        <DollarSign className="w-5 h-5" />
+                        Reportar Producción (Destajo)
+                      </DialogTitle>
+                    </DialogHeader>
+                    {selectedBatchForReport && (
+                      <form onSubmit={(e) => {
+                        e.preventDefault();
+                        const fd = new FormData(e.currentTarget);
+                        reportProductionMutation.mutate({
+                          instanceId: selectedBatchForReport.id,
+                          employeeId: fd.get("employeeId"),
+                          quantity: Number(fd.get("quantity")),
+                          unit: "pza" // Should come from process config
+                        });
+                      }} className="space-y-4 py-2">
+                        <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/10 mb-2">
+                          <div className="text-xs text-slate-500 uppercase font-bold mb-1">Lote Activo</div>
+                          <div className="font-mono text-sm text-white">{selectedBatchForReport.aiContext?.loteName || selectedBatchForReport.id.substring(0, 8)}</div>
+                          {(() => {
+                            const proc = processes?.find((p: any) => p.id === selectedBatchForReport.processId);
+                            const rate = proc?.workflowData?.piecework?.rate || 0;
+                            const unit = proc?.workflowData?.piecework?.unit || 'u';
+                            return (
+                              <div className="mt-2 text-xs text-emerald-400 flex items-center gap-1">
+                                <Info className="w-3 h-3" />
+                                Tarifa Configurada: <b>${(rate / 100).toFixed(2)} / {unit}</b>
+                              </div>
+                            );
+                          })()}
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Empleado</Label>
+                          <Select name="employeeId" required>
+                            <SelectTrigger className="bg-slate-900 border-slate-800"><SelectValue placeholder="Seleccionar Operario" /></SelectTrigger>
+                            <SelectContent>
+                              {employees?.map((emp: any) => (
+                                <SelectItem key={emp.id} value={emp.id}>
+                                  {emp.name || `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || 'Sin Nombre'}
+                                </SelectItem>
+                              ))}
+                              {(!employees || employees.length === 0) && <div className="p-2 text-xs text-muted-foreground text-center">No hay empleados registrados</div>}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Cantidad Procesada</Label>
+                          <div className="flex items-center gap-3">
+                            <Input
+                              name="quantity"
+                              type="number"
+                              step="1"
+                              placeholder="0"
+                              required
+                              className="bg-slate-900 border-slate-800 text-lg font-bold"
+                              onChange={(e) => {
+                                // Live estimate logic can be improved with separate state, using simple DOM viz for now is tricky in React without state
+                                // Assuming user trusts the configured rate displayed above
+                              }}
+                            />
+                            <span className="text-sm font-bold text-slate-500">
+                              {processes?.find((p: any) => p.id === selectedBatchForReport.processId)?.workflowData?.piecework?.unit || 'pza'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <DialogFooter>
+                          <Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold" disabled={reportProductionMutation.isPending}>
+                            {reportProductionMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Confirmar & Generar Ticket"}
+                          </Button>
+                        </DialogFooter>
+                      </form>
+                    )}
+                  </DialogContent>
+                </Dialog>
               </TabsContent>
 
               <TabsContent value="traceability" className="space-y-6">
@@ -592,137 +944,7 @@ export default function Production() {
             <div className="flex items-center justify-between">
               <div><h2 className="text-lg font-bold font-display">Gestión de Destajo</h2><p className="text-sm text-muted-foreground">Registro de actividades por pieza.</p></div>
               <div className="flex gap-2">
-                <Dialog open={isRatesOpen} onOpenChange={setIsRatesOpen}>
-                  <DialogTrigger asChild><Button variant="outline" className="gap-2"><DollarSign className="w-4 h-4" />Configurar Tarifas</Button></DialogTrigger>
-                  <DialogContent className="max-w-xl">
-                    <DialogHeader><DialogTitle>Nueva Tarifa & Receta</DialogTitle></DialogHeader>
-                    <form onSubmit={(e) => {
-                      e.preventDefault();
-                      const fd = new FormData(e.currentTarget);
 
-                      const payload: any = {
-                        name: fd.get("name"),
-                        unitPrice: Number(fd.get("price")) * 100, // to cents
-                        unit: "pza", // Default
-                        isRecipe: false,
-                        recipeData: {} // Empty (Use Inference)
-                      };
-
-                      createTaskMutation.mutate(payload);
-                      (e.target as HTMLFormElement).reset();
-                    }} className="space-y-4 py-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Nombre de la Tarea</Label>
-                          <CognitiveInput name="name" placeholder="Ej. Pelado" required semanticType="name" />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Pago por Unidad ($)</Label>
-                          <Input name="price" type="number" step="0.01" placeholder="0.00" required />
-                        </div>
-                      </div>
-
-                      <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-                        <p className="text-[10px] text-blue-300 flex items-start gap-2">
-                          <Sparkles className="w-3 h-3 mt-0.5 shrink-0" />
-                          El sistema inferirá automáticamente si esta tarea consume materia prima o produce producto terminado basándose en su uso en el flujo de producción.
-                        </p>
-                      </div>
-
-                      <Button type="submit" className="w-full" disabled={createTaskMutation.isPending}>
-                        {createTaskMutation.isPending ? "Guardando..." : "Guardar Tarifa"}
-                      </Button>
-                    </form>
-                    <div className="mt-4 pt-4 border-t border-slate-800">
-                      <p className="text-xs font-bold uppercase text-slate-500 mb-2">Tarifas Activas</p>
-                      <div className="space-y-1 max-h-40 overflow-y-auto pr-1 custom-scrollbar">
-                        {Array.isArray(pieceworkTasks) && pieceworkTasks.map((t: any) => (
-                          <div key={t.id} className="group flex justify-between items-center text-sm p-2 rounded bg-slate-900/50 hover:bg-slate-900 transition-colors border border-transparent hover:border-slate-800">
-                            <div className="flex items-center gap-2 flex-1 min-w-0 mr-2">
-                              <span className="truncate font-medium">{t.name}</span>
-                              {t.isRecipe && <Badge variant="outline" className="text-[9px] h-4 shrink-0 px-1">RECETA</Badge>}
-                            </div>
-                            <div className="flex items-center gap-3 shrink-0">
-                              <span className="font-mono font-bold text-emerald-400">${(t.unitPrice / 100).toFixed(2)}</span>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 opacity-0 group-hover:opacity-100 transition-all"
-                                onClick={() => {
-                                  if (confirm("¿Eliminar esta tarifa?")) deleteTaskMutation.mutate(t.id);
-                                }}
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-                <Dialog open={isTicketCreateOpen} onOpenChange={setIsTicketCreateOpen}>
-                  <DialogTrigger asChild><Button className="gap-2"><Plus className="w-4 h-4" />Nuevo Ticket</Button></DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader><DialogTitle>Registrar Trabajo</DialogTitle></DialogHeader>
-                    <form onSubmit={(e) => {
-                      e.preventDefault();
-                      const fd = new FormData(e.currentTarget);
-                      const taskId = fd.get('taskId');
-                      const task = pieceworkTasks.find((t: any) => t.id === taskId);
-                      let recipeInputId = undefined;
-                      if (task?.recipeData?.inputSelectionMode === 'single') {
-                        recipeInputId = fd.get('selectedInputId');
-                      }
-                      createTicketMutation.mutate({
-                        employeeId: fd.get('employeeId'),
-                        taskName: task?.name || 'Proceso General',
-                        quantity: Number(fd.get('quantity')),
-                        unitPrice: task ? task.unitPrice : Number(fd.get('price')) * 100,
-                        status: 'pending',
-                        selectedInputId: recipeInputId,
-                        batchId: fd.get('batchId') === 'none' ? undefined : fd.get('batchId')
-                      });
-                    }} className="space-y-4 py-4">
-                      <div className="space-y-2">
-                        <Label>Proceso / Lote Activo (Opcional)</Label>
-                        <Select name="batchId">
-                          <SelectTrigger>
-                            <SelectValue placeholder="Vincular a un Lote (Recomendado)" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">-- Sin Lote / General --</SelectItem>
-                            {summary?.recentInstances?.filter((i: any) => i.status === "active").map((i: any) => (
-                              <SelectItem key={i.id} value={i.id}>
-                                {i.aiContext?.loteName || `Lote #${i.id.substring(0, 8)}`} ({new Date(i.startedAt).toLocaleTimeString()})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <p className="text-[10px] text-muted-foreground">Al vincular, el trabajo contará para el avance del lote.</p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Empleado</Label>
-                        <Select name="employeeId" required><SelectTrigger><SelectValue placeholder="Seleccionar Empleado" /></SelectTrigger><SelectContent>{employees && Array.isArray(employees) && employees.map((emp: any) => (<SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>))}</SelectContent></Select>
-                      </div>
-
-                      <TaskSelector
-                        tasks={pieceworkTasks}
-                        inventory={inventory}
-                        isError={isPieceworkError}
-                      />
-
-                      <div className="space-y-2">
-                        <Label>Cantidad</Label>
-                        <Input name="quantity" type="number" placeholder="0" required />
-                      </div>
-                      <Button type="submit" className="w-full" disabled={createTicketMutation.isPending}>
-                        {createTicketMutation.isPending ? "Registrando..." : "Guardar Ticket"}
-                      </Button>
-                    </form>
-                  </DialogContent>
-                </Dialog>
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -731,20 +953,32 @@ export default function Production() {
               <StatCard title="Pagados" value={ticketStats.paid} icon={DollarSign} variant="primary" />
               <StatCard title="Total" value={formatCurrency(ticketStats.totalAmount / 100)} icon={DollarSign} />
             </div>
-            <Card className="mt-6"><CardContent className="pt-6"><DataTable columns={[
-              { key: "id", header: "ID", render: (i) => `#${i.id.toString().padStart(6, '0')}` },
-              { key: "employee", header: "Empleado", render: (i) => i.employeeName },
-              { key: "taskName", header: "Proceso" },
-              {
-                key: "quantity", header: "Cant.", render: (i) => {
-                  const task = pieceworkTasks.find((t: any) => t.name === i.taskName);
-                  return `${i.quantity} ${task?.unit || 'pza'}`;
-                }
-              },
-              { key: "status", header: "Estado" },
-              { key: "totalAmount", header: "Monto", render: (i) => formatCurrency((i.totalAmount || 0) / 100) },
-              { key: "actions", header: "Acciones", render: (i) => i.status === 'pending' ? <Button size="sm" onClick={() => { approveMutation.mutate(i.id); }}>Aprobar</Button> : null }
-            ]} data={tickets} /></CardContent></Card>
+            <div className="rounded-lg border border-slate-800 bg-slate-950/50 overflow-hidden mt-6">
+              <DataTable
+                data={tickets || []}
+                columns={[
+                  { header: "Folio", accessorKey: "id", cell: (info: any) => <span className="font-mono text-xs text-slate-500">#{info.getValue().toString().substring(0, 8)}</span> },
+                  { header: "Fecha", accessorKey: "createdAt", cell: (info: any) => <div className="flex flex-col"><span className="text-xs text-white">{new Date(info.getValue()).toLocaleDateString()}</span><span className="text-[10px] text-slate-500">{new Date(info.getValue()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></div> },
+                  { header: "Empleado", accessorKey: "employeeName", cell: (info: any) => <span className="font-bold text-white text-sm">{info.getValue()}</span> },
+                  { header: "Concepto", accessorKey: "taskName", cell: (info: any) => <span className="text-xs text-slate-300">{info.getValue() || "Producción"}</span> },
+                  { header: "Cantidad", accessorKey: "quantity", cell: (info: any) => <span className="font-mono font-bold text-white">{info.getValue()} <span className="text-slate-500 text-[10px] font-normal">{info.row.original.unit || 'pza'}</span></span> },
+                  { header: "Monto", accessorKey: "totalAmount", cell: (info: any) => <span className="text-emerald-400 font-bold">${(info.getValue() / 100).toFixed(2)}</span> },
+                  { header: "Estado", accessorKey: "status", cell: (info: any) => <Badge variant="outline" className={cn("text-[10px] uppercase", info.getValue() === "paid" ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-yellow-500/10 text-yellow-500 border-yellow-500/20")}>{info.getValue() === "paid" ? "PAGADO" : "PENDIENTE"}</Badge> },
+                  {
+                    header: "Acciones", id: "actions", cell: (info: any) => (
+                      <div className="flex gap-2 justify-end">
+                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0 hover:bg-slate-800" title="Imprimir Ticket" onClick={() => printThermalTicket(info.row.original)}><TicketIcon className="w-4 h-4 text-slate-400" /></Button>
+                        {info.row.original.status !== 'paid' && (
+                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-emerald-600 hover:text-emerald-500 hover:bg-emerald-950" title="Pagar Ticket" onClick={() => {
+                            if (confirm("¿Marcar este ticket como PAGADO?")) payMutation.mutate(info.row.original.id);
+                          }}><DollarSign className="w-4 h-4" /></Button>
+                        )}
+                      </div>
+                    )
+                  }
+                ]}
+              />
+            </div>
           </TabsContent >
         </Tabs >
       </div >
