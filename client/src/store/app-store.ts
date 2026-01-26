@@ -19,6 +19,8 @@ interface AppState {
     defaultUnits: string[];
     productTypeLabels: Record<string, { label: string, context: string }>;
     cedisAddress?: string;
+    cedisLat?: number;
+    cedisLng?: number;
 
     // Actions
     setIndustry: (industry: string) => void;
@@ -30,7 +32,9 @@ interface AppState {
         defaultUnits?: string[],
         industryName?: string,
         productTypeLabels?: Record<string, { label: string, context: string }>,
-        cedisAddress?: string
+        cedisAddress?: string,
+        cedisLat?: number,
+        cedisLng?: number
     }) => void;
 
     // Optimistic Industry Update
@@ -54,6 +58,8 @@ export const useAppStore = create<AppState>()(
                 internal: { label: "Uso Interno", context: "Control de gasto operativo." }
             },
             cedisAddress: "",
+            cedisLat: undefined,
+            cedisLng: undefined,
 
             setIndustry: (industry) => set({ industry }),
             setTheme: (theme) => set({ theme }),
@@ -65,7 +71,9 @@ export const useAppStore = create<AppState>()(
                 defaultUnits: config.defaultUnits || state.defaultUnits,
                 industryName: config.industryName || state.industryName,
                 productTypeLabels: config.productTypeLabels || state.productTypeLabels,
-                cedisAddress: config.cedisAddress !== undefined ? config.cedisAddress : state.cedisAddress
+                cedisAddress: config.cedisAddress !== undefined ? config.cedisAddress : state.cedisAddress,
+                cedisLat: config.cedisLat !== undefined ? config.cedisLat : state.cedisLat,
+                cedisLng: config.cedisLng !== undefined ? config.cedisLng : state.cedisLng
             })),
 
             applyIndustryTemplate: (industryKey) => {

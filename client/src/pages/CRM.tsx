@@ -39,10 +39,21 @@ import { useCognitiveEngine } from "@/lib/cognitive/engine";
 
 function CreateCustomerDialog() {
   const { session } = useAuth();
+  const { industry } = useConfiguration();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({ name: "", email: "", phone: "" });
+
+  const labels: Record<string, any> = {
+    services: { title: "Nuevo Cliente Corporativo", nameLabel: "Razón Social / Empresa", namePlaceholder: "Ej. Acme Corp", emailLabel: "Email de Contacto" },
+    healthcare: { title: "Registrar Paciente", nameLabel: "Nombre del Paciente", namePlaceholder: "Ej. Juan Pérez", emailLabel: "Email Personal" },
+    restaurant: { title: "Registro de Comensal", nameLabel: "Nombre del Cliente", namePlaceholder: "Ej. María González", emailLabel: "Email (Fidelización)" },
+    retail: { title: "Nuevo Cliente", nameLabel: "Nombre Completo", namePlaceholder: "Ej. Juan Pérez", emailLabel: "Email" },
+    generic: { title: "Nuevo Cliente", nameLabel: "Nombre de la Empresa / Persona", namePlaceholder: "Ej. Acme Corp", emailLabel: "Email" }
+  };
+
+  const currentLabels = labels[industry as string] || labels.generic;
 
   const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
@@ -61,10 +72,10 @@ function CreateCustomerDialog() {
       queryClient.invalidateQueries({ queryKey: ["/api/crm/customers"] });
       setOpen(false);
       setFormData({ name: "", email: "", phone: "" });
-      toast({ title: "Cliente creado", description: "El cliente se ha registrado exitosamente." });
+      toast({ title: "Registro Exitoso", description: "Se ha dado de alta correctamente." });
     },
     onError: () => {
-      toast({ variant: "destructive", title: "Error", description: "No se pudo crear el cliente." });
+      toast({ variant: "destructive", title: "Error", description: "No se pudo crear el registro." });
     }
   });
 
@@ -76,29 +87,29 @@ function CreateCustomerDialog() {
           intent="create_customer"
           title="Registrar nuevo cliente con análisis de riesgo inicial"
         >
-          <Plus className="w-4 h-4" /> Agregar Cliente
+          <Plus className="w-4 h-4" /> {currentLabels.title}
         </CognitiveButton>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Nuevo Cliente</DialogTitle>
+          <DialogTitle>{currentLabels.title}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label>Nombre de la Empresa / Persona</Label>
+            <Label>{currentLabels.nameLabel}</Label>
             <CognitiveInput
               value={formData.name}
               onChange={e => setFormData({ ...formData, name: e.target.value })}
-              placeholder="Ej. Acme Corp"
+              placeholder={currentLabels.namePlaceholder}
               semanticType="name"
             />
           </div>
           <div className="space-y-2">
-            <Label>Email</Label>
+            <Label>{currentLabels.emailLabel}</Label>
             <CognitiveInput
               value={formData.email}
               onChange={e => setFormData({ ...formData, email: e.target.value })}
-              placeholder="contacto@acme.com"
+              placeholder="contacto@ejemplo.com"
               semanticType="email"
             />
           </div>
@@ -116,7 +127,7 @@ function CreateCustomerDialog() {
           <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
           <Button onClick={() => createMutation.mutate(formData)} disabled={createMutation.isPending}>
             {createMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-            Crear Cliente
+            Guardar Registro
           </Button>
         </DialogFooter>
       </DialogContent>

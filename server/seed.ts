@@ -72,6 +72,7 @@ export const industryTemplates = {
         "employees",
         "crm",
         "sales",
+        "inventory",
         "analytics"
     ],
     healthcare: [
@@ -81,6 +82,7 @@ export const industryTemplates = {
         "finance",
         "employees",
         "crm",
+        "inventory",
         "analytics"
     ],
     logistics: [
@@ -94,6 +96,17 @@ export const industryTemplates = {
         "analytics"
     ],
     hospitality: [
+        "operations",
+        "cpe",
+        "admin",
+        "finance",
+        "employees",
+        "crm",
+        "inventory",
+        "sales",
+        "analytics"
+    ],
+    restaurant: [
         "operations",
         "cpe",
         "admin",
@@ -123,6 +136,7 @@ export const industryTemplates = {
         "employees",
         "sales",
         "crm",
+        "inventory",
         "analytics"
     ],
     education: [

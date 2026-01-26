@@ -28,7 +28,9 @@ import {
   Building2,
   ArrowUpRight,
   Activity,
-  CheckCircle2
+  CheckCircle2,
+  Check,
+  ChevronsUpDown
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
@@ -44,6 +46,19 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -53,10 +68,20 @@ import { CognitiveInput, CognitiveField, CognitiveProvider, GuardianDiagnostic, 
 
 function CreateCustomerDialog() {
   const { session } = useAuth();
+  const { industry } = useConfiguration();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({ name: "", email: "", phone: "" });
+
+  const labels: Record<string, any> = {
+    services: { title: "Nuevo Cliente", nameLabel: "Empresa / Razón Social", namePlaceholder: "Ej. Acme Corp", emailLabel: "Email de Contacto" },
+    healthcare: { title: "Nuevo Paciente", nameLabel: "Nombre del Paciente", namePlaceholder: "Ej. Juan Pérez", emailLabel: "Email Personal" },
+    restaurant: { title: "Nuevo Comensal", nameLabel: "Nombre", namePlaceholder: "Ej. María González", emailLabel: "Email" },
+    generic: { title: "Nuevo Cliente", nameLabel: "Nombre", namePlaceholder: "Ej. Juan Pérez", emailLabel: "Email" }
+  };
+
+  const currentLabels = labels[industry as string] || labels.generic;
 
   const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
@@ -75,10 +100,10 @@ function CreateCustomerDialog() {
       queryClient.invalidateQueries({ queryKey: ["/api/crm/customers"] });
       setOpen(false);
       setFormData({ name: "", email: "", phone: "" });
-      toast({ title: "Cliente creado", description: "El cliente se ha registrado exitosamente." });
+      toast({ title: "Registro Exitoso", description: "Se ha guardado correctamente." });
     },
     onError: () => {
-      toast({ variant: "destructive", title: "Error", description: "No se pudo crear el cliente." });
+      toast({ variant: "destructive", title: "Error", description: "No se pudo crear el registro." });
     }
   });
 
@@ -86,21 +111,21 @@ function CreateCustomerDialog() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2">
-          <Plus className="w-4 h-4" /> Nuevo Cliente
+          <Plus className="w-4 h-4" /> {currentLabels.title}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Registrar Nuevo Cliente</DialogTitle>
+          <DialogTitle>{currentLabels.title}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label>Nombre</Label>
-            <Input value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="Ej. Juan Pérez" />
+            <Label>{currentLabels.nameLabel}</Label>
+            <Input value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder={currentLabels.namePlaceholder} />
           </div>
           <div className="space-y-2">
-            <Label>Email</Label>
-            <Input value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} placeholder="juan@ejemplo.com" />
+            <Label>{currentLabels.emailLabel}</Label>
+            <Input value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} placeholder="contacto@ejemplo.com" />
           </div>
           <div className="space-y-2">
             <Label>Teléfono</Label>
@@ -111,7 +136,7 @@ function CreateCustomerDialog() {
           <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
           <Button onClick={() => createMutation.mutate(formData)} disabled={createMutation.isPending}>
             {createMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-            Crear Cliente
+            Guardar
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -163,11 +188,97 @@ export default function Sales() {
   );
 }
 
+function CustomerCombobox({
+  value,
+  setValue,
+  customers,
+  labels
+}: {
+  value: string,
+  setValue: (val: string) => void,
+  customers: any[],
+  labels: any
+}) {
+  const [open, setOpen] = useState(false);
+
+  // Find selected name
+  const selectedName = value
+    ? customers.find((c) => c.id === value)?.name
+    : labels.default;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full justify-between font-normal bg-background border-input hover:bg-accent hover:text-accent-foreground h-10 px-3 py-2"
+        >
+          <div className="flex flex-col items-start truncate">
+            <span className="truncate">{value ? selectedName : labels.default}</span>
+            {!value && <span className="text-[10px] text-muted-foreground opacity-70">RFC: XAXX010101000</span>}
+          </div>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[300px] p-0" align="start">
+        <Command>
+          <CommandInput placeholder={`Buscar ${labels.client.toLowerCase()}...`} />
+          <CommandList>
+            <CommandEmpty>No se encontró.</CommandEmpty>
+            <CommandGroup heading="Opciones Rápidas">
+              <CommandItem
+                value="generic"
+                onSelect={() => {
+                  setValue("");
+                  setOpen(false);
+                }}
+              >
+                <Check
+                  className={cn(
+                    "mr-2 h-4 w-4",
+                    value === "" ? "opacity-100" : "opacity-0"
+                  )}
+                />
+                <div className="flex flex-col">
+                  <span>{labels.default}</span>
+                  <span className="text-[10px] text-muted-foreground">XAXX010101000</span>
+                </div>
+              </CommandItem>
+            </CommandGroup>
+            <CommandGroup heading="Registrados">
+              {customers.map((customer) => (
+                <CommandItem
+                  key={customer.id}
+                  value={customer.name}
+                  onSelect={() => {
+                    setValue(customer.id);
+                    setOpen(false);
+                  }}
+                >
+                  <Check
+                    className={cn(
+                      "mr-2 h-4 w-4",
+                      value === customer.id ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                  {customer.name}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function POSView() {
   const { session } = useAuth();
   const { toast } = useToast();
-  const { enabledModules } = useConfiguration();
-  const hasInventory = enabledModules.some(m => m.id === "inventory");
+  const { enabledModules, industry } = useConfiguration();
+  const hasInventory = enabledModules.includes("inventory");
   const queryClient = useQueryClient();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -178,6 +289,19 @@ function POSView() {
   const [selectedBankId, setSelectedBankId] = useState<string>("");
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "transfer">("cash");
   const [isPayDialogOpen, setIsPayDialogOpen] = useState(false);
+
+  // Industry Labels
+  const labels: Record<string, any> = {
+    healthcare: { client: "Paciente", default: "Paciente Externo", insight: "historial clínico", anonymous: "paciente sin expediente" },
+    restaurant: { client: "Comensal", default: "Cliente de Barra/Mesa", insight: "preferencias de consumo", anonymous: "comensal casual" },
+    services: { client: "Cliente", default: "Cliente General", insight: "historial de servicios", anonymous: "cliente sin contrato" },
+    generic: { client: "Cliente", default: "Público en General", insight: "historial de crédito", anonymous: "público general" }
+  };
+  const currentLabels = labels[industry as string] || labels.generic;
+  // Fallback for "Público General" text to make sure it mentions the RFC as requested
+  if (currentLabels.default === "Público en General" || currentLabels.default === "Cliente General") {
+    // Ensure specificity or leave as is since component handles RFC display
+  }
 
   // Pay Mutation
   const payMutation = useMutation({
@@ -422,11 +546,13 @@ function POSView() {
 
               {cart.length > 0 && (
                 <div className="space-y-3 p-3 rounded-lg bg-primary/5 border border-primary/10">
-                  <CognitiveField label="Cliente" value={selectedCustomer} semanticType="category" options={customers.map((c: any) => c.name)}>
-                    <select className="w-full bg-background border border-border rounded-md p-2 text-sm" value={selectedCustomer} onChange={(e) => setSelectedCustomer(e.target.value)}>
-                      <option value="">Consumidor Final</option>
-                      {customers.map((c: any) => (<option key={c.id} value={c.id}>{c.name}</option>))}
-                    </select>
+                  <CognitiveField label={currentLabels.client} value={selectedCustomer} semanticType="category" options={customers.map((c: any) => c.name)}>
+                    <CustomerCombobox
+                      value={selectedCustomer}
+                      setValue={setSelectedCustomer}
+                      customers={customers}
+                      labels={currentLabels}
+                    />
                   </CognitiveField>
                   <CognitiveField label="Conductor" value={selectedDriver} semanticType="method">
                     <select className="w-full bg-background border border-border rounded-md p-2 text-sm" value={selectedDriver} onChange={(e) => setSelectedDriver(e.target.value)}>
@@ -499,14 +625,14 @@ function POSView() {
                         <div className="flex items-center gap-2">
                           <div className="w-1 h-1 rounded-full bg-emerald-500" />
                           <p className="text-[10px] text-slate-400">
-                            Afectando <span className="text-slate-200">historial de crédito</span> del cliente seleccionado.
+                            Afectando <span className="text-slate-200">{currentLabels.insight}</span> del {currentLabels.client.toLowerCase()} seleccionado.
                           </p>
                         </div>
                       ) : (
                         <div className="flex items-center gap-2">
                           <div className="w-1 h-1 rounded-full bg-amber-500" />
                           <p className="text-[10px] text-slate-400 font-medium italic">
-                            Venta sin cliente: se registrará como <span className="text-amber-200/80">público general</span>.
+                            Venta sin registro: se registrará como <span className="text-amber-200/80">{currentLabels.anonymous}</span>.
                           </p>
                         </div>
                       )}

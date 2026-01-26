@@ -196,12 +196,136 @@ function DriverLinkDialog() {
     );
 }
 
+
+function VehicleDetailsDialog({
+    open,
+    onOpenChange,
+    vehicle,
+    maintenanceLogs,
+    fuelLogs
+}: {
+    open: boolean,
+    onOpenChange: (open: boolean) => void,
+    vehicle: any,
+    maintenanceLogs: any[],
+    fuelLogs: any[]
+}) {
+    if (!vehicle) return null;
+
+    const vMaintenance = maintenanceLogs.filter((l: any) => l.vehicleId === vehicle.id);
+    const vFuel = fuelLogs.filter((l: any) => l.vehicleId === vehicle.id);
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                        <Truck className="w-5 h-5 text-primary" />
+                        {vehicle.plate} - {vehicle.model}
+                    </DialogTitle>
+                    <DialogDescription>
+                        Historial y detalles de la unidad
+                    </DialogDescription>
+                </DialogHeader>
+
+                <Tabs defaultValue="general" className="w-full">
+                    <TabsList>
+                        <TabsTrigger value="general">General</TabsTrigger>
+                        <TabsTrigger value="maintenance">Mantenimiento ({vMaintenance.length})</TabsTrigger>
+                        <TabsTrigger value="fuel">Combustible ({vFuel.length})</TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="general" className="space-y-4 py-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="p-4 rounded-lg bg-slate-900 border border-slate-800">
+                                <span className="text-xs text-slate-500 uppercase">Kilometraje Actual</span>
+                                <p className="text-2xl font-bold">{vehicle.currentMileage?.toLocaleString()} km</p>
+                            </div>
+                            <div className="p-4 rounded-lg bg-slate-900 border border-slate-800">
+                                <span className="text-xs text-slate-500 uppercase">Estado</span>
+                                <Badge className={cn("ml-2", vehicle.status === 'active' ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500')}>
+                                    {vehicle.status}
+                                </Badge>
+                            </div>
+                            <div className="p-4 rounded-lg bg-slate-900 border border-slate-800">
+                                <span className="text-xs text-slate-500 uppercase">Año</span>
+                                <p className="text-lg font-medium">{vehicle.year}</p>
+                            </div>
+                        </div>
+                    </TabsContent>
+
+                    <TabsContent value="maintenance">
+                        <div className="rounded-md border border-slate-800">
+                            {vMaintenance.length === 0 ? (
+                                <div className="p-8 text-center text-slate-500 text-sm">Sin registros de mantenimiento.</div>
+                            ) : (
+                                <div className="divide-y divide-slate-800">
+                                    {vMaintenance.map((log: any) => (
+                                        <div key={log.id} className="p-3 flex justify-between items-start">
+                                            <div>
+                                                <p className="font-bold text-sm text-slate-200">{log.description}</p>
+                                                <p className="text-xs text-slate-500">{new Date(log.date).toLocaleDateString()} • {log.type}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="font-bold text-sm text-slate-200">${(log.cost / 100).toFixed(2)}</p>
+                                                <p className="text-xs text-slate-500">{log.mileageIn?.toLocaleString()} km</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </TabsContent>
+
+                    <TabsContent value="fuel">
+                        <div className="rounded-md border border-slate-800">
+                            {vFuel.length === 0 ? (
+                                <div className="p-8 text-center text-slate-500 text-sm">Sin registros de combustible.</div>
+                            ) : (
+                                <div className="divide-y divide-slate-800">
+                                    {vFuel.map((log: any) => (
+                                        <div key={log.id} className="p-3 flex justify-between items-start">
+                                            <div>
+                                                <p className="font-bold text-sm text-slate-200">{log.liters} Litros</p>
+                                                <p className="text-xs text-slate-500">{new Date(log.date).toLocaleDateString()}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="font-bold text-sm text-slate-200">${(log.cost / 100).toFixed(2)}</p>
+                                                <p className="text-xs text-slate-500">{log.mileage?.toLocaleString()} km</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </TabsContent>
+                </Tabs>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 export default function Logistics() {
     const { session } = useAuth();
     const { toast } = useToast();
     const { universalConfig } = useConfiguration();
     const queryClient = useQueryClient();
     const [isAddOpen, setIsAddOpen] = useState(false);
+    const [isServiceDialogOpen, setIsServiceDialogOpen] = useState(false);
+    const [serviceVehicleId, setServiceVehicleId] = useState<string>("");
+    const [vehicleDetails, setVehicleDetails] = useState<any>(null);
+
+    const { data: fuelLogs = [] } = useQuery({
+        queryKey: ["/api/logistics/fleet/fuel"],
+        queryFn: async () => {
+            const res = await fetch("/api/logistics/fleet/fuel", {
+                headers: { Authorization: `Bearer ${session?.access_token}` }
+            });
+            if (!res.ok) return [];
+            return res.json();
+        },
+        enabled: !!session?.access_token
+    });
 
     const createVehicleMutation = useMutation({
         mutationFn: async (data: any) => {
@@ -220,6 +344,26 @@ export default function Logistics() {
             queryClient.invalidateQueries({ queryKey: ["/api/logistics/fleet/vehicles"] });
             setIsAddOpen(false);
             toast({ title: "Vehículo Registrado", description: "Unidad añadida a la flota." });
+        }
+    });
+
+    const createMaintenanceMutation = useMutation({
+        mutationFn: async (data: any) => {
+            const res = await fetch(`/api/logistics/fleet/vehicles/${data.vehicleId}/maintenance`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${session?.access_token}`
+                },
+                body: JSON.stringify({ ...data, date: new Date().toISOString() })
+            });
+            if (!res.ok) throw new Error("Failed to schedule maintenance");
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/logistics/fleet/maintenance"] });
+            setIsServiceDialogOpen(false);
+            toast({ title: "Mantenimiento Programado", description: "Se ha registrado la orden de servicio." });
         }
     });
 
@@ -451,7 +595,16 @@ export default function Logistics() {
                                     <p className="text-xs text-slate-300 leading-relaxed">
                                         Hay {vehiclesNeedingService.length} vehículos que han superado el umbral de servicio preventivo.
                                     </p>
-                                    <Button size="sm" className="w-full mt-3 bg-yellow-500 hover:bg-yellow-600 text-black font-bold">
+                                    <Button
+                                        size="sm"
+                                        className="w-full mt-3 bg-yellow-500 hover:bg-yellow-600 text-black font-bold"
+                                        onClick={() => {
+                                            if (vehiclesNeedingService.length > 0) {
+                                                setServiceVehicleId(vehiclesNeedingService[0].id);
+                                            }
+                                            setIsServiceDialogOpen(true);
+                                        }}
+                                    >
                                         Programar Servicio
                                     </Button>
                                 </div>
@@ -539,7 +692,7 @@ export default function Logistics() {
                                                         <Badge className={v.status === 'active' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}>
                                                             {v.status}
                                                         </Badge>
-                                                        <Button variant="ghost" size="icon"><Settings2 className="w-4 h-4" /></Button>
+                                                        <Button variant="ghost" size="icon" onClick={() => setVehicleDetails(v)}><Settings2 className="w-4 h-4" /></Button>
                                                     </div>
                                                 </div>
                                             ))
@@ -601,7 +754,7 @@ export default function Logistics() {
                                 {/* LIVE MAP VISUALIZATION - Leaflet */}
                                 <div className="absolute inset-0 z-0 bg-slate-950">
                                     <MapContainer
-                                        center={[19.4326, -99.1332]}
+                                        center={[universalConfig.cedisLat || 19.4326, universalConfig.cedisLng || -99.1332]}
                                         zoom={13}
                                         style={{ height: '100%', width: '100%', background: '#020617' }}
                                         zoomControl={false}
@@ -615,7 +768,7 @@ export default function Logistics() {
                                         />
 
                                         {/* CEDIS Marker */}
-                                        <Marker position={[19.4326, -99.1332]} icon={L.divIcon({ className: '', html: '<div class="w-4 h-4 bg-primary rounded-full border-2 border-white shadow-[0_0_15px_rgba(59,130,246,0.6)]"></div>' })}>
+                                        <Marker position={[universalConfig.cedisLat || 19.4326, universalConfig.cedisLng || -99.1332]} icon={L.divIcon({ className: '', html: '<div class="w-4 h-4 bg-primary rounded-full border-2 border-white shadow-[0_0_15px_rgba(59,130,246,0.6)]"></div>' })}>
                                             <LeafletTooltip direction="top" offset={[0, -5]} opacity={1} permanent>
                                                 {universalConfig.cedisAddress || "CEDIS Principal"}
                                             </LeafletTooltip>
@@ -687,7 +840,7 @@ export default function Logistics() {
                                             </Marker>
                                         )}
 
-                                        <MapController center={[19.4326, -99.1332]} />
+                                        <MapController center={[universalConfig.cedisLat || 19.4326, universalConfig.cedisLng || -99.1332]} />
                                     </MapContainer>
                                 </div>
 
@@ -814,6 +967,75 @@ export default function Logistics() {
                     </div>
                 </TabsContent>
             </Tabs>
+            <Dialog open={isServiceDialogOpen} onOpenChange={setIsServiceDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Programar Mantenimiento</DialogTitle>
+                        <DialogDescription>Registra una orden de servicio para el vehículo.</DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={(e) => {
+                        e.preventDefault();
+                        const formData = new FormData(e.currentTarget);
+                        createMaintenanceMutation.mutate({
+                            vehicleId: serviceVehicleId,
+                            type: formData.get("type"),
+                            description: formData.get("description"),
+                            cost: parseInt(formData.get("cost") as string) * 100, // Cents
+                            mileageIn: parseInt(formData.get("mileage") as string) || 0
+                        });
+                    }} className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label>Vehículo</Label>
+                            <Select value={serviceVehicleId} onValueChange={setServiceVehicleId}>
+                                <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                                <SelectContent>
+                                    {vehiclesData.map((v: any) => (
+                                        <SelectItem key={v.id} value={v.id}>{v.plate} - {v.model}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Tipo de Servicio</Label>
+                            <Select name="type" defaultValue="preventive">
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="preventive">Preventivo</SelectItem>
+                                    <SelectItem value="corrective">Correctivo</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Descripción</Label>
+                            <Input name="description" placeholder="Ej. Cambio de Aceite y Filtros 10k" required />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label>Costo Estimado ($)</Label>
+                                <Input name="cost" type="number" placeholder="5000" required />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Kilometraje Actual</Label>
+                                <Input name="mileage" type="number" placeholder="10500" />
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button type="button" variant="outline" onClick={() => setIsServiceDialogOpen(false)}>Cancelar</Button>
+                            <Button type="submit" disabled={createMaintenanceMutation.isPending}>
+                                {createMaintenanceMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                                Registrar Servicio
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+            <VehicleDetailsDialog
+                open={!!vehicleDetails}
+                onOpenChange={(open) => !open && setVehicleDetails(null)}
+                vehicle={vehicleDetails}
+                maintenanceLogs={maintenanceLogs}
+                fuelLogs={fuelLogs}
+            />
         </AppLayout>
     );
 }

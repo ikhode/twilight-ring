@@ -59,13 +59,38 @@ export default function Settings() {
   const [orgName, setOrgName] = useState(profile?.organization?.name || "Mi Empresa S.A.");
   const [industryState, setIndustryState] = useState(profile?.organization?.industry || "generic");
 
-  // Sync state with profile changes (e.g. when switching organizations)
+  // Buffers for coordinates to allow typing "-", ".", etc.
+  const [latBuffer, setLatBuffer] = useState(universalConfig.cedisLat?.toString() || "");
+  const [lngBuffer, setLngBuffer] = useState(universalConfig.cedisLng?.toString() || "");
+
+  // Sync state with profile changes
   useEffect(() => {
     if (profile?.organization) {
       if (profile.organization.name) setOrgName(profile.organization.name);
       if (profile.organization.industry) setIndustryState(profile.organization.industry);
     }
   }, [profile?.organization]);
+
+  // Sync buffers if config changes externally (e.g. initial load)
+  useEffect(() => {
+    if (universalConfig.cedisLat !== undefined && universalConfig.cedisLat.toString() !== latBuffer) {
+      setLatBuffer(universalConfig.cedisLat.toString());
+    }
+    if (universalConfig.cedisLng !== undefined && universalConfig.cedisLng.toString() !== lngBuffer) {
+      setLngBuffer(universalConfig.cedisLng.toString());
+    }
+  }, [universalConfig.cedisLat, universalConfig.cedisLng]);
+
+  const commitCoordinates = () => {
+    const lat = parseFloat(latBuffer);
+    const lng = parseFloat(lngBuffer);
+    const updates: any = {};
+    if (!isNaN(lat)) updates.cedisLat = lat;
+    if (!isNaN(lng)) updates.cedisLng = lng;
+    if (Object.keys(updates).length > 0) {
+      updateUniversalConfig(updates);
+    }
+  };
 
   const updateOrgMutation = useMutation({
     mutationFn: async (payload: { name: string, industry: string, settings?: any }) => {
@@ -81,6 +106,7 @@ export default function Settings() {
       return res.json();
     },
     onSuccess: () => {
+      commitCoordinates(); // Ensure coords are saved
       toast({ title: "Perfil Actualizado", description: "La información de la empresa se ha guardado correctamente." });
     },
     onError: (err: any) => {
@@ -204,15 +230,47 @@ export default function Settings() {
                     placeholder="Ej. Av. Central 123, Ciudad de México"
                     className="bg-slate-950 border-slate-800 text-white"
                   />
-                  <p className="text-[10px] text-slate-500 italic">Esta dirección se utilizará como punto de partida para la optimización de rutas.</p>
+                  <div className="grid grid-cols-2 gap-4 pt-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Latitud</Label>
+                      <Input
+                        type="text"
+                        value={latBuffer}
+                        onChange={(e) => setLatBuffer(e.target.value)}
+                        onBlur={commitCoordinates}
+                        placeholder="19.4326"
+                        className="bg-slate-950 border-slate-800 text-white h-8 text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Longitud</Label>
+                      <Input
+                        type="text"
+                        value={lngBuffer}
+                        onChange={(e) => setLngBuffer(e.target.value)}
+                        onBlur={commitCoordinates}
+                        placeholder="-99.1332"
+                        className="bg-slate-950 border-slate-800 text-white h-8 text-xs"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-500 italic">Esta ubicación se utilizará como punto de partida para la optimización de rutas.</p>
                 </div>
 
                 <Button
-                  onClick={() => updateOrgMutation.mutate({
-                    name: orgName,
-                    industry: industryState,
-                    settings: { ...universalConfig, cedisAddress: universalConfig.cedisAddress }
-                  })}
+                  onClick={() => {
+                    const lat = parseFloat(latBuffer);
+                    const lng = parseFloat(lngBuffer);
+                    const finalConfig = { ...universalConfig };
+                    if (!isNaN(lat)) finalConfig.cedisLat = lat;
+                    if (!isNaN(lng)) finalConfig.cedisLng = lng;
+
+                    updateOrgMutation.mutate({
+                      name: orgName,
+                      industry: industryState,
+                      settings: finalConfig
+                    });
+                  }}
                   disabled={updateOrgMutation.isPending}
                   className="w-full bg-primary/20 hover:bg-primary/30 text-primary border border-primary/20 py-6"
                 >

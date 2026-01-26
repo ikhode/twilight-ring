@@ -48,7 +48,10 @@ router.get("/", async (req, res) => {
                 ...(settings.universal || {}),
                 productCategories: settings.productCategories || settings.universal?.productCategories || [],
                 defaultUnits: settings.defaultUnits || settings.universal?.defaultUnits || [],
-                industryName: settings.industryName || settings.universal?.industryName || ""
+                industryName: settings.industryName || settings.universal?.industryName || "",
+                cedisAddress: settings.cedisAddress || settings.universal?.cedisAddress || "",
+                cedisLat: settings.cedisLat ?? settings.universal?.cedisLat,
+                cedisLng: settings.cedisLng ?? settings.universal?.cedisLng
             },
             enabledModules: enabledModules.filter(m => m.enabled).map(m => m.moduleId),
             ai: {

@@ -65,6 +65,27 @@ router.post("/fleet/vehicles/:id/maintenance", async (req, res): Promise<void> =
         const [vehicle] = await db.select().from(vehicles).where(and(eq(vehicles.id, vehicleId), eq(vehicles.organizationId, orgId))).limit(1);
         if (!vehicle) return res.status(404).json({ message: "Vehicle not found" });
 
+        // DUPLICATE CHECK: Prevent double submission
+        // Check for same vehicle, same type, same date (approx), same description within the last minute or same day
+        const existing = await db.select().from(maintenanceLogs).where(and(
+            eq(maintenanceLogs.vehicleId, vehicleId),
+            eq(maintenanceLogs.type, data.type),
+            eq(maintenanceLogs.description, data.description || ""), // Check description matches
+            eq(maintenanceLogs.cost, data.cost) // Check cost matches
+        )).limit(1);
+
+        // If an identical record exists created recently (e.g. same day), we can assume it's a duplicate or re-submission
+        // For simplicity, strict duplicate check on the provided fields
+        const isDuplicate = existing.some(log => {
+            const logDate = new Date(log.date || "");
+            const newDate = new Date(data.date);
+            return logDate.toDateString() === newDate.toDateString();
+        });
+
+        if (isDuplicate) {
+            return res.status(200).json(existing[0]); // Return existing to be idempotent
+        }
+
         // Update mileage if provided (and greater than current)
         if (data.mileageIn > vehicle.currentMileage) {
             await db.update(vehicles)
@@ -99,18 +120,86 @@ router.get("/fleet/maintenance", async (req, res): Promise<void> => {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
 
-        const logs = await db.query.maintenanceLogs.findMany({
-            where: eq(maintenanceLogs.organizationId, orgId),
-            orderBy: [desc(maintenanceLogs.date)],
-            with: {
-                vehicle: true
-            }
-        });
+        const result = await db.select().from(maintenanceLogs)
+            .innerJoin(vehicles, eq(maintenanceLogs.vehicleId, vehicles.id))
+            .where(eq(maintenanceLogs.organizationId, orgId))
+            .orderBy(desc(maintenanceLogs.date));
+
+        const logs = result.map((r: any) => ({
+            ...r.maintenance_logs,
+            vehicle: r.vehicles
+        }));
 
         res.json(logs);
     } catch (error) {
         console.error("Fetch maintenance error:", error);
         res.status(500).json({ message: "Error fetching maintenance logs" });
+    }
+});
+
+router.get("/fleet/fuel", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const result = await db.select().from(fuelLogs)
+            .innerJoin(vehicles, eq(fuelLogs.vehicleId, vehicles.id))
+            .where(eq(vehicles.organizationId, orgId))
+            .orderBy(desc(fuelLogs.date));
+
+        res.json(result.map((r: any) => ({
+            ...r.fuel_logs,
+            vehicle: r.vehicles
+        })));
+    } catch (error) {
+        console.error("Fetch fuel error:", error);
+        res.status(500).json({ message: "Error fetching fuel logs" });
+    }
+});
+
+router.post("/fleet/vehicles/:id/fuel", async (req, res): Promise<void> => {
+    try {
+        const { id: vehicleId } = req.params;
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        const data = req.body;
+
+        const [vehicle] = await db.select().from(vehicles).where(and(eq(vehicles.id, vehicleId), eq(vehicles.organizationId, orgId))).limit(1);
+        if (!vehicle) return res.status(404).json({ message: "Vehicle not found" });
+
+        // DUPLICATE CHECK
+        const existing = await db.select().from(fuelLogs).where(and(
+            eq(fuelLogs.vehicleId, vehicleId),
+            eq(fuelLogs.liters, data.liters),
+            eq(fuelLogs.cost, data.cost)
+        )).limit(1);
+
+        const isDuplicate = existing.some(log => {
+            const logDate = new Date(log.date || "");
+            const newDate = new Date(data.date || new Date());
+            return logDate.toDateString() === newDate.toDateString();
+        });
+
+        if (isDuplicate) {
+            return res.status(200).json(existing[0]);
+        }
+
+        if (data.mileage > vehicle.currentMileage) {
+            await db.update(vehicles).set({ currentMileage: data.mileage }).where(eq(vehicles.id, vehicleId));
+        }
+
+        const [log] = await db.insert(fuelLogs).values({
+            vehicleId,
+            date: new Date(data.date || new Date()),
+            liters: data.liters,
+            cost: data.cost,
+            mileage: data.mileage
+        }).returning();
+
+        res.status(201).json(log);
+    } catch (error) {
+        console.error("Fuel log error:", error);
+        res.status(500).json({ message: "Error logging fuel" });
     }
 });
 

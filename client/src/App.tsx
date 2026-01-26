@@ -85,7 +85,7 @@ import { AuthProvider } from "@/hooks/use-auth";
 import { RealtimeProvider } from "@/lib/realtime";
 import { Copilot } from "@/components/ai/Copilot";
 import { ConfigurationProvider } from "@/context/ConfigurationContext";
-import { NexusGuide } from "@/components/tutorial/NexusGuide";
+
 
 import { CognitiveBridge } from "@/lib/cognitive/CognitiveBridge";
 
@@ -97,7 +97,6 @@ function App() {
           <RealtimeProvider>
             <TooltipProvider>
               <Toaster />
-              <NexusGuide />
               <CognitiveBridge />
               <Copilot />
               <Router />

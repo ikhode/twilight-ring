@@ -73,6 +73,39 @@ export default function Inventory() {
 
   const currentPlaceholder = placeholders[industry as string] || placeholders.generic;
 
+  // Dynamic Labels
+  const labels: Record<string, any> = {
+    services: {
+      addProductTitle: "Alta de Nuevo Servicio",
+      description: "Configure los parámetros de facturación y capacidad del servicio.",
+      itemName: "Nombre del Servicio",
+      unitLabel: "Unidad de Facturación",
+      stockLabel: "Capacidad / Horas Disp.",
+      optimizationTitle: "Optimización de Recursos",
+      stockStatus: "Disponibilidad Operativa"
+    },
+    restaurant: {
+      addProductTitle: "Alta de Nuevo Platillo",
+      description: "Registre los detalles del menú y control de porciones.",
+      itemName: "Nombre del Platillo",
+      unitLabel: "Unidad de Venta",
+      stockLabel: "Porciones Disponibles",
+      optimizationTitle: "Control de Mermas",
+      stockStatus: "Stock en Cocina"
+    },
+    generic: {
+      addProductTitle: "Alta de Nuevo Producto",
+      description: "Complete los campos técnicos para la optimización cognitiva del inventario.",
+      itemName: "Nombre del Item",
+      unitLabel: "Unidad de Medida (UOM)",
+      stockLabel: "Stock Inicial",
+      optimizationTitle: "Optimización de Inventario",
+      stockStatus: "Stock Operativo Saludable"
+    }
+  };
+
+  const currentLabels = labels[industry as string] || labels.generic;
+
   // Fallback to defaults if no universal categories are defined
   const categories = universalConfig.productCategories?.length > 0
     ? universalConfig.productCategories
@@ -291,8 +324,8 @@ export default function Inventory() {
                             <Package className="w-5 h-5 text-primary" />
                           </div>
                           <div>
-                            <DialogTitle className="text-xl font-bold tracking-tight uppercase italic">Alta de Nuevo Producto</DialogTitle>
-                            <DialogDescription className="text-slate-500 text-xs">Complete los campos técnicos para la optimización cognitiva del inventario.</DialogDescription>
+                            <DialogTitle className="text-xl font-bold tracking-tight uppercase italic">{currentLabels.addProductTitle}</DialogTitle>
+                            <DialogDescription className="text-slate-500 text-xs">{currentLabels.description}</DialogDescription>
                           </div>
                         </div>
                       </DialogHeader>
@@ -305,7 +338,7 @@ export default function Inventory() {
                       <div className="grid grid-cols-2 gap-x-8 gap-y-5 py-6">
                         {/* Row 1 */}
                         <div className="space-y-2" data-tour="product-name-field">
-                          <Label htmlFor="name" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Nombre del Item</Label>
+                          <Label htmlFor="name" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">{currentLabels.itemName}</Label>
                           <CognitiveInput
                             id="name"
                             placeholder={currentPlaceholder}
@@ -381,7 +414,7 @@ export default function Inventory() {
                                 <div className="space-y-1.5 w-full">
                                   <div className="flex justify-between items-center mb-1">
                                     <div className="flex items-center gap-2">
-                                      <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em]">Optimización de Inventario</p>
+                                      <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em]">{currentLabels.optimizationTitle}</p>
                                       <div className="w-1 h-1 rounded-full bg-primary/40" />
                                       <span className="text-[9px] font-medium text-slate-500 uppercase tracking-widest leading-none">Análisis Predictivo</span>
                                     </div>
@@ -405,7 +438,7 @@ export default function Inventory() {
                                         newProduct.stock < 10 ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'
                                       )} />
                                       <span className="text-[9px] text-slate-400 uppercase font-black tracking-tighter">
-                                        {newProduct.stock < 10 ? 'Reposición Preventiva' : 'Stock Operativo Saludable'}
+                                        {newProduct.stock < 10 ? 'Reposición Preventiva' : currentLabels.stockStatus}
                                       </span>
                                     </div>
                                     <div className="flex items-center gap-2">
@@ -442,7 +475,7 @@ export default function Inventory() {
 
                         {/* Logistics */}
                         <div className="space-y-2">
-                          <Label htmlFor="unit" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Unidad de Medida (UOM)</Label>
+                          <Label htmlFor="unit" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">{currentLabels.unitLabel}</Label>
                           <Select onValueChange={(v) => setNewProduct({ ...newProduct, unit: v })} defaultValue={newProduct.unit}>
                             <SelectTrigger className="bg-slate-900/50 border-slate-800 focus:border-primary/50 transition-all">
                               <SelectValue />
@@ -460,7 +493,7 @@ export default function Inventory() {
                           </Select>
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="stock" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Stock Inicial</Label>
+                          <Label htmlFor="stock" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">{currentLabels.stockLabel}</Label>
                           <Input id="stock" type="number" value={newProduct.stock} onChange={(e) => setNewProduct({ ...newProduct, stock: parseInt(e.target.value) || 0 })} className="bg-slate-900/50 border-slate-800 focus:border-primary/50 transition-all" />
                         </div>
                       </div>

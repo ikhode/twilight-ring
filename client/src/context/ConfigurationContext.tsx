@@ -31,6 +31,8 @@ interface ConfigurationContextType {
         productAttributes: any[];
         processFlows: any[];
         cedisAddress: string;
+        cedisLat?: number;
+        cedisLng?: number;
     };
     updateUniversalConfig: (config: any) => void;
 }
@@ -151,7 +153,9 @@ export function ConfigurationProvider({ children }: { children: React.ReactNode 
                 placeTypes: [],
                 productAttributes: [],
                 processFlows: [],
-                cedisAddress: store.cedisAddress || ""
+                cedisAddress: store.cedisAddress || "",
+                cedisLat: store.cedisLat,
+                cedisLng: store.cedisLng
             },
             updateUniversalConfig,
         }}>
