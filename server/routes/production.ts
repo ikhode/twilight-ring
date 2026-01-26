@@ -16,7 +16,10 @@ const router = Router();
 router.post("/instances", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const { processId, metadata } = req.body;
 
@@ -39,7 +42,10 @@ router.post("/instances", async (req, res): Promise<void> => {
 router.post("/events", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const { instanceId, stepId, eventType, data, userId } = req.body;
 
@@ -88,16 +94,25 @@ router.post("/events", async (req, res): Promise<void> => {
 router.post("/report", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const { instanceId, employeeId, quantity, unit } = req.body;
 
         // 1. Get Instance -> Process -> Rate
         const [instance] = await db.select().from(processInstances).where(eq(processInstances.id, instanceId));
-        if (!instance) return res.status(404).json({ message: "Instance not found" });
+        if (!instance) {
+            res.status(404).json({ message: "Instance not found" });
+            return;
+        }
 
         const [process] = await db.select().from(processes).where(eq(processes.id, instance.processId));
-        if (!process) return res.status(404).json({ message: "Process not found" });
+        if (!process) {
+            res.status(404).json({ message: "Process not found" });
+            return;
+        }
 
         const workflow = process.workflowData as any;
         const rate = Number(workflow?.piecework?.rate) || 0; // In cents
@@ -113,13 +128,11 @@ router.post("/report", async (req, res): Promise<void> => {
             employeeId: employeeId,
             taskName: process.name,
             quantity: Number(quantity),
-            unit: unit || workflow?.piecework?.unit || 'pza',
+            // unit: unit || workflow?.piecework?.unit || 'pza', // Removed as it is not in schema
             unitPrice: rate,
             totalAmount: amount, // Fix: schema expects totalAmount
             status: "pending",
-            createdAt: new Date(),
-            approvedAt: null,
-            paidAt: null
+            createdAt: new Date()
         }).returning();
 
         res.status(201).json(ticket);
@@ -136,7 +149,10 @@ router.post("/report", async (req, res): Promise<void> => {
 router.get("/summary", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const allInstances = await db.query.processInstances.findMany({
             where: (pi, { eq }) => sql`${pi.processId} IN (SELECT id FROM processes WHERE organization_id = ${orgId})`,
@@ -169,7 +185,10 @@ async function getProcess(processId: string, orgId: string) {
 router.post("/instances/:id/finish", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const instanceId = req.params.id;
         const { yields, estimatedInput, notes } = req.body;

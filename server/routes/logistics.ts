@@ -115,7 +115,7 @@ router.post("/fleet/vehicles/:id/maintenance", async (req, res): Promise<void> =
             type: data.type,
             date: new Date(data.date),
             mileageIn: data.mileageIn,
-            provider: data.provider,
+            // provider: data.provider, // Removed as not in schema
             organizationId: orgId
         }).returning();
 
@@ -222,7 +222,7 @@ router.post("/fleet/vehicles/:id/fuel", async (req, res): Promise<void> => {
             return;
         }
 
-        if (data.mileage > vehicle.currentMileage) {
+        if (data.mileage > (vehicle.currentMileage || 0)) {
             await db.update(vehicles).set({ currentMileage: data.mileage }).where(eq(vehicles.id, vehicleId));
         }
 

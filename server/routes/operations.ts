@@ -22,7 +22,10 @@ const router = Router();
 router.get("/dashboard", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         // Metrics: Active Vehicles, Pending Maintenance, Critical Stock, Recent Expenses
         const activeVehiclesCount = await db.select({ count: sql<number>`count(*)` })
@@ -61,7 +64,10 @@ router.get("/dashboard", async (req, res): Promise<void> => {
 router.get("/config", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         // In a real app, this might come from a 'settings' or 'organizations' table columns
         // For now, returning a mock config object structure
@@ -85,7 +91,10 @@ router.get("/config", async (req, res): Promise<void> => {
 router.post("/config", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         // Mock save
         res.json({ success: true, message: "Configuration saved" });
@@ -102,7 +111,10 @@ router.post("/config", async (req, res): Promise<void> => {
 router.post("/documents/parse", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const { file } = req.body;
         if (!file) {
@@ -140,7 +152,10 @@ router.post("/documents/parse", async (req, res): Promise<void> => {
 router.get("/suppliers", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const list = await db.query.suppliers.findMany({
             where: eq(suppliers.organizationId, orgId)

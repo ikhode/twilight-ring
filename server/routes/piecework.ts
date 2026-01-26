@@ -101,7 +101,8 @@ router.get("/tickets/:id", async (req: Request, res: Response): Promise<void> =>
         });
 
         if (!ticket) {
-            return res.status(404).json({ message: "Ticket not found" });
+            res.status(404).json({ message: "Ticket not found" });
+            return;
         }
 
         res.json({

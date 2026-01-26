@@ -73,19 +73,19 @@ router.get("/", async (req, res): Promise<void> => {
                 message: (anomaly.data as any)?.message || 'Desviación en proceso operativo',
                 createdAt: anomaly.timestamp,
                 source: 'guardian',
-                action: `/operations?highlight=${anomaly.processInstanceId}`
+                action: `/operations?highlight=${anomaly.instanceId}`
             });
         });
 
         // Low Stock (Warning) - Filter in memory
-        const actualLowStock = lowStockItems.filter(item => item.currentStock < item.minimumStock).slice(0, 5);
+        const actualLowStock = lowStockItems.filter(item => item.stock < item.minStock).slice(0, 5);
         actualLowStock.forEach(item => {
             notifications.push({
                 id: `stock-${item.id}`,
                 type: 'warning',
                 title: 'Stock Bajo',
-                message: `${item.name} tiene solo ${item.currentStock} ${item.unit} (mínimo: ${item.minimumStock})`,
-                createdAt: item.updatedAt || new Date(),
+                message: `${item.name} tiene solo ${item.stock} ${item.unit} (mínimo: ${item.minStock})`,
+                createdAt: new Date(), // item.updatedAt not guaranteed
                 source: 'inventory',
                 action: `/inventory?product=${item.id}`
             });
