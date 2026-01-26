@@ -79,10 +79,16 @@ export function registerDocumentationRoutes(app: Express) {
 
             const token = authHeader.replace("Bearer ", "");
             const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-            if (error || !user) return res.status(401).json({ message: "Invalid token" });
+            if (error || !user) {
+                res.status(401).json({ message: "Invalid token" });
+                return;
+            }
 
             const organizationId = await getOrgIdFromRequest(req);
-            if (!organizationId) return res.status(401).json({ message: "Unauthorized" });
+            if (!organizationId) {
+                res.status(401).json({ message: "Unauthorized" });
+                return;
+            }
 
             const role = await getUserRole(user.id, organizationId);
             const { id } = req.params;
@@ -118,10 +124,16 @@ export function registerDocumentationRoutes(app: Express) {
 
             const token = authHeader.replace("Bearer ", "");
             const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-            if (error || !user) return res.status(401).json({ message: "Invalid token" });
+            if (error || !user) {
+                res.status(401).json({ message: "Invalid token" });
+                return;
+            }
 
             const organizationId = await getOrgIdFromRequest(req);
-            if (!organizationId) return res.status(401).json({ message: "Unauthorized" });
+            if (!organizationId) {
+                res.status(401).json({ message: "Unauthorized" });
+                return;
+            }
 
             const role = await getUserRole(user.id, organizationId);
             const { query, limit = 5 } = req.body;
@@ -161,10 +173,16 @@ export function registerDocumentationRoutes(app: Express) {
 
             const token = authHeader.replace("Bearer ", "");
             const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-            if (error || !user) return res.status(401).json({ message: "Invalid token" });
+            if (error || !user) {
+                res.status(401).json({ message: "Invalid token" });
+                return;
+            }
 
             const organizationId = await getOrgIdFromRequest(req);
-            if (!organizationId) return res.status(401).json({ message: "Unauthorized" });
+            if (!organizationId) {
+                res.status(401).json({ message: "Unauthorized" });
+                return;
+            }
 
             const role = await getUserRole(user.id, organizationId);
 
@@ -194,10 +212,16 @@ export function registerDocumentationRoutes(app: Express) {
 
             const token = authHeader.replace("Bearer ", "");
             const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-            if (error || !user) return res.status(401).json({ message: "Invalid token" });
+            if (error || !user) {
+                res.status(401).json({ message: "Invalid token" });
+                return;
+            }
 
             const organizationId = await getOrgIdFromRequest(req);
-            if (!organizationId) return res.status(401).json({ message: "Unauthorized" });
+            if (!organizationId) {
+                res.status(401).json({ message: "Unauthorized" });
+                return;
+            }
 
             const role = await getUserRole(user.id, organizationId);
 
@@ -250,10 +274,16 @@ export function registerDocumentationRoutes(app: Express) {
 
             const token = authHeader.replace("Bearer ", "");
             const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-            if (error || !user) return res.status(401).json({ message: "Invalid token" });
+            if (error || !user) {
+                res.status(401).json({ message: "Invalid token" });
+                return;
+            }
 
             const organizationId = await getOrgIdFromRequest(req);
-            if (!organizationId) return res.status(401).json({ message: "Unauthorized" });
+            if (!organizationId) {
+                res.status(401).json({ message: "Unauthorized" });
+                return;
+            }
 
             const role = await getUserRole(user.id, organizationId);
 
@@ -292,10 +322,16 @@ export function registerDocumentationRoutes(app: Express) {
 
             const token = authHeader.replace("Bearer ", "");
             const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-            if (error || !user) return res.status(401).json({ message: "Invalid token" });
+            if (error || !user) {
+                res.status(401).json({ message: "Invalid token" });
+                return;
+            }
 
             const organizationId = await getOrgIdFromRequest(req);
-            if (!organizationId) return res.status(401).json({ message: "Unauthorized" });
+            if (!organizationId) {
+                res.status(401).json({ message: "Unauthorized" });
+                return;
+            }
 
             const role = await getUserRole(user.id, organizationId);
 

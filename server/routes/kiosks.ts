@@ -90,13 +90,15 @@ router.post("/", async (req, res) => {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
 
-        const data = insertTerminalSchema.parse({
+        const capabilities: string[] = req.body.capabilities ? [...req.body.capabilities] : [];
+        const data = {
             ...req.body,
             organizationId: orgId,
-            status: "offline" // Default status
-        });
+            status: "offline", // Default status
+            capabilities
+        };
 
-        const result = await db.insert(terminals).values(data).returning();
+        const result = await db.insert(terminals).values(data as any).returning();
         res.status(201).json(result[0]);
     } catch (error) {
         console.error("Error creating kiosk:", error);
@@ -190,14 +192,14 @@ router.post("/register", async (req, res) => {
             return res.json(existing);
         }
 
-        const data = insertTerminalSchema.parse({
+        const data = {
             organizationId,
             name: name || `Nuevo Kiosko - ${deviceId.slice(0, 4)}`,
             deviceId,
-            type: type || "standard",
             location: location || "Pendiente",
-            status: "online"
-        });
+            status: "online",
+            capabilities: []
+        };
 
         const result = await db.insert(terminals).values(data).returning();
         res.status(201).json(result[0]);
@@ -543,13 +545,13 @@ router.post("/driver/link/verify", async (req, res) => {
             [terminal] = await db.insert(terminals).values({
                 organizationId: tokenRecord.organizationId,
                 name: `Driver Kiosk - ${tokenRecord.vehicleId || 'Unassigned'}`,
-                type: 'driver_kiosk',
                 status: 'online',
                 deviceId: deviceId,
-                linkedDeviceId: deviceId, // Binding
+                linkedDeviceId: deviceId,
                 driverId: tokenRecord.driverId,
-                vehicleId: tokenRecord.vehicleId
-            }).returning();
+                vehicleId: tokenRecord.vehicleId,
+                capabilities: []
+            } as any).returning();
         } else {
             // Re-bind existing device (update driver/vehicle)
             [terminal] = await db.update(terminals).set({

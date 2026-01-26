@@ -296,7 +296,10 @@ router.post("/payout", async (req: Request, res: Response) => {
 router.get("/summary", async (req, res): Promise<void> => {
     try {
         const { orgId } = await getContext(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const { startDate, endDate } = req.query;
         const start = startDate ? new Date(startDate as string) : null;
@@ -436,13 +439,16 @@ router.post("/transaction", async (req, res): Promise<void> => {
 router.post("/budgets", async (req, res): Promise<void> => {
     try {
         const { orgId } = await getContext(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const { category, amountLimit, period } = req.body;
         const [budget] = await db.insert(budgets).values({
             organizationId: orgId,
             category,
-            amountLimit,
+            amount: amountLimit,
             period
         }).returning();
         res.json(budget);
@@ -454,7 +460,10 @@ router.post("/budgets", async (req, res): Promise<void> => {
 router.get("/budgets", async (req, res): Promise<void> => {
     try {
         const { orgId } = await getContext(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const allBudgets = await db.query.budgets.findMany({
             where: eq(budgets.organizationId, orgId)
@@ -469,7 +478,10 @@ router.get("/budgets", async (req, res): Promise<void> => {
 router.post("/reconcile", async (req, res): Promise<void> => {
     try {
         const { orgId } = await getContext(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         // In a real app, parse uploaded CSV/OFX statement
         // Here we just create a record
@@ -497,7 +509,10 @@ router.post("/reconcile", async (req, res): Promise<void> => {
 router.get("/accounts", async (req, res): Promise<void> => {
     try {
         const { orgId } = await getContext(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const accs = await db.query.bankAccounts.findMany({
             where: eq(bankAccounts.organizationId, orgId),
@@ -512,7 +527,10 @@ router.get("/accounts", async (req, res): Promise<void> => {
 router.post("/accounts", async (req, res): Promise<void> => {
     try {
         const { orgId } = await getContext(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const [acc] = await db.insert(bankAccounts).values({
             ...req.body,
@@ -528,7 +546,10 @@ router.post("/accounts", async (req, res): Promise<void> => {
 router.patch("/accounts/:id", async (req, res): Promise<void> => {
     try {
         const { orgId } = await getContext(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const [acc] = await db.update(bankAccounts)
             .set({ ...req.body, updatedAt: new Date() })

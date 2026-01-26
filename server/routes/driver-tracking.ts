@@ -48,8 +48,6 @@ router.post("/driver-location", async (req, res): Promise<void> => {
         if (terminalId) {
             await db.update(terminals)
                 .set({
-                    lastLatitude: String(latitude), // Ensure string if schema expects decimal/string, or number if defined as such. Schema usually uses numeric/decimal. Let's check schema/kiosks usage.
-                    // kiosks.ts uses: lastLatitude: latitude. Assume correct type processing by Drizzle.
                     lastLatitude: latitude,
                     lastLongitude: longitude,
                     lastActiveAt: new Date(timestamp || Date.now()),

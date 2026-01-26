@@ -10,7 +10,10 @@ export function registerBusinessDocumentRoutes(app: Express) {
     app.post("/api/business-documents/upload", async (req: Request, res: Response) => {
         try {
             const orgId = await getOrgIdFromRequest(req);
-            if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+            if (!orgId) {
+                res.status(401).json({ message: "Unauthorized" });
+                return;
+            }
 
             const { name, fileUrl, entityId, entityType } = req.body;
 
@@ -101,11 +104,14 @@ export function registerBusinessDocumentRoutes(app: Express) {
     app.get("/api/business-documents", async (req: Request, res: Response) => {
         try {
             const orgId = await getOrgIdFromRequest(req);
-            if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+            if (!orgId) {
+                res.status(401).json({ message: "Unauthorized" });
+                return;
+            }
 
             const { entityId, entityType } = req.query;
 
-            let conditions = eq(businessDocuments.organizationId, orgId);
+            let conditions: any = eq(businessDocuments.organizationId, orgId);
 
             if (entityId && typeof entityId === 'string') {
                 conditions = and(conditions, eq(businessDocuments.relatedEntityId, entityId));
@@ -130,7 +136,10 @@ export function registerBusinessDocumentRoutes(app: Express) {
     app.patch("/api/business-documents/:id", async (req: Request, res: Response) => {
         try {
             const orgId = await getOrgIdFromRequest(req);
-            if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+            if (!orgId) {
+                res.status(401).json({ message: "Unauthorized" });
+                return;
+            }
 
             const { status, type, extractedData } = req.body;
 

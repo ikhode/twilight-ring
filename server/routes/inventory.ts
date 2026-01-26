@@ -173,7 +173,7 @@ router.patch("/products/:id", async (req, res): Promise<void> => {
                 updates.stock = stock;
 
                 // Get userId from session for full traceability
-                const userId = req.user?.id; // Assumes auth middleware sets req.user
+                const userId = (req as any).user?.id; // Assumes auth middleware sets req.user
 
                 await db.insert(inventoryMovements).values({
                     organizationId: orgId,
