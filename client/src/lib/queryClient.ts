@@ -59,26 +59,30 @@ export async function apiRequest(
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
-export const getQueryFn: <T>(options: {
-  on401: UnauthorizedBehavior;
-}) => QueryFunction<T> =
-  ({ on401: unauthorizedBehavior }) =>
-    async ({ queryKey }) => {
-      const url = queryKey.join("/");
-      const headers = await getHeaders();
 
-      const res = await fetch(url as string, {
-        headers,
-        credentials: "include",
-      });
+/**
+ * Creates a query function with configurable 401 handling.
+ * @param options - Configuration for unauthorized behavior
+ * @returns Query function for React Query
+ */
+export function getQueryFn<T>(options: { on401: UnauthorizedBehavior }): QueryFunction<T> {
+  return async ({ queryKey }) => {
+    const url = queryKey.join("/");
+    const headers = await getHeaders();
 
-      if (unauthorizedBehavior === "returnNull" && res.status === 401) {
-        return null;
-      }
+    const res = await fetch(url, {
+      headers,
+      credentials: "include",
+    });
 
-      await throwIfResNotOk(res);
-      return await res.json();
-    };
+    if (options.on401 === "returnNull" && res.status === 401) {
+      return null as T;
+    }
+
+    await throwIfResNotOk(res);
+    return res.json() as Promise<T>;
+  };
+}
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -86,8 +90,12 @@ export const queryClient = new QueryClient({
       queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
       refetchOnWindowFocus: false,
-      staleTime: Infinity,
-      retry: false,
+      staleTime: 1000 * 60 * 5, // 5 minutes - data considered fresh
+      gcTime: 1000 * 60 * 30, // 30 minutes - keep in memory for reuse
+      retry: 1, // Retry once on failure
+      retryDelay: 1000,
+      structuralSharing: true, // Optimize re-renders with structural comparison
+      refetchOnReconnect: true, // Refetch when network reconnects
     },
     mutations: {
       retry: false,
