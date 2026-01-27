@@ -4,6 +4,7 @@ import { users, organizations, userOrganizations, aiConfigurations, organization
 import { eq, and } from "drizzle-orm";
 import { industryTemplates } from "../seed";
 import { supabaseAdmin } from "../supabase";
+import { MODULE_REGISTRY } from "../data/module-registry";
 
 /**
  * Register authentication routes using Supabase
@@ -72,9 +73,9 @@ export function registerAuthRoutes(app: Express) {
                 adaptiveUiEnabled: true,
             });
 
-            // 6. Enable modules based on industry template
-            const moduleIds = industryTemplates[industry as keyof typeof industryTemplates] || industryTemplates.other;
-            for (const moduleId of moduleIds) {
+            // 6. Enable all modules by default (as per user request: "better to deactivate than to activate")
+            const allModuleIds = MODULE_REGISTRY.map(m => m.id);
+            for (const moduleId of allModuleIds) {
                 await db.insert(organizationModules).values({
                     organizationId: organization.id,
                     moduleId,
@@ -198,11 +199,9 @@ export function registerAuthRoutes(app: Express) {
                         adaptiveUiEnabled: true,
                     });
 
-                    // 5. Modules
-                    const templateKey = industry as keyof typeof industryTemplates;
-                    const moduleIds = industryTemplates[templateKey] || industryTemplates.other || ["crm", "commerce"];
-
-                    for (const moduleId of moduleIds) {
+                    // 5. Enable all modules by default for recovery (as per user request)
+                    const allModuleIds = MODULE_REGISTRY.map(m => m.id);
+                    for (const moduleId of allModuleIds) {
                         try {
                             await db.insert(organizationModules).values({
                                 organizationId: organization.id,

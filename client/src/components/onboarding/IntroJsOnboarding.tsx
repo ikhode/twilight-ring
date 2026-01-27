@@ -56,7 +56,7 @@ export function IntroJsOnboarding() {
             await apiRequest('PATCH', '/api/config', {
                 industry: industryKey,
                 onboardingStatus: 'completed',
-                enabledModules: template.modules,
+                // Removed enabledModules overwrite to keep the "all modules" default
                 universal: {
                     productCategories: template.categories,
                     defaultUnits: template.units,

@@ -37,17 +37,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [allOrganizations, setAllOrganizations] = useState<Organization[]>([]);
     const [, setLocation] = useLocation();
 
-    const { data: profileData, isLoading: isProfileLoading } = useQuery<UserProfile>({
+    const { data: profileData, isLoading: isProfileLoading, error: profileError } = useQuery<UserProfile>({
         queryKey: ["/api/auth/profile", user?.id],
         queryFn: async () => {
             if (!user || !session) throw new Error("Not authenticated");
             const res = await fetch(`/api/auth/profile/${user.id}`, {
                 headers: { "Authorization": `Bearer ${session.access_token}` }
             });
+            if (res.status === 401) {
+                console.warn("[Auth] Profile fetch unauthorized - signing out");
+                signOut();
+                throw new Error("Unauthorized");
+            }
             if (!res.ok) throw new Error("Failed to fetch profile");
             return res.json();
         },
         enabled: !!user && !!session,
+        retry: false // Don't spam retries on auth errors
     });
 
     useEffect(() => {
@@ -90,10 +96,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     useEffect(() => {
-        if (!isProfileLoading && (profileData || !user)) {
+        if (!isProfileLoading && (profileData || !user || profileError)) {
             setLoading(false);
         }
-    }, [isProfileLoading, profileData, user]);
+    }, [isProfileLoading, profileData, user, profileError]);
 
     const switchOrganization = async (orgId: string) => {
         const target = allOrganizations.find(o => o.id === orgId);
