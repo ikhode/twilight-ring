@@ -78,7 +78,7 @@ export function Header({ title, subtitle, children }: HeaderProps) {
   return (
     <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-6 bg-background/80 backdrop-blur-lg border-b border-border">
       <div className="flex items-center gap-4">
-        {children}
+        <div className="flex items-center">{children}</div>
         <div>
           <h1 className="text-xl font-display font-bold" data-testid="text-page-title">{title}</h1>
           {subtitle && (
