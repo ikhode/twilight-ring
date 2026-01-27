@@ -4,7 +4,8 @@ import {
     aiChatAgents,
     chatConversations,
     chatMessages,
-    userOrganizations
+    userOrganizations,
+    organizations
 } from "@shared/schema";
 import { eq, and, desc, sql, count } from "drizzle-orm";
 import { supabaseAdmin } from "../supabase";
@@ -247,6 +248,45 @@ export function registerAdminRoutes(app: Express) {
             res.json({ message: "Documentation reindexed successfully" });
         } catch (error) {
             console.error("Reindex error:", error);
+            res.status(500).json({ message: "Internal server error" });
+        }
+    });
+
+    // MIGRATION: Upgrade Trial users to 1-Month Free Starter
+    app.post("/api/admin/migrations/upgrade-trial-users", requireAdmin, async (req: Request, res: Response) => {
+        try {
+            // Find all organizations that are in 'trial' tier
+            // We want to give them 1 month of 'starter'
+
+            const trialOrgs = await db.select().from(organizations).where(eq(organizations.subscriptionTier, "trial"));
+
+            if (trialOrgs.length === 0) {
+                return res.json({ message: "No trial organizations found to upgrade." });
+            }
+
+            const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days from now
+
+            let updatedCount = 0;
+            for (const org of trialOrgs) {
+                await db.update(organizations)
+                    .set({
+                        subscriptionTier: "starter",
+                        subscriptionStatus: "active",
+                        subscriptionExpiresAt: expiresAt,
+                        subscriptionInterval: "monthly"
+                    })
+                    .where(eq(organizations.id, org.id));
+                updatedCount++;
+            }
+
+            res.json({
+                message: `Successfully upgraded ${updatedCount} organizations to Free Starter Plan (1 month).`,
+                count: updatedCount,
+                expiresAt
+            });
+
+        } catch (error) {
+            console.error("Migration error:", error);
             res.status(500).json({ message: "Internal server error" });
         }
     });

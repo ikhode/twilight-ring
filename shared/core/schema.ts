@@ -36,6 +36,8 @@ export const organizations = pgTable("organizations", {
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
     settings: jsonb("settings").default({}),
+    subscriptionExpiresAt: timestamp("subscription_expires_at"),
+    subscriptionInterval: text("subscription_interval"), // 'weekly', 'monthly', 'quarterly', 'yearly', 'lifetime'
 });
 
 // Users

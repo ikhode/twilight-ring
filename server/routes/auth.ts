@@ -43,7 +43,10 @@ export function registerAuthRoutes(app: Express) {
             const [organization] = await db.insert(organizations).values({
                 name: organizationName,
                 industry,
-                subscriptionTier: "trial",
+                subscriptionTier: "starter",
+                subscriptionStatus: "active",
+                subscriptionExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+                subscriptionInterval: "monthly",
             }).returning();
 
             // 3. Create public User record (sync with Supabase ID)
@@ -171,7 +174,10 @@ export function registerAuthRoutes(app: Express) {
                     const [organization] = await db.insert(organizations).values({
                         name: orgName,
                         industry,
-                        subscriptionTier: "trial",
+                        subscriptionTier: "starter",
+                        subscriptionStatus: "active",
+                        subscriptionExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+                        subscriptionInterval: "monthly",
                     }).returning();
 
                     // 3. Link User to Org

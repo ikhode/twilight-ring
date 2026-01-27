@@ -4,6 +4,7 @@ import { organizations, userOrganizations } from "../../shared/schema";
 import { eq } from "drizzle-orm";
 import { stripe, createSubscriptionCheckout, getPortalSession, createStripeCustomer } from "../services/stripe";
 import { supabaseAdmin } from "../supabase";
+import { getAuthenticatedUser } from "../auth_util";
 
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_placeholder';
 
@@ -11,17 +12,28 @@ export function registerSubscriptionRoutes(app: Express) {
 
     // Helper to get organization from token
     async function getOrgFromRequest(req: Request) {
-        const authHeader = req.headers.authorization;
-        if (!authHeader) return null;
-        const token = authHeader.replace("Bearer ", "");
-
-        const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-        if (error || !user) return null;
+        const user = await getAuthenticatedUser(req);
+        if (!user) return null;
 
         const userOrg = await db.query.userOrganizations.findFirst({
             where: eq(userOrganizations.userId, user.id),
             with: { organization: true },
         });
+
+        if (userOrg?.organization) {
+            const org = userOrg.organization;
+            // Check for Free Starter Expiration
+            if (org.subscriptionStatus === 'active' && org.subscriptionExpiresAt && new Date() > new Date(org.subscriptionExpiresAt)) {
+                // If no Stripe Subscription (Internal Free Plan), suspend it
+                if (!org.stripeSubscriptionId) {
+                    console.log(`[Subscription] Suspending organization ${org.id} due to expired free plan.`);
+                    await db.update(organizations)
+                        .set({ subscriptionStatus: 'suspended' })
+                        .where(eq(organizations.id, org.id));
+                    org.subscriptionStatus = 'suspended';
+                }
+            }
+        }
 
         return userOrg?.organization || null;
     }
@@ -32,7 +44,7 @@ export function registerSubscriptionRoutes(app: Express) {
             const org = await getOrgFromRequest(req);
             if (!org) return res.status(401).json({ message: "No autorizado" });
 
-            const { tier } = req.body;
+            const { tier, interval } = req.body;
             if (!tier) return res.status(400).json({ message: "Plan no especificado" });
 
             // Ensure customer exists
@@ -57,7 +69,8 @@ export function registerSubscriptionRoutes(app: Express) {
                 customerId,
                 tier as any,
                 successUrl,
-                cancelUrl
+                cancelUrl,
+                interval as any
             );
 
             res.json({ url: session.url });
@@ -113,27 +126,52 @@ export function registerSubscriptionRoutes(app: Express) {
                 const session = event.data.object;
                 const customerId = session.customer;
                 const tier = session.metadata?.tier;
+                const interval = session.metadata?.interval; // 'monthly', 'lifetime', etc.
                 const subscriptionId = session.subscription;
+                const mode = session.mode;
 
                 if (customerId && tier) {
-                    await db.update(organizations)
-                        .set({
-                            subscriptionTier: tier as any,
-                            stripeSubscriptionId: subscriptionId,
-                            subscriptionStatus: 'active'
-                        })
-                        .where(eq(organizations.stripeCustomerId, customerId));
+                    const updates: any = {
+                        subscriptionTier: tier as any,
+                        subscriptionStatus: 'active',
+                        subscriptionInterval: interval || 'monthly'
+                    };
 
-                    console.log(`✅ Organization updated to tier ${tier} for customer ${customerId}`);
+                    if (mode === 'subscription' && subscriptionId) {
+                        updates.stripeSubscriptionId = subscriptionId;
+                        // Expiration will be handled by 'customer.subscription.updated'
+                    } else if (mode === 'payment') {
+                        // Lifetime
+                        updates.stripeSubscriptionId = null; // No recurring sub
+                        updates.subscriptionExpiresAt = null; // Never expires
+                    }
+
+                    await db.update(organizations)
+                        .set(updates)
+                        .where(eq(organizations.stripeCustomerId, customerId as string));
+
+                    console.log(`✅ Organization updated to tier ${tier} (${interval}) for customer ${customerId}`);
                 }
+                break;
+
+            case 'customer.subscription.updated':
+            case 'customer.subscription.created':
+                const sub = event.data.object;
+                await db.update(organizations)
+                    .set({
+                        subscriptionStatus: sub.status,
+                        subscriptionExpiresAt: new Date(sub.current_period_end * 1000),
+                        stripeSubscriptionId: sub.id
+                    })
+                    .where(eq(organizations.stripeCustomerId, sub.customer as string));
                 break;
 
             case 'customer.subscription.deleted':
                 const deletedSub = event.data.object;
                 await db.update(organizations)
                     .set({
-                        subscriptionTier: 'starter', // Downgrade or keep current?
-                        subscriptionStatus: 'canceled'
+                        subscriptionStatus: 'canceled', // Or 'suspended'
+                        subscriptionExpiresAt: new Date() // Expired now
                     })
                     .where(eq(organizations.stripeSubscriptionId, deletedSub.id));
                 break;
