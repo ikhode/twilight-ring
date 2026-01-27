@@ -17,7 +17,7 @@ export const INDUSTRY_TEMPLATES: Record<string, IndustryTemplate> = {
         name: "Tienda de Ropa / Retail",
         categories: ["Vestidos", "Pantalones", "Calzado", "Accesorios", "Liquidación"],
         units: ["pza", "par", "set"],
-        modules: ["inventory", "sales", "purchases", "crm", "finance", "employees", "workflows", "logistics", "documents"],
+        modules: ["inventory", "sales", "purchases", "crm", "finance", "employees", "cpe", "logistics", "documents"],
         productTypeLabels: {
             both: {
                 label: "Mercancía de Reventa",
@@ -45,7 +45,7 @@ export const INDUSTRY_TEMPLATES: Record<string, IndustryTemplate> = {
         name: "Restaurante / Abarrotes",
         categories: ["Bebidas", "Perecederos", "Abarrotes", "Limpieza", "Congelados"],
         units: ["pza", "kg", "lt", "caja"],
-        modules: ["inventory", "sales", "purchases", "crm", "finance", "employees", "workflows", "logistics", "documents"],
+        modules: ["inventory", "sales", "purchases", "crm", "finance", "employees", "cpe", "logistics", "documents"],
         productTypeLabels: {
             purchase: {
                 label: "Ingrediente / Materia Prima",
@@ -73,7 +73,7 @@ export const INDUSTRY_TEMPLATES: Record<string, IndustryTemplate> = {
         name: "Manufactura / Taller",
         categories: ["Materia Prima", "Insumos", "Producto Terminado", "Herramientas", "Desechos"],
         units: ["pza", "kg", "m", "g"],
-        modules: ["inventory", "sales", "purchases", "crm", "finance", "employees", "workflows", "logistics", "documents", "production"],
+        modules: ["inventory", "sales", "purchases", "crm", "finance", "employees", "cpe", "logistics", "documents", "production"],
         productTypeLabels: {
             purchase: {
                 label: "Materia Prima Cruda",
@@ -101,7 +101,7 @@ export const INDUSTRY_TEMPLATES: Record<string, IndustryTemplate> = {
         name: "Servicios Profesionales",
         categories: ["Consultoría", "Mantenimiento", "Licencias", "Paquetes", "Suscripciones"],
         units: ["hr", "mes", "pza", "licencia"],
-        modules: ["inventory", "sales", "purchases", "crm", "finance", "employees", "workflows", "logistics", "documents"],
+        modules: ["inventory", "sales", "purchases", "crm", "finance", "employees", "cpe", "logistics", "documents"],
         productTypeLabels: {
             sale: {
                 label: "Servicio Profesional / Hora",
@@ -129,7 +129,7 @@ export const INDUSTRY_TEMPLATES: Record<string, IndustryTemplate> = {
         name: "Tecnología / Electrónica",
         categories: ["Hardware", "Software", "Periféricos", "Componentes", "Redes"],
         units: ["pza", "licencia", "m"],
-        modules: ["inventory", "sales", "purchases", "crm", "finance", "employees", "workflows", "logistics", "documents"],
+        modules: ["inventory", "sales", "purchases", "crm", "finance", "employees", "cpe", "logistics", "documents"],
         productTypeLabels: {
             both: {
                 label: "Hardware para Distribución",
@@ -157,7 +157,7 @@ export const INDUSTRY_TEMPLATES: Record<string, IndustryTemplate> = {
         name: "Otro / General",
         categories: ["General", "Insumos", "Especiales", "Varios"],
         units: ["pza", "kg", "serv"],
-        modules: ["inventory", "sales", "purchases", "crm", "finance", "employees", "workflows", "logistics", "documents"],
+        modules: ["inventory", "sales", "purchases", "crm", "finance", "employees", "cpe", "logistics", "documents"],
         productTypeLabels: {
             both: {
                 label: "Compra y Venta",

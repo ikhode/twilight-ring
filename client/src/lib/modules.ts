@@ -14,7 +14,8 @@ import {
     FileText,
     CheckCircle,
     ShoppingBag,
-    Search
+    Search,
+    Zap
 } from "lucide-react";
 
 export interface SystemModule {
@@ -131,5 +132,13 @@ export const ERP_MODULES: SystemModule[] = [
         icon: Search,
         href: '/query',
         category: 'analytics'
+    },
+    {
+        id: 'cpe',
+        name: 'Flujos Cognitivos',
+        description: 'Automatización y orquestación',
+        icon: Zap,
+        href: '/workflows',
+        category: 'operations'
     }
 ];

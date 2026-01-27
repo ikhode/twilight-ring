@@ -338,7 +338,7 @@ export const MODULE_REGISTRY: ModuleMetadata[] = [
         longDescription: "Corazón cognitivo del ERP. Ejecuta flujos de decisión, orquesta modelos TFJS y gestiona el aprendizaje continuo del sistema.",
         icon: "BrainCircuit",
         category: "ai",
-        route: "/settings",
+        route: "/workflows",
         features: [
             "Orquestación de modelos TFJS",
             "Aprendizaje de patrones",
