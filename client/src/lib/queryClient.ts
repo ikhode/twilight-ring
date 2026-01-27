@@ -15,9 +15,17 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+import { supabase } from "./supabase";
+
 // Helper to get auth headers with active organization context
-function getHeaders(customHeaders?: Record<string, string>): Record<string, string> {
+async function getHeaders(customHeaders?: Record<string, string>): Promise<Record<string, string>> {
   const headers: Record<string, string> = { ...customHeaders };
+
+  // Inject Supabase Auth Token
+  const { data } = await supabase.auth.getSession();
+  if (data.session?.access_token) {
+    headers["Authorization"] = `Bearer ${data.session.access_token}`;
+  }
 
   // Inject Active Organization ID if present
   const activeOrgId = localStorage.getItem("nexus_active_org");
@@ -34,7 +42,7 @@ export async function apiRequest(
   data?: unknown | undefined,
   customHeaders?: Record<string, string>
 ): Promise<Response> {
-  const headers = getHeaders(customHeaders);
+  const headers = await getHeaders(customHeaders);
 
   const res = await fetch(url, {
     method,
@@ -57,7 +65,7 @@ export const getQueryFn: <T>(options: {
   ({ on401: unauthorizedBehavior }) =>
     async ({ queryKey }) => {
       const url = queryKey.join("/");
-      const headers = getHeaders();
+      const headers = await getHeaders();
 
       const res = await fetch(url as string, {
         headers,

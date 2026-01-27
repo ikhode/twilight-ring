@@ -59,9 +59,23 @@ export async function getAuthenticatedUser(req: Request) {
         try {
             const token = authHeader.replace("Bearer ", "");
             const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-            if (!error && user) return user;
+            if (error) {
+                console.warn(`[Auth] Token validation failed: ${error.message}`);
+                return null;
+            }
+            if (!user) {
+                console.warn("[Auth] No user found for valid token");
+                return null;
+            }
+            return user;
         } catch (e) {
             console.error("[Auth] Supabase token error:", e);
+            return null;
+        }
+    } else {
+        // Only log this if it's NOT a kiosk request to avoid noise
+        if (!req.headers["x-device-auth"]) {
+            // console.debug("[Auth] No Authorization header present");
         }
     }
 
@@ -127,7 +141,11 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     const user = await getAuthenticatedUser(req);
 
     if (!user) {
-        return res.status(401).json({ message: "No autorizado. Inicie sesión para continuar." });
+        console.warn(`[Auth] Access denied for ${req.method} ${req.path} - No valid session`);
+        return res.status(401).json({
+            message: "No autorizado. Inicie sesión para continuar.",
+            code: "UNAUTHENTICATED"
+        });
     }
 
     // Attach user to request for downstream use
