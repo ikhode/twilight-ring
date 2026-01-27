@@ -4,6 +4,7 @@ import { Session, User } from "@supabase/supabase-js";
 import { useLocation } from "wouter";
 import { Organization } from "@shared/core/schema";
 import { UserProfile } from "@/types/auth";
+import { useQuery } from "@tanstack/react-query";
 
 interface AuthContextType {
     session: Session | null;
@@ -36,57 +37,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [allOrganizations, setAllOrganizations] = useState<Organization[]>([]);
     const [, setLocation] = useLocation();
 
-    const fetchProfile = async (uid: string, currentSession: Session) => {
-        try {
-            const res = await fetch(`/api/auth/profile/${uid}`, {
-                headers: {
-                    "Authorization": `Bearer ${currentSession.access_token}`
-                }
+    const { data: profileData, isLoading: isProfileLoading } = useQuery<UserProfile>({
+        queryKey: ["/api/auth/profile", user?.id],
+        queryFn: async () => {
+            if (!user || !session) throw new Error("Not authenticated");
+            const res = await fetch(`/api/auth/profile/${user.id}`, {
+                headers: { "Authorization": `Bearer ${session.access_token}` }
             });
-
-            if (res.ok) {
-                const data = await res.json() as UserProfile;
-                setProfile(data);
-
-                // Handle Organizations
-                const orgs = data.organizations || (data.organization ? [data.organization] : []);
-                setAllOrganizations(orgs);
-
-                // active selection
-                const savedOrgId = localStorage.getItem("nexus_active_org");
-                const active = orgs.find((o) => o.id === savedOrgId) || orgs[0] || null;
-
-                setOrganization(active);
-                if (active) localStorage.setItem("nexus_active_org", active.id);
-            }
-        } catch (error) {
-            console.error("[Auth] Profile fetch error:", error);
-        } finally {
-            setLoading(false);
-        }
-    };
+            if (!res.ok) throw new Error("Failed to fetch profile");
+            return res.json();
+        },
+        enabled: !!user && !!session,
+    });
 
     useEffect(() => {
-        // 1. Initial Load
-        supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
-            setSession(initialSession);
-            setUser(initialSession?.user ?? null);
-            if (initialSession) {
-                fetchProfile(initialSession.user.id, initialSession);
-            } else {
-                setLoading(false);
-            }
+        if (profileData) {
+            setProfile(profileData);
+            const orgs = profileData.organizations || (profileData.organization ? [profileData.organization] : []);
+            setAllOrganizations(orgs);
+
+            const savedOrgId = localStorage.getItem("nexus_active_org");
+            const active = orgs.find((o) => o.id === savedOrgId) || orgs[0] || null;
+            setOrganization(active);
+            if (active) localStorage.setItem("nexus_active_org", active.id);
+        }
+    }, [profileData]);
+
+    useEffect(() => {
+        // Initial Session Load
+        supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+            setSession(currentSession);
+            setUser(currentSession?.user ?? null);
+            if (!currentSession) setLoading(false);
         });
 
-        // 2. Auth State Sync
+        // Auth State Sync
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
             console.log(`[Auth Event] ${event}`);
             setSession(currentSession);
             setUser(currentSession?.user ?? null);
 
-            if (currentSession) {
-                await fetchProfile(currentSession.user.id, currentSession);
-            } else {
+            if (!currentSession) {
                 setProfile(null);
                 setOrganization(null);
                 setAllOrganizations([]);
@@ -97,6 +88,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         return () => subscription.unsubscribe();
     }, []);
+
+    useEffect(() => {
+        if (!isProfileLoading && (profileData || !user)) {
+            setLoading(false);
+        }
+    }, [isProfileLoading, profileData, user]);
 
     const switchOrganization = async (orgId: string) => {
         const target = allOrganizations.find(o => o.id === orgId);

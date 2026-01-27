@@ -32,16 +32,11 @@ export function IntroJsOnboarding() {
     const [isSaving, setIsSaving] = useState(false);
 
     // Sync from store on mount
-    // Sync from store on mount
-    // REMOVED: We want to force the user to confirm/select their industry explicitly during onboarding
-    // even if it was pre-selected during signup. This ensures they see the "Giro Comercial" selector.
-    /*
     useEffect(() => {
         if (organization?.industry && organization.industry !== 'other') {
             setSelectedIndustry(organization.industry);
         }
     }, [organization]);
-    */
 
     // Initial check handled by AppLayout enforcement, but redundant check here is fine
     useEffect(() => {
@@ -58,10 +53,11 @@ export function IntroJsOnboarding() {
 
         try {
             const template = INDUSTRY_TEMPLATES[industryKey];
-            await apiRequest('PATCH', '/api/organization', {
+            await apiRequest('PATCH', '/api/config', {
                 industry: industryKey,
-                onboardingStatus: 'completed', // Once industry is chosen, core onboarding is "vetted"
-                settings: {
+                onboardingStatus: 'completed',
+                enabledModules: template.modules,
+                universal: {
                     productCategories: template.categories,
                     defaultUnits: template.units,
                     industryName: template.name

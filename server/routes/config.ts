@@ -74,15 +74,16 @@ router.patch("/", async (req, res) => {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
 
-        const { industry, theme, themeColor, enabledModules, ai } = req.body;
+        const { industry, theme, themeColor, enabledModules, ai, onboardingStatus } = req.body;
 
         // 1. Update Organization
-        if (industry || theme || themeColor || req.body.universal) {
+        if (industry || theme || themeColor || onboardingStatus || req.body.universal) {
             const currentOrg = await db.query.organizations.findFirst({ where: eq(organizations.id, orgId) });
             const currentSettings = (currentOrg?.settings as any) || {};
 
             await db.update(organizations).set({
                 industry: industry || undefined,
+                onboardingStatus: onboardingStatus || undefined,
                 settings: {
                     ...currentSettings,
                     theme: theme || currentSettings.theme,

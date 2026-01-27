@@ -20,7 +20,7 @@ export function OnboardingGuard({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         // Optimization: Check local flag first
-        const isCompletedLocally = localStorage.getItem("nexus_onboarding_completed") === "true";
+        const isCompletedLocally = localStorage.getItem("nexus_introjs_completed") === "true";
         if (isCompletedLocally) return;
 
         if (loading) return;
@@ -46,12 +46,14 @@ export function OnboardingGuard({ children }: { children: React.ReactNode }) {
                 }
             } else {
                 // If we passed the check, set the flag for future
-                localStorage.setItem("nexus_onboarding_completed", "true");
+                localStorage.setItem("nexus_introjs_completed", "true");
             }
         }
     }, [organization, loading, user, location, setLocation]);
 
-    if (loading) {
+    // Only show loader if we have NO user and NO organization yet
+    // This prevents the whole app from unmounting and losing state during refreshes
+    if (loading && !user && !organization) {
         return (
             <div className="h-screen w-full flex items-center justify-center bg-slate-950 text-slate-400">
                 <Loader2 className="w-8 h-8 text-primary animate-spin" />
