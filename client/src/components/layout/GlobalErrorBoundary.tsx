@@ -58,10 +58,11 @@ export class GlobalErrorBoundary extends Component<Props, State> {
         console.error("Uncaught error:", error, errorInfo);
 
         // Check for specific critical errors to auto-recover immediately
+        // Note: React.Children.only was removed from critical list after fixing root causes
         const isCritical =
-            error.message.includes("React.Children.only") ||
             error.message.includes("Minified React error") ||
-            error.message.includes("Rendered more hooks than during the previous render");
+            error.message.includes("Rendered more hooks than during the previous render") ||
+            error.message.includes("Maximum update depth exceeded");
 
         this.setState({ errorInfo });
 
@@ -107,18 +108,27 @@ export class GlobalErrorBoundary extends Component<Props, State> {
     }
 
     /**
-     * Clears all local storage, session storage, and cookies to reset application state.
+     * Clears application-specific storage while preserving Supabase auth session.
+     * This is more selective than a full clear to avoid unnecessary logouts.
      */
     performCleanup = () => {
         console.log("🧹 Clearing Application State...");
-        localStorage.clear();
-        sessionStorage.clear();
 
-        document.cookie.split(";").forEach((c) => {
-            document.cookie = c
-                .replace(/^ +/, "")
-                .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
-        });
+        // Selective cleanup: Only clear app-specific keys, preserve Supabase auth
+        const keysToPreserve = ['sb-', 'supabase']; // Supabase auth keys
+        const keysToRemove: string[] = [];
+
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && !keysToPreserve.some(prefix => key.startsWith(prefix))) {
+                keysToRemove.push(key);
+            }
+        }
+
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+
+        // Clear session storage completely (usually transient data)
+        sessionStorage.clear();
     };
 
     /**
