@@ -8,6 +8,7 @@ import Landing from "@/pages/Landing";
 import Auth from "@/pages/Auth";
 import { IntroJsOnboarding } from "@/components/onboarding/IntroJsOnboarding";
 import Dashboard from "@/pages/Dashboard";
+import Vision from "@/pages/Vision";
 import Kiosks from "@/pages/Kiosks";
 import KioskInterface from "@/pages/KioskInterface";
 import DriverTerminal from "@/pages/DriverTerminal";
@@ -56,6 +57,7 @@ function Router() {
       <Route path="/signup" component={Auth} />
       <Route path="/onboarding" component={IntroJsOnboarding} />
       <Route path="/dashboard" component={Dashboard} />
+      <Route path="/vision" component={Vision} />
       <Route path="/kiosks" component={Kiosks} />
       <Route path="/kiosk" component={Kiosk} />
       <Route path="/kiosk-terminal/:id" component={KioskInterface} />

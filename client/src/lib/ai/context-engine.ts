@@ -68,7 +68,7 @@ class ContextEngine {
                     }
                     break;
                 case 'admin':
-                    if (['dashboard', 'analytics', 'finance', 'admin', 'query'].includes(module.id)) {
+                    if (['dashboard', 'analytics', 'finance', 'admin', 'query', 'vision'].includes(module.id)) {
                         priority += 20;
                     }
                     break;

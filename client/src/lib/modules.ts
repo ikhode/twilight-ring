@@ -125,7 +125,7 @@ export const ERP_MODULES: SystemModule[] = [
         category: 'operations'
     },
     {
-        id: 'query',
+        id: 'nl-query',
         name: 'Consultas IA',
         description: 'Consultas en lenguaje natural',
         icon: Search,

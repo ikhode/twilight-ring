@@ -494,6 +494,26 @@ export const MODULE_REGISTRY: ModuleMetadata[] = [
         tags: ["tickets", "soporte", "incidencias"]
     },
     {
+        id: "vision",
+        name: "Smart Vision",
+        description: "Conteo y medición por cámara",
+        longDescription: "Núcleo de visión artificial para conteo de objetos, seguridad perimetral y monitoreo de procesos mediante cámaras.",
+        icon: "Camera",
+        category: "operations",
+        route: "/vision",
+        features: [
+            "Detección de objetos en tiempo real",
+            "Conteo automático de inventario",
+            "Seguridad perimetral cognitiva",
+            "Análisis de flujo de personal",
+            "Captura manual asistida por IA"
+        ],
+        pricing: "premium",
+        dependencies: ["operations"],
+        requiredRole: "user",
+        tags: ["visión", "ia", "operaciones", "cámara"]
+    },
+    {
         id: "admin",
         name: "Administración",
         description: "Panel de administración del sistema",
