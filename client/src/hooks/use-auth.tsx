@@ -137,11 +137,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const fetchProfile = async (uid: string, shouldSetLoading = true) => {
         try {
-            // Only set loading if we haven't hydrated
-            // if (shouldSetLoading) setLoading(true); 
-            // Actually, we don't want to flip loading back to true if we already hydrated.
+            // Get latest session token to Ensure we have valid auth
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
 
-            const res = await fetch(`/api/auth/profile/${uid}`);
+            if (!token) {
+                console.warn("[AuthProvider] No token available for profile fetch");
+                return;
+            }
+
+            const res = await fetch(`/api/auth/profile/${uid}`, {
+                headers: {
+                    "Authorization": `Bearer ${token}`
+                }
+            });
+
             if (res.ok) {
                 const data = await res.json() as UserProfile;
 
@@ -150,6 +160,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
                 setProfile(data);
                 processOrgData(data);
+            } else {
+                if (res.status === 401 || res.status === 403) {
+                    // If backend says unauthorized, our token might be stale or invalid.
+                    // But we just got it from supabase.
+                    // It's possible the user was deleted on backend but exists in supabase.
+                    console.error("Profile fetch returned 401/403. Validation failed.");
+                }
             }
         } catch (error) {
             console.error("Error fetching profile:", error);
