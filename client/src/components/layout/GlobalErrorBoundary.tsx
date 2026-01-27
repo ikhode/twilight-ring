@@ -57,32 +57,53 @@ export class GlobalErrorBoundary extends Component<Props, State> {
     componentDidCatch(error: Error, errorInfo: ErrorInfo) {
         console.error("Uncaught error:", error, errorInfo);
 
-        // Check for specific critical errors to auto-recover
+        // Check for specific critical errors to auto-recover immediately
         const isCritical =
             error.message.includes("React.Children.only") ||
             error.message.includes("Minified React error") ||
             error.message.includes("Rendered more hooks than during the previous render");
 
+        this.setState({ errorInfo });
+
         if (isCritical) {
             console.warn("💀 Critical State Corruption detected. Initiating Auto-Recovery sequence...");
-            this.setState({ errorInfo, autoRecovering: true });
-
-            // Immediate cleanup
-            this.performCleanup();
-
-            // Coundown and Reload
-            let count = 5;
-            const timer = setInterval(() => {
-                count--;
-                this.setState({ countdown: count });
-                if (count <= 0) {
-                    clearInterval(timer);
-                    window.location.href = "/login";
-                }
-            }, 1000);
+            this.initiateAutoRecovery(errorInfo);
         } else {
-            this.setState({ errorInfo });
+            // For non-critical errors, wait 15 seconds before deciding to auto-recover
+            // This assumes that if the user hasn't recovered or the app is stuck, we force a reset.
+            // Ideally we shouldn't force reset on minor UI errors, but the user requested:
+            // "System Auto-Recovery solo si nuestro sistema no se renderizo pasados 15 segundos"
+
+            // We can simulate this by setting a timeout. If the component unmounts (recovered), clear it.
+            // But ErrorBoundary doesn't unmount on error.
+            // We'll set a delayed trigger.
+            setTimeout(() => {
+                // Check if we are still in error state (which we likely are if this boundary is catching it)
+                // and if user hasn't manually recovered.
+                if (this.state.hasError && !this.state.autoRecovering) {
+                    console.warn("⏳ 15s timeout reached with active error. Initiating System Auto-Recovery...");
+                    this.initiateAutoRecovery(errorInfo);
+                }
+            }, 15000);
         }
+    }
+
+    initiateAutoRecovery = (errorInfo: ErrorInfo) => {
+        this.setState({ errorInfo, autoRecovering: true });
+
+        // Immediate cleanup
+        this.performCleanup();
+
+        // Coundown and Reload
+        let count = 5;
+        const timer = setInterval(() => {
+            count--;
+            this.setState({ countdown: count });
+            if (count <= 0) {
+                clearInterval(timer);
+                window.location.href = "/login";
+            }
+        }, 1000);
     }
 
     /**
