@@ -77,7 +77,7 @@ export class GlobalErrorBoundary extends Component<Props, State> {
                 this.setState({ countdown: count });
                 if (count <= 0) {
                     clearInterval(timer);
-                    window.location.href = "/";
+                    window.location.href = "/login";
                 }
             }, 1000);
         } else {
