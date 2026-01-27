@@ -59,5 +59,5 @@ export function OnboardingGuard({ children }: { children: React.ReactNode }) {
         );
     }
 
-    return <>{children}</>;
+    return <div className="contents">{children}</div>;
 }
