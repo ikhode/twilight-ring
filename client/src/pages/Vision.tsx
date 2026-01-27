@@ -15,7 +15,12 @@ import {
     AlertCircle,
     Brain,
     Lock,
-    Settings
+    Settings,
+    CheckCircle,
+    HeartPulse,
+    Thermometer,
+    Monitor,
+    Truck
 } from "lucide-react";
 import Webcam from "react-webcam";
 import * as cocoSsd from "@tensorflow-models/coco-ssd";
@@ -34,10 +39,11 @@ export default function Vision() {
     const [isStreaming, setIsStreaming] = useState(true);
     const [isLoading, setIsLoading] = useState(true);
     const [detections, setDetections] = useState<cocoSsd.DetectedObject[]>([]);
-    const [mode, setMode] = useState<'security' | 'inventory' | 'safety'>('security');
+    const [mode, setMode] = useState<'security' | 'logistics' | 'office' | 'dining' | 'assets'>('security');
     const [counts, setCounts] = useState<Record<string, number>>({});
     const [sessionTotal, setSessionTotal] = useState(0);
     const [inferenceTime, setInferenceTime] = useState(0);
+    const [showMesh, setShowMesh] = useState(true);
     const { toast } = useToast();
 
     const webcamRef = useRef<Webcam>(null);
@@ -116,14 +122,13 @@ export default function Vision() {
                     // Label text
                     ctx.fillStyle = "#fff";
                     ctx.font = "bold 12px Inter, system-ui";
-                    ctx.fillText(
-                        `${prediction.class.toUpperCase()} ${Math.round(prediction.score * 100)}%`,
-                        x + 5,
-                        y - 5
-                    );
+
+                    const label = `${prediction.class.toUpperCase()} :: ${Math.round(prediction.score * 100)}%`;
+                    ctx.fillText(label, x + 5, y - 5);
 
                     // Corner brackets for futuristic look
                     ctx.beginPath();
+                    ctx.strokeStyle = color;
                     ctx.moveTo(x, y + 20); ctx.lineTo(x, y); ctx.lineTo(x + 20, y);
                     ctx.stroke();
 
@@ -139,6 +144,26 @@ export default function Vision() {
                     ctx.moveTo(x + width - 20, y + height); ctx.lineTo(x + width, y + height); ctx.lineTo(x + width, y + height - 20);
                     ctx.stroke();
                 });
+
+                // Digital Mesh Effect (Draw connections between objects)
+                if (showMesh && predictions.length > 1) {
+                    ctx.beginPath();
+                    ctx.strokeStyle = "rgba(59, 130, 246, 0.2)";
+                    ctx.setLineDash([5, 5]);
+                    for (let i = 0; i < predictions.length; i++) {
+                        for (let j = i + 1; j < predictions.length; j++) {
+                            const p1 = predictions[i].bbox;
+                            const p2 = predictions[j].bbox;
+                            const d = Math.sqrt(Math.pow(p1[0] - p2[0], 2) + Math.pow(p1[1] - p2[1], 2));
+                            if (d < 300) {
+                                ctx.moveTo(p1[0] + p1[2] / 2, p1[1] + p1[3] / 2);
+                                ctx.lineTo(p2[0] + p2[2] / 2, p2[1] + p2[3] / 2);
+                            }
+                        }
+                    }
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
             }
         }
         requestRef.current = requestAnimationFrame(detect);
@@ -163,14 +188,16 @@ export default function Vision() {
                         <CardHeader>
                             <div className="flex items-center gap-2 mb-2">
                                 <Zap className="w-4 h-4 text-primary" />
-                                <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Modos de Operación</CardTitle>
+                                <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Canales de Análisis</CardTitle>
                             </div>
                         </CardHeader>
                         <CardContent className="space-y-3">
                             {[
-                                { id: 'security', label: 'Seguridad Perimetral', icon: Shield, desc: 'Detección de intrusos y personal' },
-                                { id: 'inventory', label: 'Conteo de Stock', icon: Box, desc: 'Identificación masiva de items' },
-                                { id: 'safety', label: 'Protección Civil', icon: AlertCircle, desc: 'Monitoreo de equipo de seguridad' }
+                                { id: 'security', label: 'Seguridad / Personal', icon: Shield, desc: 'Enfoque en detección de coloboradores' },
+                                { id: 'logistics', label: 'Tráfico & Flota', icon: Truck, desc: 'Monitoreo de vehículos y transporte' },
+                                { id: 'assets', label: 'Conteo de Activos', icon: Box, desc: 'Gestión de inventario físico general' },
+                                { id: 'office', label: 'Smart Workspace', icon: Monitor, desc: 'Equipamiento y tecnología' },
+                                { id: 'dining', label: 'Bienestar / Comunes', icon: HeartPulse, desc: 'Uso de espacios e infraestructura' }
                             ].map((m) => (
                                 <Button
                                     key={m.id}
@@ -207,12 +234,17 @@ export default function Vision() {
                             </div>
                             <div className="grid grid-cols-2 gap-2 pt-2">
                                 <div className="p-3 bg-white/5 rounded-xl border border-white/5">
-                                    <p className="text-[8px] font-black uppercase text-slate-500 mb-1 leading-none">Latencia</p>
-                                    <p className="text-xl font-black italic text-white tracking-tighter">{inferenceTime}<span className="text-xs text-primary">ms</span></p>
+                                    <p className="text-[8px] font-black uppercase text-slate-500 mb-1 leading-none">Inference</p>
+                                    <p className="text-xl font-black italic text-white tracking-tighter">
+                                        {inferenceTime}
+                                        <span className="text-xs text-primary">ms</span>
+                                    </p>
                                 </div>
                                 <div className="p-3 bg-white/5 rounded-xl border border-white/5">
                                     <p className="text-[8px] font-black uppercase text-slate-500 mb-1 leading-none">Confidence</p>
-                                    <p className="text-xl font-black italic text-white tracking-tighter">0.96</p>
+                                    <p className="text-xl font-black italic text-white tracking-tighter">
+                                        0.96
+                                    </p>
                                 </div>
                             </div>
                         </CardContent>
@@ -261,11 +293,8 @@ export default function Vision() {
                                     <p className="text-[8px] font-mono text-white/40">LAT: 19.4326 | LNG: -99.1332</p>
                                 </div>
                                 <div className="flex gap-2">
-                                    <Button size="icon" variant="outline" className="h-8 w-8 rounded-full border-white/20 bg-black/40 backdrop-blur-md text-white">
-                                        <Maximize2 className="w-4 h-4" />
-                                    </Button>
-                                    <Button size="icon" variant="outline" className="h-8 w-8 rounded-full border-white/20 bg-black/40 backdrop-blur-md text-white pointer-events-auto" onClick={() => setIsStreaming(!isStreaming)}>
-                                        <Settings className="w-4 h-4" />
+                                    <Button size="icon" variant="outline" className="h-8 w-8 rounded-full border-white/20 bg-black/40 backdrop-blur-md text-white pointer-events-auto" onClick={() => setShowMesh(!showMesh)}>
+                                        <Zap className={cn("w-4 h-4", showMesh ? "text-primary" : "text-white")} />
                                     </Button>
                                 </div>
                             </div>
