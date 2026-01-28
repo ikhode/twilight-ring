@@ -57,7 +57,7 @@ interface Stop {
     phone: string;
     products: { name: string; quantity: number }[];
     expectedAmount?: number;
-    status: 'pending' | 'arrived' | 'completed' | 'failed';
+    status: 'pending' | 'en_camino' | 'arrived' | 'operación' | 'finalizada_operación' | 'completada' | 'failed';
     entityType?: 'sale' | 'purchase';
     locationLat?: number;
     locationLng?: number;
@@ -91,9 +91,12 @@ function RecenterMap({ coords }: { coords: [number, number] }) {
 export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMobileProps) {
     const [activeStopId, setActiveStopId] = useState<string | null>(null);
     const [currentPosition, setCurrentPosition] = useState<[number, number] | null>(null);
-    const [showSignatureModal, setShowSignatureModal] = useState(false);
     const [isArrived, setIsArrived] = useState(false);
+    const [showSignatureModal, setShowSignatureModal] = useState(false);
+    const [showTicketModal, setShowTicketModal] = useState(false);
+    const [stopStatus, setStopStatus] = useState<'pending' | 'en_camino' | 'arrived' | 'operación' | 'finalizada_operación'>('pending');
     const [wakeLock, setWakeLock] = useState<any>(null);
+    const [distanceToStop, setDistanceToStop] = useState<number | null>(null);
 
     const signatureRef = useRef<SignatureCanvas>(null);
     const queryClient = useQueryClient();
@@ -128,6 +131,17 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
                 async (position) => {
                     const { latitude, longitude } = position.coords;
                     setCurrentPosition([latitude, longitude]);
+
+                    // Geofencing: Check distance to active stop
+                    if (activeStop?.locationLat && activeStop?.locationLng) {
+                        const dist = calculateDistance(latitude, longitude, activeStop.locationLat, activeStop.locationLng);
+                        setDistanceToStop(dist);
+
+                        // Auto-arrival if within 100m and currently en_camino
+                        if (dist < 0.1 && stopStatus === 'en_camino') {
+                            setStopStatus('arrived');
+                        }
+                    }
 
                     try {
                         await fetch("/api/logistics/driver-location", {
@@ -165,8 +179,20 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
             return res.json();
         },
         enabled: !!employee?.id,
-        refetchInterval: 60000
+        refetchInterval: 30000
     });
+
+    // Helper: Haversine distance in KM
+    function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
+        const R = 6371; // KM
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+    }
 
     // Demo data fallback if no active route found
     const stops = useMemo(() => {
@@ -214,14 +240,17 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/logistics/driver-route", employee.id] });
             setShowSignatureModal(false);
-            setIsArrived(false);
+            setStopStatus('pending');
             setActiveStopId(null);
+            setDistanceToStop(null);
         }
     });
 
-    const handleConfirmArrival = () => {
-        setIsArrived(true);
-        // Track arrival event
+    const handleStatusTransition = () => {
+        if (stopStatus === 'pending') setStopStatus('en_camino');
+        else if (stopStatus === 'en_camino') setStopStatus('arrived');
+        else if (stopStatus === 'arrived') setStopStatus('operación');
+        else if (stopStatus === 'operación') setStopStatus('finalizada_operación');
     };
 
     const confirmCompletion = () => {
@@ -315,7 +344,9 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
                             <Navigation className="w-6 h-6" />
                         </div>
                         <div className="min-w-0">
-                            <p className="text-[10px] font-bold uppercase opacity-60 leading-none mb-1">Próxima Parada</p>
+                            <p className="text-[10px] font-bold uppercase opacity-60 leading-none mb-1">
+                                {activeStop?.type === 'delivery' ? 'En camino a entregar' : 'En camino a recoger'}
+                            </p>
                             <p className="text-lg font-black uppercase truncate">{activeStop?.customerName || "Buscando..."}</p>
                         </div>
                     </div>
@@ -373,6 +404,14 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
                                         <MapPin className="w-4 h-4 shrink-0" />
                                         <p className="text-[11px] truncate">{activeStop?.address}</p>
                                     </div>
+                                    {distanceToStop && stopStatus === 'en_camino' && (
+                                        <div className="flex items-center gap-2 text-primary mt-2">
+                                            <Clock className="w-4 h-4" />
+                                            <p className="text-[10px] font-black uppercase tracking-widest">
+                                                Llegada en ~{(distanceToStop * 3).toFixed(0)} min ({(distanceToStop).toFixed(1)} km)
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
                                 <a
                                     href={`tel:${activeStop?.phone}`}
@@ -380,6 +419,14 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
                                 >
                                     <Phone className="w-6 h-6 text-primary" />
                                 </a>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10"
+                                    onClick={() => setShowTicketModal(true)}
+                                >
+                                    <Package className="w-6 h-6 text-white" />
+                                </Button>
                             </div>
 
                             <ScrollArea className="h-20 mb-4">
@@ -402,32 +449,70 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
                                 </div>
                             </ScrollArea>
 
-                            {/* Sticky Action Button */}
+                            {/* Sticky Action Button Workflow */}
                             <div className="flex gap-3">
-                                {!isArrived ? (
+                                {stopStatus === 'pending' && (
                                     <Button
-                                        onClick={handleConfirmArrival}
+                                        onClick={() => setStopStatus('en_camino')}
+                                        className="flex-1 h-16 rounded-3xl bg-blue-600 text-white font-black uppercase italic text-lg shadow-xl"
+                                    >
+                                        Iniciar Viaje
+                                    </Button>
+                                )}
+
+                                {stopStatus === 'en_camino' && (
+                                    <Button
+                                        onClick={() => setStopStatus('arrived')}
+                                        className="flex-1 h-16 rounded-3xl bg-amber-500 text-black font-black uppercase italic text-lg shadow-xl"
+                                    >
+                                        <MapPin className="mr-2" />
+                                        He Llegado
+                                        {distanceToStop && distanceToStop < 1 ? ` (${(distanceToStop * 1000).toFixed(0)}m)` : ""}
+                                    </Button>
+                                )}
+
+                                {stopStatus === 'arrived' && (
+                                    <Button
+                                        onClick={() => setStopStatus('operación')}
                                         className="flex-1 h-16 rounded-3xl bg-white text-black font-black uppercase italic text-lg shadow-xl"
                                     >
-                                        He Llegado
+                                        <Package className="mr-2" />
+                                        {activeStop?.type === 'delivery' ? 'Iniciar Descarga' : 'Iniciar Carga'}
                                     </Button>
-                                ) : (
-                                    <>
-                                        <Button
-                                            variant="outline"
-                                            className="h-16 w-16 rounded-3xl border-white/10"
-                                            onClick={() => setIsArrived(false)}
-                                        >
-                                            <X className="w-6 h-6" />
-                                        </Button>
-                                        <Button
-                                            onClick={() => setShowSignatureModal(true)}
-                                            className="flex-1 h-16 rounded-3xl bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase italic text-lg shadow-xl shadow-emerald-500/20"
-                                        >
-                                            <CheckCircle2 className="w-6 h-6 mr-2" />
-                                            Confirmar
-                                        </Button>
-                                    </>
+                                )}
+
+                                {stopStatus === 'operación' && (
+                                    <Button
+                                        onClick={() => setStopStatus('finalizada_operación')}
+                                        className="flex-1 h-16 rounded-3xl bg-emerald-500 text-white font-black uppercase italic text-lg shadow-xl"
+                                    >
+                                        <CheckCircle2 className="mr-2" />
+                                        Carga Lista
+                                    </Button>
+                                )}
+
+                                {stopStatus === 'finalizada_operación' && (
+                                    <Button
+                                        onClick={() => setShowSignatureModal(true)}
+                                        className="flex-1 h-16 rounded-3xl bg-primary text-black font-black uppercase italic text-lg shadow-xl"
+                                    >
+                                        Firma y Pago
+                                    </Button>
+                                )}
+
+                                {stopStatus !== 'pending' && (
+                                    <Button
+                                        variant="outline"
+                                        className="h-16 w-16 rounded-3xl border-white/10"
+                                        onClick={() => {
+                                            if (stopStatus === 'en_camino') setStopStatus('pending');
+                                            if (stopStatus === 'arrived') setStopStatus('en_camino');
+                                            if (stopStatus === 'operación') setStopStatus('arrived');
+                                            if (stopStatus === 'finalizada_operación') setStopStatus('operación');
+                                        }}
+                                    >
+                                        <X className="w-6 h-6" />
+                                    </Button>
                                 )}
                             </div>
                         </div>
@@ -459,7 +544,7 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
                             </Button>
                         </div>
 
-                        <div className="flex-1 bg-white rounded-[40px] overflow-hidden mb-6 relative">
+                        <div className="flex-1 bg-white rounded-[40px] overflow-hidden mb-6 relative border-4 border-primary">
                             <SignatureCanvas
                                 ref={signatureRef}
                                 canvasProps={{
@@ -468,8 +553,47 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
                                 }}
                                 backgroundColor="white"
                             />
+
+                            {/* Signature Overlay - Transaction Awareness */}
+                            <div className="absolute top-0 left-0 right-0 p-6 pointer-events-none">
+                                <div className="bg-black/90 text-white p-6 rounded-3xl border border-primary/30 shadow-2xl backdrop-blur-md">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase text-primary mb-1">Confirmando para:</p>
+                                            <h4 className="text-xl font-black uppercase italic">{activeStop?.customerName}</h4>
+                                        </div>
+                                        <Badge className="bg-primary text-black font-black">
+                                            {activeStop?.entityType === 'sale' ? 'DOCUMENTO DE ENTREGA' : 'RECIBO DE RECOLECCIÓN'}
+                                        </Badge>
+                                    </div>
+
+                                    <div className="space-y-1 mb-4">
+                                        {activeStop?.products.map((p, i) => (
+                                            <p key={i} className="text-xs font-bold text-slate-300">
+                                                • {p.quantity} x {p.name}
+                                            </p>
+                                        ))}
+                                    </div>
+
+                                    <div className="pt-4 border-t border-white/10 flex justify-between items-end">
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase text-slate-500">Monto Transacción</p>
+                                            <p className="text-2xl font-black text-white">
+                                                ${((activeStop?.expectedAmount || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                                <span className="text-xs ml-1 text-slate-400 font-normal underline">
+                                                    {activeStop?.entityType === 'sale' ? '(POR COBRAR)' : '(A PAGAR)'}
+                                                </span>
+                                            </p>
+                                        </div>
+                                        <p className="text-[10px] font-bold text-slate-400">FECHA: {new Date().toLocaleDateString()}</p>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div className="absolute inset-x-0 bottom-4 flex justify-center pointer-events-none">
-                                <span className="text-[10px] text-slate-300 font-black uppercase tracking-widest border border-slate-200 px-4 py-1 rounded-full bg-white">Escriba aquí</span>
+                                <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest border border-slate-200 px-6 py-2 rounded-full bg-white shadow-lg animate-bounce">
+                                    Firme aquí para conformar
+                                </span>
                             </div>
                         </div>
 
@@ -489,6 +613,69 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
                                 {completeStopMutation.isPending ? <Loader2 className="animate-spin" /> : "Registrar"}
                             </Button>
                         </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Ticket Modal */}
+            <AnimatePresence>
+                {showTicketModal && (
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        className="fixed inset-0 z-[70] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md"
+                    >
+                        <Card className="w-full max-w-sm bg-white text-black rounded-[40px] overflow-hidden shadow-2xl">
+                            <CardContent className="p-8">
+                                <div className="flex justify-between items-start mb-6">
+                                    <div className="bg-primary/10 p-3 rounded-2xl">
+                                        <Truck className="w-6 h-6 text-primary" />
+                                    </div>
+                                    <Button variant="ghost" size="icon" onClick={() => setShowTicketModal(false)} className="rounded-full">
+                                        <X className="w-5 h-5" />
+                                    </Button>
+                                </div>
+
+                                <div className="text-center mb-8">
+                                    <h3 className="text-2xl font-black italic uppercase italic tracking-tighter mb-1">Comprobante Digital</h3>
+                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Nexo Logs v1.0 • {activeStop?.id.slice(0, 8)}</p>
+                                </div>
+
+                                <div className="space-y-4 mb-8">
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-slate-500 font-medium">Entidad:</span>
+                                        <span className="font-black uppercase">{activeStop?.customerName}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-slate-500 font-medium">Concepto:</span>
+                                        <span className="font-bold">{activeStop?.type === 'delivery' ? 'Entrega Mercancía' : 'Recolección Insumos'}</span>
+                                    </div>
+                                    <div className="pt-4 border-t border-slate-100">
+                                        <p className="text-[10px] font-black uppercase text-slate-400 mb-2">Desglose:</p>
+                                        {activeStop?.products.map((p, i) => (
+                                            <div key={i} className="flex justify-between text-xs mb-1">
+                                                <span>{p.name}</span>
+                                                <span className="font-bold">x{p.quantity}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="pt-4 border-t-2 border-dashed border-slate-200 flex justify-between items-center">
+                                        <span className="text-lg font-black uppercase italic tracking-tighter">Total</span>
+                                        <span className="text-2xl font-black">
+                                            ${((activeStop?.expectedAmount || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <Button
+                                    className="w-full h-14 rounded-2xl bg-black text-white font-black uppercase tracking-widest shadow-xl"
+                                    onClick={() => setShowTicketModal(false)}
+                                >
+                                    Cerrar Ticket
+                                </Button>
+                            </CardContent>
+                        </Card>
                     </motion.div>
                 )}
             </AnimatePresence>

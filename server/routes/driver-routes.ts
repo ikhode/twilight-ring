@@ -101,6 +101,8 @@ router.get("/driver-route/:employeeId", async (req, res): Promise<void> => {
                     status: 'pending',
                     paymentStatus: delivery.paymentStatus,
                     paymentMethod: delivery.paymentMethod,
+                    locationLat: customer?.address ? 19.4143 : undefined, // Placeholder Lat for geofencing demo if not in DB
+                    locationLng: customer?.address ? -99.1663 : undefined, // Placeholder Lng
                 };
             })
         );
@@ -141,7 +143,9 @@ router.get("/driver-route/:employeeId", async (req, res): Promise<void> => {
                     expectedAmount: pickup.totalAmount,
                     status: 'pending',
                     paymentStatus: pickup.paymentStatus,
-                    paymentMethod: 'N/A',
+                    paymentMethod: pickup.paymentMethod || 'N/A',
+                    locationLat: supplier?.address ? 19.4285 : undefined, // Placeholder Lat
+                    locationLng: supplier?.address ? -99.1415 : undefined, // Placeholder Lng
                 };
             })
         );
