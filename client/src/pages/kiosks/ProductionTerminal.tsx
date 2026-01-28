@@ -50,12 +50,6 @@ interface ProductionTerminalProps {
     onLogout: () => void;
 }
 
-interface Task {
-    id: string;
-    name: string;
-    unitPrice: number;
-}
-
 interface Ticket {
     id: string;
     taskName: string;
@@ -79,17 +73,24 @@ interface Process {
     description: string;
 }
 
-type Stage = "batch" | "task" | "quantity" | "completed";
+interface Employee {
+    id: string;
+    name: string;
+    role: string;
+}
+
+type Stage = "batch" | "employee" | "quantity" | "completed";
 
 export default function ProductionTerminal({ sessionContext, onLogout }: ProductionTerminalProps) {
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const [currentStage, setCurrentStage] = useState<Stage>("batch");
     const [selectedInstance, setSelectedInstance] = useState<ProcessInstance | null>(null);
-    const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+    const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
     const [quantity, setQuantity] = useState<number>(0);
     const [isStartBatchOpen, setIsStartBatchOpen] = useState(false);
     const [selectedProcessId, setSelectedProcessId] = useState<string>("");
+    const [employeeSearch, setEmployeeSearch] = useState("");
 
     // Realtime Reactivity
     useRealtimeSubscription({
@@ -126,11 +127,11 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
         }
     });
 
-    // Fetch available tasks/rates from DB
-    const { data: tasks = [] } = useQuery<Task[]>({
-        queryKey: ["/api/piecework/tasks"],
+    // Fetch all employees for selection
+    const { data: employees = [] } = useQuery<Employee[]>({
+        queryKey: ["/api/hr/employees"],
         queryFn: async () => {
-            const res = await fetch("/api/piecework/tasks", {
+            const res = await fetch("/api/hr/employees", {
                 headers: getKioskHeaders({ employeeId: sessionContext.driver?.id })
             });
             if (!res.ok) return [];
@@ -172,20 +173,15 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
 
     const createTicketMutation = useMutation({
         mutationFn: async () => {
-            if (!selectedTask || !selectedInstance) return;
+            if (!selectedInstance || !selectedEmployeeId) return;
 
-            const res = await fetch("/api/piecework/tickets", {
+            const res = await fetch("/api/production/report", {
                 method: "POST",
                 headers: getKioskHeaders({ employeeId: sessionContext.driver?.id }),
                 body: JSON.stringify({
-                    employeeId: sessionContext.driver?.id,
-                    taskName: selectedTask.name,
-                    quantity: quantity || 1,
-                    unitPrice: selectedTask.unitPrice,
-                    totalAmount: selectedTask.unitPrice * (quantity || 1),
-                    organizationId: sessionContext.terminal.organizationId,
-                    batchId: selectedInstance.id,
-                    notes: `Producción en Lote ${selectedInstance.processName}`
+                    employeeId: selectedEmployeeId,
+                    instanceId: selectedInstance.id,
+                    quantity: quantity || 1
                 })
             });
             if (!res.ok) throw new Error("Error creating ticket");
@@ -194,7 +190,7 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
         onSuccess: () => {
             toast({
                 title: "Producción Registrada",
-                description: `Ticket generado satisfactoriamente.`,
+                description: `Ticket generado satisfactoriamente para ${selectedInstance?.processName}.`,
             });
             setCurrentStage("completed");
             queryClient.invalidateQueries({ queryKey: ["/api/piecework/tickets"] });
@@ -207,7 +203,7 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
     const resetWorkflow = () => {
         setCurrentStage("batch");
         setSelectedInstance(null);
-        setSelectedTask(null);
+        setSelectedEmployeeId(null);
         setQuantity(0);
     };
 
@@ -263,13 +259,13 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
                 <Card className="col-span-12 lg:col-span-8 bg-white/[0.01] border-white/5 rounded-[50px] flex flex-col overflow-hidden shadow-2xl relative">
                     {/* Progress Bar */}
                     <div className="absolute top-0 left-0 w-full h-1 flex gap-2 px-10 pt-6 z-10">
-                        {["batch", "task", "quantity", "completed"].map((s, i) => (
+                        {["batch", "employee", "quantity", "completed"].map((s, i) => (
                             <div
                                 key={s}
                                 className={cn(
                                     "flex-1 h-1 rounded-full transition-all duration-700",
                                     currentStage === s ? "bg-primary shadow-[0_0_15px_rgba(var(--primary),0.5)]" :
-                                        ["batch", "task", "quantity", "completed"].indexOf(currentStage) > i ? "bg-emerald-500" : "bg-white/5"
+                                        ["batch", "employee", "quantity", "completed"].indexOf(currentStage) > i ? "bg-emerald-500" : "bg-white/5"
                                 )}
                             />
                         ))}
@@ -350,7 +346,7 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
                                                 key={instance.id}
                                                 onClick={() => {
                                                     setSelectedInstance(instance);
-                                                    setCurrentStage("task");
+                                                    setCurrentStage("employee");
                                                 }}
                                                 className="group relative p-10 rounded-[45px] bg-white/[0.02] border border-white/5 hover:border-primary/50 hover:bg-primary/5 transition-all duration-500 text-left overflow-hidden shadow-lg"
                                             >
@@ -380,50 +376,49 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
                             </div>
                         )}
 
-                        {currentStage === "task" && (
+                        {currentStage === "employee" && selectedInstance && (
                             <div className="space-y-10 animate-in fade-in slide-in-from-right-8 duration-700">
                                 <div className="flex items-center justify-between">
                                     <div className="space-y-2">
-                                        <h2 className="text-6xl font-black tracking-tight uppercase italic leading-tight">Actividad <br /><span className="text-primary underline decoration-primary/20">de Destajo</span></h2>
-                                        <p className="text-slate-500 font-bold uppercase tracking-[0.3em] text-xs">¿Qué labor completó en {selectedInstance?.processName}?</p>
+                                        <h2 className="text-6xl font-black tracking-tight uppercase italic leading-tight">Seleccionar <br /><span className="text-primary underline decoration-primary/20">Operador</span></h2>
+                                        <p className="text-slate-500 font-bold uppercase tracking-[0.3em] text-xs">¿Quién realizó el trabajo en {selectedInstance.processName}?</p>
                                     </div>
                                     <Button variant="ghost" size="icon" onClick={() => setCurrentStage("batch")} className="h-20 w-20 rounded-full bg-white/5 hover:bg-white/10 transition-all border border-white/5 group">
                                         <ArrowLeft className="w-8 h-8 group-hover:-translate-x-2 transition-transform" />
                                     </Button>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {tasks.map((task) => (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {employees.map((emp) => (
                                         <button
-                                            key={task.id}
+                                            key={emp.id}
                                             onClick={() => {
-                                                setSelectedTask(task);
+                                                setSelectedEmployeeId(emp.id);
                                                 setCurrentStage("quantity");
                                             }}
-                                            className="group flex items-center gap-6 p-10 rounded-[40px] bg-white/[0.02] border border-white/5 hover:border-accent/40 hover:bg-accent/5 transition-all duration-500 text-left"
+                                            className="group flex items-center gap-6 p-8 rounded-[35px] bg-white/[0.02] border border-white/5 hover:border-primary/40 hover:bg-primary/5 transition-all duration-500 text-left"
                                         >
-                                            <div className="w-20 h-20 rounded-[28px] bg-slate-900 border border-white/5 flex items-center justify-center group-hover:scale-110 group-hover:bg-accent/20 transition-all duration-500">
-                                                <QrCode className="w-10 h-10 text-slate-500 group-hover:text-accent transition-colors" />
+                                            <div className="w-16 h-16 rounded-2xl bg-slate-900 border border-white/5 flex items-center justify-center group-hover:scale-110 group-hover:bg-primary/20 transition-all duration-500">
+                                                <div className="text-xl font-black text-primary uppercase">{emp.name.charAt(0)}</div>
                                             </div>
-                                            <div className="flex-1">
-                                                <h3 className="text-2xl font-black text-white uppercase italic tracking-tighter group-hover:text-accent transition-colors">{task.name}</h3>
-                                                <p className="text-[10px] text-slate-600 font-bold uppercase tracking-[0.3em] mt-1">OPERACIÓN REGULADA</p>
+                                            <div className="flex-1 min-w-0">
+                                                <h3 className="text-lg font-black text-white uppercase italic tracking-tighter truncate group-hover:text-primary transition-colors">{emp.name}</h3>
+                                                <p className="text-[9px] text-slate-600 font-bold uppercase tracking-widest truncate">{emp.role}</p>
                                             </div>
-                                            <ChevronRight className="w-8 h-8 text-slate-800 group-hover:text-accent transition-all" />
                                         </button>
                                     ))}
                                 </div>
                             </div>
                         )}
 
-                        {currentStage === "quantity" && selectedTask && (
+                        {currentStage === "quantity" && selectedInstance && selectedEmployeeId && (
                             <div className="h-full flex flex-col justify-center max-w-2xl mx-auto space-y-12 animate-in fade-in zoom-in-95 duration-700">
                                 <div className="text-center space-y-8">
                                     <h2 className="text-8xl font-black tracking-tighter uppercase italic leading-none">Reportar <br /><span className="text-primary italic">Volumen</span></h2>
                                     <div className="flex items-center justify-center gap-6">
-                                        <Badge className="bg-white/5 text-slate-400 border-white/10 h-10 px-8 uppercase text-[12px] font-black tracking-[0.3em] rounded-full">{selectedTask.name}</Badge>
+                                        <Badge className="bg-white/5 text-slate-400 border-white/10 h-10 px-8 uppercase text-[12px] font-black tracking-[0.3em] rounded-full">PROCESO: {selectedInstance.processName}</Badge>
                                         <span className="text-slate-800 text-3xl opacity-20">/</span>
-                                        <Badge className="bg-white/5 text-slate-400 border-white/10 h-10 px-8 uppercase text-[12px] font-black tracking-[0.3em] rounded-full">LOTE: {selectedInstance?.processName}</Badge>
+                                        <Badge className="bg-white/5 text-slate-400 border-white/10 h-10 px-8 uppercase text-[12px] font-black tracking-[0.3em] rounded-full">OPERADOR: {employees.find(e => e.id === selectedEmployeeId)?.name}</Badge>
                                     </div>
                                 </div>
 
@@ -456,7 +451,7 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
                                     <Button
                                         variant="ghost"
                                         size="lg"
-                                        onClick={() => setCurrentStage("task")}
+                                        onClick={() => setCurrentStage("employee")}
                                         className="h-28 rounded-[40px] border-2 border-white/5 text-2xl font-black uppercase tracking-tighter hover:bg-white/5 transition-all text-slate-500"
                                     >
                                         Regresar
