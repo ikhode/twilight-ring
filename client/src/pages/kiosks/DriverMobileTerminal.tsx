@@ -16,7 +16,11 @@ import {
     ChevronRight,
     AlertCircle,
     Phone,
-    Home
+    Home,
+    Truck,
+    Wifi,
+    Signature,
+    CreditCard
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -35,7 +39,7 @@ interface Stop {
     address: string;
     phone: string;
     products: { name: string; quantity: number }[];
-    expectedAmount?: number; // Amount to collect (if delivery) or pay (if pickup)
+    expectedAmount?: number;
     status: 'pending' | 'completed' | 'failed';
     completedAt?: string;
     signature?: string;
@@ -60,27 +64,17 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
     const [amount, setAmount] = useState("");
     const [notes, setNotes] = useState("");
     const [photo, setPhoto] = useState<string | null>(null);
-    const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
     const signatureRef = useRef<SignatureCanvas>(null);
     const queryClient = useQueryClient();
 
-    // GPS Tracking - Send location to backend every 30 seconds
+    // GPS Tracking
     useEffect(() => {
         if (!employee?.id) return;
-
         let watchId: number;
-
         const trackLocation = () => {
             if ("geolocation" in navigator) {
                 watchId = navigator.geolocation.watchPosition(
                     async (position) => {
-                        const location = {
-                            lat: position.coords.latitude,
-                            lng: position.coords.longitude
-                        };
-                        setCurrentLocation(location);
-
-                        // Send to backend for tracking
                         try {
                             await fetch("/api/logistics/driver-location", {
                                 method: "POST",
@@ -88,8 +82,8 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
                                 body: JSON.stringify({
                                     employeeId: employee.id,
                                     terminalId,
-                                    latitude: location.lat,
-                                    longitude: location.lng,
+                                    latitude: position.coords.latitude,
+                                    longitude: position.coords.longitude,
                                     timestamp: new Date().toISOString()
                                 })
                             });
@@ -102,65 +96,37 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
                 );
             }
         };
-
         trackLocation();
-
         return () => {
             if (watchId) navigator.geolocation.clearWatch(watchId);
         };
     }, [employee?.id, terminalId]);
 
-    // Fetch real route data from backend
     const { data: route, isLoading } = useQuery<Route>({
         queryKey: ["/api/logistics/driver-route", employee.id],
         queryFn: async () => {
             const res = await fetch(`/api/logistics/driver-route/${employee.id}`);
-            if (!res.ok) {
-                // If no route found, return empty route
-                return {
-                    id: `RUTA-${new Date().toISOString().split('T')[0]}`,
-                    driverName: employee.name,
-                    vehiclePlate: "N/A",
-                    stops: [],
-                    startedAt: new Date().toISOString()
-                };
-            }
-            const data = await res.json();
-            // Override driverName with actual employee name
-            return {
-                ...data,
-                driverName: employee.name
+            if (!res.ok) return {
+                id: `R-${new Date().getTime().toString().slice(-6)}`,
+                driverName: employee.name,
+                vehiclePlate: "---",
+                stops: [],
+                startedAt: new Date().toISOString()
             };
+            return res.json();
         },
         enabled: !!employee?.id,
-        refetchInterval: 60000 // Refresh every minute
+        refetchInterval: 30000
     });
 
     const completeStopMutation = useMutation({
-        mutationFn: async (data: {
-            stopId: string;
-            signature: string;
-            photo?: string;
-            amountCollected?: number;
-            notes?: string;
-        }) => {
+        mutationFn: async (data: any) => {
             const res = await fetch("/api/logistics/complete-stop", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    saleId: data.stopId,
-                    signature: data.signature,
-                    photo: data.photo,
-                    amountCollected: data.amountCollected,
-                    notes: data.notes,
-                    paymentMethod: amount ? "cash" : undefined
-                })
+                body: JSON.stringify(data)
             });
-
-            if (!res.ok) {
-                throw new Error("Failed to complete stop");
-            }
-
+            if (!res.ok) throw new Error("Fallo al registrar");
             return res.json();
         },
         onSuccess: () => {
@@ -174,22 +140,7 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
         }
     });
 
-    const handleCompleteStop = () => {
-        if (!activeStop || !signatureRef.current) return;
-
-        const signatureData = signatureRef.current.toDataURL();
-
-        completeStopMutation.mutate({
-            stopId: activeStop.id,
-            signature: signatureData,
-            photo: photo || undefined,
-            amountCollected: amount ? parseFloat(amount) * 100 : undefined,
-            notes: notes || undefined
-        });
-    };
-
     const handleTakePhoto = () => {
-        // In real app, use camera API
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = 'image/*';
@@ -198,9 +149,7 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
             const file = e.target.files[0];
             if (file) {
                 const reader = new FileReader();
-                reader.onload = (event) => {
-                    setPhoto(event.target?.result as string);
-                };
+                reader.onload = (event) => setPhoto(event.target?.result as string);
                 reader.readAsDataURL(file);
             }
         };
@@ -209,11 +158,12 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
 
     if (isLoading || !route) {
         return (
-            <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-                <div className="text-center">
-                    <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                    <p className="text-slate-400">Cargando ruta...</p>
+            <div className="h-[100vh] bg-[#050505] flex flex-col items-center justify-center p-12">
+                <div className="relative">
+                    <Loader2 className="w-16 h-16 text-primary animate-spin" />
+                    <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full" />
                 </div>
+                <p className="mt-6 text-[10px] font-black uppercase tracking-[0.5em] text-primary/50 animate-pulse">Sincronizando Módulo...</p>
             </div>
         );
     }
@@ -222,85 +172,76 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
     const completedStops = route.stops.filter(s => s.status === 'completed');
 
     return (
-        <div className="min-h-screen bg-slate-950 text-white pb-20">
-            {/* Header */}
-            <div className="sticky top-0 z-50 bg-slate-900 border-b border-slate-800 p-4">
-                <div className="flex items-center justify-between mb-2">
-                    <div>
-                        <h1 className="text-xl font-black uppercase">Ruta {route.id}</h1>
-                        <p className="text-sm text-slate-400">{route.vehiclePlate} • {route.driverName}</p>
+        <div className="h-[100vh] bg-[#050505] text-white overflow-hidden flex flex-col">
+            {/* Ultra Premium Header */}
+            <header className="shrink-0 p-6 bg-white/[0.02] border-b border-white/5 flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 rounded-2xl bg-primary/20 border border-primary/30">
+                            <Truck className="w-6 h-6 text-primary" />
+                        </div>
+                        <div>
+                            <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none">Ruta <span className="text-slate-500">{route.id}</span></h1>
+                            <div className="flex items-center gap-2 mt-1">
+                                <Wifi className="w-3 h-3 text-emerald-500" />
+                                <span className="text-[9px] font-black uppercase tracking-widest text-emerald-500">GPS ONLINE</span>
+                            </div>
+                        </div>
                     </div>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => window.location.href = '/kiosk'}
-                        className="rounded-full"
-                    >
+                    <Button variant="ghost" size="icon" onClick={() => window.location.href = '/kiosk'} className="h-12 w-12 rounded-2xl bg-white/5 border border-white/5">
                         <Home className="w-5 h-5" />
                     </Button>
                 </div>
                 <div className="flex gap-2">
-                    <Badge className="bg-primary/20 text-primary border-primary/50">
-                        {pendingStops.length} Pendientes
+                    <Badge className="bg-primary text-black font-black uppercase text-[9px] py-1 px-3 border-none shadow-[0_0_15px_rgba(var(--primary),0.3)]">
+                        {pendingStops.length} PENDIENTES
                     </Badge>
-                    <Badge className="bg-green-500/20 text-green-500 border-green-500/50">
-                        {completedStops.length} Completadas
+                    <Badge className="bg-white/5 text-slate-500 font-black uppercase text-[9px] py-1 px-3 border border-white/5">
+                        {route.vehiclePlate}
                     </Badge>
                 </div>
-            </div>
+            </header>
 
-            {/* Stops List */}
-            <div className="p-4 space-y-3">
+            {/* Scrollable List */}
+            <main className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-4">
                 <AnimatePresence>
                     {pendingStops.map((stop, index) => (
                         <motion.div
                             key={stop.id}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, x: -100 }}
-                            transition={{ delay: index * 0.05 }}
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: index * 0.1 }}
                         >
                             <Card
                                 className={cn(
-                                    "bg-slate-900 border-slate-800 cursor-pointer transition-all",
-                                    activeStop?.id === stop.id && "border-primary bg-primary/5"
+                                    "bg-white/[0.02] border-white/5 rounded-[30px] overflow-hidden transition-all duration-500 active:scale-95 cursor-pointer touch-manipulation",
+                                    "hover:border-primary/40 hover:bg-white/[0.04]"
                                 )}
                                 onClick={() => setActiveStop(stop)}
                             >
-                                <CardContent className="p-4">
-                                    <div className="flex items-start gap-3">
+                                <CardContent className="p-6">
+                                    <div className="flex items-center gap-6">
                                         <div className={cn(
-                                            "w-12 h-12 rounded-full flex items-center justify-center shrink-0",
-                                            stop.type === 'delivery' ? "bg-blue-500/20 text-blue-500" : "bg-orange-500/20 text-orange-500"
+                                            "w-16 h-16 rounded-[22px] flex items-center justify-center shrink-0 border",
+                                            stop.type === 'delivery' ? "bg-primary/5 border-primary/20 text-primary" : "bg-emerald-500/5 border-emerald-500/20 text-emerald-500"
                                         )}>
-                                            {stop.type === 'delivery' ? (
-                                                <Package className="w-6 h-6" />
-                                            ) : (
-                                                <MapPin className="w-6 h-6" />
-                                            )}
+                                            {stop.type === 'delivery' ? <Package className="w-8 h-8" /> : <MapPin className="w-8 h-8" />}
                                         </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-start justify-between mb-1">
-                                                <h3 className="font-bold text-white truncate">{stop.customerName}</h3>
-                                                <Badge variant="outline" className="ml-2">
+                                        <div className="flex-1 min-w-0 space-y-1">
+                                            <h3 className="text-xl font-black italic uppercase italic tracking-tighter truncate">{stop.customerName}</h3>
+                                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest truncate">{stop.address}</p>
+                                            <div className="flex items-center gap-4 pt-2">
+                                                <span className="text-[9px] font-black uppercase tracking-widest text-slate-700 bg-white/5 px-2 py-0.5 rounded">
                                                     #{index + 1}
-                                                </Badge>
-                                            </div>
-                                            <p className="text-sm text-slate-400 line-clamp-1">{stop.address}</p>
-                                            <div className="flex items-center gap-4 mt-2 text-xs">
-                                                <span className="flex items-center gap-1 text-slate-500">
-                                                    <Package className="w-3 h-3" />
-                                                    {stop.products.length} producto(s)
                                                 </span>
                                                 {stop.expectedAmount && (
-                                                    <span className="flex items-center gap-1 text-primary font-bold">
-                                                        <DollarSign className="w-3 h-3" />
-                                                        ${(stop.expectedAmount / 100).toFixed(2)}
+                                                    <span className="text-[10px] font-black text-primary flex items-center gap-1">
+                                                        <DollarSign className="w-3 h-3" /> ${(stop.expectedAmount / 100).toFixed(2)}
                                                     </span>
                                                 )}
                                             </div>
                                         </div>
-                                        <ChevronRight className="w-5 h-5 text-slate-600" />
+                                        <ChevronRight className="w-6 h-6 text-slate-800" />
                                     </div>
                                 </CardContent>
                             </Card>
@@ -308,212 +249,154 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
                     ))}
                 </AnimatePresence>
 
-                {/* Completed Stops */}
                 {completedStops.length > 0 && (
-                    <div className="mt-6">
-                        <h3 className="text-sm font-bold uppercase text-slate-500 mb-2">Completadas</h3>
+                    <div className="pt-8 space-y-4">
+                        <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-700 ml-4">ENTREGAS COMPLETADAS</p>
                         {completedStops.map((stop) => (
-                            <Card key={stop.id} className="bg-slate-900/50 border-slate-800 mb-2">
-                                <CardContent className="p-3">
-                                    <div className="flex items-center gap-2">
-                                        <CheckCircle2 className="w-4 h-4 text-green-500" />
-                                        <span className="text-sm text-slate-400">{stop.customerName}</span>
-                                    </div>
-                                </CardContent>
-                            </Card>
+                            <div key={stop.id} className="p-4 rounded-2xl bg-white/[0.01] border border-white/5 flex items-center gap-4 opacity-40 grayscale">
+                                <CheckCircle2 className="w-5 h-5 text-primary" />
+                                <span className="text-sm font-bold text-slate-500 uppercase italic tracking-tight">{stop.customerName}</span>
+                            </div>
                         ))}
                     </div>
                 )}
-            </div>
+            </main>
 
-            {/* Stop Detail Modal */}
+            {/* Stop Detail View (Slide-up) */}
             <AnimatePresence>
                 {activeStop && (
                     <motion.div
                         initial={{ y: "100%" }}
                         animate={{ y: 0 }}
                         exit={{ y: "100%" }}
-                        transition={{ type: "spring", damping: 30 }}
-                        className="fixed inset-0 bg-slate-950 z-50 overflow-y-auto"
+                        transition={{ type: "spring", damping: 30, stiffness: 300 }}
+                        className="fixed inset-0 bg-[#050505] z-50 flex flex-col"
                     >
-                        {/* Modal Header */}
-                        <div className="sticky top-0 bg-slate-900 border-b border-slate-800 p-4 flex items-center justify-between">
-                            <h2 className="text-lg font-black uppercase">{activeStop.customerName}</h2>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => setActiveStop(null)}
-                                className="rounded-full"
-                            >
-                                <X className="w-5 h-5" />
+                        {/* Detail Header */}
+                        <header className="p-6 border-b border-white/5 flex items-center justify-between">
+                            <div className="space-y-1">
+                                <h2 className="text-2xl font-black italic uppercase tracking-tighter leading-none">{activeStop.customerName}</h2>
+                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">DETALLES DEL SERVICIO</p>
+                            </div>
+                            <Button variant="ghost" size="icon" onClick={() => { setActiveStop(null); setShowSignature(false); setShowPayment(false); }} className="h-12 w-12 rounded-2xl bg-white/5">
+                                <X className="w-6 h-6" />
                             </Button>
-                        </div>
+                        </header>
 
-                        <div className="p-4 space-y-4">
-                            {/* Address & Contact */}
-                            <Card className="bg-slate-900 border-slate-800">
-                                <CardContent className="p-4 space-y-3">
-                                    <div className="flex items-start gap-3">
-                                        <MapPin className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-                                        <div className="flex-1">
-                                            <p className="text-sm font-bold mb-1">Dirección</p>
-                                            <p className="text-slate-400 text-sm">{activeStop.address}</p>
-                                        </div>
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => {
-                                                // Open maps
-                                                window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activeStop.address)}`);
-                                            }}
-                                        >
-                                            <Navigation className="w-4 h-4" />
-                                        </Button>
+                        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                            {/* Actions & Info */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <Card className="bg-white/[0.02] border-white/5 p-6 rounded-[30px] flex flex-col items-center justify-center text-center gap-3">
+                                    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                                        <Navigation className="w-6 h-6 text-primary" />
                                     </div>
-                                    <div className="flex items-center gap-3">
-                                        <Phone className="w-5 h-5 text-green-500 shrink-0" />
-                                        <a href={`tel:${activeStop.phone}`} className="text-sm text-green-500 font-bold">
-                                            {activeStop.phone}
-                                        </a>
-                                    </div>
-                                </CardContent>
-                            </Card>
-
-                            {/* Products */}
-                            <Card className="bg-slate-900 border-slate-800">
-                                <CardContent className="p-4">
-                                    <h3 className="text-sm font-bold uppercase mb-3">Productos</h3>
-                                    <div className="space-y-2">
-                                        {activeStop.products.map((product, idx) => (
-                                            <div key={idx} className="flex items-center justify-between text-sm">
-                                                <span className="text-slate-300">{product.name}</span>
-                                                <Badge variant="outline">{product.quantity} unidades</Badge>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    {activeStop.expectedAmount && (
-                                        <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between">
-                                            <span className="text-sm font-bold">Monto {activeStop.type === 'delivery' ? 'a Cobrar' : 'a Pagar'}</span>
-                                            <span className="text-xl font-black text-primary">
-                                                ${(activeStop.expectedAmount / 100).toFixed(2)}
-                                            </span>
-                                        </div>
-                                    )}
-                                </CardContent>
-                            </Card>
-
-                            {/* Signature */}
-                            {!showSignature && (
-                                <Button
-                                    className="w-full h-14 text-lg font-bold"
-                                    onClick={() => setShowSignature(true)}
-                                >
-                                    Capturar Firma
-                                </Button>
-                            )}
-
-                            {showSignature && (
-                                <Card className="bg-slate-900 border-slate-800">
-                                    <CardContent className="p-4">
-                                        <h3 className="text-sm font-bold uppercase mb-3">Firma del Cliente</h3>
-                                        <div className="border-2 border-dashed border-slate-700 rounded-lg overflow-hidden bg-white">
-                                            <SignatureCanvas
-                                                ref={signatureRef}
-                                                canvasProps={{
-                                                    width: 400,
-                                                    height: 200,
-                                                    className: 'w-full h-auto'
-                                                }}
-                                            />
-                                        </div>
-                                        <div className="flex gap-2 mt-3">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => signatureRef.current?.clear()}
-                                                className="flex-1"
-                                            >
-                                                Limpiar
-                                            </Button>
-                                            <Button
-                                                size="sm"
-                                                onClick={() => setShowPayment(true)}
-                                                className="flex-1"
-                                            >
-                                                Continuar
-                                            </Button>
-                                        </div>
-                                    </CardContent>
+                                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">NAVEGAR</p>
+                                    <Button variant="link" onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activeStop.address)}`)} className="text-xs font-black uppercase text-white p-0">MAPS</Button>
                                 </Card>
-                            )}
+                                <Card className="bg-white/[0.02] border-white/5 p-6 rounded-[30px] flex flex-col items-center justify-center text-center gap-3">
+                                    <div className="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                                        <Phone className="w-6 h-6 text-emerald-500" />
+                                    </div>
+                                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">CONTACTO</p>
+                                    <a href={`tel:${activeStop.phone}`} className="text-xs font-black uppercase text-white">LLAMAR</a>
+                                </Card>
+                            </div>
 
-                            {/* Payment */}
-                            {showPayment && (
-                                <Card className="bg-slate-900 border-slate-800">
-                                    <CardContent className="p-4 space-y-4">
-                                        <div>
-                                            <label className="text-sm font-bold uppercase mb-2 block">
-                                                Monto {activeStop.type === 'delivery' ? 'Recibido' : 'Entregado'}
-                                            </label>
-                                            <Input
-                                                type="number"
-                                                step="0.01"
-                                                value={amount}
-                                                onChange={(e) => setAmount(e.target.value)}
-                                                placeholder="0.00"
-                                                className="h-12 text-lg bg-slate-800 border-slate-700"
-                                            />
-                                            {activeStop.expectedAmount && (
-                                                <p className="text-xs text-slate-500 mt-1">
-                                                    Esperado: ${(activeStop.expectedAmount / 100).toFixed(2)}
-                                                </p>
-                                            )}
-                                        </div>
-
-                                        <div>
-                                            <label className="text-sm font-bold uppercase mb-2 block">Notas (Opcional)</label>
-                                            <Input
-                                                value={notes}
-                                                onChange={(e) => setNotes(e.target.value)}
-                                                placeholder="Agregar comentarios..."
-                                                className="bg-slate-800 border-slate-700"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <Button
-                                                variant="outline"
-                                                className="w-full"
-                                                onClick={handleTakePhoto}
-                                            >
-                                                <Camera className="w-4 h-4 mr-2" />
-                                                {photo ? 'Cambiar Foto' : 'Tomar Foto (Opcional)'}
-                                            </Button>
-                                            {photo && (
-                                                <img src={photo} alt="Evidence" className="mt-2 rounded-lg w-full" />
-                                            )}
-                                        </div>
-
-                                        <Button
-                                            className="w-full h-14 text-lg font-bold bg-green-600 hover:bg-green-700"
-                                            onClick={handleCompleteStop}
-                                            disabled={completeStopMutation.isPending}
-                                        >
-                                            {completeStopMutation.isPending ? (
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                                    Completando...
+                            {/* Status Stepper */}
+                            <div className="space-y-6">
+                                {/* Step 1: Signature */}
+                                <Card className={cn(
+                                    "bg-white/[0.02] border-white/5 rounded-[40px] overflow-hidden transition-all duration-500",
+                                    showSignature ? "border-primary/40 bg-primary/[0.02]" : ""
+                                )}>
+                                    <div className="p-8 space-y-6">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-4">
+                                                <div className={cn("w-10 h-10 rounded-full flex items-center justify-center font-black", showPayment ? "bg-primary text-black" : "bg-white/5 text-slate-500")}>
+                                                    {showPayment ? <CheckCircle2 className="w-6 h-6" /> : "1"}
                                                 </div>
-                                            ) : (
-                                                <>
-                                                    <CheckCircle2 className="w-5 h-5 mr-2" />
-                                                    Completar Entrega
-                                                </>
+                                                <h3 className="font-black uppercase italic tracking-tight">FIRMA DE RECIBIDO</h3>
+                                            </div>
+                                            {!showSignature && !showPayment && (
+                                                <Button onClick={() => setShowSignature(true)} variant="outline" className="rounded-full font-black uppercase text-[10px]">INICIAR</Button>
                                             )}
-                                        </Button>
-                                    </CardContent>
+                                        </div>
+
+                                        {showSignature && !showPayment && (
+                                            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                                <div className="bg-white rounded-3xl h-48 overflow-hidden touch-none relative">
+                                                    <SignatureCanvas
+                                                        ref={signatureRef}
+                                                        canvasProps={{ width: 500, height: 200, className: 'w-full h-full' }}
+                                                    />
+                                                </div>
+                                                <div className="flex gap-4">
+                                                    <Button variant="ghost" onClick={() => signatureRef.current?.clear()} className="flex-1 rounded-2xl font-black uppercase text-xs">LIMPIAR</Button>
+                                                    <Button onClick={() => setShowPayment(true)} className="flex-1 bg-primary text-black rounded-2xl font-black uppercase text-xs">CONFIRMAR</Button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
                                 </Card>
-                            )}
+
+                                {/* Step 2: Payment & Finalize */}
+                                {showPayment && (
+                                    <Card className="bg-white/[0.02] border-primary/40 rounded-[40px] overflow-hidden animate-in fade-in slide-in-from-bottom-8 duration-700">
+                                        <div className="p-8 space-y-8">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center font-black text-slate-500">2</div>
+                                                <h3 className="font-black uppercase italic tracking-tight">LIQUIDACIÓN DE PAGO</h3>
+                                            </div>
+
+                                            <div className="space-y-6">
+                                                <div className="space-y-3 text-center">
+                                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">MONTO A COBRAR</p>
+                                                    <div className="relative">
+                                                        <span className="absolute left-1/2 -translate-x-12 top-1/2 -translate-y-1/2 text-primary font-black text-2xl">$</span>
+                                                        <Input
+                                                            type="number"
+                                                            value={amount}
+                                                            onChange={(e) => setAmount(e.target.value)}
+                                                            placeholder="0.00"
+                                                            className="h-20 bg-black/40 border-white/5 rounded-[22px] text-4xl font-mono font-black text-center text-white focus:border-primary transition-all"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <Button onClick={handleTakePhoto} variant="outline" className="h-20 rounded-[25px] flex flex-col gap-1 border-white/5 bg-white/5">
+                                                        <Camera className="w-6 h-6 text-slate-500" />
+                                                        <span className="text-[10px] font-black uppercase text-slate-500">{photo ? "CAMBIAR FOTO" : "TOMAR FOTO"}</span>
+                                                    </Button>
+                                                    <Button className="h-20 rounded-[25px] flex flex-col gap-1 border-white/5 bg-white/5 active:bg-primary/20">
+                                                        <CreditCard className="w-6 h-6 text-slate-500" />
+                                                        <span className="text-[10px] font-black uppercase text-slate-500">TARJETA</span>
+                                                    </Button>
+                                                </div>
+
+                                                {photo && <img src={photo} className="w-full rounded-[30px] border border-white/10" />}
+
+                                                <Button
+                                                    className="w-full h-24 bg-primary text-black hover:bg-primary/90 rounded-[35px] text-2xl font-black uppercase italic tracking-tighter shadow-2xl shadow-primary/20 transition-all active:scale-95"
+                                                    onClick={() => {
+                                                        const sig = signatureRef.current?.toDataURL();
+                                                        completeStopMutation.mutate({
+                                                            stopId: activeStop.id,
+                                                            signature: sig,
+                                                            photo,
+                                                            amountCollected: amount ? Math.round(parseFloat(amount) * 100) : undefined,
+                                                            notes
+                                                        });
+                                                    }}
+                                                    disabled={completeStopMutation.isPending}
+                                                >
+                                                    {completeStopMutation.isPending ? <Loader2 className="w-8 h-8 animate-spin" /> : "FINALIZAR ENTREGA"}
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </Card>
+                                )}
+                            </div>
                         </div>
                     </motion.div>
                 )}

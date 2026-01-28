@@ -11,6 +11,55 @@ const router = Router();
 
 
 /**
+ * Lista procesos definidos para la organización.
+ */
+router.get("/processes", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        const list = await db.select().from(processes).where(eq(processes.organizationId, orgId));
+        res.json(list);
+    } catch (error) {
+        res.status(500).json({ message: "Failed to fetch processes" });
+    }
+});
+
+/**
+ * Lista instancias activas (Lotes actuales).
+ */
+router.get("/instances", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        const activeInstances = await db.select({
+            id: processInstances.id,
+            processId: processInstances.processId,
+            status: processInstances.status,
+            startedAt: processInstances.startedAt,
+            processName: processes.name
+        })
+            .from(processInstances)
+            .leftJoin(processes, eq(processInstances.processId, processes.id))
+            .where(and(
+                eq(processes.organizationId, orgId),
+                eq(processInstances.status, "active")
+            ));
+
+        res.json(activeInstances);
+    } catch (error) {
+        res.status(500).json({ message: "Failed to fetch instances" });
+    }
+});
+
+/**
  * Crea una nueva instancia de proceso (Lote de producción).
  */
 router.post("/instances", async (req, res): Promise<void> => {

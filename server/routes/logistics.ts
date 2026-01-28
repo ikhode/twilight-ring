@@ -2,12 +2,28 @@ import { Router } from "express";
 import { db } from "../storage";
 import {
     vehicles, fuelLogs, maintenanceLogs, routes, routeStops, sales, purchases,
-    insertVehicleSchema, insertRouteSchema, insertRouteStopSchema, expenses
+    insertVehicleSchema, insertRouteSchema, insertRouteStopSchema, expenses,
+    cashRegisters, cashTransactions, userOrganizations
 } from "../../shared/schema";
-import { eq, and, desc } from "drizzle-orm";
-import { getOrgIdFromRequest } from "../auth_util";
+import { eq, and, desc, sql } from "drizzle-orm";
+import { getOrgIdFromRequest, getAuthenticatedUser } from "../auth_util";
 
 const router = Router();
+
+// Helper to get performer ID safe for Cashier/Kiosk
+async function getPerformerId(req: any, orgId: string): Promise<string> {
+    const user = await getAuthenticatedUser(req);
+    if (user) return user.id;
+
+    // If no user (Kiosk mode), find a fallback admin user
+    const admin = await db.query.userOrganizations.findFirst({
+        where: and(
+            eq(userOrganizations.organizationId, orgId),
+            eq(userOrganizations.role, 'admin')
+        )
+    });
+    return admin?.userId || '00000000-0000-0000-0000-000000000000';
+}
 
 /**
  * Obtiene el listado de todos los vehículos de la organización, ordenados por kilometraje.
@@ -420,6 +436,42 @@ router.post("/fleet/routes/stops/:id/complete", async (req, res): Promise<void> 
         if (!stop) {
             res.status(404).json({ message: "Stop not found" });
             return;
+        }
+
+        // INTEGRATION: Finance (Cash Collection on Delivery)
+        if (stop.isPaid && (stop.paymentAmount || 0) > 0) {
+            // Find an open cash register for the org
+            const register = await db.query.cashRegisters.findFirst({
+                where: and(
+                    eq(cashRegisters.organizationId, orgId),
+                    eq(cashRegisters.status, 'open')
+                )
+            });
+
+            if (register && register.currentSessionId) {
+                const performerId = await getPerformerId(req, orgId);
+
+                // Record the transaction
+                await db.insert(cashTransactions).values({
+                    organizationId: orgId,
+                    registerId: register.id,
+                    sessionId: register.currentSessionId,
+                    type: "in",
+                    category: "sales",
+                    amount: stop.paymentAmount || 0,
+                    description: `Cobro Entrega Ruta: ${stop.address || stop.id.slice(0, 8)}`,
+                    performedBy: performerId,
+                    referenceId: stop.id,
+                    timestamp: new Date()
+                });
+
+                // Update register balance
+                await db.update(cashRegisters)
+                    .set({ balance: sql`${cashRegisters.balance} + ${stop.paymentAmount || 0}` })
+                    .where(eq(cashRegisters.id, register.id));
+
+                console.log(`[FINANCE] Recorded ${stop.paymentAmount} cents from delivery stop ${stop.id}`);
+            }
         }
 
         res.json(stop);

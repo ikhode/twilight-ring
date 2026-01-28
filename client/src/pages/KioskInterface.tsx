@@ -589,20 +589,20 @@ export default function KioskInterface(): React.JSX.Element {
   );
 
   return (
-    <div className="min-h-screen bg-black text-white selection:bg-primary/30 selection:text-white p-6 md:p-12 overflow-x-hidden">
-      <div className="max-w-7xl mx-auto space-y-12">
-        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 border-b border-white/5 pb-12">
+    <div className="h-[100vh] bg-black text-white selection:bg-primary/30 selection:text-white p-6 md:p-12 overflow-hidden flex flex-col">
+      <div className="max-w-7xl mx-auto w-full flex flex-col h-full gap-8">
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 border-b border-white/5 pb-8 shrink-0">
           <div className="space-y-3">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center border border-primary/30">
                 <Shield className="w-6 h-6 text-primary" />
               </div>
-              <h1 className="text-6xl font-black italic tracking-[ -0.05em] uppercase leading-none">
+              <h1 className="text-6xl font-black italic tracking-[-0.05em] uppercase leading-none">
                 NEXUS<span className="text-slate-500 font-medium">.OS</span>
               </h1>
             </div>
             <p className="text-xs text-muted-foreground font-bold uppercase tracking-[0.4em] opacity-50">
-              {currentTime.toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long" })}
+              SISTEMA COGNITIVO MULTIPROPÓSITO
             </p>
           </div>
 
@@ -615,11 +615,9 @@ export default function KioskInterface(): React.JSX.Element {
               {currentTime.toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long" })}
             </p>
           </div>
-
-
         </header>
 
-        <main className="space-y-8">
+        <main className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
           {activeView === "launcher" && renderLauncher()}
           {activeView === "main" && renderMainView()}
           {activeView === "entry-coco" && renderEntryCoco()}
@@ -642,7 +640,7 @@ export default function KioskInterface(): React.JSX.Element {
           )}
         </main>
 
-        <footer className="pt-12 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6 opacity-30">
+        <footer className="pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6 opacity-30 shrink-0">
           <div className="flex gap-8">
             <div className="space-y-1">
               <p className="text-[9px] font-black uppercase tracking-widest">Hardware ID</p>
@@ -656,7 +654,7 @@ export default function KioskInterface(): React.JSX.Element {
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-primary" />
-              <span className="text-[9px] font-black tracking-widest uppercase">Cognitive OS v4.2</span>
+              <span className="text-[9px] font-black tracking-widest uppercase">Nexus Cognitive OS v4.2</span>
             </div>
             <p className="text-[9px] font-medium">© 2026 COCO FACTORY SYSTEMS</p>
           </div>
