@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "../storage";
-import { sales, products, customers } from "../../shared/schema";
-import { eq, and, inArray, sql } from "drizzle-orm";
+import { sales, products, customers, purchases, suppliers } from "../../shared/schema";
+import { eq, and, inArray, sql, or } from "drizzle-orm";
 import { getOrgIdFromRequest } from "../auth_util";
 
 const router = Router();
@@ -24,35 +24,57 @@ router.get("/driver-route/:employeeId", async (req, res): Promise<void> => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        const deliveries = await db
-            .select({
-                saleId: sales.id,
-                productId: sales.productId,
-                customerId: sales.customerId,
-                quantity: sales.quantity,
-                totalPrice: sales.totalPrice,
-                paymentStatus: sales.paymentStatus,
-                paymentMethod: sales.paymentMethod,
-                deliveryStatus: sales.deliveryStatus,
-                vehicleId: sales.vehicleId,
-                date: sales.date,
-            })
-            .from(sales)
-            .where(and(
-                eq(sales.organizationId, orgId),
-                eq(sales.driverId, employeeId),
-                inArray(sales.deliveryStatus, ['pending', 'shipped']),
-                sql`DATE(${sales.date}) = CURRENT_DATE`
-            ));
+        const [deliveries, pickups] = await Promise.all([
+            db
+                .select({
+                    saleId: sales.id,
+                    productId: sales.productId,
+                    customerId: sales.customerId,
+                    quantity: sales.quantity,
+                    totalPrice: sales.totalPrice,
+                    paymentStatus: sales.paymentStatus,
+                    paymentMethod: sales.paymentMethod,
+                    deliveryStatus: sales.deliveryStatus,
+                    vehicleId: sales.vehicleId,
+                    date: sales.date,
+                })
+                .from(sales)
+                .where(and(
+                    eq(sales.organizationId, orgId),
+                    eq(sales.driverId, employeeId),
+                    inArray(sales.deliveryStatus, ['pending', 'shipped']),
+                    sql`DATE(${sales.date}) = CURRENT_DATE`
+                )),
+            db
+                .select({
+                    purchaseId: purchases.id,
+                    productId: purchases.productId,
+                    supplierId: purchases.supplierId,
+                    quantity: purchases.quantity,
+                    totalAmount: purchases.totalAmount,
+                    paymentStatus: purchases.paymentStatus,
+                    deliveryStatus: purchases.deliveryStatus,
+                    logisticsMethod: purchases.logisticsMethod,
+                    vehicleId: purchases.vehicleId,
+                    date: purchases.date,
+                })
+                .from(purchases)
+                .where(and(
+                    eq(purchases.organizationId, orgId),
+                    eq(purchases.driverId, employeeId),
+                    inArray(purchases.deliveryStatus, ['pending', 'shipped']),
+                    sql`DATE(${purchases.date}) = CURRENT_DATE`
+                ))
+        ]);
 
-        // Get customer and product details
-        const stops = await Promise.all(
+        // Process Deliveries (Sales)
+        const deliveryStops = await Promise.all(
             deliveries.map(async (delivery) => {
                 const [customer, product] = await Promise.all([
                     delivery.customerId
                         ? db.query.customers.findFirst({
                             where: eq(customers.id, delivery.customerId),
-                            columns: { name: true, phone: true, email: true }
+                            columns: { name: true, phone: true, email: true, address: true }
                         })
                         : null,
                     db.query.products.findFirst({
@@ -61,14 +83,12 @@ router.get("/driver-route/:employeeId", async (req, res): Promise<void> => {
                     })
                 ]);
 
-                // Determine address from customer or use placeholder
-                const address = customer?.email || "Dirección no especificada";
-
                 return {
                     id: delivery.saleId,
+                    entityType: 'sale' as const,
                     type: 'delivery' as const,
                     customerName: customer?.name || `Cliente ${delivery.customerId?.slice(0, 8)}`,
-                    address,
+                    address: customer?.address || customer?.email || "Dirección no especificada",
                     phone: customer?.phone || '',
                     products: [
                         {
@@ -78,18 +98,61 @@ router.get("/driver-route/:employeeId", async (req, res): Promise<void> => {
                         }
                     ],
                     expectedAmount: delivery.totalPrice,
-                    status: delivery.deliveryStatus === 'shipped' ? 'pending' : 'pending',
+                    status: 'pending',
                     paymentStatus: delivery.paymentStatus,
                     paymentMethod: delivery.paymentMethod,
                 };
             })
         );
 
+        // Process Pickups (Purchases)
+        const pickupStops = await Promise.all(
+            pickups.map(async (pickup) => {
+                const [supplier, product] = await Promise.all([
+                    pickup.supplierId
+                        ? db.query.suppliers.findFirst({
+                            where: eq(suppliers.id, pickup.supplierId),
+                            columns: { name: true, contactInfo: true, address: true }
+                        })
+                        : null,
+                    db.query.products.findFirst({
+                        where: eq(products.id, pickup.productId as string),
+                        columns: { name: true, unit: true }
+                    })
+                ]);
+
+                // Handle contact info safely
+                const contact = (supplier?.contactInfo as any) || {};
+
+                return {
+                    id: pickup.purchaseId,
+                    entityType: 'purchase' as const,
+                    type: 'pickup' as const,
+                    customerName: supplier?.name || `Proveedor ${pickup.supplierId?.slice(0, 8)}`,
+                    address: supplier?.address || "Dirección no especificada",
+                    phone: contact.phone || '',
+                    products: [
+                        {
+                            name: product?.name || 'Insumo',
+                            quantity: pickup.quantity,
+                            unit: product?.unit || 'pza'
+                        }
+                    ],
+                    expectedAmount: pickup.totalAmount,
+                    status: 'pending',
+                    paymentStatus: pickup.paymentStatus,
+                    paymentMethod: 'N/A',
+                };
+            })
+        );
+
+        const stops = [...deliveryStops, ...pickupStops];
+
         // Build route response
         const route = {
             id: `RUTA-${new Date().toISOString().split('T')[0]}`,
             driverName: employeeId, // Will be replaced by actual name in frontend
-            vehiclePlate: deliveries[0]?.vehicleId || 'N/A',
+            vehiclePlate: [...deliveries, ...pickups][0]?.vehicleId || 'N/A',
             stops: stops.filter(Boolean),
             startedAt: new Date().toISOString(),
             completedAt: null
@@ -117,6 +180,7 @@ router.post("/complete-stop", async (req, res): Promise<void> => {
         const {
             saleId,
             stopId,
+            entityType, // 'sale' or 'purchase'
             signature,
             photo,
             amountCollected,
@@ -124,31 +188,43 @@ router.post("/complete-stop", async (req, res): Promise<void> => {
             paymentMethod
         } = req.body;
 
-        const effectiveSaleId = saleId || stopId;
+        const effectiveId = saleId || stopId;
 
-        if (!effectiveSaleId) {
-            res.status(400).json({ message: "Sale ID required" });
+        if (!effectiveId) {
+            res.status(400).json({ message: "ID is required" });
             return;
         }
 
-        // Update sale record
-        await db
-            .update(sales)
-            .set({
-                deliveryStatus: 'delivered',
-                paymentStatus: amountCollected ? 'paid' : sales.paymentStatus,
-                paymentMethod: paymentMethod || sales.paymentMethod,
-                // In production, store signature and photo in file storage (S3, Supabase)
-                // and save URLs here in a JSONB field
-            })
-            .where(and(
-                eq(sales.id, effectiveSaleId),
-                eq(sales.organizationId, orgId)
-            ));
+        if (entityType === 'purchase') {
+            // Update purchase record
+            await db
+                .update(purchases)
+                .set({
+                    deliveryStatus: 'received',
+                    receivedAt: new Date(),
+                    notes: notes || undefined,
+                    // Store signature and photo URLs in JSONB if needed
+                })
+                .where(and(
+                    eq(purchases.id, effectiveId),
+                    eq(purchases.organizationId, orgId)
+                ));
+        } else {
+            // Default to sale for backward compatibility
+            await db
+                .update(sales)
+                .set({
+                    deliveryStatus: 'delivered',
+                    paymentStatus: amountCollected ? 'paid' : sql`payment_status`,
+                    paymentMethod: paymentMethod || sql`payment_method`,
+                })
+                .where(and(
+                    eq(sales.id, effectiveId),
+                    eq(sales.organizationId, orgId)
+                ));
+        }
 
-        // TODO: Store signature and photo in file storage
-        // For now, just acknowledge receipt
-        console.log(`Stop completed: ${saleId}`, {
+        console.log(`Stop completed: ${effectiveId} (${entityType || 'sale'})`, {
             hasSignature: !!signature,
             hasPhoto: !!photo,
             amountCollected,
@@ -157,8 +233,8 @@ router.post("/complete-stop", async (req, res): Promise<void> => {
 
         res.json({
             success: true,
-            message: "Delivery completed successfully",
-            saleId
+            message: "Action completed successfully",
+            id: effectiveId
         });
     } catch (error) {
         console.error("Complete stop error:", error);

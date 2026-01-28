@@ -58,6 +58,7 @@ interface Stop {
     products: { name: string; quantity: number }[];
     expectedAmount?: number;
     status: 'pending' | 'arrived' | 'completed' | 'failed';
+    entityType?: 'sale' | 'purchase';
     locationLat?: number;
     locationLng?: number;
     completedAt?: string;
@@ -201,7 +202,7 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
         [stops, activeStopId]);
 
     const completeStopMutation = useMutation({
-        mutationFn: async (data: { stopId: string; signature?: string }) => {
+        mutationFn: async (data: { stopId: string; signature?: string; entityType?: string }) => {
             const res = await fetch("/api/logistics/complete-stop", {
                 method: "POST",
                 headers: getKioskHeaders({ employeeId: employee.id }),
@@ -228,7 +229,8 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
         const signatureData = signatureRef.current?.toDataURL() || undefined;
         completeStopMutation.mutate({
             stopId: activeStop.id,
-            signature: signatureData
+            signature: signatureData,
+            entityType: activeStop.entityType
         });
     };
 
