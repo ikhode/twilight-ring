@@ -348,9 +348,16 @@ export default function Finance() {
                         </div>
                         <div>
                           <p className="font-medium">{item.description}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {item.client || item.supplier || item.employee}
-                          </p>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            {item.category && (
+                              <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 border-slate-700 text-slate-400">
+                                {item.category}
+                              </Badge>
+                            )}
+                            <p className="text-xs text-muted-foreground">
+                              {item.client || item.supplier || item.employee}
+                            </p>
+                          </div>
                         </div>
                       </div>
                     ),

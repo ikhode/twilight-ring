@@ -485,7 +485,8 @@ router.get("/summary", async (req, res): Promise<void> => {
                 date: e.date?.toISOString().split('T')[0],
                 type: 'expense',
                 status: 'completed',
-                supplier: e.supplier?.name || null
+                supplier: e.supplier?.name || null,
+                category: e.category
             })),
             ...recentPayments.map(p => ({
                 id: p.id,
