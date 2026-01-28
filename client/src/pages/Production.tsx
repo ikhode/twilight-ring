@@ -637,11 +637,7 @@ export default function Production() {
 
                               <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                  <Label className="text-[10px] uppercase font-bold text-slate-500">Tarifa por Unidad ($)</Label>
-                                  <div className="relative">
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">$</span>
-                                    <Input name="rate" type="number" step="0.01" defaultValue={(editingProcess?.workflowData?.piecework?.rate || 0) / 100} placeholder="0.00" className="pl-6 bg-slate-950 border-slate-800" />
-                                  </div>
+                                  <Input name="rate" type="number" step="0.01" defaultValue={editingProcess?.workflowData?.piecework?.rate !== undefined ? (editingProcess.workflowData.piecework.rate / 100) : ""} placeholder="0.00" className="pl-6 bg-slate-950 border-slate-800" />
                                 </div>
                                 <div className="space-y-2">
                                   <Label className="text-[10px] uppercase font-bold text-slate-500">Unidad de Medida</Label>
@@ -815,10 +811,7 @@ export default function Production() {
                                     <CognitiveField label="Tipo" semanticType="category">
                                       <Select name="type" defaultValue="quality"><SelectTrigger className="bg-slate-900 border-slate-800"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="quality">Calidad</SelectItem><SelectItem value="mechanical">Mecánica</SelectItem></SelectContent></Select>
                                     </CognitiveField>
-                                    <div className="space-y-2">
-                                      <Label>Cantidad</Label>
-                                      <Input name="quantity" type="number" step="0.1" placeholder="0.0" className="bg-slate-900 border-slate-800" />
-                                    </div>
+                                    <Input name="quantity" type="number" step="0.01" placeholder="0.00" className="bg-slate-900 border-slate-800" />
                                   </div>
                                   <Input name="reason" placeholder="Razón / Observaciones" className="bg-slate-900 border-slate-800" />
                                   <Button type="submit" className="w-full bg-warning hover:bg-warning/90 text-black font-bold">Registrar Incidencia</Button>
@@ -910,8 +903,8 @@ export default function Production() {
                             <Input
                               name="quantity"
                               type="number"
-                              step="1"
-                              placeholder="0"
+                              step="0.01"
+                              placeholder="0.00"
                               required
                               className="bg-slate-900 border-slate-800 text-lg font-bold"
                               onChange={(e) => {
@@ -1118,8 +1111,8 @@ function FinalizeBatchDialog({ instance, process, inventory = [], tickets = [], 
                           type="number"
                           step="0.01"
                           className="bg-slate-950 border-slate-800 pl-20"
-                          value={outputs[pid] || ''}
-                          onChange={(e) => setOutputs({ ...outputs, [pid]: Number(e.target.value) })}
+                          value={outputs[pid] ?? ""}
+                          onChange={(e) => setOutputs({ ...outputs, [pid]: e.target.value === "" ? 0 : Number(e.target.value) })}
                           placeholder="0.00"
                         />
                         <div className="absolute left-3 top-2.5 text-[10px] text-purple-400 font-bold uppercase">
@@ -1157,10 +1150,11 @@ function FinalizeBatchDialog({ instance, process, inventory = [], tickets = [], 
                     </div>
                     <Input
                       type="number"
+                      step="0.01"
                       className="w-24 h-8 text-xs bg-slate-950 border-slate-800"
-                      placeholder="Cant."
-                      value={cp.quantity || ''}
-                      onChange={(e) => { updateCoProduct(idx, 'quantity', Number(e.target.value)); }}
+                      placeholder="0.00"
+                      value={cp.quantity ?? ""}
+                      onChange={(e) => { updateCoProduct(idx, 'quantity', e.target.value === "" ? 0 : Number(e.target.value)); }}
                     />
                   </div>
                 ))}

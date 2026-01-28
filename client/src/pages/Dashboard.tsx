@@ -199,10 +199,21 @@ export default function Dashboard() {
       <div className="space-y-8 pb-12 text-slate-200">
 
         {/* Daily Briefing / Audit Log Review */}
-        <DailyBriefing />
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <DailyBriefing />
+        </motion.div>
 
         {/* Role Selector */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+          className="flex flex-col md:flex-row md:items-center justify-between gap-4"
+        >
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-xl bg-primary/10 border border-primary/20">
               <LayoutDashboard className="w-5 h-5 text-primary" />
@@ -231,10 +242,15 @@ export default function Dashboard() {
               </Button>
             ))}
           </div>
-        </div>
+        </motion.div>
 
         {/* AI Status Banner with Neural Net */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className="grid grid-cols-1 md:grid-cols-3 gap-6"
+        >
           <div className="md:col-span-2 relative overflow-hidden p-0 rounded-2xl bg-slate-900 border border-white/5 min-h-[180px]">
             <SystemHealth />
             <div className="absolute top-4 left-6 pointer-events-none">
@@ -290,10 +306,15 @@ export default function Dashboard() {
               {stats?.hasEnoughData ? "Blockchain verification active - Ledger Sync OK" : "Datos insuficientes para validación completa"}
             </p>
           </Card>
-        </div>
+        </motion.div>
 
         {/* Adaptive KPIs (Rewritten to use CognitiveKPI) */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+          className="grid grid-cols-2 lg:grid-cols-4 gap-4"
+        >
           <CognitiveKPI
             label="Ingresos Totales"
             value={stats?.revenue || "---"}
@@ -330,7 +351,7 @@ export default function Dashboard() {
             insight="Asistencia verificada por el módulo de Control de Tiempo."
             icon={Users}
           />
-        </div>
+        </motion.div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
@@ -514,6 +535,6 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
-    </AppLayout>
+    </AppLayout >
   );
 }

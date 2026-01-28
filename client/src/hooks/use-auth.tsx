@@ -4,7 +4,7 @@ import { Session, User } from "@supabase/supabase-js";
 import { useLocation } from "wouter";
 import { Organization } from "@shared/core/schema";
 import { UserProfile } from "@/types/auth";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface AuthContextType {
     session: Session | null;
@@ -36,6 +36,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [organization, setOrganization] = useState<Organization | null>(null);
     const [allOrganizations, setAllOrganizations] = useState<Organization[]>([]);
     const [, setLocation] = useLocation();
+    const queryClient = useQueryClient();
 
     const { data: profileData, isLoading: isProfileLoading, error: profileError } = useQuery<UserProfile>({
         queryKey: ["/api/auth/profile", user?.id],
@@ -104,8 +105,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const switchOrganization = async (orgId: string) => {
         const target = allOrganizations.find(o => o.id === orgId);
         if (target) {
+            console.log(`[Auth] Switching to organization: ${target.name} (${target.id})`);
             localStorage.setItem("nexus_active_org", target.id);
-            window.location.reload();
+            setOrganization(target);
+
+            // Invalidate all queries to trigger refresh with new organization header
+            queryClient.invalidateQueries();
+
+            // Optional: Redirect to dashboard if on a page that might not be valid for the new org
+            // setLocation("/dashboard");
         }
     };
 

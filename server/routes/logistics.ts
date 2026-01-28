@@ -38,7 +38,7 @@ router.get("/fleet/vehicles", async (req, res): Promise<void> => {
         }
 
         const fleet = await db.query.vehicles.findMany({
-            where: eq(vehicles.organizationId, orgId),
+            where: and(eq(vehicles.organizationId, orgId), eq(vehicles.isArchived, false)),
             orderBy: [desc(vehicles.currentMileage)]
         });
 

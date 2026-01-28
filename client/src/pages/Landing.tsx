@@ -26,6 +26,18 @@ import { useLocation } from "wouter";
 export default function Landing() {
     const [, setLocation] = useLocation();
     const [activeIndustry, setActiveIndustry] = useState("manufacturing");
+    const [text, setText] = useState("");
+    const fullText = "EL COGNITIVE OS QUE EVOLUCIONA CON TU NEGOCIO.";
+
+    useEffect(() => {
+        let i = 0;
+        const timer = setInterval(() => {
+            setText(fullText.slice(0, i));
+            i++;
+            if (i > fullText.length) clearInterval(timer);
+        }, 50);
+        return () => clearInterval(timer);
+    }, []);
 
     const industries = [
         { id: "retail", name: "Retail", icon: Package, color: "from-blue-500 to-cyan-500" },
@@ -95,9 +107,18 @@ export default function Landing() {
                                 LA NUEVA ERA
                             </span>
                         </h1>
-                        <p className="text-2xl md:text-5xl font-bold text-slate-300 leading-tight">
-                            EL <span className="text-primary italic">COGNITIVE OS</span> QUE <br />
-                            EVOLUCIONA CON TU NEGOCIO.
+                        <p className="text-2xl md:text-5xl font-bold text-slate-300 leading-tight h-[3em]">
+                            {text.split("COGNITIVE OS").map((part, i) => (
+                                <span key={i}>
+                                    {part}
+                                    {i === 0 && text.includes("COGNITIVE OS") && <span className="text-primary italic">COGNITIVE OS</span>}
+                                </span>
+                            ))}
+                            <motion.span
+                                animate={{ opacity: [0, 1] }}
+                                transition={{ repeat: Infinity, duration: 0.8 }}
+                                className="inline-block w-1 h-8 md:h-12 bg-primary ml-1 align-middle"
+                            />
                         </p>
                     </motion.div>
 

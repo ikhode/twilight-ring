@@ -349,10 +349,10 @@ function CreateProductDialog() {
         groupId: "",
         unitId: "",
         productType: "purchase",
-        stock: 0,
+        stock: "",
         unit: "pza",
-        price: 0,
-        cost: 0,
+        price: "",
+        cost: "",
     });
 
     const { data: categories = [] } = useQuery({
@@ -455,7 +455,7 @@ function CreateProductDialog() {
             queryClient.invalidateQueries({ queryKey: ["/api/inventory/products"] });
             setOpen(false);
             toast({ title: hasInventory ? "Producto creado" : "Concepto creado", description: "Listo para usar en compras." });
-            setFormData({ name: "", sku: "", categoryId: "", groupId: "", unitId: "", productType: "purchase", stock: 0, unit: "pza", price: 0, cost: 0 });
+            setFormData({ name: "", sku: "", categoryId: "", groupId: "", unitId: "", productType: "purchase", stock: "", unit: "pza", price: "", cost: "" });
         },
         onError: () => toast({ title: "Error", variant: "destructive" })
     });
@@ -559,18 +559,22 @@ function CreateProductDialog() {
                             <Label>Costo Unitario (MXN)</Label>
                             <CognitiveInput
                                 type="number"
+                                step="0.01"
                                 value={formData.cost}
-                                onChange={e => setFormData({ ...formData, cost: parseFloat(e.target.value) || 0 })}
+                                onChange={e => setFormData({ ...formData, cost: e.target.value })}
                                 semanticType="price"
+                                placeholder="0.00"
                             />
                         </div>
                         <div className="space-y-2">
                             <Label>Precio Venta (MXN)</Label>
                             <CognitiveInput
                                 type="number"
+                                step="0.01"
                                 value={formData.price}
-                                onChange={e => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
+                                onChange={e => setFormData({ ...formData, price: e.target.value })}
                                 semanticType="price"
+                                placeholder="0.00"
                             />
                         </div>
                     </div>
@@ -671,7 +675,7 @@ function CreatePurchaseDialog() {
     const [logisticsMethod, setLogisticsMethod] = useState<string>("delivery");
     const [driverId, setDriverId] = useState<string>("");
     const [vehicleId, setVehicleId] = useState<string>("");
-    const [freightCost, setFreightCost] = useState<number>(0);
+    const [freightCost, setFreightCost] = useState<string | number>(0);
 
     const { data: dbProducts = [] } = useQuery({
         queryKey: ["/api/inventory/products"],
@@ -731,7 +735,7 @@ function CreatePurchaseDialog() {
                     logisticsMethod,
                     driverId: driverId || null,
                     vehicleId: vehicleId || null,
-                    freightCost: Math.round(freightCost * 100),
+                    freightCost: Math.round(Number(freightCost) * 100),
                     status: 'pending'
                 })
             });
@@ -873,7 +877,7 @@ function CreatePurchaseDialog() {
                                 </div>
                                 <div className="space-y-2">
                                     <Label className="text-xs">Costo Flete (Opcional)</Label>
-                                    <Input type="number" className="h-8 text-xs" value={freightCost} onChange={e => setFreightCost(parseFloat(e.target.value) || 0)} />
+                                    <Input type="number" step="0.01" className="h-8 text-xs" value={freightCost} onChange={e => setFreightCost(e.target.value)} placeholder="0.00" />
                                 </div>
                             </div>
                         )}
@@ -893,11 +897,11 @@ function CreatePurchaseDialog() {
                                     <div className="grid grid-cols-2 gap-2">
                                         <div>
                                             <Label className="text-[10px]">Cant.</Label>
-                                            <Input type="number" className="h-7 text-xs" value={item.quantity} onChange={e => updateItem(item.uniqueId, 'quantity', parseInt(e.target.value) || 1)} />
+                                            <Input type="number" step="0.01" className="h-7 text-xs" value={item.quantity} onChange={e => updateItem(item.uniqueId, 'quantity', e.target.value)} />
                                         </div>
                                         <div>
                                             <Label className="text-[10px]">Costo Unit.</Label>
-                                            <Input type="number" className="h-7 text-xs" value={item.cost} onChange={e => updateItem(item.uniqueId, 'cost', parseFloat(e.target.value) || 0)} />
+                                            <Input type="number" step="0.01" className="h-7 text-xs" value={item.cost} onChange={e => updateItem(item.uniqueId, 'cost', e.target.value)} />
                                         </div>
                                     </div>
                                     <div>
@@ -982,7 +986,7 @@ function EditLogisticsDialog({ purchase }: { purchase: any }) {
     const [logisticsMethod, setLogisticsMethod] = useState<string>(purchase.logisticsMethod || "delivery");
     const [driverId, setDriverId] = useState<string>(purchase.driverId || "");
     const [vehicleId, setVehicleId] = useState<string>(purchase.vehicleId || "");
-    const [freightCost, setFreightCost] = useState<number>(purchase.freightCost / 100 || 0);
+    const [freightCost, setFreightCost] = useState<string | number>(purchase.freightCost / 100 || 0);
 
     const { data: drivers = [] } = useQuery({
         queryKey: ["/api/hr/employees"],
@@ -1013,7 +1017,7 @@ function EditLogisticsDialog({ purchase }: { purchase: any }) {
                     logisticsMethod,
                     driverId: driverId === "none" ? null : (driverId || null),
                     vehicleId: vehicleId === "none" ? null : (vehicleId || null),
-                    freightCost: Math.round(freightCost * 100),
+                    freightCost: Math.round(Number(freightCost) * 100),
                 })
             });
             if (!res.ok) throw new Error("Failed");
@@ -1075,7 +1079,7 @@ function EditLogisticsDialog({ purchase }: { purchase: any }) {
 
                     <div className="space-y-2">
                         <Label>Costo Flete (Opcional)</Label>
-                        <Input type="number" value={freightCost} onChange={e => setFreightCost(parseFloat(e.target.value) || 0)} />
+                        <Input type="number" step="0.01" value={freightCost} onChange={e => setFreightCost(e.target.value)} placeholder="0.00" />
                     </div>
                 </div>
 

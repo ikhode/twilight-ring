@@ -116,6 +116,7 @@ router.post("/complete-stop", async (req, res): Promise<void> => {
 
         const {
             saleId,
+            stopId,
             signature,
             photo,
             amountCollected,
@@ -123,7 +124,9 @@ router.post("/complete-stop", async (req, res): Promise<void> => {
             paymentMethod
         } = req.body;
 
-        if (!saleId) {
+        const effectiveSaleId = saleId || stopId;
+
+        if (!effectiveSaleId) {
             res.status(400).json({ message: "Sale ID required" });
             return;
         }
@@ -139,7 +142,7 @@ router.post("/complete-stop", async (req, res): Promise<void> => {
                 // and save URLs here in a JSONB field
             })
             .where(and(
-                eq(sales.id, saleId),
+                eq(sales.id, effectiveSaleId),
                 eq(sales.organizationId, orgId)
             ));
 

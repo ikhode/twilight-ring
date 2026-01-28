@@ -23,7 +23,10 @@ router.get("/products", async (req, res): Promise<void> => {
         }
 
         const inv = await db.query.products.findMany({
-            where: eq(products.organizationId, orgId),
+            where: and(
+                eq(products.organizationId, orgId),
+                eq(products.isArchived, false)
+            ),
             with: {
                 categoryRef: true,
                 group: true,
@@ -223,10 +226,11 @@ router.get("/alerts", async (req, res): Promise<void> => {
             return;
         }
 
-        // Simple Low Stock Alert Logic
+        // Simple Low Stock Alert Logic (Excluding archived)
         const alerts = await db.query.products.findMany({
             where: and(
                 eq(products.organizationId, orgId),
+                eq(products.isArchived, false),
                 sql`${products.stock} <= ${products.minStock}`
             )
         });

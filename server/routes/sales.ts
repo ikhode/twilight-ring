@@ -33,10 +33,10 @@ router.post("/", async (req, res) => {
         // Process sequentially to manage stock updates safely
         for (const item of items) {
             try {
-                // 1. Verify Stock
+                // 1. Verify Stock & Archive Status
                 const [product] = await db.select().from(products).where(and(eq(products.id, item.productId), eq(products.organizationId, orgId)));
-                if (!product || product.stock < item.quantity) {
-                    console.warn(`Skipping item ${item.productId}: Insufficient stock`);
+                if (!product || product.stock < item.quantity || product.archived) {
+                    console.warn(`Skipping item ${item.productId}: Insufficient stock or archived`);
                     stats.errors++;
                     continue; // Skip this item but attempt others
                 }

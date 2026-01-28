@@ -95,12 +95,15 @@ class GuardianService {
         }
 
         if (products.length > 5 && Math.random() > 0.8) {
-            insights.push({
-                type: "prediction",
-                severity: "medium",
-                title: "Riesgo de inventario",
-                description: `Se prevé un quiebre de stock del producto “${products[0].name}” en 4 días según el consumo actual.`
-            });
+            const sampleProduct = products[Math.floor(Math.random() * products.length)];
+            if (sampleProduct && sampleProduct.name) {
+                insights.push({
+                    type: "prediction",
+                    severity: "medium",
+                    title: "Riesgo de inventario",
+                    description: `Se prevé un quiebre de stock del producto “${sampleProduct.name}” en 4 días según el consumo actual.`
+                });
+            }
         }
 
         // 3. Pick one insight if we generated any

@@ -154,7 +154,10 @@ export class DrizzleStorage implements IStorage {
   // CRM Methods
   async getCustomers(orgId: string): Promise<schema.Customer[]> {
     return await db.query.customers.findMany({
-      where: (customers, { eq }) => eq(customers.organizationId, orgId),
+      where: (customers, { eq, and }) => and(
+        eq(customers.organizationId, orgId),
+        eq(customers.isArchived, false)
+      ),
       orderBy: (customers, { desc }) => [desc(customers.createdAt)],
     });
   }
@@ -166,7 +169,10 @@ export class DrizzleStorage implements IStorage {
 
   async getSuppliers(orgId: string): Promise<schema.Supplier[]> {
     return await db.query.suppliers.findMany({
-      where: (suppliers, { eq }) => eq(suppliers.organizationId, orgId),
+      where: (suppliers, { eq, and }) => and(
+        eq(suppliers.organizationId, orgId),
+        eq(suppliers.isArchived, false)
+      ),
       orderBy: (suppliers, { desc }) => [desc(suppliers.createdAt)],
     });
   }
@@ -177,7 +183,10 @@ export class DrizzleStorage implements IStorage {
   }
 
   async getEmployees(orgId: string): Promise<schema.Employee[]> {
-    return await db.select().from(schema.employees).where(eq(schema.employees.organizationId, orgId));
+    return await db.select().from(schema.employees).where(and(
+      eq(schema.employees.organizationId, orgId),
+      eq(schema.employees.isArchived, false)
+    ));
   }
 
   async createEmployee(employee: schema.InsertEmployee): Promise<schema.Employee> {
