@@ -25,7 +25,9 @@ import {
     RotateCw,
     Camera,
     RefreshCw,
-    Zap
+    Zap,
+    Play,
+    StopCircle
 } from "lucide-react";
 import { KioskSession } from "@/types/kiosk";
 import { cn } from "@/lib/utils";
