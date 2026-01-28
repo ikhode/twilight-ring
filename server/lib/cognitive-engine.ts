@@ -3,14 +3,12 @@ import { db } from "../storage";
 import { aiInsights, employees, products, sales, terminals } from "../../shared/schema";
 import { eq, and, sql } from "drizzle-orm";
 
-type EventType = "production_finish" | "sale_created" | "inventory_low" | "anomaly_detected" | "employee_action";
+type EventType = "production_finish" | "sale_created" | "inventory_low" | "anomaly_detected" | "employee_action" | "logistics_stop_complete" | "finance_cash_shortage";
 
-interface CognitiveEvent {
+export interface CognitiveEvent {
     orgId: string;
     type: EventType;
     data: any;
-    userId?: string;
-    timestamp?: Date;
 }
 
 /**
@@ -23,8 +21,6 @@ export class CognitiveEngine {
         console.log(`[Cognitive] Processing event: ${event.type}`, event.data);
 
         try {
-            // 1. Store raw event log if needed (for training) - Skipping for MVP efficiency
-
             // 2. React to specific patterns
             switch (event.type) {
                 case "production_finish":
@@ -35,6 +31,12 @@ export class CognitiveEngine {
                     break;
                 case "anomaly_detected":
                     await this.handleAnomaly(event);
+                    break;
+                case "logistics_stop_complete":
+                    await this.analyzeLogisticsPerformance(event);
+                    break;
+                case "finance_cash_shortage":
+                    await this.handleCashShortage(event);
                     break;
             }
         } catch (error) {
@@ -96,6 +98,37 @@ export class CognitiveEngine {
             impact: "high",
             confidence: 0.95,
             metadata: { productId, reason }
+        });
+    }
+
+    private static async analyzeLogisticsPerformance(event: CognitiveEvent) {
+        const { type, amount, isPaid } = event.data;
+
+        // Rule: High value delivery with Cash collection
+        if (type === 'delivery' && isPaid && amount > 500000) { // > $5,000 MXN
+            await this.createInsight({
+                organizationId: event.orgId,
+                type: "logistics_cash_risk",
+                title: "Riesgo de Efectivo en Ruta",
+                description: `Se ha recolectado un monto significativo ($${(amount / 100).toFixed(2)}) en efectivo en ruta. Considerar protocolos de seguridad.`,
+                impact: "medium",
+                confidence: 0.9,
+                metadata: event.data
+            });
+        }
+    }
+
+    private static async handleCashShortage(event: CognitiveEvent) {
+        const { difference, registerId } = event.data;
+
+        await this.createInsight({
+            organizationId: event.orgId,
+            type: "finance_anomaly",
+            title: "Faltante de Caja Detectado",
+            description: `Se reportó un faltante de $${Math.abs(difference / 100).toFixed(2)} durante el arqueo de caja.`,
+            impact: "high",
+            confidence: 1.0,
+            metadata: event.data
         });
     }
 

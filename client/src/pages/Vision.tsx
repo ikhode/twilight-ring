@@ -29,6 +29,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/use-auth";
+import { faceApiService } from "@/lib/face-api";
+import * as faceapi from "@vladmandic/face-api";
 
 /**
  * Smart Vision Page
@@ -49,23 +53,64 @@ export default function Vision() {
     const webcamRef = useRef<Webcam>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const requestRef = useRef<number>(0);
+    const { session } = useAuth();
+    const [faceMatcher, setFaceMatcher] = useState<faceapi.FaceMatcher | null>(null);
+    const [isFaceModelLoaded, setIsFaceModelLoaded] = useState(false);
+
+    // Fetch Employees with Embeddings
+    const { data: employees = [] } = useQuery({
+        queryKey: ["/api/hr/employees"],
+        queryFn: async () => {
+            const res = await fetch("/api/hr/employees", {
+                headers: { Authorization: `Bearer ${session?.access_token}` }
+            });
+            if (!res.ok) return [];
+            return res.json();
+        },
+        enabled: !!session?.access_token
+    });
 
     // Load Model
     useEffect(() => {
-        const loadModel = async () => {
+        const loadModels = async () => {
             setIsLoading(true);
             try {
+                // Load COCO-SSD
                 const loadedModel = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
                 setModel(loadedModel);
-                console.log("[Vision] Model loaded successfully");
+                console.log("[Vision] COCO-SSD Model loaded successfully");
+
+                // Load Face API Models
+                await faceApiService.loadModels();
+                setIsFaceModelLoaded(true);
+                console.log("[Vision] Face-API Models loaded successfully");
             } catch (err) {
-                console.error("[Vision] Failed to load model", err);
+                console.error("[Vision] Failed to load models", err);
             } finally {
                 setIsLoading(false);
             }
         };
-        loadModel();
+        loadModels();
     }, []);
+
+    // Build Face Matcher when employees are loaded
+    useEffect(() => {
+        if (employees.length > 0 && isFaceModelLoaded) {
+            const labeledDescriptors = employees
+                .filter((e: any) => e.faceEmbedding && Array.isArray(e.faceEmbedding) && e.faceEmbedding.length > 0)
+                .map((e: any) => {
+                    return new faceapi.LabeledFaceDescriptors(
+                        e.name,
+                        [new Float32Array(e.faceEmbedding)]
+                    );
+                });
+
+            if (labeledDescriptors.length > 0) {
+                setFaceMatcher(new faceapi.FaceMatcher(labeledDescriptors, 0.6));
+                console.log(`[Vision] FaceMatcher initialized with ${labeledDescriptors.length} identities`);
+            }
+        }
+    }, [employees, isFaceModelLoaded]);
 
     // Detection Loop
     const detect = async () => {
@@ -90,6 +135,24 @@ export default function Vision() {
             setDetections(predictions);
             setInferenceTime(Math.round(performance.now() - start));
 
+            // Face Recognition if in security mode
+            let faceResults: any[] = [];
+            if (mode === 'security' && isFaceModelLoaded) {
+                const results = await faceapi
+                    .detectAllFaces(video, new faceapi.SsdMobilenetv1Options())
+                    .withFaceLandmarks()
+                    .withFaceDescriptors();
+
+                if (results.length > 0 && faceMatcher) {
+                    faceResults = results.map(fd => {
+                        const bestMatch = faceMatcher.findBestMatch(fd.descriptor);
+                        return { detection: fd.detection, match: bestMatch };
+                    });
+                } else if (results.length > 0) {
+                    faceResults = results.map(fd => ({ detection: fd.detection, match: null }));
+                }
+            }
+
             // Update Counts
             predictions.forEach(p => {
                 if (p.score > 0.6) {
@@ -105,44 +168,60 @@ export default function Vision() {
             const ctx = canvasRef.current?.getContext("2d");
             if (ctx) {
                 ctx.clearRect(0, 0, videoWidth, videoHeight);
+
+                // Draw COCO detections (except persons if in security mode to avoid overlaps, or we can draw both)
                 predictions.forEach(prediction => {
+                    if (mode === 'security' && prediction.class === 'person' && faceResults.length > 0) return;
+
                     const [x, y, width, height] = prediction.bbox;
                     const color = prediction.class === 'person' ? '#3B82F6' : '#10B981';
 
-                    // Box
                     ctx.strokeStyle = color;
                     ctx.lineWidth = 2;
                     ctx.strokeRect(x, y, width, height);
 
-                    // Label background
                     ctx.fillStyle = color;
                     const textWidth = ctx.measureText(prediction.class).width;
                     ctx.fillRect(x, y - 20, textWidth + 40, 20);
 
-                    // Label text
                     ctx.fillStyle = "#fff";
-                    ctx.font = "bold 12px Inter, system-ui";
-
+                    ctx.font = "bold 10px Inter, system-ui";
                     const label = `${prediction.class.toUpperCase()} :: ${Math.round(prediction.score * 100)}%`;
-                    ctx.fillText(label, x + 5, y - 5);
+                    ctx.fillText(label, x + 5, y - 7);
+                });
 
-                    // Corner brackets for futuristic look
+                // Draw Face detections
+                faceResults.forEach(res => {
+                    const { x, y, width, height } = res.detection.box;
+                    const isIdentified = res.match && res.match.label !== 'unknown';
+                    const color = isIdentified ? '#10B981' : '#3B82F6';
+                    const labelText = isIdentified ? `ID: ${res.match!.label}` : "PERSONA DESCONOCIDA";
+
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(x, y, width, height);
+
+                    // Hud Corner Brackets
                     ctx.beginPath();
                     ctx.strokeStyle = color;
+                    ctx.lineWidth = 4;
                     ctx.moveTo(x, y + 20); ctx.lineTo(x, y); ctx.lineTo(x + 20, y);
-                    ctx.stroke();
-
-                    ctx.beginPath();
                     ctx.moveTo(x + width - 20, y); ctx.lineTo(x + width, y); ctx.lineTo(x + width, y + 20);
-                    ctx.stroke();
-
-                    ctx.beginPath();
                     ctx.moveTo(x, y + height - 20); ctx.lineTo(x, y + height); ctx.lineTo(x + 20, y + height);
-                    ctx.stroke();
-
-                    ctx.beginPath();
                     ctx.moveTo(x + width - 20, y + height); ctx.lineTo(x + width, y + height); ctx.lineTo(x + width, y + height - 20);
                     ctx.stroke();
+
+                    // Identity Tag
+                    ctx.fillStyle = color;
+                    ctx.fillRect(x, y - 25, width, 25);
+                    ctx.fillStyle = "#fff";
+                    ctx.font = "bold 10px Inter";
+                    ctx.fillText(labelText, x + 5, y - 8);
+
+                    if (isIdentified) {
+                        ctx.fillStyle = "rgba(16, 185, 129, 0.2)";
+                        ctx.fillRect(x, y, width, height);
+                    }
                 });
 
                 // Digital Mesh Effect (Draw connections between objects)

@@ -116,23 +116,18 @@ export default function Finance() {
             variant="primary"
           />
           <StatCard
-            title="Supervivencia (Runway)"
-            value={summary?.cognitive?.runway || "Calculando..."}
-            description={`Gasto mensual: ${formatCurrency((summary?.cognitive?.burnRate || 0) / 100)}`}
+            title="Pasivos (Destajo)"
+            value={isLoading ? "..." : formatCurrency((summary?.liabilities || 0) / 100)}
+            description="Deuda por producción"
+            icon={DollarSign}
+            variant="destructive"
+          />
+          <StatCard
+            title="Logística Activa"
+            value={isLoading ? "..." : `${(summary?.pendingSalesCount || 0) + (summary?.pendingPurchasesCount || 0)}`}
+            description={`${summary?.pendingSalesCount || 0} envíos, ${summary?.pendingPurchasesCount || 0} recolectas`}
             icon={Zap}
             variant="warning"
-          />
-          <StatCard
-            title="Crecimiento Mensual"
-            value={`${summary?.cognitive?.growth || 0}%`}
-            icon={TrendingUpIcon}
-            variant="success"
-          />
-          <StatCard
-            title="Balance Neto (30d)"
-            value={formatCurrency((summary?.cognitive?.netCashFlow || 0) / 100)}
-            icon={PiggyBank}
-            variant={summary?.cognitive?.netCashFlow >= 0 ? "success" : "destructive"}
           />
         </div>
 

@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import {
     Plus, Trash2,
     Search, Truck, CheckCircle, ShoppingBag, Loader2,
-    Activity
+    Activity, ShieldAlert, CheckCircle2, PackageCheck
 } from "lucide-react";
 import {
     Dialog,
@@ -103,10 +103,42 @@ export default function Purchases() {
 }
 
 function PurchasesTable({ data }: { data: any[] }) {
-    const { session } = useAuth();
+    const { session, profile } = useAuth();
+    const isAdmin = profile?.role === 'admin';
     const queryClient = useQueryClient();
     const { toast } = useToast();
     const formatCurrency = (amount: number) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(amount);
+
+    const approveMutation = useMutation({
+        mutationFn: async (batchId: string) => {
+            const res = await fetch(`/api/purchases/batch/${batchId}/approve`, {
+                method: 'PATCH',
+                headers: { Authorization: `Bearer ${session?.access_token}` }
+            });
+            if (!res.ok) throw new Error("Failed to approve");
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/purchases"] });
+            toast({ title: "Orden Aprobada", description: "Los insumos ahora pueden ser recibidos." });
+        }
+    });
+
+    const receiveBatchMutation = useMutation({
+        mutationFn: async (batchId: string) => {
+            const res = await fetch(`/api/purchases/batch/${batchId}/receive`, {
+                method: 'PATCH',
+                headers: { Authorization: `Bearer ${session?.access_token}` }
+            });
+            if (!res.ok) throw new Error("Failed to receive batch");
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/purchases"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/inventory/products"] });
+            toast({ title: "Lote Recibido", description: "El inventario ha sido actualizado." });
+        }
+    });
 
     const receiveMutation = useMutation({
         mutationFn: async (id: string) => {
@@ -165,29 +197,54 @@ function PurchasesTable({ data }: { data: any[] }) {
         },
         { key: "total", header: "Total", render: (it: any) => <span className="font-bold">{formatCurrency((it.totalAmount || 0) / 100)}</span> },
         {
-            key: "status", header: "Estado", render: (it: any) => (
+            key: "status", header: "Estado / Lote", render: (it: any) => (
                 <div className="flex flex-col gap-1">
-                    <Badge variant={it.paymentStatus === 'paid' ? 'default' : 'secondary'} className="w-fit text-[10px] px-1 h-4">
-                        {it.paymentStatus === 'paid' ? 'Pagado' : 'Por Pagar'}
-                    </Badge>
-                    <Badge
-                        variant="outline"
-                        className={cn(
-                            "w-fit text-[10px] px-1 h-4",
-                            it.deliveryStatus === 'received' ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                    <div className="flex items-center gap-1">
+                        <Badge variant={it.paymentStatus === 'paid' ? 'default' : 'secondary'} className="w-fit text-[10px] px-1 h-4">
+                            {it.paymentStatus === 'paid' ? 'Pagado' : 'Por Pagar'}
+                        </Badge>
+                        {it.batchId && <span className="text-[10px] font-mono text-muted-foreground">{it.batchId}</span>}
+                    </div>
+                    <div className="flex items-center gap-1">
+                        <Badge
+                            variant="outline"
+                            className={cn(
+                                "w-fit text-[10px] px-1 h-4",
+                                it.deliveryStatus === 'received' ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                            )}
+                        >
+                            {it.deliveryStatus === 'received' ? 'Recibido' : 'Pendiente'}
+                        </Badge>
+                        {!it.isApproved && (
+                            <Badge variant="destructive" className="w-fit text-[10px] px-1 h-4 animate-pulse">
+                                <ShieldAlert className="w-2.5 h-2.5 mr-1" /> Sin Aprobar
+                            </Badge>
                         )}
-                    >
-                        {it.deliveryStatus === 'received' ? 'Recibido' : 'Pendiente'}
-                    </Badge>
+                        {it.isApproved && it.deliveryStatus !== 'received' && (
+                            <Badge variant="outline" className="w-fit text-[10px] px-1 h-4 bg-blue-500/10 text-blue-500 border-blue-500/20">
+                                <CheckCircle2 className="w-2.5 h-2.5 mr-1" /> Aprobado
+                            </Badge>
+                        )}
+                    </div>
                 </div>
             )
         },
         {
             key: "actions", header: "", render: (it: any) => (
                 <div className="flex gap-1">
-                    {it.deliveryStatus === 'pending' && (
+                    {it.deliveryStatus === 'pending' && it.isApproved && (
                         <Button size="sm" variant="outline" className="h-7 text-[10px] px-2 bg-green-50 hover:bg-green-100 text-green-700 border-green-200" onClick={() => receiveMutation.mutate(it.id)} disabled={receiveMutation.isPending}>
                             Recibir
+                        </Button>
+                    )}
+                    {it.deliveryStatus === 'pending' && !it.isApproved && isAdmin && (
+                        <Button size="sm" variant="outline" className="h-7 text-[10px] px-2 bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200" onClick={() => approveMutation.mutate(it.batchId)} disabled={approveMutation.isPending}>
+                            Aprobar
+                        </Button>
+                    )}
+                    {it.deliveryStatus === 'pending' && it.isApproved && it.batchId && (
+                        <Button size="sm" variant="ghost" title="Recibir Todo el Lote" className="h-7 w-7 p-0 text-emerald-600" onClick={() => receiveBatchMutation.mutate(it.batchId)} disabled={receiveBatchMutation.isPending}>
+                            <PackageCheck className="w-4 h-4" />
                         </Button>
                     )}
                     {it.paymentStatus === 'pending' && (
@@ -513,23 +570,6 @@ function CreatePurchaseDialog() {
                 <DialogHeader><DialogTitle>Nueva Orden de Compra</DialogTitle></DialogHeader>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 py-4">
-                    {/* Catalog */}
-                    <div className="space-y-4 border-r pr-4">
-                        <Label>Catálogo de Insumos</Label>
-                        <div className="relative">
-                            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                            <Input placeholder="Buscar..." className="pl-8" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
-                        </div>
-                        <div className="space-y-2 max-h-80 overflow-y-auto pr-2">
-                            {filteredProducts.map(p => (
-                                <div key={p.id} className="flex justify-between items-center p-2 border rounded hover:bg-muted cursor-pointer group" onClick={() => addToCart(p)}>
-                                    <div className="text-sm font-medium">{p.name}</div>
-                                    <Badge variant="outline" className="group-hover:bg-primary group-hover:text-primary-foreground">Agg</Badge>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
                     {/* Order Details */}
                     <div className="space-y-4 border-r pr-4">
                         <CognitiveField label="Proveedor" value={selectedSupplier} semanticType="category">
@@ -593,7 +633,7 @@ function CreatePurchaseDialog() {
                     </div>
 
                     {/* Cart Summary */}
-                    <div className="space-y-4">
+                    <div className="space-y-4 border-r pr-4">
                         <Label>Items en Orden</Label>
                         <div className="space-y-2 max-h-80 overflow-y-auto pr-2">
                             {cart.length === 0 && <p className="text-sm text-muted-foreground text-center py-10 italic">Carrito vacío</p>}
@@ -635,7 +675,7 @@ function CreatePurchaseDialog() {
                         </div>
 
                         {/* Operational Insight for Purchases */}
-                        <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-3 space-y-2 animate-in fade-in zoom-in-95">
+                        <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-3 space-y-2 animate-in fade-in zoom-in-95 mt-4">
                             <div className="flex items-center gap-2">
                                 <Activity className="w-3.5 h-3.5 text-blue-400" />
                                 <span className="text-[10px] font-bold uppercase tracking-widest text-blue-400">Optimización de Abastecimiento</span>
@@ -646,6 +686,23 @@ function CreatePurchaseDialog() {
                                     <p>Impacto programado: <span className="text-slate-200">-{formatCurrency(totalWithFreight)}</span></p>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+
+                    {/* Catalog */}
+                    <div className="space-y-4">
+                        <Label>Catálogo de Insumos</Label>
+                        <div className="relative">
+                            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input placeholder="Buscar..." className="pl-8" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                        </div>
+                        <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2">
+                            {filteredProducts.map(p => (
+                                <div key={p.id} className="flex justify-between items-center p-2 border rounded hover:bg-muted cursor-pointer group" onClick={() => addToCart(p)}>
+                                    <div className="text-sm font-medium">{p.name}</div>
+                                    <Badge variant="outline" className="group-hover:bg-primary group-hover:text-primary-foreground">Agg</Badge>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </div>

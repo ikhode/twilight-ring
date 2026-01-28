@@ -104,6 +104,19 @@ router.post("/log", async (req, res) => {
             }
         }
 
+        // --- NEW: Emit to Cognitive Engine for Presence Analysis ---
+        const { CognitiveEngine } = await import("../lib/cognitive-engine");
+        CognitiveEngine.emit({
+            orgId,
+            type: "employee_action",
+            data: {
+                employeeId,
+                action,
+                status: newStatus,
+                area: area || "General"
+            }
+        });
+
         res.json({ success: true, status: newStatus });
     } catch (error) {
         console.error("Log attendance error:", error);

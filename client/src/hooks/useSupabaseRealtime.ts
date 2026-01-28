@@ -6,7 +6,7 @@ import { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supab
 
 interface UseSupabaseRealtimeOptions<T extends { [key: string]: any } = any> {
     table: string;
-    queryKey?: string[];
+    queryKey?: any[];
     filter?: string;
     onInsert?: (payload: RealtimePostgresChangesPayload<T>) => void;
     onUpdate?: (payload: RealtimePostgresChangesPayload<T>) => void;
@@ -158,7 +158,7 @@ export function useSupabaseRealtime<T extends { [key: string]: any } = any>({
  * Hook simplificado para invalidar queries automáticamente
  * sin necesidad de handlers personalizados
  */
-export function useRealtimeInvalidation(table: string, queryKey: string[]) {
+export function useRealtimeInvalidation(table: string, queryKey: any[]) {
     return useSupabaseRealtime({
         table,
         queryKey,

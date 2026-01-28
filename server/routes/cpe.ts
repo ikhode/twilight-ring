@@ -190,13 +190,16 @@ export function registerCPERoutes(app: Express) {
 
             if (!existing) return res.status(404).json({ message: "Process not found" });
 
+            // Ensure name is never null/empty if provided, otherwise keep existing
+            const updateData: any = {
+                updatedAt: new Date(),
+                name: name || existing.name,
+                description: description !== undefined ? description : existing.description,
+                workflowData: workflowData !== undefined ? workflowData : existing.workflowData
+            };
+
             const [updated] = await db.update(processes)
-                .set({
-                    name,
-                    description,
-                    workflowData,
-                    updatedAt: new Date()
-                })
+                .set(updateData)
                 .where(eq(processes.id, req.params.id))
                 .returning();
 

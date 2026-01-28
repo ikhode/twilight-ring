@@ -9,7 +9,7 @@ type RealtimeOptions = { // Generic options
     filter?: string;
     channelName?: string;
     onReceive?: (payload: any) => void;
-    queryKeyToInvalidate?: string[];
+    queryKeyToInvalidate?: any[];
 };
 
 export function useRealtimeSubscription({

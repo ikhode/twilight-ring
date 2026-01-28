@@ -414,6 +414,7 @@ router.post("/fleet/routes/stops/:id/complete", async (req, res): Promise<void> 
         const { id } = req.params;
         const { signature, lat, lng, isPaid, paymentAmount, paymentMethod } = req.body;
         const orgId = await getOrgIdFromRequest(req);
+        const now = new Date();
         if (!orgId) {
             res.status(401).json({ message: "Unauthorized" });
             return;
@@ -428,7 +429,7 @@ router.post("/fleet/routes/stops/:id/complete", async (req, res): Promise<void> 
                 isPaid: isPaid || false,
                 paymentAmount: paymentAmount,
                 paymentMethod: paymentMethod,
-                completedAt: new Date()
+                completedAt: now
             })
             .where(eq(routeStops.id, id))
             .returning();
@@ -436,6 +437,21 @@ router.post("/fleet/routes/stops/:id/complete", async (req, res): Promise<void> 
         if (!stop) {
             res.status(404).json({ message: "Stop not found" });
             return;
+        }
+
+        // --- NEW INTERCONNECTION: Update associated Order/Purchase status ---
+        if (stop.stopType === 'delivery' && stop.orderId) {
+            await db.update(sales)
+                .set({ deliveryStatus: 'delivered' })
+                .where(eq(sales.id, stop.orderId));
+
+            console.log(`[LOGISTICS-CONNECTION] Sale ${stop.orderId} marked as DELIVERED`);
+        } else if (stop.stopType === 'collection' && stop.purchaseId) {
+            await db.update(purchases)
+                .set({ deliveryStatus: 'received', receivedAt: now })
+                .where(eq(purchases.id, stop.purchaseId));
+
+            console.log(`[LOGISTICS-CONNECTION] Purchase ${stop.purchaseId} marked as RECEIVED via Pickup`);
         }
 
         // INTEGRATION: Finance (Cash Collection on Delivery)
@@ -473,6 +489,20 @@ router.post("/fleet/routes/stops/:id/complete", async (req, res): Promise<void> 
                 console.log(`[FINANCE] Recorded ${stop.paymentAmount} cents from delivery stop ${stop.id}`);
             }
         }
+
+        // --- NEW: Emit to Cognitive Engine for Route Analysis ---
+        const { CognitiveEngine } = await import("../lib/cognitive-engine");
+        CognitiveEngine.emit({
+            orgId,
+            type: "logistics_stop_complete",
+            data: {
+                stopId: stop.id,
+                type: stop.stopType,
+                isPaid: stop.isPaid,
+                amount: stop.paymentAmount,
+                location: { lat, lng }
+            }
+        });
 
         res.json(stop);
     } catch (error) {

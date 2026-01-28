@@ -29,7 +29,11 @@ async function setup() {
             await pool.query("CREATE PUBLICATION supabase_realtime;");
         }
 
-        const tables = ['products', 'sales', 'purchases', 'employees', 'ai_insights'];
+        const tables = [
+            'products', 'sales', 'purchases', 'employees', 'ai_insights',
+            'processes', 'piecework_tickets', 'ai_configurations', 'process_instances',
+            'inventory_movements', 'tickets'
+        ];
         for (const table of tables) {
             try {
                 // First check if already in publication

@@ -257,6 +257,18 @@ export class DrizzleStorage implements IStorage {
     return await db.select().from(schema.payrollAdvances).where(eq(schema.payrollAdvances.organizationId, orgId));
   }
 
+  async getPieceworkTickets(orgId: string): Promise<any[]> {
+    return await db.query.pieceworkTickets.findMany({
+      where: (tickets, { eq }) => eq(tickets.organizationId, orgId),
+      orderBy: (tickets, { desc }) => [desc(tickets.createdAt)],
+    });
+  }
+
+  async createPieceworkTicket(ticket: any): Promise<schema.PieceworkTicket> {
+    const [newTicket] = await db.insert(schema.pieceworkTickets).values(ticket).returning();
+    return newTicket;
+  }
+
   // Analytics Methods
   async getAnalyticsMetrics(orgId: string): Promise<schema.AnalyticsMetric[]> {
     return await db.query.analyticsMetrics.findMany({

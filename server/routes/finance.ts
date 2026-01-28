@@ -1,11 +1,11 @@
 import { Router, Request, Response } from "express";
-import { db } from "../storage";
+import { db, storage } from "../storage";
 import {
     cashRegisters, cashSessions, cashTransactions, users, employees,
     expenses, payments, sales, payrollAdvances, purchases, products,
-    budgets, bankReconciliations, bankAccounts
+    budgets, bankReconciliations, bankAccounts, pieceworkTickets
 } from "../../shared/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { getAuthenticatedUser, getOrgIdFromRequest } from "../auth_util";
 import { requireModule } from "../middleware/moduleGuard";
 
@@ -178,6 +178,16 @@ router.post("/cash/close", async (req: Request, res: Response) => {
                 currentSessionId: null
             })
             .where(eq(cashRegisters.id, register.id));
+
+        // --- NEW: Emit to Cognitive Engine if shortage ---
+        if (difference < 0) {
+            const { CognitiveEngine } = await import("../lib/cognitive-engine");
+            CognitiveEngine.emit({
+                orgId,
+                type: "finance_cash_shortage",
+                data: { difference, registerId: register.id, sessionId: register.currentSessionId }
+            });
+        }
 
         res.json({
             success: true,
@@ -422,7 +432,7 @@ router.get("/summary", async (req, res): Promise<void> => {
             return and(...filters);
         };
 
-        const [totalExpenses, totalSales, totalPayments, totalAdvances, pendingSales, pendingPurchases, registers, accounts] = await Promise.all([
+        const [totalExpenses, totalSales, totalPayments, totalAdvances, pendingSales, pendingPurchases, registers, accounts, pendingTickets] = await Promise.all([
             db.query.expenses.findMany({ where: withPeriod(eq(expenses.organizationId, orgId), expenses.date) }),
             db.query.sales.findMany({ where: withPeriod(eq(sales.organizationId, orgId), sales.date) }),
             db.query.payments.findMany({ where: withPeriod(eq(payments.organizationId, orgId), payments.date) }),
@@ -430,7 +440,8 @@ router.get("/summary", async (req, res): Promise<void> => {
             db.query.sales.findMany({ where: and(eq(sales.organizationId, orgId), eq(sales.deliveryStatus, 'pending')) }),
             db.query.purchases.findMany({ where: and(eq(purchases.organizationId, orgId), eq(purchases.paymentStatus, 'pending')) }),
             db.query.cashRegisters.findMany({ where: eq(cashRegisters.organizationId, orgId) }),
-            db.query.bankAccounts.findMany({ where: eq(bankAccounts.organizationId, orgId) })
+            db.query.bankAccounts.findMany({ where: eq(bankAccounts.organizationId, orgId) }),
+            db.query.pieceworkTickets.findMany({ where: and(eq(pieceworkTickets.organizationId, orgId), eq(pieceworkTickets.status, 'pending')) })
         ]);
 
         const expenseSum = totalExpenses.reduce((acc, curr) => acc + curr.amount, 0);
@@ -438,6 +449,7 @@ router.get("/summary", async (req, res): Promise<void> => {
         const payrollSum = totalAdvances.reduce((acc, curr) => acc + curr.amount, 0);
         const manualIncomeSum = totalPayments.filter(p => p.type === 'income').reduce((acc, curr) => acc + curr.amount, 0);
         const manualPaymentExpenseSum = totalPayments.filter(p => p.type === 'expense').reduce((acc, curr) => acc + curr.amount, 0);
+        const pieceworkLiability = pendingTickets.reduce((acc, curr) => acc + (Number(curr.totalAmount) || 0), 0);
 
         const totalIncome = salesSum + manualIncomeSum;
         const totalOutflow = expenseSum + payrollSum + manualPaymentExpenseSum;
@@ -488,6 +500,9 @@ router.get("/summary", async (req, res): Promise<void> => {
             expenses: totalOutflow,
             cashInRegisters,
             bankBalance,
+            liabilities: pieceworkLiability, // New metric based on production
+            pendingSalesCount: pendingSales.length,
+            pendingPurchasesCount: pendingPurchases.length,
             recentTransactions
         });
 

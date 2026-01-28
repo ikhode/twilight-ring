@@ -37,8 +37,8 @@ export const products = pgTable("products", {
     organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     sku: text("sku").unique(),
-    category: text("category").notNull(),
-    productType: text("product_type").notNull().default("both"), // "sale", "purchase", "internal", "both"
+    category: text("category").notNull(), // e.g. "parts", "labor", "oil", "accessories"
+    productType: text("product_type").notNull().default("both"), // "sale", "purchase", "service" or "both"
     unit: text("unit").notNull().default("pza"), // "kg", "lt", "pza", etc.
     price: integer("price").notNull().default(0), // in cents
     cost: integer("cost").notNull().default(0), // in cents
@@ -86,6 +86,7 @@ export const purchases = pgTable("purchases", {
     productId: varchar("product_id").references(() => products.id),
     quantity: integer("quantity").notNull().default(1),
     totalAmount: integer("total_amount").notNull(), // in cents
+    batchId: varchar("batch_id"), // Group items from same order
     paymentStatus: text("payment_status").notNull().default("pending"), // "pending", "paid", "refunded"
     paymentMethod: text("payment_method"), // "cash", "transfer", "credit"
     deliveryStatus: text("delivery_status").notNull().default("pending"), // "pending", "received", "partial", "returned", "cancelled"
@@ -93,6 +94,8 @@ export const purchases = pgTable("purchases", {
     driverId: varchar("driver_id").references(() => employees.id),
     vehicleId: varchar("vehicle_id").references(() => vehicles.id),
     freightCost: integer("freight_cost").default(0), // in cents
+    isApproved: boolean("is_approved").notNull().default(true), // Default true for now, can be restricted
+    approvedBy: varchar("approved_by").references(() => users.id),
     date: timestamp("date").defaultNow(),
     receivedAt: timestamp("received_at"),
     paidAt: timestamp("paid_at"),

@@ -238,7 +238,8 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
                 headers: getKioskHeaders({ employeeId: sessionContext.driver?.id }),
                 body: JSON.stringify({
                     yields: closureData.yields,
-                    notes: closureData.notes
+                    notes: closureData.notes,
+                    estimatedInput: Math.round(closureData.yields * 1.8)
                 })
             });
             if (!res.ok) throw new Error("Error al finalizar lote");
@@ -658,8 +659,8 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
                                         <DialogContent className="bg-[#0a0a0a]/95 border-white/10 text-white backdrop-blur-3xl rounded-[40px] p-0 max-w-6xl h-[85vh] overflow-hidden flex flex-col">
                                             <div className="p-10 border-b border-white/5 flex items-center justify-between shrink-0">
                                                 <div>
-                                                    <DialogTitle className="text-3xl font-black italic uppercase tracking-tighter">Cierre de Lote & <span className="text-primary text-4xl">Balance de Masas</span></DialogTitle>
-                                                    <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mt-1">ID: {selectedInstance.id.slice(0, 8)}</p>
+                                                    <DialogTitle className="text-3xl font-black italic uppercase tracking-tighter">Cierre de Lote y <span className="text-primary text-4xl">Balance de Masas</span></DialogTitle>
+                                                    <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mt-1">ID: {selectedInstance?.id?.slice(0, 8) || "N/A"}</p>
                                                 </div>
                                                 <Button variant="ghost" size="icon" onClick={() => setIsFinishBatchOpen(false)} className="rounded-full h-12 w-12 bg-white/5">
                                                     <X className="w-6 h-6" />
