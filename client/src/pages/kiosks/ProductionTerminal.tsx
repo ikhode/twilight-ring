@@ -18,13 +18,14 @@ import {
     TrendingUp,
     ChevronRight,
     Loader2,
-    Settings,
-    Play,
-    StopCircle,
     Activity,
     AlertTriangle,
     X,
-    Info
+    Info,
+    RotateCw,
+    Camera,
+    RefreshCw,
+    Zap
 } from "lucide-react";
 import { KioskSession } from "@/types/kiosk";
 import { cn } from "@/lib/utils";
@@ -92,7 +93,10 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
     const [selectedProcessId, setSelectedProcessId] = useState<string>("");
     const [employeeSearch, setEmployeeSearch] = useState("");
     const [isFinishBatchOpen, setIsFinishBatchOpen] = useState(false);
+    const [isMermaOpen, setIsMermaOpen] = useState(false);
+    const [mermaData, setMermaData] = useState({ reason: "", quantity: 0, type: "destopado" });
     const [closureData, setClosureData] = useState({ yields: 0, notes: "" });
+    const [activeTab, setActiveTab] = useState("active_lots");
 
     // Realtime Reactivity
     useRealtimeSubscription({
@@ -244,11 +248,37 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
                 description: "El lote ha sido cerrado y el inventario actualizado.",
             });
             setIsFinishBatchOpen(false);
-            setCurrentStage("completed");
+            resetWorkflow();
             queryClient.invalidateQueries({ queryKey: ["/api/production/instances"] });
         },
         onError: (err: any) => {
             toast({ title: "Error", description: err.message || "Fallo al finalizar", variant: "destructive" });
+        }
+    });
+
+    const reportMermaMutation = useMutation({
+        mutationFn: async () => {
+            if (!selectedInstance) return;
+            const res = await fetch("/api/production/events", {
+                method: "POST",
+                headers: getKioskHeaders({ employeeId: sessionContext.driver?.id }),
+                body: JSON.stringify({
+                    instanceId: selectedInstance.id,
+                    eventType: "anomaly",
+                    data: {
+                        mermaType: mermaData.type,
+                        reason: mermaData.reason,
+                        quantity: mermaData.quantity
+                    }
+                })
+            });
+            if (!res.ok) throw new Error("Error reportando merma");
+            return res.json();
+        },
+        onSuccess: () => {
+            toast({ title: "Merma Reportada", description: "El incidente ha sido registrado satisfactoriamente." });
+            setIsMermaOpen(false);
+            setMermaData({ reason: "", quantity: 0, type: "destopado" });
         }
     });
 
@@ -264,6 +294,12 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
         e.name.toLowerCase().includes(employeeSearch.toLowerCase())
     );
 
+    // Calculate totals per task in this batch
+    const taskTotals = batchTickets.reduce((acc: Record<string, number>, t: any) => {
+        acc[t.taskName] = (acc[t.taskName] || 0) + t.quantity;
+        return acc;
+    }, {});
+
     // Calculate totals per employee in this batch
     const batchTotals = batchTickets.reduce((acc: Record<string, number>, t: any) => {
         acc[t.employeeId] = (acc[t.employeeId] || 0) + t.quantity;
@@ -274,24 +310,41 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
         <div className="h-[100vh] w-full bg-[#020202] text-white selection:bg-primary/30 p-4 md:p-8 flex flex-col gap-6 overflow-hidden">
             {/* Ultra Modern Header */}
             <header className="flex flex-col md:flex-row items-center justify-between gap-6 pb-6 border-b border-white/5">
-                <div className="flex items-center gap-6">
-                    <div className="w-16 h-16 rounded-[22px] bg-primary/20 flex items-center justify-center border border-primary/30 shadow-[0_0_30px_rgba(var(--primary),0.2)]">
-                        <Activity className="w-8 h-8 text-primary" />
-                    </div>
-                    <div className="space-y-1">
-                        <h1 className="text-4xl font-black italic tracking-tighter uppercase leading-none">
-                            Producción <span className="text-slate-500">Inteligente</span>
-                        </h1>
-                        <div className="flex items-center gap-3">
-                            <Badge variant="outline" className="border-emerald-500/20 text-emerald-500 bg-emerald-500/5 uppercase text-[9px] font-black tracking-widest px-2 py-0.5">
-                                Estación: {sessionContext.terminal.location || "PLANTA PRAL"}
-                            </Badge>
-                            <span className="w-1 h-1 rounded-full bg-white/10" />
-                            <div className="flex items-center gap-2">
-                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em]">SISTEMA EN TIEMPO REAL</span>
+                <div className="flex flex-col gap-6">
+                    <div className="flex items-center gap-6">
+                        <div className="w-16 h-16 rounded-[22px] bg-primary/20 flex items-center justify-center border border-primary/30 shadow-[0_0_30px_rgba(var(--primary),0.2)]">
+                            <Activity className="w-8 h-8 text-primary" />
+                        </div>
+                        <div className="space-y-1">
+                            <h1 className="text-4xl font-black italic tracking-tighter uppercase leading-none">
+                                Producción <span className="text-slate-500">Inteligente</span>
+                            </h1>
+                            <div className="flex items-center gap-3">
+                                <Badge variant="outline" className="border-emerald-500/20 text-emerald-500 bg-emerald-500/5 uppercase text-[9px] font-black tracking-widest px-2 py-0.5">
+                                    Estación: {sessionContext.terminal.location || "PLANTA PRAL"}
+                                </Badge>
+                                <span className="w-1 h-1 rounded-full bg-white/10" />
+                                <div className="flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em]">SISTEMA EN TIEMPO REAL</span>
+                                </div>
                             </div>
                         </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 p-1 bg-white/5 rounded-2xl w-fit">
+                        {["catalogo", "active_lots", "trazabilidad"].map((tab) => (
+                            <button
+                                key={tab}
+                                onClick={() => setActiveTab(tab)}
+                                className={cn(
+                                    "px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all",
+                                    activeTab === tab ? "bg-white text-black shadow-lg" : "text-slate-500 hover:text-white"
+                                )}
+                            >
+                                {tab.replace("_", " ")}
+                            </button>
+                        ))}
                     </div>
                 </div>
 
@@ -337,8 +390,7 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
                             <div className="space-y-10 animate-in fade-in slide-in-from-right-8 duration-700">
                                 <div className="flex items-center justify-between">
                                     <div className="space-y-2">
-                                        <h2 className="text-6xl font-black tracking-tight uppercase italic leading-tight">Lotes <br /><span className="text-primary underline decoration-primary/20">en Proceso</span></h2>
-                                        <p className="text-slate-500 font-bold uppercase tracking-[0.3em] text-xs">Seleccione el lote activo para reportar</p>
+                                        <h2 className="text-2xl font-black tracking-tight uppercase italic flex items-center gap-4">Lotes en <span className="text-white">Ejecución</span></h2>
                                     </div>
 
                                     {/* SUPERVISOR ACTION: START BATCH */}
@@ -401,36 +453,99 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
                                         <p className="text-[10px] text-slate-800 font-bold uppercase mt-4">Inicie un proceso para comenzar el registro</p>
                                     </div>
                                 ) : (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="flex flex-col gap-4">
                                         {activeInstances.map((instance) => (
-                                            <button
+                                            <div
                                                 key={instance.id}
-                                                onClick={() => {
-                                                    setSelectedInstance(instance);
-                                                    setCurrentStage("report");
-                                                }}
-                                                className="group relative p-10 rounded-[45px] bg-white/[0.02] border border-white/5 hover:border-primary/50 hover:bg-primary/5 transition-all duration-500 text-left overflow-hidden shadow-lg"
+                                                className="group p-8 rounded-[35px] bg-white/[0.01] border border-white/5 hover:border-white/10 transition-all flex items-center justify-between gap-8 h-40"
                                             >
-                                                <div className="absolute -top-10 -right-10 p-8 opacity-[0.02] group-hover:opacity-[0.05] transition-opacity">
-                                                    <Box className="w-64 h-64 rotate-12" />
-                                                </div>
-                                                <div className="relative z-10 space-y-6">
-                                                    <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center group-hover:scale-110 group-hover:bg-primary/20 transition-all duration-500 border border-white/5">
-                                                        <Activity className="w-8 h-8 text-slate-500 group-hover:text-primary transition-colors" />
+                                                <div className="flex items-center gap-10">
+                                                    <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shadow-[0_0_20px_rgba(16,185,129,0.1)]">
+                                                        <RotateCw className="w-8 h-8 text-emerald-500 animate-spin-slow" />
                                                     </div>
-                                                    <div>
-                                                        <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-1">ID SESIÓN: {instance.id.slice(0, 8)}</p>
-                                                        <h3 className="text-3xl font-black text-white uppercase italic tracking-tighter group-hover:text-primary transition-colors">{instance.processName}</h3>
-                                                    </div>
-                                                    <div className="flex items-center justify-between pt-4">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                                                            <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">{instance.status}</span>
+                                                    <div className="space-y-2">
+                                                        <div className="flex items-center gap-4">
+                                                            <h3 className="text-2xl font-black text-white italic tracking-tighter uppercase leading-none">Lote #{instance.id.slice(0, 8)}</h3>
+                                                            <Badge className="bg-emerald-500/10 text-emerald-500 border-none px-3 font-black text-[10px] italic">{instance.processName}</Badge>
                                                         </div>
-                                                        <ChevronRight className="w-6 h-6 text-slate-800 group-hover:text-primary group-hover:translate-x-2 transition-all" />
+                                                        <div className="flex items-center gap-4 text-xs font-bold uppercase tracking-widest text-slate-600 italic">
+                                                            <span className="flex items-center gap-2"><History className="w-3 h-3" /> {new Date(instance.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} p.m.</span>
+                                                            <span className="w-1 h-1 rounded-full bg-slate-800" />
+                                                            <span className="text-slate-500 font-mono tracking-tighter">{instance.processId.slice(0, 8)}</span>
+                                                            <span className="w-1 h-1 rounded-full bg-slate-800" />
+                                                            <span className="text-emerald-500 font-black tracking-tighter italic">X Piezas procesadas</span>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </button>
+
+                                                <div className="flex items-center gap-4">
+                                                    <Dialog open={isMermaOpen} onOpenChange={setIsMermaOpen}>
+                                                        <DialogTrigger asChild>
+                                                            <Button
+                                                                variant="ghost"
+                                                                onClick={() => setSelectedInstance(instance)}
+                                                                className="flex items-center gap-3 text-[10px] font-black uppercase tracking-widest text-[#f59e0b] hover:bg-[#f59e0b]/10 px-6 h-14 rounded-2xl transition-all"
+                                                            >
+                                                                <AlertTriangle className="w-5 h-5" /> Reportar Merma
+                                                            </Button>
+                                                        </DialogTrigger>
+                                                        <DialogContent className="bg-[#0a0a0a] border-white/10 text-white rounded-[40px] p-12 max-w-xl">
+                                                            <DialogHeader className="space-y-6">
+                                                                <DialogTitle className="text-4xl font-black italic uppercase tracking-tighter text-[#f59e0b]">Reporte de <br />Anomalía</DialogTitle>
+                                                                <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Registra cualquier pérdida o incidente en el material</p>
+                                                            </DialogHeader>
+                                                            <div className="space-y-8 py-8">
+                                                                <div className="space-y-4">
+                                                                    <label className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500">Motivo de Merma</label>
+                                                                    <textarea
+                                                                        value={mermaData.reason}
+                                                                        onChange={(e) => setMermaData({ ...mermaData, reason: e.target.value })}
+                                                                        className="w-full h-32 bg-white/5 border border-white/10 rounded-2xl p-6 text-lg font-bold outline-none focus:border-[#f59e0b]/50 transition-all resize-none"
+                                                                        placeholder="DESBORDAMIENTO, MATERIAL DEFECTUOSO..."
+                                                                    />
+                                                                </div>
+                                                                <div className="space-y-4">
+                                                                    <label className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500">Cantidad Perdida</label>
+                                                                    <input
+                                                                        type="number"
+                                                                        value={mermaData.quantity || ""}
+                                                                        onChange={(e) => setMermaData({ ...mermaData, quantity: parseInt(e.target.value) || 0 })}
+                                                                        className="w-full h-20 bg-white/5 border border-white/10 rounded-2xl px-8 text-3xl font-mono font-black text-[#f59e0b] outline-none"
+                                                                        placeholder="0"
+                                                                    />
+                                                                </div>
+                                                                <Button
+                                                                    onClick={() => reportMermaMutation.mutate()}
+                                                                    className="w-full h-24 bg-[#f59e0b] text-black text-2xl font-black uppercase italic tracking-tighter rounded-3xl"
+                                                                >
+                                                                    REPORTE DE INCIDENTE
+                                                                </Button>
+                                                            </div>
+                                                        </DialogContent>
+                                                    </Dialog>
+
+                                                    <Button
+                                                        onClick={() => {
+                                                            setSelectedInstance(instance);
+                                                            setCurrentStage("report");
+                                                        }}
+                                                        className="flex items-center gap-3 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 hover:bg-emerald-500 hover:text-black px-8 h-14 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all"
+                                                    >
+                                                        <Plus className="w-5 h-5 fill-current" /> Reportar Avance
+                                                    </Button>
+
+                                                    <Button
+                                                        variant="outline"
+                                                        onClick={() => {
+                                                            setSelectedInstance(instance);
+                                                            setIsFinishBatchOpen(true);
+                                                        }}
+                                                        className="border-white/10 text-slate-500 hover:text-white hover:bg-white/5 px-8 h-14 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all"
+                                                    >
+                                                        Finalizar
+                                                    </Button>
+                                                </div>
+                                            </div>
                                         ))}
                                     </div>
                                 )}
@@ -538,41 +653,124 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
                                                 FINALIZAR LOTE <StopCircle className="w-6 h-6 ml-4" />
                                             </Button>
                                         </DialogTrigger>
-                                        <DialogContent className="bg-[#0a0a0a]/95 border-white/10 text-white backdrop-blur-3xl rounded-[40px] p-12 max-w-2xl">
-                                            <DialogHeader className="space-y-6">
-                                                <DialogTitle className="text-5xl font-black italic uppercase tracking-tighter">Cierre de <span className="text-primary">Producción</span></DialogTitle>
-                                                <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Reporta el rendimiento final para cerrar este lote</p>
-                                            </DialogHeader>
-
-                                            <div className="space-y-10 py-10">
-                                                <div className="space-y-4">
-                                                    <label className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500">RENDIMIENTO TOTAL (PIEZAS/KG)</label>
-                                                    <input
-                                                        type="number"
-                                                        value={closureData.yields || ""}
-                                                        onChange={(e) => setClosureData({ ...closureData, yields: parseInt(e.target.value) || 0 })}
-                                                        className="w-full h-24 bg-white/5 border border-white/10 rounded-3xl px-10 text-5xl font-mono font-black text-primary outline-none focus:border-primary/50 transition-all"
-                                                        placeholder="0"
-                                                    />
+                                        <DialogContent className="bg-[#0a0a0a]/95 border-white/10 text-white backdrop-blur-3xl rounded-[40px] p-0 max-w-6xl h-[85vh] overflow-hidden flex flex-col">
+                                            <div className="p-10 border-b border-white/5 flex items-center justify-between shrink-0">
+                                                <div>
+                                                    <DialogTitle className="text-3xl font-black italic uppercase tracking-tighter">Cierre de Lote & <span className="text-primary text-4xl">Balance de Masas</span></DialogTitle>
+                                                    <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mt-1">ID: {selectedInstance.id.slice(0, 8)}</p>
                                                 </div>
-
-                                                <div className="space-y-4">
-                                                    <label className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500">NOTAS DE CIERRE</label>
-                                                    <textarea
-                                                        value={closureData.notes}
-                                                        onChange={(e) => setClosureData({ ...closureData, notes: e.target.value })}
-                                                        className="w-full h-32 bg-white/5 border border-white/10 rounded-3xl p-8 text-lg font-bold outline-none focus:border-primary/50 transition-all resize-none"
-                                                        placeholder="OBSERVACIONES DEL TURNO..."
-                                                    />
-                                                </div>
-
-                                                <Button
-                                                    onClick={() => finishBatchMutation.mutate()}
-                                                    disabled={finishBatchMutation.isPending}
-                                                    className="w-full h-28 rounded-[35px] bg-primary text-black text-3xl font-black uppercase italic tracking-tighter shadow-2xl hover:scale-[1.02] active:scale-95 transition-all"
-                                                >
-                                                    {finishBatchMutation.isPending ? <Loader2 className="w-10 h-10 animate-spin" /> : "CONFIRMAR CIERRE"}
+                                                <Button variant="ghost" size="icon" onClick={() => setIsFinishBatchOpen(false)} className="rounded-full h-12 w-12 bg-white/5">
+                                                    <X className="w-6 h-6" />
                                                 </Button>
+                                            </div>
+
+                                            <div className="flex-1 overflow-hidden flex gap-8 p-8">
+                                                {/* Left Column: Data Capture */}
+                                                <div className="flex-1 overflow-y-auto custom-scrollbar space-y-8 pr-4">
+                                                    <div className="bg-white/[0.02] border border-white/5 rounded-[35px] p-8 space-y-6">
+                                                        <div className="flex items-center gap-4">
+                                                            <Zap className="w-5 h-5 text-primary" />
+                                                            <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400">FLUJO DE PROCESO (TICKETS REGISTRADOS)</h4>
+                                                        </div>
+                                                        <div className="flex items-center justify-between gap-4">
+                                                            {["Destopado", "Deshuesado", "Pelado"].map((step, idx) => (
+                                                                <div key={step} className="flex-1 flex flex-col items-center gap-3">
+                                                                    <span className="text-[9px] font-black text-slate-500 uppercase">{step}</span>
+                                                                    <div className={cn(
+                                                                        "w-full h-12 rounded-xl flex items-center justify-center font-mono font-black text-sm",
+                                                                        idx === 2 ? "bg-primary/20 text-primary" : idx === 1 ? "bg-emerald-500/20 text-emerald-500" : "bg-blue-500/20 text-blue-500"
+                                                                    )}>
+                                                                        {taskTotals[step] || 0} pza
+                                                                    </div>
+                                                                    {idx < 2 && <div className="absolute -right-4 top-1/2 -translate-y-1/2 h-0.5 w-4 bg-white/5" />}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="bg-white/[0.02] border border-white/5 rounded-[35px] p-8 space-y-6">
+                                                        <div className="flex items-center gap-4">
+                                                            <Package className="w-5 h-5 text-primary" />
+                                                            <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400">CAPTURA DE PRODUCCIÓN FINAL</h4>
+                                                        </div>
+                                                        <div className="space-y-4">
+                                                            <label className="text-[9px] font-black uppercase tracking-[0.4em] text-slate-600">PRODUCTO DE SALIDA</label>
+                                                            <div className="relative group">
+                                                                <input
+                                                                    type="number"
+                                                                    value={closureData.yields || ""}
+                                                                    onChange={(e) => setClosureData({ ...closureData, yields: parseInt(e.target.value) || 0 })}
+                                                                    className="w-full h-24 bg-white/5 border border-white/10 rounded-2xl px-10 text-5xl font-mono font-black text-primary outline-none focus:border-primary transition-all"
+                                                                    placeholder="0"
+                                                                />
+                                                                <span className="absolute right-8 top-1/2 -translate-y-1/2 text-xl font-black text-slate-700 italic uppercase">PULPA KG</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-[35px] p-8 space-y-6">
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center gap-4">
+                                                                <Camera className="w-5 h-5 text-emerald-500" />
+                                                                <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-emerald-500">Smart Vision Sensor</h4>
+                                                            </div>
+                                                            <Badge className="bg-emerald-500 text-black font-black italic tracking-tighter text-[9px]">BETA AI</Badge>
+                                                        </div>
+                                                        <div className="aspect-video bg-black/40 rounded-2xl relative overflow-hidden flex items-center justify-center border border-white/5">
+                                                            <div className="text-center space-y-4 opacity-30">
+                                                                <Camera className="w-12 h-12 mx-auto" />
+                                                                <p className="text-[9px] font-black uppercase tracking-widest">Cámara Inactiva</p>
+                                                            </div>
+                                                            <div className="absolute top-4 left-4 flex gap-2">
+                                                                <div className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="space-y-1">
+                                                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-600">Total Detectado</p>
+                                                                <p className="text-4xl font-mono font-black text-emerald-500">0</p>
+                                                            </div>
+                                                            <div className="flex gap-3">
+                                                                <Button size="icon" variant="outline" className="h-14 w-14 rounded-2xl bg-white/5 border-white/10"><RefreshCw className="w-6 h-6" /></Button>
+                                                                <Button className="h-14 px-8 rounded-2xl bg-emerald-500 text-black font-black uppercase italic tracking-tighter text-xs">Activar Sensor</Button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Right Column: Calculations */}
+                                                <div className="w-96 bg-white/[0.03] border border-white/5 rounded-[40px] p-10 flex flex-col gap-10">
+                                                    <div className="space-y-2">
+                                                        <h4 className="text-[12px] font-black uppercase tracking-[0.4em] text-primary">ESTIMACIÓN INTELIGENTE</h4>
+                                                        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Basado en balance de masas histórico</p>
+                                                    </div>
+
+                                                    <div className="flex-1 flex flex-col items-center justify-center text-center space-y-4">
+                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Consumo Estimado (Cocos)</p>
+                                                        <h2 className="text-8xl font-black text-white font-mono tracking-tighter tabular-nums leading-none">
+                                                            {Math.round(closureData.yields * 1.8)}
+                                                        </h2>
+                                                        <p className="text-[9px] text-slate-700 font-bold uppercase tracking-widest">Calculado base rendimientos típicos</p>
+                                                    </div>
+
+                                                    <div className="space-y-4">
+                                                        <label className="text-[9px] font-black uppercase tracking-[0.4em] text-slate-500">INCIDENCIAS / NOTAS</label>
+                                                        <textarea
+                                                            value={closureData.notes}
+                                                            onChange={(e) => setClosureData({ ...closureData, notes: e.target.value })}
+                                                            className="w-full h-24 bg-white/5 border border-white/10 rounded-2xl p-6 text-sm font-bold outline-none focus:border-primary/50 transition-all resize-none"
+                                                            placeholder="OBSERVACIONES..."
+                                                        />
+                                                    </div>
+
+                                                    <Button
+                                                        onClick={() => finishBatchMutation.mutate()}
+                                                        disabled={finishBatchMutation.isPending}
+                                                        className="w-full h-24 rounded-[30px] bg-primary text-black text-xl font-black uppercase italic tracking-tighter shadow-3xl hover:scale-105 transition-all"
+                                                    >
+                                                        {finishBatchMutation.isPending ? <Loader2 className="w-8 h-8 animate-spin" /> : "Confirmar Cierre e Inventario"}
+                                                    </Button>
+                                                </div>
                                             </div>
                                         </DialogContent>
                                     </Dialog>
