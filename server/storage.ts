@@ -12,7 +12,7 @@ const pool = new Pool({
 });
 
 // Drizzle instance with schema and relations
-export const db = drizzle(pool, { schema: { ...schema, ...relations } });
+export const db = drizzle(pool as any, { schema: { ...schema, ...relations } });
 
 // Legacy storage interface (keeping for compatibility)
 export interface IStorage {

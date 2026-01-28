@@ -152,6 +152,12 @@ export const purchaseRelations = relations(schema.purchases, ({ one }) => ({
     }),
 }));
 
+export const expensesRelations = relations(schema.expenses, ({ one }) => ({
+    supplier: one(schema.suppliers, {
+        fields: [schema.expenses.supplierId],
+        references: [schema.suppliers.id],
+    }),
+}));
 export const routesRelations = relations(schema.routes, ({ one, many }) => ({
     vehicle: one(schema.vehicles, {
         fields: [schema.routes.vehicleId],

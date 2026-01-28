@@ -152,13 +152,13 @@ export const insertUserSchema = createInsertSchema(users).pick({
     name: true,
 });
 
-export const updateAiConfigSchema = createInsertSchema(aiConfigurations).pick({
-    guardianEnabled: true,
-    guardianSensitivity: true,
-    copilotEnabled: true,
-    adaptiveUiEnabled: true,
-    settings: true,
-}).partial();
+export const updateAiConfigSchema = z.object({
+    guardianEnabled: z.boolean().optional(),
+    guardianSensitivity: z.number().optional(),
+    copilotEnabled: z.boolean().optional(),
+    adaptiveUiEnabled: z.boolean().optional(),
+    settings: z.record(z.any()).optional(),
+});
 
 export const insertBusinessDocumentSchema = createInsertSchema(businessDocuments);
 

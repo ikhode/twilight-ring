@@ -465,7 +465,10 @@ router.get("/summary", async (req, res): Promise<void> => {
             db.query.expenses.findMany({
                 where: eq(expenses.organizationId, orgId),
                 orderBy: [desc(expenses.date)],
-                limit: 10
+                limit: 10,
+                with: {
+                    supplier: true
+                }
             }),
             db.query.payments.findMany({
                 where: eq(payments.organizationId, orgId),
@@ -481,7 +484,8 @@ router.get("/summary", async (req, res): Promise<void> => {
                 amount: -e.amount, // Expense is negative for display flow
                 date: e.date?.toISOString().split('T')[0],
                 type: 'expense',
-                status: 'completed'
+                status: 'completed',
+                supplier: e.supplier?.name || null
             })),
             ...recentPayments.map(p => ({
                 id: p.id,
@@ -494,15 +498,30 @@ router.get("/summary", async (req, res): Promise<void> => {
         ].sort((a, b) => new Date(b.date as string).getTime() - new Date(a.date as string).getTime()).slice(0, 10);
 
 
+        const receivablesSum = pendingSales.reduce((acc, curr) => acc + curr.totalPrice, 0);
+        const payablesSum = pendingPurchases.reduce((acc, curr) => acc + curr.totalAmount, 0);
+
         res.json({
             balance: currentBalance,
             income: totalIncome,
             expenses: totalOutflow,
             cashInRegisters,
             bankBalance,
-            liabilities: pieceworkLiability, // New metric based on production
+            liabilities: pieceworkLiability,
             pendingSalesCount: pendingSales.length,
             pendingPurchasesCount: pendingPurchases.length,
+            accountsReceivable: {
+                total: receivablesSum,
+                count: pendingSales.length
+            },
+            accountsPayable: {
+                total: payablesSum,
+                count: pendingPurchases.length
+            },
+            payroll: {
+                total: payrollSum, // Already calculated above as payroll advances
+                count: totalAdvances.length
+            },
             recentTransactions
         });
 
