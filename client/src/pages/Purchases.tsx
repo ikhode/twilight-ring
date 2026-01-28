@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import {
     Plus, Trash2,
     Search, Truck, CheckCircle, ShoppingBag, Loader2,
-    Activity, ShieldAlert, CheckCircle2, PackageCheck
+    Activity, ShieldAlert, CheckCircle2, PackageCheck, FolderPlus
 } from "lucide-react";
 import {
     Dialog,
@@ -87,6 +87,7 @@ export default function Purchases() {
                         <div className="flex items-center justify-between">
                             <CardTitle>Órdenes de Compra</CardTitle>
                             <div className="flex gap-2">
+                                <CreateGroupDialog />
                                 <CreateProductDialog />
                                 <CreateSupplierDialog />
                                 <CreatePurchaseDialog />
@@ -261,6 +262,79 @@ function PurchasesTable({ data }: { data: any[] }) {
     return <DataTable columns={columns} data={data} />;
 }
 
+function CreateGroupDialog() {
+    const { session } = useAuth();
+    const queryClient = useQueryClient();
+    const { toast } = useToast();
+    const [open, setOpen] = useState(false);
+    const [formData, setFormData] = useState({ name: "", description: "" });
+
+    const createMutation = useMutation({
+        mutationFn: async (data: typeof formData) => {
+            const res = await fetch("/api/inventory/groups", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${session?.access_token}`
+                },
+                body: JSON.stringify(data)
+            });
+            if (!res.ok) throw new Error("Failed to create group");
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/inventory/groups"] });
+            setOpen(false);
+            setFormData({ name: "", description: "" });
+            toast({ title: "Grupo creado", description: "Ahora puedes asignar productos a este grupo." });
+        },
+        onError: () => toast({ title: "Error", description: "No se pudo crear el grupo.", variant: "destructive" })
+    });
+
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2">
+                    <FolderPlus className="w-4 h-4" /> Nuevo Grupo
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Crear Grupo de Productos</DialogTitle>
+                </DialogHeader>
+                <p className="text-sm text-muted-foreground">
+                    Los grupos permiten agrupar variantes de un mismo producto (ej. "Coco Bueno kg", "Coco Desecho pza") bajo un nombre común para reportes y producción.
+                </p>
+                <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                        <Label>Nombre del Grupo</Label>
+                        <Input
+                            value={formData.name}
+                            onChange={e => setFormData({ ...formData, name: e.target.value })}
+                            placeholder="Ej. Coco, Leche, Madera"
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Descripción (opcional)</Label>
+                        <Input
+                            value={formData.description}
+                            onChange={e => setFormData({ ...formData, description: e.target.value })}
+                            placeholder="Ej. Todas las variantes de coco para procesamiento"
+                        />
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+                    <Button onClick={() => createMutation.mutate(formData)} disabled={createMutation.isPending || !formData.name.trim()}>
+                        {createMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                        Crear Grupo
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 function CreateProductDialog() {
     const { session } = useAuth();
     const { enabledModules } = useConfiguration();
@@ -271,12 +345,89 @@ function CreateProductDialog() {
     const [formData, setFormData] = useState({
         name: "",
         sku: "",
-        category: "Materia Prima",
-        productType: "purchase", // Default
+        categoryId: "",
+        groupId: "",
+        unitId: "",
+        productType: "purchase",
         stock: 0,
-        unit: "",
+        unit: "pza",
         price: 0,
         cost: 0,
+    });
+
+    const { data: categories = [] } = useQuery({
+        queryKey: ["/api/inventory/categories"],
+        queryFn: async () => {
+            const res = await fetch("/api/inventory/categories", { headers: { Authorization: `Bearer ${session?.access_token}` } });
+            if (!res.ok) return [];
+            return res.json();
+        },
+        enabled: open
+    });
+
+    const { data: groups = [] } = useQuery({
+        queryKey: ["/api/inventory/groups"],
+        queryFn: async () => {
+            const res = await fetch("/api/inventory/groups", { headers: { Authorization: `Bearer ${session?.access_token}` } });
+            if (!res.ok) return [];
+            return res.json();
+        },
+        enabled: open
+    });
+
+    const { data: units = [] } = useQuery({
+        queryKey: ["/api/inventory/units"],
+        queryFn: async () => {
+            const res = await fetch("/api/inventory/units", { headers: { Authorization: `Bearer ${session?.access_token}` } });
+            if (!res.ok) return [];
+            return res.json();
+        },
+        enabled: open
+    });
+
+    const createCategoryMutation = useMutation({
+        mutationFn: async (name: string) => {
+            const res = await fetch("/api/inventory/categories", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+                body: JSON.stringify({ name })
+            });
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/inventory/categories"] });
+            toast({ title: "Categoría creada" });
+        }
+    });
+
+    const createGroupMutation = useMutation({
+        mutationFn: async (name: string) => {
+            const res = await fetch("/api/inventory/groups", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+                body: JSON.stringify({ name })
+            });
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/inventory/groups"] });
+            toast({ title: "Grupo creado" });
+        }
+    });
+
+    const createUnitMutation = useMutation({
+        mutationFn: async ({ name, abbreviation }: { name: string, abbreviation: string }) => {
+            const res = await fetch("/api/inventory/units", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+                body: JSON.stringify({ name, abbreviation })
+            });
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/inventory/units"] });
+            toast({ title: "Unidad creada" });
+        }
     });
 
     const createMutation = useMutation({
@@ -289,7 +440,10 @@ function CreateProductDialog() {
                 },
                 body: JSON.stringify({
                     ...data,
-                    productType: hasInventory ? "purchase" : "service_cost", // Tag as service if no inventory
+                    categoryId: data.categoryId || null,
+                    groupId: data.groupId || null,
+                    unitId: data.unitId || null,
+                    productType: hasInventory ? "purchase" : "service_cost",
                     price: Math.round(data.price * 100),
                     cost: Math.round(data.cost * 100)
                 })
@@ -301,7 +455,7 @@ function CreateProductDialog() {
             queryClient.invalidateQueries({ queryKey: ["/api/inventory/products"] });
             setOpen(false);
             toast({ title: hasInventory ? "Producto creado" : "Concepto creado", description: "Listo para usar en compras." });
-            setFormData({ name: "", sku: "", category: "Materia Prima", productType: "purchase", stock: 0, unit: "pza", price: 0, cost: 0 });
+            setFormData({ name: "", sku: "", categoryId: "", groupId: "", unitId: "", productType: "purchase", stock: 0, unit: "pza", price: 0, cost: 0 });
         },
         onError: () => toast({ title: "Error", variant: "destructive" })
     });
@@ -324,9 +478,42 @@ function CreateProductDialog() {
                         <CognitiveInput
                             value={formData.name}
                             onChange={e => setFormData({ ...formData, name: e.target.value })}
-                            placeholder="Ej. Papel Bond o Servicio Limpieza"
+                            placeholder="Ej. Coco Bueno (kg) o Servicio Limpieza"
                             semanticType="name"
                         />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label>Categoría</Label>
+                            <div className="flex gap-2">
+                                <Select value={formData.categoryId} onValueChange={v => setFormData({ ...formData, categoryId: v })}>
+                                    <SelectTrigger className="flex-1 bg-slate-900/50 border-slate-800"><SelectValue placeholder="Elegir..." /></SelectTrigger>
+                                    <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                                        {categories.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                                <Button variant="outline" size="icon" onClick={() => {
+                                    const name = prompt("Nombre de la nueva categoría:");
+                                    if (name) createCategoryMutation.mutate(name);
+                                }}><Plus className="w-4 h-4" /></Button>
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Grupo (Opcional)</Label>
+                            <div className="flex gap-2">
+                                <Select value={formData.groupId} onValueChange={v => setFormData({ ...formData, groupId: v === "none" ? "" : v })}>
+                                    <SelectTrigger className="flex-1 bg-slate-900/50 border-slate-800"><SelectValue placeholder="Elegir..." /></SelectTrigger>
+                                    <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                                        <SelectItem value="none">Ninguno</SelectItem>
+                                        {groups.map((g: any) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                                <Button variant="outline" size="icon" onClick={() => {
+                                    const name = prompt("Nombre del nuevo grupo:");
+                                    if (name) createGroupMutation.mutate(name);
+                                }}><Plus className="w-4 h-4" /></Button>
+                            </div>
+                        </div>
                     </div>
                     {hasInventory && (
                         <div className="grid grid-cols-2 gap-4">
@@ -340,7 +527,30 @@ function CreateProductDialog() {
                             </div>
                             <div className="space-y-2">
                                 <Label>Unidad</Label>
-                                <Input value={formData.unit} onChange={e => setFormData({ ...formData, unit: e.target.value })} />
+                                <div className="flex gap-2">
+                                    <Select
+                                        value={formData.unitId || formData.unit}
+                                        onValueChange={v => {
+                                            if (v === "pza" || v === "kg") {
+                                                setFormData({ ...formData, unitId: "", unit: v });
+                                            } else {
+                                                setFormData({ ...formData, unitId: v });
+                                            }
+                                        }}
+                                    >
+                                        <SelectTrigger className="flex-1 bg-slate-900/50 border-slate-800"><SelectValue placeholder="Elegir..." /></SelectTrigger>
+                                        <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                                            <SelectItem value="pza">Pieza (pza)</SelectItem>
+                                            <SelectItem value="kg">Kilogramo (kg)</SelectItem>
+                                            {units.map((u: any) => <SelectItem key={u.id} value={u.id}>{u.name} ({u.abbreviation})</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                    <Button variant="outline" size="icon" onClick={() => {
+                                        const name = prompt("Nombre de la nueva unidad:");
+                                        const abbreviation = prompt("Abreviatura:");
+                                        if (name && abbreviation) createUnitMutation.mutate({ name, abbreviation });
+                                    }}><Plus className="w-4 h-4" /></Button>
+                                </div>
                             </div>
                         </div>
                     )}
@@ -350,7 +560,7 @@ function CreateProductDialog() {
                             <CognitiveInput
                                 type="number"
                                 value={formData.cost}
-                                onChange={e => setFormData({ ...formData, cost: parseFloat(e.target.value) })}
+                                onChange={e => setFormData({ ...formData, cost: parseFloat(e.target.value) || 0 })}
                                 semanticType="price"
                             />
                         </div>
@@ -359,14 +569,16 @@ function CreateProductDialog() {
                             <CognitiveInput
                                 type="number"
                                 value={formData.price}
-                                onChange={e => setFormData({ ...formData, price: parseFloat(e.target.value) })}
+                                onChange={e => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
                                 semanticType="price"
                             />
                         </div>
                     </div>
                 </div>
                 <DialogFooter>
-                    <Button onClick={() => createMutation.mutate(formData)} disabled={createMutation.isPending}>{createMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />} Guardar</Button>
+                    <Button onClick={() => createMutation.mutate(formData)} disabled={createMutation.isPending || !formData.name.trim()}>
+                        {createMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />} Guardar
+                    </Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
@@ -537,17 +749,54 @@ function CreatePurchaseDialog() {
         onError: () => toast({ variant: "destructive", title: "Error", description: "Falló el registro." })
     });
 
-    const addToCart = (product: any) => {
+    const { data: groups = [] } = useQuery({
+        queryKey: ["/api/inventory/groups"],
+        queryFn: async () => {
+            const res = await fetch("/api/inventory/groups", { headers: { Authorization: `Bearer ${session?.access_token}` } });
+            if (!res.ok) return [];
+            return res.json();
+        },
+        enabled: open
+    });
+
+    const filteredItems = [
+        ...groups.map((g: any) => ({ ...g, type: 'group' })),
+        ...(Array.isArray(dbProducts) ? dbProducts.filter((p: any) => p.isPurchasable !== false).map((p: any) => ({ ...p, type: 'product' })) : [])
+    ].filter(i => i.name.toLowerCase().includes(searchQuery.toLowerCase()));
+
+    const addToCart = (item: any) => {
         setCart(prev => {
-            // Allow multiple!
-            return [...prev, {
-                uniqueId: `${product.id}-${Date.now()}`,
-                productId: product.id,
-                name: product.name,
-                cost: (product.cost || 0) / 100,
-                quantity: 1,
-                note: ""
-            }];
+            if (item.type === 'group') {
+                // Find all products in this group
+                const groupProducts = dbProducts.filter((p: any) => p.groupId === item.id);
+
+                if (groupProducts.length === 0) {
+                    toast({ description: "El grupo está vacío.", variant: "destructive" });
+                    return prev;
+                }
+
+                // Add all of them
+                const newItems = groupProducts.map((p: any) => ({
+                    uniqueId: `${p.id}-${Date.now()}-${Math.random()}`,
+                    productId: p.id,
+                    name: p.name,
+                    cost: (p.cost || 0) / 100, // Cost is stored in cents
+                    quantity: 1,
+                    note: ""
+                }));
+
+                toast({ description: `Agregados ${newItems.length} productos del grupo.` });
+                return [...prev, ...newItems];
+            } else {
+                return [...prev, {
+                    uniqueId: `${item.id}-${Date.now()}`,
+                    productId: item.id,
+                    name: item.name,
+                    cost: (item.cost || 0) / 100,
+                    quantity: 1,
+                    note: ""
+                }];
+            }
         });
     };
 
@@ -558,8 +807,6 @@ function CreatePurchaseDialog() {
     const cartTotal = cart.reduce((acc, i) => acc + (i.cost * i.quantity), 0);
     const totalWithFreight = cartTotal + freightCost;
     const formatCurrency = (amount: number) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(amount);
-
-    const filteredProducts = Array.isArray(dbProducts) ? dbProducts.filter((p: any) => p.name.toLowerCase().includes(searchQuery.toLowerCase())) : [];
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -697,10 +944,19 @@ function CreatePurchaseDialog() {
                             <Input placeholder="Buscar..." className="pl-8" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
                         </div>
                         <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2">
-                            {filteredProducts.map(p => (
-                                <div key={p.id} className="flex justify-between items-center p-2 border rounded hover:bg-muted cursor-pointer group" onClick={() => addToCart(p)}>
-                                    <div className="text-sm font-medium">{p.name}</div>
-                                    <Badge variant="outline" className="group-hover:bg-primary group-hover:text-primary-foreground">Agg</Badge>
+                            {filteredItems.map((item: any) => (
+                                <div key={item.id} className="flex justify-between items-center p-2 border rounded hover:bg-muted cursor-pointer group" onClick={() => addToCart(item)}>
+                                    <div className="flex flex-col">
+                                        <div className="text-sm font-medium flex items-center gap-2">
+                                            {item.type === 'group' && <PackageCheck className="w-3 h-3 text-blue-400" />}
+                                            {item.name}
+                                        </div>
+                                        {item.type === 'group' && <span className="text-[10px] text-muted-foreground italic">Grupo de items</span>}
+                                        {item.type === 'product' && <span className="text-[10px] text-muted-foreground">{item.sku}</span>}
+                                    </div>
+                                    <Badge variant="outline" className={cn("group-hover:bg-primary group-hover:text-primary-foreground", item.type === 'group' ? "border-blue-500/50 text-blue-500" : "")}>
+                                        {item.type === 'group' ? "Agg. Grupo" : "Agg"}
+                                    </Badge>
                                 </div>
                             ))}
                         </div>

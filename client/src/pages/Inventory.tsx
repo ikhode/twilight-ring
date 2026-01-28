@@ -39,6 +39,7 @@ import {
   Bot,
   Activity
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
@@ -134,6 +135,69 @@ export default function Inventory() {
     enabled: !!session?.access_token
   });
 
+  const { data: categoriesList = [] } = useQuery({
+    queryKey: ["/api/inventory/categories"],
+    queryFn: async () => {
+      const res = await fetch("/api/inventory/categories", { headers: { Authorization: `Bearer ${session?.access_token}` } });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!session?.access_token
+  });
+
+  const { data: groupsList = [] } = useQuery({
+    queryKey: ["/api/inventory/groups"],
+    queryFn: async () => {
+      const res = await fetch("/api/inventory/groups", { headers: { Authorization: `Bearer ${session?.access_token}` } });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!session?.access_token
+  });
+
+  const { data: unitsList = [] } = useQuery({
+    queryKey: ["/api/inventory/units"],
+    queryFn: async () => {
+      const res = await fetch("/api/inventory/units", { headers: { Authorization: `Bearer ${session?.access_token}` } });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!session?.access_token
+  });
+
+  const createCategoryMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const res = await apiRequest("POST", "/api/inventory/categories", { name }, { Authorization: `Bearer ${session?.access_token}` });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/inventory/categories"] });
+      toast({ title: "Categoría Creada" });
+    }
+  });
+
+  const createGroupMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const res = await apiRequest("POST", "/api/inventory/groups", { name }, { Authorization: `Bearer ${session?.access_token}` });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/inventory/groups"] });
+      toast({ title: "Grupo Creado" });
+    }
+  });
+
+  const createUnitMutation = useMutation({
+    mutationFn: async ({ name, abbreviation }: { name: string, abbreviation: string }) => {
+      const res = await apiRequest("POST", "/api/inventory/units", { name, abbreviation }, { Authorization: `Bearer ${session?.access_token}` });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/inventory/units"] });
+      toast({ title: "Unidad Creada" });
+    }
+  });
+
   // Setup Realtime subscription for automatic product updates
   useSupabaseRealtime({
     table: 'products',
@@ -153,10 +217,17 @@ export default function Inventory() {
   const [newProduct, setNewProduct] = useState({
     name: "",
     sku: "",
-    category: categories[0],
-    productType: "both", // "sale", "purchase", "internal", "both"
+    category: "",
+    categoryId: "",
+    groupId: "",
+    productType: "both", // Legacy
+    isSellable: true,
+    isPurchasable: true,
+    isProductionInput: false,
+    isProductionOutput: false,
     stock: 0,
     unit: "pza",
+    unitId: "",
     price: 0,
     cost: 0,
   });
@@ -175,7 +246,7 @@ export default function Inventory() {
         (p.isActive !== false) &&
         (p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          p.category.toLowerCase().includes(searchQuery.toLowerCase()))
+          (p.category || "").toLowerCase().includes(searchQuery.toLowerCase()))
     );
   }, [products, searchQuery]);
 
@@ -199,7 +270,23 @@ export default function Inventory() {
       queryClient.invalidateQueries({ queryKey: ["/api/inventory/products"] });
       setIsAddDialogOpen(false);
       toast({ title: "Producto Creado", description: "El producto se ha registrado correctamente." });
-      setNewProduct({ name: "", sku: "", category: categories[0], productType: "both", stock: 0, unit: "pza", price: 0, cost: 0 });
+      setNewProduct({
+        name: "",
+        sku: "",
+        category: "",
+        categoryId: "",
+        groupId: "",
+        productType: "both",
+        isSellable: true,
+        isPurchasable: true,
+        isProductionInput: false,
+        isProductionOutput: false,
+        stock: 0,
+        unit: "pza",
+        unitId: "",
+        price: 0,
+        cost: 0
+      });
 
       // Onboarding Action
       window.dispatchEvent(new CustomEvent('NEXUS_ONBOARDING_ACTION', { detail: 'product_created' }));
@@ -246,8 +333,13 @@ export default function Inventory() {
   });
 
   const handleAddProduct = () => {
+    const payload: any = { ...newProduct };
+    if (!payload.categoryId) delete payload.categoryId;
+    if (!payload.groupId) delete payload.groupId;
+
     createProductMutation.mutate({
-      ...newProduct,
+      ...payload,
+      unitId: payload.unitId || null,
       price: Math.round(newProduct.price * 100), // to cents
       cost: Math.round(newProduct.cost * 100) // to cents
     });
@@ -374,100 +466,78 @@ export default function Inventory() {
                         </div>
 
                         {/* Row 2 */}
-                        <CognitiveField
-                          label="Categoría"
-                          value={newProduct.category}
-                          context={newProduct.name}
-                          semanticType="category"
-                          options={categories}
-                          onAcceptPrediction={(v) => setNewProduct({ ...newProduct, category: v })}
-                        >
-                          <Select onValueChange={(v) => setNewProduct({ ...newProduct, category: v })} defaultValue={newProduct.category}>
-                            <SelectTrigger className="bg-slate-900/50 border-slate-800 focus:border-primary/50 transition-all">
-                              <SelectValue placeholder="Seleccionar..." />
-                            </SelectTrigger>
-                            <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                              {categories.map(c => (
-                                <SelectItem key={c} value={c}>{c}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </CognitiveField>
-
-                        <CognitiveField
-                          label="Lógica de Operación"
-                          value={newProduct.productType}
-                          semanticType="method"
-                        >
-                          <Select onValueChange={(v) => setNewProduct({ ...newProduct, productType: v })} defaultValue={newProduct.productType}>
-                            <SelectTrigger className="bg-slate-900/50 border-slate-800 focus:border-primary/50 transition-all">
-                              <SelectValue placeholder="Definir tipo..." />
-                            </SelectTrigger>
-                            <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                              <SelectItem value="both">{productTypeLabels.both.label}</SelectItem>
-                              <SelectItem value="purchase">{productTypeLabels.purchase.label}</SelectItem>
-                              <SelectItem value="sale">{productTypeLabels.sale.label}</SelectItem>
-                              <SelectItem value="internal">{productTypeLabels.internal.label}</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </CognitiveField>
-
-                        {/* Operational Context Box - Option B: Dynamic & Results-Oriented */}
-                        {newProduct.productType && (
-                          <div className="col-span-2">
-                            <motion.div
-                              initial={{ opacity: 0, scale: 0.98 }}
-                              animate={{ opacity: 1, scale: 1 }}
-                              className="relative overflow-hidden group"
-                            >
-                              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-purple-500/5 to-transparent opacity-30" />
-                              <div className="relative bg-slate-900/40 border border-primary/20 rounded-xl p-5 flex gap-5 items-center backdrop-blur-md shadow-2xl">
-                                <div className="w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center shrink-0 border border-primary/30 shadow-[0_0_20px_rgba(59,130,246,0.15)] group-hover:scale-110 transition-transform duration-500">
-                                  <Activity className="w-6 h-6 text-primary animate-pulse" />
-                                </div>
-                                <div className="space-y-1.5 w-full">
-                                  <div className="flex justify-between items-center mb-1">
-                                    <div className="flex items-center gap-2">
-                                      <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em]">{currentLabels.optimizationTitle}</p>
-                                      <div className="w-1 h-1 rounded-full bg-primary/40" />
-                                      <span className="text-[9px] font-medium text-slate-500 uppercase tracking-widest leading-none">Análisis Predictivo</span>
-                                    </div>
-                                    {newProduct.price > 0 && newProduct.cost > 0 && (
-                                      <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[10px] font-mono px-2 py-0">
-                                        {Math.round(((newProduct.price - newProduct.cost) / newProduct.price) * 100)}% MARGEN
-                                      </Badge>
-                                    )}
-                                  </div>
-
-                                  {((productTypeLabels as any)[newProduct.productType].context?.length > 0) && (
-                                    <p className="text-slate-400 text-[11px] leading-relaxed italic font-medium opacity-80 border-l-2 border-primary/20 pl-3 py-0.5">
-                                      "{(productTypeLabels as any)[newProduct.productType].context}"
-                                    </p>
-                                  )}
-
-                                  <div className="flex gap-5 mt-3 border-t border-white/5 pt-3">
-                                    <div className="flex items-center gap-2">
-                                      <div className={cn(
-                                        "w-2 h-2 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.3)]",
-                                        newProduct.stock < 10 ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'
-                                      )} />
-                                      <span className="text-[9px] text-slate-400 uppercase font-black tracking-tighter">
-                                        {newProduct.stock < 10 ? 'Reposición Preventiva' : currentLabels.stockStatus}
-                                      </span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      <CheckCircle2 className="w-3.5 h-3.5 text-slate-500 opacity-50" />
-                                      <span className="text-[9px] text-slate-400 uppercase font-black tracking-tighter">Auditoría Habilitada</span>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            </motion.div>
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Categoría</Label>
+                          <div className="flex gap-2">
+                            <Select value={newProduct.categoryId} onValueChange={(v) => setNewProduct({ ...newProduct, categoryId: v })}>
+                              <SelectTrigger className="bg-slate-900/50 border-slate-800 focus:border-primary/50 transition-all flex-1">
+                                <SelectValue placeholder="Seleccionar..." />
+                              </SelectTrigger>
+                              <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                                {categoriesList.map((c: any) => (
+                                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Button variant="outline" size="icon" onClick={() => {
+                              const name = prompt("Nombre de la nueva categoría:");
+                              if (name) createCategoryMutation.mutate(name);
+                            }}>
+                              <Plus className="w-4 h-4" />
+                            </Button>
                           </div>
-                        )}
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Grupo (Opcional)</Label>
+                          <div className="flex gap-2">
+                            <Select value={newProduct.groupId} onValueChange={(v) => setNewProduct({ ...newProduct, groupId: v === 'none' ? '' : v })}>
+                              <SelectTrigger className="bg-slate-900/50 border-slate-800 focus:border-primary/50 transition-all flex-1">
+                                <SelectValue placeholder="Sin grupo..." />
+                              </SelectTrigger>
+                              <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                                <SelectItem value="none">Sin grupo</SelectItem>
+                                {groupsList.map((g: any) => (
+                                  <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Button variant="outline" size="icon" onClick={() => {
+                              const name = prompt("Nombre del nuevo grupo:");
+                              if (name) createGroupMutation.mutate(name);
+                            }}>
+                              <Plus className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div className="col-span-2 space-y-3 bg-slate-900/30 p-4 rounded-lg border border-slate-800/50">
+                          <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Lógica de Operación</Label>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="flex items-center space-x-2">
+                              <Checkbox id="sell" checked={newProduct.isSellable} onCheckedChange={(c) => setNewProduct({ ...newProduct, isSellable: c as boolean })} />
+                              <label htmlFor="sell" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-slate-300">Se Vende</label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox id="buy" checked={newProduct.isPurchasable} onCheckedChange={(c) => setNewProduct({ ...newProduct, isPurchasable: c as boolean })} />
+                              <label htmlFor="buy" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-slate-300">Se Compra</label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox id="input" checked={newProduct.isProductionInput} onCheckedChange={(c) => setNewProduct({ ...newProduct, isProductionInput: c as boolean })} />
+                              <label htmlFor="input" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-slate-300">Insumo Prod.</label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox id="output" checked={newProduct.isProductionOutput} onCheckedChange={(c) => setNewProduct({ ...newProduct, isProductionOutput: c as boolean })} />
+                              <label htmlFor="output" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-slate-300">Producto Final</label>
+                            </div>
+                          </div>
+                        </div>
+
+
+
 
                         {/* Financials */}
-                        {(newProduct.productType === "both" || newProduct.productType === "sale") && (
+                        {newProduct.isSellable && (
                           <div className="space-y-2">
                             <Label htmlFor="price" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Precio Venta</Label>
                             <div className="relative">
@@ -477,7 +547,7 @@ export default function Inventory() {
                           </div>
                         )}
 
-                        {(newProduct.productType === "both" || newProduct.productType === "purchase") && (
+                        {newProduct.isPurchasable && (
                           <div className="space-y-2" data-tour="product-cost-field">
                             <Label htmlFor="cost" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Costo Unitario</Label>
                             <div className="relative">
@@ -490,21 +560,36 @@ export default function Inventory() {
                         {/* Logistics */}
                         <div className="space-y-2">
                           <Label htmlFor="unit" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">{currentLabels.unitLabel}</Label>
-                          <Select onValueChange={(v) => setNewProduct({ ...newProduct, unit: v })} defaultValue={newProduct.unit}>
-                            <SelectTrigger className="bg-slate-900/50 border-slate-800 focus:border-primary/50 transition-all">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                              <SelectItem value="pza">Pieza (pza)</SelectItem>
-                              <SelectItem value="kg">Kilogramo (kg)</SelectItem>
-                              <SelectItem value="lt">Litro (lt)</SelectItem>
-                              <SelectItem value="g">Gramo (g)</SelectItem>
-                              <SelectItem value="ml">Mililitro (ml)</SelectItem>
-                              <SelectItem value="m">Metro (m)</SelectItem>
-                              <SelectItem value="paq">Paquete (paq)</SelectItem>
-                              <SelectItem value="caja">Caja</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          <div className="flex gap-2">
+                            <Select
+                              value={newProduct.unitId || newProduct.unit}
+                              onValueChange={(v) => {
+                                if (v === "pza" || v === "kg") {
+                                  setNewProduct({ ...newProduct, unitId: "", unit: v });
+                                } else {
+                                  setNewProduct({ ...newProduct, unitId: v });
+                                }
+                              }}
+                            >
+                              <SelectTrigger className="bg-slate-900/50 border-slate-800 focus:border-primary/50 transition-all flex-1">
+                                <SelectValue placeholder="Seleccionar..." />
+                              </SelectTrigger>
+                              <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                                <SelectItem value="pza">Pieza (pza)</SelectItem>
+                                <SelectItem value="kg">Kilogramo (kg)</SelectItem>
+                                {unitsList.map((u: any) => (
+                                  <SelectItem key={u.id} value={u.id}>{u.name} ({u.abbreviation})</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Button variant="outline" size="icon" onClick={() => {
+                              const name = prompt("Nombre de la nueva unidad (ej. Bulto 50kg):");
+                              const abb = prompt("Abreviatura (ej. b50):");
+                              if (name && abb) createUnitMutation.mutate({ name, abbreviation: abb });
+                            }}>
+                              <Plus className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="stock" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">{currentLabels.stockLabel}</Label>

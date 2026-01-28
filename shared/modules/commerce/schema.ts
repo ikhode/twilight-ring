@@ -14,6 +14,11 @@ export const suppliers = pgTable("suppliers", {
     contactInfo: jsonb("contact_info").default({}),
     category: text("category"), // e.g. "fuel", "parts", "raw_materials"
     status: text("status").notNull().default("active"),
+    isArchived: boolean("is_archived").notNull().default(false),
+    // Location fields for POI
+    address: text("address"),
+    latitude: text("latitude"),
+    longitude: text("longitude"),
     createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -25,9 +30,41 @@ export const customers = pgTable("customers", {
     email: text("email"),
     phone: text("phone"),
     status: text("status").notNull().default("active"), // "active", "inactive", "lead"
+    isArchived: boolean("is_archived").notNull().default(false),
     balance: integer("balance").notNull().default(0), // in cents, positive = receivable
     tags: jsonb("tags").default([]),
     lastContact: timestamp("last_contact"),
+    // Location fields for POI
+    address: text("address"),
+    latitude: text("latitude"),
+    longitude: text("longitude"),
+    createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Product Categories (User Managed)
+export const productCategories = pgTable("product_categories", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    description: text("description"),
+    createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Product Groups (For grouping multiple variations like "Coco kg", "Coco pza")
+export const productGroups = pgTable("product_groups", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    description: text("description"),
+    createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Product Units (User Managed)
+export const productUnits = pgTable("product_units", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    name: text("name").notNull(), // e.g. "Kilos", "Piezas", "Bulto 50kg"
+    abbreviation: text("abbreviation"), // e.g. "kg", "pza", "b50"
     createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -37,14 +74,27 @@ export const products = pgTable("products", {
     organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     sku: text("sku").unique(),
-    category: text("category").notNull(), // e.g. "parts", "labor", "oil", "accessories"
-    productType: text("product_type").notNull().default("both"), // "sale", "purchase", "service" or "both"
-    unit: text("unit").notNull().default("pza"), // "kg", "lt", "pza", etc.
+
+    // Categorization
+    category: text("category"), // Legacy text field, keeping for safety
+    categoryId: varchar("category_id").references(() => productCategories.id),
+    groupId: varchar("group_id").references(() => productGroups.id),
+
+    // Operation Logic Flags
+    isSellable: boolean("is_sellable").notNull().default(true),
+    isPurchasable: boolean("is_purchasable").notNull().default(true),
+    isProductionInput: boolean("is_production_input").notNull().default(false), // Consumable in process
+    isProductionOutput: boolean("is_production_output").notNull().default(false), // Producible in process
+
+    productType: text("product_type").notNull().default("both"), // Legacy: "sale", "purchase", "service", "both"
+    unit: text("unit").notNull().default("pza"), // Legacy text field
+    unitId: varchar("unit_id").references(() => productUnits.id), // New references
     price: integer("price").notNull().default(0), // in cents
     cost: integer("cost").notNull().default(0), // in cents
     stock: integer("stock").notNull().default(0),
     minStock: integer("min_stock").notNull().default(0),
     isActive: boolean("is_active").notNull().default(true),
+    isArchived: boolean("is_archived").notNull().default(false),
     createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -107,6 +157,12 @@ export type Supplier = typeof suppliers.$inferSelect;
 export type InsertSupplier = z.infer<typeof insertSupplierSchema>;
 export type Customer = typeof customers.$inferSelect;
 export type InsertCustomer = z.infer<typeof insertCustomerSchema>;
+export type ProductCategory = typeof productCategories.$inferSelect;
+export type InsertProductCategory = z.infer<typeof insertProductCategorySchema>;
+export type ProductGroup = typeof productGroups.$inferSelect;
+export type InsertProductGroup = z.infer<typeof insertProductGroupSchema>;
+export type ProductUnit = typeof productUnits.$inferSelect;
+export type InsertProductUnit = z.infer<typeof insertProductUnitSchema>;
 export type Product = typeof products.$inferSelect;
 export type InsertProduct = z.infer<typeof insertProductSchema>;
 export type InventoryMovement = typeof inventoryMovements.$inferSelect;
@@ -118,7 +174,18 @@ export type InsertPurchase = z.infer<typeof insertPurchaseSchema>;
 
 export const insertSupplierSchema = createInsertSchema(suppliers);
 export const insertCustomerSchema = createInsertSchema(customers);
-export const insertProductSchema = createInsertSchema(products);
+export const insertProductCategorySchema = createInsertSchema(productCategories);
+export const insertProductGroupSchema = createInsertSchema(productGroups);
+export const insertProductUnitSchema = createInsertSchema(productUnits);
+export const insertProductSchema = createInsertSchema(products).extend({
+    category: z.string().optional(),
+    productType: z.string().optional(),
+    isSellable: z.boolean().optional(),
+    isPurchasable: z.boolean().optional(),
+    isProductionInput: z.boolean().optional(),
+    isProductionOutput: z.boolean().optional(),
+    unit: z.string().optional()
+});
 export const insertInventoryMovementSchema = createInsertSchema(inventoryMovements);
 export const insertSaleSchema = createInsertSchema(sales);
 export const insertPurchaseSchema = createInsertSchema(purchases);

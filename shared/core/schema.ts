@@ -39,6 +39,10 @@ export const organizations = pgTable("organizations", {
     settings: jsonb("settings").default({}),
     subscriptionExpiresAt: timestamp("subscription_expires_at"),
     subscriptionInterval: text("subscription_interval"), // 'weekly', 'monthly', 'quarterly', 'yearly', 'lifetime'
+    // Headquarters location for POI
+    headquartersAddress: text("headquarters_address"),
+    headquartersLatitude: text("headquarters_latitude"),
+    headquartersLongitude: text("headquarters_longitude"),
 });
 
 // Users

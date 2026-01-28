@@ -75,11 +75,11 @@ export default function Landing() {
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.6 }}
+                        transition={{ duration: 0.8 }}
                     >
-                        <Badge className="bg-primary/20 text-primary border-primary/30 px-6 py-2 text-sm font-black uppercase tracking-widest">
-                            <Sparkles className="w-4 h-4 mr-2 inline" />
-                            El Futuro del Software Empresarial
+                        <Badge className="bg-primary/20 text-primary border-primary/30 px-6 py-2 text-[10px] font-black uppercase tracking-[0.3em] backdrop-blur-md">
+                            <Sparkles className="w-3.5 h-3.5 mr-2 inline animate-pulse" />
+                            Next-Generation Enterprise OS
                         </Badge>
                     </motion.div>
 
@@ -87,17 +87,47 @@ export default function Landing() {
                     <motion.div
                         initial={{ opacity: 0, y: 30 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.6, delay: 0.2 }}
+                        transition={{ duration: 0.8, delay: 0.2 }}
                         className="space-y-6"
                     >
-                        <h1 className="text-7xl md:text-9xl font-black tracking-tighter uppercase italic">
+                        <h1 className="text-8xl md:text-[10rem] font-black tracking-tighter uppercase italic leading-[0.8] mb-10">
                             <span className="bg-gradient-to-r from-white via-primary to-white bg-clip-text text-transparent">
-                                La Nueva Era
+                                LA NUEVA ERA
                             </span>
                         </h1>
-                        <p className="text-3xl md:text-5xl font-bold text-slate-300">
-                            El <span className="text-primary italic">ERP Cognitivo</span> que evoluciona con tu negocio
+                        <p className="text-2xl md:text-5xl font-bold text-slate-300 leading-tight">
+                            EL <span className="text-primary italic">COGNITIVE OS</span> QUE <br />
+                            EVOLUCIONA CON TU NEGOCIO.
                         </p>
+                    </motion.div>
+
+                    {/* Mockup Showcase */}
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.9, y: 50 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        transition={{ duration: 1, delay: 0.4 }}
+                        className="relative max-w-5xl mx-auto group mt-20"
+                    >
+                        <div className="absolute -inset-1 bg-gradient-to-r from-primary/50 to-cyan-500/50 rounded-[2.5rem] blur-2xl opacity-20 group-hover:opacity-40 transition-opacity duration-1000" />
+                        <div className="relative rounded-[2.5rem] overflow-hidden border border-white/10 shadow-2xl backdrop-blur-3xl bg-black/40 p-4">
+                            <div className="absolute top-0 left-0 right-0 h-10 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
+                            <img
+                                src="C:/Users/Faker/.gemini/antigravity/brain/41a1ea7f-d36a-4622-b73a-95c10bfa0538/futuristic_erp_dashboard_premium_1769634106621.png"
+                                alt="Nexus ERP Dashboard"
+                                className="w-full h-auto rounded-[1.5rem] shadow-inner"
+                            />
+                        </div>
+                        {/* Interactive Floaties */}
+                        <motion.div
+                            animate={{ y: [0, -10, 0] }}
+                            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                            className="absolute -top-10 -right-10 bg-black/60 backdrop-blur-xl border border-white/10 p-4 rounded-2xl shadow-2xl hidden md:block"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                                <span className="text-[10px] font-black uppercase tracking-widest text-white/50">Core Status: Optimal</span>
+                            </div>
+                        </motion.div>
                     </motion.div>
 
                     {/* Subheadline */}

@@ -428,7 +428,7 @@ function POSView() {
   const products = useMemo(() => {
     const list = Array.isArray(dbProducts) ? dbProducts : [];
     return list
-      .filter((p: any) => p.productType === "sale" || p.productType === "both")
+      .filter((p: any) => p.isSellable !== false)
       .map((p: any) => ({
         ...p,
         price: p.price / 100,

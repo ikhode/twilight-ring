@@ -495,7 +495,7 @@ export default function CRM() {
                         key: "name",
                         header: "Cliente",
                         render: (item) => (
-                          <div className="flex items-center gap-3">
+                          <div className={cn("flex items-center gap-3", item.isArchived && "opacity-50 grayscale line-through")}>
                             <div className="w-10 h-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center font-bold text-primary">
                               {item.name.charAt(0)}
                             </div>
@@ -595,7 +595,7 @@ export default function CRM() {
                         key: "name",
                         header: "Proveedor",
                         render: (item) => (
-                          <div className="flex items-center gap-3">
+                          <div className={cn("flex items-center gap-3", item.isArchived && "opacity-50 grayscale line-through")}>
                             <div className="w-8 h-8 rounded bg-slate-800 flex items-center justify-center font-semibold text-slate-400">
                               {item.name.charAt(0)}
                             </div>

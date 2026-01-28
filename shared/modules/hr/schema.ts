@@ -32,6 +32,11 @@ export const employees = pgTable("employees", {
             return value.slice(1, -1).split(',').map(Number);
         }
     })("face_embedding"),
+    // Location fields for POI
+    address: text("address"),
+    latitude: text("latitude"),
+    longitude: text("longitude"),
+    isArchived: boolean("is_archived").notNull().default(false),
     createdAt: timestamp("created_at").defaultNow(),
 });
 

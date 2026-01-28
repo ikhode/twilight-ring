@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -138,7 +138,7 @@ function DriverLinkDialog() {
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle>Vincular Conductor (PWA)</DialogTitle>
-                    <DialogDescription>Genera un enlace seguro para activar la App del Conductor.</DialogDescription>
+                    <DialogDescription>Genera un enlace seguro o inicia sesión en un Kiosco para activar el rastreo automático.</DialogDescription>
                 </DialogHeader>
 
                 {!generatedLink ? (
@@ -597,6 +597,32 @@ export default function Logistics() {
                                         </LeafletTooltip>
                                     </Marker>
 
+                                    {/* Active Route Stops */}
+                                    {activeRoutes.map((route: any) => (
+                                        <div key={route.id}>
+                                            {route.stops.map((stop: any) => (
+                                                <Marker
+                                                    key={stop.id}
+                                                    position={[stop.locationLat || 19.44, stop.locationLng || -99.14]}
+                                                    icon={L.divIcon({
+                                                        className: '',
+                                                        html: `<div class="w-3 h-3 ${stop.stopType === 'delivery' ? 'bg-blue-500' : 'bg-purple-500'} rounded-full border border-white opacity-80 shadow-md"></div>`
+                                                    })}
+                                                >
+                                                    <Popup className="glass-popup">
+                                                        <div className="p-1">
+                                                            <p className="font-bold text-[10px] uppercase text-slate-500">{stop.stopType === 'delivery' ? 'Entrega' : 'Recolección'}</p>
+                                                            <p className="font-bold text-xs text-slate-800 leading-tight my-1">
+                                                                {stop.stopType === 'delivery' ? stop.order?.customer?.name : stop.purchase?.supplier?.name}
+                                                            </p>
+                                                            <Badge className="text-[9px] h-4 px-1">{stop.status}</Badge>
+                                                        </div>
+                                                    </Popup>
+                                                </Marker>
+                                            ))}
+                                        </div>
+                                    ))}
+
                                     {/* Drivers */}
                                     {driverLocations.map((driver: any) => (
                                         <Marker
@@ -623,6 +649,7 @@ export default function Logistics() {
                                             </LeafletTooltip>
                                         </Marker>
                                     ))}
+                                    <MapController center={[universalConfig.cedisLat || 19.4326, universalConfig.cedisLng || -99.1332]} />
                                 </MapContainer>
                             </Card>
                         </div>
@@ -743,11 +770,11 @@ export default function Logistics() {
                                                 <div className="grid grid-cols-2 gap-4">
                                                     <div className="space-y-2">
                                                         <Label>Año</Label>
-                                                        <Input name="year" type="number" required defaultValue={new Date().getFullYear()} />
+                                                        <Input name="year" type="number" required defaultValue={new Date().getFullYear().toString()} />
                                                     </div>
                                                     <div className="space-y-2">
                                                         <Label>Kilometraje Actual</Label>
-                                                        <Input name="mileage" type="number" required defaultValue="0" />
+                                                        <Input name="mileage" type="number" step="0.01" required defaultValue="" placeholder="0.00" />
                                                     </div>
                                                 </div>
                                                 <DialogFooter>
@@ -768,7 +795,10 @@ export default function Logistics() {
                                             </div>
                                         ) : (
                                             vehiclesData.map((v: any) => (
-                                                <div key={v.id} className="p-6 flex items-center justify-between hover:bg-white/5 transition-colors">
+                                                <div key={v.id} className={cn(
+                                                    "p-6 flex items-center justify-between hover:bg-white/5 transition-colors",
+                                                    v.isArchived && "opacity-50 grayscale line-through"
+                                                )}>
                                                     <div className="flex items-center gap-4">
                                                         <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20">
                                                             <Truck className="w-6 h-6 text-primary" />
@@ -825,149 +855,78 @@ export default function Logistics() {
 
                 <TabsContent value="routes">
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        <Card className="lg:col-span-2 bg-slate-900/50 border-slate-800 h-[70vh] flex flex-col">
-                            <CardHeader className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 bg-slate-900/50">
-                                <div>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <Brain className="w-5 h-5 text-primary animate-pulse" />
-                                        <span>Cognitive Logistics Flow</span>
-                                    </CardTitle>
-                                    <p className="text-xs text-slate-500 mt-1">"Guardian" está optimizando rutas en tiempo real.</p>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
-                                        <Activity className="w-3 h-3 mr-1" /> ACTIVE
+                        <Card className="lg:col-span-2 bg-slate-900/50 border-slate-800 flex flex-col">
+                            <CardHeader>
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <CardTitle>Rutas Activas</CardTitle>
+                                        <CardDescription>Gestión y monitoreo de entregas en curso.</CardDescription>
+                                    </div>
+                                    <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+                                        {activeRoutes.length} EN CURSO
                                     </Badge>
                                 </div>
                             </CardHeader>
-                            <CardContent className="flex-1 relative p-0 overflow-hidden bg-slate-950">
-                                {/* LIVE MAP VISUALIZATION - Leaflet */}
-                                <div className="absolute inset-0 z-0 bg-slate-950">
-                                    <MapContainer
-                                        center={[universalConfig.cedisLat || 19.4326, universalConfig.cedisLng || -99.1332]}
-                                        zoom={13}
-                                        style={{ height: '100%', width: '100%', background: '#020617' }}
-                                        zoomControl={false}
-                                        dragging={true}
-                                    >
-                                        <TileLayer
-                                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-                                            url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-                                            subdomains='abcd'
-                                            maxZoom={20}
-                                        />
-
-                                        {/* CEDIS Marker */}
-                                        <Marker position={[universalConfig.cedisLat || 19.4326, universalConfig.cedisLng || -99.1332]} icon={L.divIcon({ className: '', html: '<div class="w-4 h-4 bg-primary rounded-full border-2 border-white shadow-[0_0_15px_rgba(59,130,246,0.6)]"></div>' })}>
-                                            <LeafletTooltip direction="top" offset={[0, -5]} opacity={1} permanent>
-                                                {universalConfig.cedisAddress || "CEDIS Principal"}
-                                            </LeafletTooltip>
-                                        </Marker>
-
-                                        {/* Active Route Stops */}
+                            <CardContent className="p-0">
+                                {activeRoutes.length === 0 ? (
+                                    <div className="p-12 text-center text-slate-500">
+                                        <Brain className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                                        <p>No hay rutas activas en este momento.</p>
+                                    </div>
+                                ) : (
+                                    <div className="divide-y divide-white/5">
                                         {activeRoutes.map((route: any) => (
-                                            <div key={route.id}>
-                                                {route.stops.map((stop: any) => (
-                                                    <Marker
-                                                        key={stop.id}
-                                                        position={[stop.locationLat || 19.44, stop.locationLng || -99.14]}
-                                                        icon={L.divIcon({
-                                                            className: '',
-                                                            html: `<div class="w-3 h-3 ${stop.stopType === 'delivery' ? 'bg-blue-500' : 'bg-purple-500'} rounded-full border border-white opacity-80"></div>`
-                                                        })}
-                                                    >
-                                                        <Popup className="glass-popup">
-                                                            <div className="p-1">
-                                                                <p className="font-bold text-xs uppercase">{stop.stopType === 'delivery' ? 'Entrega' : 'Recolección'}</p>
-                                                                <p className="text-[10px] text-slate-300">
-                                                                    {stop.stopType === 'delivery' ? stop.order?.customer?.name : stop.purchase?.supplier?.name}
-                                                                </p>
-                                                                <Badge className="mt-1 text-[8px] h-4 uppercase">{stop.status}</Badge>
+                                            <div key={route.id} className="p-6 hover:bg-white/5 transition-colors">
+                                                <div className="flex items-center justify-between mb-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center border border-slate-700">
+                                                            <Truck className="w-5 h-5 text-slate-400" />
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="font-bold text-white text-sm">{route.vehicle?.plate}</h4>
+                                                            <p className="text-xs text-slate-500">{route.driver?.name}</p>
+                                                        </div>
+                                                    </div>
+                                                    <Badge className={route.status === 'active' ? "bg-green-500/20 text-green-500" : "bg-slate-500/20"}>
+                                                        {route.status.toUpperCase()}
+                                                    </Badge>
+                                                </div>
+
+                                                <div className="mb-4 space-y-2">
+                                                    <div className="flex justify-between text-xs text-slate-400">
+                                                        <span>Progreso</span>
+                                                        <span>{Math.round((route.stops.filter((s: any) => s.status === 'completed').length / route.stops.length) * 100) || 0}%</span>
+                                                    </div>
+                                                    <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                                                        <div
+                                                            className="h-full bg-primary"
+                                                            style={{ width: `${(route.stops.filter((s: any) => s.status === 'completed').length / route.stops.length) * 100}%` }}
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    {route.stops.map((stop: any, idx: number) => (
+                                                        <div key={stop.id} className="flex items-center gap-3 text-xs">
+                                                            <div className={cn(
+                                                                "w-6 h-6 rounded-full flex items-center justify-center font-bold border",
+                                                                stop.status === 'completed' ? "bg-green-500/10 border-green-500/30 text-green-500" : "bg-slate-800 border-slate-700 text-slate-500"
+                                                            )}>
+                                                                {stop.status === 'completed' ? <Check className="w-3 h-3" /> : idx + 1}
                                                             </div>
-                                                        </Popup>
-                                                    </Marker>
-                                                ))}
+                                                            <span className={stop.status === 'completed' ? "text-slate-500 line-through" : "text-slate-300"}>
+                                                                {stop.stopType === 'delivery' ? stop.order?.customer?.name : stop.purchase?.supplier?.name}
+                                                            </span>
+                                                            {stop.status === 'pending' && idx === route.stops.findIndex((s: any) => s.status === 'pending') && (
+                                                                <Badge variant="outline" className="ml-auto text-[10px] border-blue-500/30 text-blue-400">PRÓXIMO</Badge>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
                                             </div>
                                         ))}
-
-                                        {/* Real Active Terminals Tracking */}
-                                        {activeTerminals.map((kiosk: any) => (
-                                            <Marker
-                                                key={kiosk.id}
-                                                position={[kiosk.lastLatitude || 19.4326, kiosk.lastLongitude || -99.1332]}
-                                                icon={createVehicleIcon(kiosk.status === 'online' ? 'active' : 'inactive')}
-                                            >
-                                                <Popup className="glass-popup">
-                                                    <div className="p-1">
-                                                        <p className="font-bold text-sm">{kiosk.name}</p>
-                                                        <p className="text-xs text-slate-500">
-                                                            Vehículo: {vehiclesData.find((v: any) => v.id === kiosk.vehicleId)?.plate || 'N/A'}<br />
-                                                            Conductor: {employees.find((e: any) => e.id === kiosk.driverId)?.name || 'N/A'}
-                                                        </p>
-                                                        <Badge className={cn("mt-1 text-[10px] h-5", kiosk.status === 'online' ? "bg-green-500" : "bg-slate-500")}>
-                                                            {kiosk.status === 'online' ? 'EN MOVIMIENTO' : 'DESCONECTADO'}
-                                                        </Badge>
-                                                    </div>
-                                                </Popup>
-                                                <LeafletTooltip direction="bottom" offset={[0, 20]} opacity={0.8} permanent>
-                                                    {vehiclesData.find((v: any) => v.id === kiosk.vehicleId)?.plate || kiosk.name}
-                                                </LeafletTooltip>
-                                            </Marker>
-                                        ))}
-
-                                        {/* Mock Vehicle Marker logic removed or kept as backup if no terminals */}
-                                        {activeTerminals.length === 0 && (
-                                            <Marker
-                                                position={[19.4326, -99.1332]}
-                                                icon={createVehicleIcon('active')}
-                                            >
-                                                <Popup className="glass-popup">
-                                                    <div className="p-1">
-                                                        <p className="font-bold text-sm">Unidad Demo</p>
-                                                        <p className="text-xs text-slate-500">Sin terminales activas</p>
-                                                    </div>
-                                                </Popup>
-                                            </Marker>
-                                        )}
-
-                                        <MapController center={[universalConfig.cedisLat || 19.4326, universalConfig.cedisLng || -99.1332]} />
-                                    </MapContainer>
-                                </div>
-
-                                {/* Controls Overlay */}
-                                <div className="absolute bottom-6 left-6 right-6 flex justify-center">
-                                    <div className="glass-card bg-black/60 border-white/10 p-2 rounded-2xl flex items-center gap-2 backdrop-blur-md">
-                                        <div className="px-4 border-r border-white/10">
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Asignación Cognitiva</p>
-                                        </div>
-                                        <div className="flex items-center gap-2 px-2">
-                                            {/* Driver Link PWA */}
-                                            <DriverLinkDialog />
-
-                                            <div className="h-4 w-px bg-white/10 mx-1"></div>
-
-                                            {/* Quick Auto Assign for Demo */}
-                                            {vehiclesData.length > 0 && employees.length > 0 ? (
-                                                <Button
-                                                    size="sm"
-                                                    className="bg-primary hover:bg-primary/90 text-white font-bold shadow-[0_0_15px_rgba(79,70,229,0.4)] animate-pulse hover:animate-none transition-all"
-                                                    onClick={() => generateRouteMutation.mutate({
-                                                        vehicleId: vehiclesData[0].id,
-                                                        driverId: employees[0].id
-                                                    })}
-                                                    disabled={generateRouteMutation.isPending}
-                                                >
-                                                    {generateRouteMutation.isPending ? <Brain className="w-4 h-4 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
-                                                    OPTIMIZAR Y ASIGNAR
-                                                </Button>
-                                            ) : (
-                                                <Button size="sm" variant="ghost" disabled className="text-slate-500">
-                                                    Requiere Vehículos/Conductores
-                                                </Button>
-                                            )}
-                                        </div>
                                     </div>
-                                </div>
+                                )}
                             </CardContent>
                         </Card>
 
@@ -1102,11 +1061,11 @@ export default function Logistics() {
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label>Costo Estimado ($)</Label>
-                                <Input name="cost" type="number" placeholder="5000" required />
+                                <Input name="cost" type="number" step="0.01" placeholder="0.00" required defaultValue="" />
                             </div>
                             <div className="space-y-2">
                                 <Label>Kilometraje Actual</Label>
-                                <Input name="mileage" type="number" placeholder="10500" />
+                                <Input name="mileage" type="number" step="0.01" placeholder="0.00" defaultValue="" />
                             </div>
                         </div>
                         <DialogFooter>

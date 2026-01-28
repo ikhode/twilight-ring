@@ -3,7 +3,8 @@ import { db } from "../storage";
 import {
     vehicles, fuelLogs, maintenanceLogs, routes, routeStops, sales, purchases,
     insertVehicleSchema, insertRouteSchema, insertRouteStopSchema, expenses,
-    cashRegisters, cashTransactions, userOrganizations
+    cashRegisters, cashTransactions, userOrganizations,
+    customers, suppliers, employees, organizations
 } from "../../shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { getOrgIdFromRequest, getAuthenticatedUser } from "../auth_util";
@@ -508,6 +509,105 @@ router.post("/fleet/routes/stops/:id/complete", async (req, res): Promise<void> 
     } catch (error) {
         console.error("Complete stop error:", error);
         res.status(500).json({ message: "Error completing stop" });
+    }
+});
+
+/**
+ * Get all POIs (Points of Interest) for the organization.
+ * Returns HQ, customers, suppliers, and employees with location data.
+ */
+router.get("/pois", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        // Fetch organization HQ
+        const [org] = await db.select({
+            id: organizations.id,
+            name: organizations.name,
+            address: organizations.headquartersAddress,
+            latitude: organizations.headquartersLatitude,
+            longitude: organizations.headquartersLongitude
+        }).from(organizations).where(eq(organizations.id, orgId)).limit(1);
+
+        // Fetch customers with locations
+        const customerPois = await db.select({
+            id: customers.id,
+            name: customers.name,
+            address: customers.address,
+            latitude: customers.latitude,
+            longitude: customers.longitude,
+            phone: customers.phone
+        }).from(customers).where(eq(customers.organizationId, orgId));
+
+        // Fetch suppliers with locations
+        const supplierPois = await db.select({
+            id: suppliers.id,
+            name: suppliers.name,
+            address: suppliers.address,
+            latitude: suppliers.latitude,
+            longitude: suppliers.longitude,
+            category: suppliers.category
+        }).from(suppliers).where(eq(suppliers.organizationId, orgId));
+
+        // Fetch employees with locations
+        const employeePois = await db.select({
+            id: employees.id,
+            name: employees.name,
+            address: employees.address,
+            latitude: employees.latitude,
+            longitude: employees.longitude,
+            role: employees.role
+        }).from(employees).where(eq(employees.organizationId, orgId));
+
+        res.json({
+            hq: org?.latitude && org?.longitude ? {
+                id: org.id,
+                name: org.name,
+                address: org.address,
+                latitude: org.latitude,
+                longitude: org.longitude,
+                type: 'hq'
+            } : null,
+            customers: customerPois.filter(c => c.latitude && c.longitude).map(c => ({ ...c, type: 'customer' })),
+            suppliers: supplierPois.filter(s => s.latitude && s.longitude).map(s => ({ ...s, type: 'supplier' })),
+            employees: employeePois.filter(e => e.latitude && e.longitude).map(e => ({ ...e, type: 'employee' }))
+        });
+    } catch (error) {
+        console.error("Fetch POIs error:", error);
+        res.status(500).json({ message: "Error fetching POIs" });
+    }
+});
+
+/**
+ * Update organization headquarters location.
+ */
+router.patch("/headquarters", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        const { address, latitude, longitude } = req.body;
+
+        const [updated] = await db.update(organizations)
+            .set({
+                headquartersAddress: address,
+                headquartersLatitude: latitude?.toString(),
+                headquartersLongitude: longitude?.toString()
+            })
+            .where(eq(organizations.id, orgId))
+            .returning();
+
+        res.json(updated);
+    } catch (error) {
+        console.error("Update HQ error:", error);
+        res.status(500).json({ message: "Error updating headquarters" });
     }
 });
 

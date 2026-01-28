@@ -15,6 +15,7 @@ export const vehicles = pgTable("vehicles", {
     year: integer("year"),
     status: text("status").notNull().default("active"), // "active", "maintenance", "inactive"
     currentMileage: integer("current_mileage").default(0),
+    isArchived: boolean("is_archived").notNull().default(false),
     createdAt: timestamp("created_at").defaultNow(),
 });
 

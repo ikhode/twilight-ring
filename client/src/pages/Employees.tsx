@@ -246,7 +246,7 @@ function EditEmployeeDialog({ employee, open, onOpenChange }: { employee: Employ
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Salario (Mensual)</Label>
-                  <Input name="salary" type="number" defaultValue={(employee.salary || 0) / 100} />
+                  <Input name="salary" type="number" step="0.01" defaultValue={employee.salary ? (employee.salary / 100).toString() : ""} placeholder="0.00" />
                 </div>
                 <div className="space-y-2">
                   <Label>Estado</Label>
@@ -515,7 +515,7 @@ export default function Employees() {
                         <Label htmlFor="salary">Salario Mensual (MXN)</Label>
                         <div className="relative">
                           <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                          <Input id="salary" name="salary" type="number" className="pl-9" placeholder="0.00" />
+                          <Input id="salary" name="salary" type="number" step="0.01" className="pl-9" placeholder="0.00" defaultValue="" />
                         </div>
                       </div>
 
@@ -545,7 +545,7 @@ export default function Employees() {
                     key: "name",
                     header: "Colaborador",
                     render: (item) => (
-                      <div className="flex items-center gap-3">
+                      <div className={cn("flex items-center gap-3", item.isArchived && "opacity-50 grayscale line-through")}>
                         <Avatar className="w-9 h-9 border border-slate-700">
                           <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
                             {getInitials(item.name)}
@@ -607,7 +607,7 @@ export default function Employees() {
                             </DropdownMenuItem>
                             <DropdownMenuItem className="text-red-500 focus:text-red-500" onClick={() => setDeletingEmployee(item)}>
                               <Trash2 className="w-4 h-4 mr-2" />
-                              Dar de Baja
+                              {item.isArchived ? "Restaurar" : "Dar de Baja"}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>

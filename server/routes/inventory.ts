@@ -1,6 +1,10 @@
 import { Router } from "express";
 import { db } from "../storage";
-import { products, inventoryMovements, insertProductSchema, users } from "../../shared/schema";
+import {
+    products, inventoryMovements, insertProductSchema, users,
+    productCategories, productGroups, productUnits,
+    insertProductCategorySchema, insertProductGroupSchema, insertProductUnitSchema
+} from "../../shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { getOrgIdFromRequest } from "../auth_util";
 
@@ -19,7 +23,12 @@ router.get("/products", async (req, res): Promise<void> => {
         }
 
         const inv = await db.query.products.findMany({
-            where: eq(products.organizationId, orgId)
+            where: eq(products.organizationId, orgId),
+            with: {
+                categoryRef: true,
+                group: true,
+                unitRef: true
+            }
         });
 
         // Enrich with Cognitive Predictions (Mocked logic for now, utilizing real stock)
@@ -34,6 +43,9 @@ router.get("/products", async (req, res): Promise<void> => {
 
             return {
                 ...p,
+                category: p.categoryRef?.name || p.category, // Fallback to legacy text if needed
+                unit: p.unitRef?.name || p.unit, // Fallback to legacy text or abbreviation
+                uom: p.unitRef?.abbreviation || p.unit,
                 cognitive: {
                     dailyUsage,
                     daysRemaining,
@@ -48,6 +60,95 @@ router.get("/products", async (req, res): Promise<void> => {
     } catch (error) {
         console.error("Inventory error:", error);
         res.status(500).json({ message: "Error fetching inventory", error: String(error) });
+    }
+});
+
+// --- Categories & Groups Management ---
+
+router.get("/categories", async (req, res) => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const cats = await db.query.productCategories.findMany({
+            where: eq(productCategories.organizationId, orgId)
+        });
+        res.json(cats);
+    } catch (error) {
+        res.status(500).json({ message: "Error fetching categories" });
+    }
+});
+
+router.post("/categories", async (req, res) => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const parsed = insertProductCategorySchema.safeParse({ ...req.body, organizationId: orgId });
+        if (!parsed.success) return res.status(400).json(parsed.error);
+
+        const [cat] = await db.insert(productCategories).values(parsed.data).returning();
+        res.status(201).json(cat);
+    } catch (error) {
+        res.status(500).json({ message: "Error creating category" });
+    }
+});
+
+router.get("/groups", async (req, res) => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const groups = await db.query.productGroups.findMany({
+            where: eq(productGroups.organizationId, orgId)
+        });
+        res.json(groups);
+    } catch (error) {
+        res.status(500).json({ message: "Error fetching groups" });
+    }
+});
+
+router.post("/groups", async (req, res) => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const parsed = insertProductGroupSchema.safeParse({ ...req.body, organizationId: orgId });
+        if (!parsed.success) return res.status(400).json(parsed.error);
+
+        const [group] = await db.insert(productGroups).values(parsed.data).returning();
+        res.status(201).json(group);
+    } catch (error) {
+        res.status(500).json({ message: "Error creating group" });
+    }
+});
+
+router.get("/units", async (req, res) => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const units = await db.query.productUnits.findMany({
+            where: eq(productUnits.organizationId, orgId)
+        });
+        res.json(units);
+    } catch (error) {
+        res.status(500).json({ message: "Error fetching units" });
+    }
+});
+
+router.post("/units", async (req, res) => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const parsed = insertProductUnitSchema.safeParse({ ...req.body, organizationId: orgId });
+        if (!parsed.success) return res.status(400).json(parsed.error);
+
+        const [unit] = await db.insert(productUnits).values(parsed.data).returning();
+        res.status(201).json(unit);
+    } catch (error) {
+        res.status(500).json({ message: "Error creating unit" });
     }
 });
 

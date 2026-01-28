@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../storage";
-import { aiInsights, aiConfigurations } from "../../shared/schema";
+import { aiInsights, aiConfigurations, products } from "../../shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { getOrgIdFromRequest } from "../auth_util";
 
@@ -48,6 +48,34 @@ export function registerAIRoutes(app: Express) {
         try {
             const organizationId = await getOrgIdFromRequest(req);
             if (!organizationId) return res.status(401).json({ message: "Unauthorized" });
+
+            // --- AUTO-RESOLUTION LOGIC ---
+            // 1. Check if inventory is no longer empty
+            try {
+                const productCountRes = await db.select({ count: sql<number>`count(*)` })
+                    .from(products)
+                    .where(eq(products.organizationId, organizationId));
+
+                const productCount = Number(productCountRes[0]?.count || 0);
+
+                if (productCount > 0) {
+                    // Auto-resolve "Empty Inventory" suggestions
+                    await db.update(aiInsights)
+                        .set({
+                            acknowledged: true,
+                            data: sql`jsonb_set(coalesce(data, '{}'), '{autoResolved}', 'true')`
+                        })
+                        .where(and(
+                            eq(aiInsights.organizationId, organizationId),
+                            eq(aiInsights.acknowledged, false),
+                            sql`lower(${aiInsights.title}) LIKE '%inventario vacío%'`
+                        ));
+                }
+            } catch (err) {
+                console.warn("Auto-resolution check failed:", err);
+                // Continue execution, don't block the API
+            }
+            // -----------------------------
 
             const insights = await db.query.aiInsights.findMany({
                 where: and(
