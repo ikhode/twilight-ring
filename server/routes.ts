@@ -10,6 +10,7 @@ import { seedCPE } from "./seed_cpe";
 import { seedAuth } from "./seed_auth";
 import { seedOperations } from "./seed_operations";
 import { seedDocumentation } from "./scripts/seed-documentation";
+import { seedCashierData } from "./seed-cashier";
 import { onboardingRoutes } from "./routes/onboarding";
 import dashboardRoutes from "./routes/dashboard";
 import operationsRoutes from "./routes/operations";
@@ -66,6 +67,7 @@ export async function registerRoutes(
     await seedAuth();
     await seedCPE();
     await seedOperations();
+    await seedCashierData();
     console.log("✅ Demo data seeded.");
   } else {
     console.log("ℹ️ Skipping demo data seed. set SEED=true to enable.");
@@ -73,6 +75,9 @@ export async function registerRoutes(
 
   // Register all route modules
   registerAuthRoutes(app);
+
+  // Public/Kiosk Routes
+  app.use("/api/kiosks", kioskRoutes);
 
   // Apply authentication guard to all subsequent API routes
   const { requireAuth } = await import("./auth_util");
@@ -139,7 +144,7 @@ export async function registerRoutes(
   // Specialized
   app.use("/api/cognitive", cognitiveRoutes); // Core AI?
   app.use("/api/trust", trustRoutes);
-  app.use("/api/kiosks", kioskRoutes); // Core logic usually
+  // app.use("/api/kiosks", kioskRoutes); // Moved up before requireAuth
 
   // AI Documentation & Chat
   registerChatRoutes(app);

@@ -125,7 +125,7 @@ router.post("/cash/open", async (req: Request, res: Response) => {
     }
 });
 
-// POST /api/finance/cash/close - Close session
+// POST /api/finance/cash/close - Close session (Arqueo)
 router.post("/cash/close", async (req: Request, res: Response) => {
     try {
         const { user, orgId } = await getContext(req);
@@ -134,7 +134,7 @@ router.post("/cash/close", async (req: Request, res: Response) => {
             return;
         }
 
-        const { declaredAmount, notes } = req.body;
+        const { declaredAmount, notes, justification } = req.body;
 
         const register = await db.query.cashRegisters.findFirst({
             where: eq(cashRegisters.organizationId, orgId)
@@ -147,6 +147,17 @@ router.post("/cash/close", async (req: Request, res: Response) => {
         const expectedAmount = register.balance;
         const difference = declaredAmount - expectedAmount;
 
+        // "nunca le decimos a el cajero cuanto dinero realmente debe dejar en caja..."
+        // Rule: if difference < 0 and NO justification provided, block and request justification.
+        if (difference < 0 && !justification) {
+            res.status(400).json({
+                message: "Faltante detectado. Es obligatorio escribir una justificación para el arqueo.",
+                difference: difference, // Internal UI can use this to show warning
+                blocking: true
+            });
+            return;
+        }
+
         // 1. Close Session
         await db.update(cashSessions)
             .set({
@@ -156,7 +167,7 @@ router.post("/cash/close", async (req: Request, res: Response) => {
                 expectedEndAmount: expectedAmount,
                 difference,
                 status: "closed",
-                notes
+                notes: justification ? `[JUSTIFICACIÓN]: ${justification}. ${notes || ""}` : notes
             })
             .where(eq(cashSessions.id, register.currentSessionId));
 
@@ -168,7 +179,11 @@ router.post("/cash/close", async (req: Request, res: Response) => {
             })
             .where(eq(cashRegisters.id, register.id));
 
-        res.json({ success: true, difference });
+        res.json({
+            success: true,
+            message: difference >= 0 ? "Arqueo correcto. Sesión finalizada." : "Sesión cerrada con reporte de faltante.",
+            status: difference >= 0 ? "ok" : "shortage"
+        });
 
     } catch (error) {
         console.error("Close session error:", error);
@@ -227,64 +242,158 @@ router.post("/cash/transaction", async (req: Request, res: Response) => {
     }
 });
 
-// POST /api/finance/payout - Pay employee balance
-router.post("/payout", async (req: Request, res: Response) => {
+// --- PAYOUT WITH SIGNATURE FLOW ---
+
+// 1. Prepare Payout (Generate Link/Token)
+router.post("/payout/prepare", async (req, res) => {
     try {
-        const { user, orgId } = await getContext(req);
-        if (!user || !orgId) {
-            res.status(401).json({ message: "Unauthorized" });
-            return;
-        }
+        const { orgId } = await getContext(req);
+        const { ticketIds, employeeId, amount } = req.body;
 
-        const { employeeId, amount, notes } = req.body;
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
 
-        if (!employeeId || !amount || amount <= 0) {
-            res.status(400).json({ message: "Invalid payment details" });
-            return;
-        }
+        const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 
-        // 1. Check Register
+        const payoutData = {
+            orgId,
+            ticketIds,
+            employeeId,
+            amount,
+            expires: Date.now() + (30 * 60 * 1000)
+        };
+
+        storage.createPendingPayout(token, payoutData);
+
+        // Fetch employee name for UI
+        const employee = await storage.getEmployee(employeeId);
+
+        res.json({
+            token,
+            signUrl: `/sign/${token}`,
+            amount,
+            employeeName: employee?.name || "Empleado"
+        });
+    } catch (error) {
+        res.status(500).json({ message: "Failed to prepare payout" });
+    }
+});
+
+// 2. Get Payout Info for Signature UI
+router.get("/payout/token/:token", async (req, res) => {
+    const data = storage.getPendingPayout(req.params.token);
+    if (!data) return res.status(404).json({ message: "Enlace expirado o inválido" });
+
+    const employee = await storage.getEmployee(data.employeeId);
+    res.json({
+        amount: data.amount,
+        employeeName: employee?.name || "Empleado",
+        orgId: data.orgId
+    });
+});
+
+// 3. Confirm Payout (Registers transaction after signature)
+router.post("/payout/confirm", async (req, res) => {
+    try {
+        const { token, signatureData } = req.body;
+        const data = storage.consumePendingPayout(token);
+
+        if (!data) return res.status(404).json({ message: "Sesión de firma terminada o expirada" });
+
+        // Finance Logic Here (Transactional)
         const register = await db.query.cashRegisters.findFirst({
-            where: eq(cashRegisters.organizationId, orgId)
+            where: and(eq(cashRegisters.organizationId, data.orgId), eq(cashRegisters.status, 'open'))
         });
 
-        if (!register || register.status !== 'open' || !register.currentSessionId) {
-            res.status(400).json({ message: "Register is closed. Cannot pay." });
-            return;
+        if (!register || register.balance < data.amount) {
+            return res.status(400).json({ message: "Error en caja: fondos insuficientes o caja cerrada" });
         }
 
-        if (register.balance < amount) {
-            res.status(400).json({ message: "Insufficient funds in register" });
-            return;
+        // 1. Update Ticket Status
+        if (data.ticketIds && data.ticketIds.length > 0) {
+            await db.update(pieceworkTickets)
+                .set({ status: 'paid', signatureUrl: signatureData, paidAt: new Date() })
+                .where(inArray(pieceworkTickets.id, data.ticketIds));
         }
 
-        // 2. Decrement Register Balance (Money Out)
-        await db.update(cashRegisters)
-            .set({ balance: sql`${cashRegisters.balance} - ${amount}` })
-            .where(eq(cashRegisters.id, register.id));
-
-        // 3. Decrement Employee Balance (Liability Reduced)
+        // 2. Decrement Employee Balance
         await db.update(employees)
-            .set({ balance: sql`${employees.balance} - ${amount}` })
-            .where(eq(employees.id, employeeId));
+            .set({ balance: sql`${employees.balance} - ${data.amount}` })
+            .where(eq(employees.id, data.employeeId));
 
-        // 4. Record Transaction
+        // 3. Record Cash Transaction
         await db.insert(cashTransactions).values({
-            organizationId: orgId,
+            organizationId: data.orgId,
             registerId: register.id,
-            sessionId: register.currentSessionId,
+            sessionId: register.currentSessionId!,
             type: "out",
             category: "payroll",
-            amount,
-            description: notes || "Pago de Nómina / Destajo",
+            amount: data.amount,
+            description: `Pago firmado: ${data.ticketIds?.length || 1} tickets`,
+            performedBy: (req as any).user?.id || 'system'
+        });
+
+        // 4. Update Balance
+        await db.update(cashRegisters)
+            .set({ balance: sql`${cashRegisters.balance} - ${data.amount}` })
+            .where(eq(cashRegisters.id, register.id));
+
+        res.json({ success: true, message: "Desembolso registrado correctamente" });
+
+    } catch (error) {
+        console.error("Confirm payout error:", error);
+        res.status(500).json({ message: "Error al procesar el pago" });
+    }
+});
+
+// --- DRIVER SETTLEMENTS ---
+
+router.get("/driver-settlements", async (req, res) => {
+    try {
+        const { orgId } = await getContext(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const pending = await storage.getPendingDriverSettlements(orgId);
+        res.json(pending);
+    } catch (error) {
+        res.status(500).json({ message: "Error al obtener liquidaciones" });
+    }
+});
+
+router.post("/driver-settlements/:saleId/receive", async (req, res) => {
+    try {
+        const { user, orgId } = await getContext(req);
+        const { saleId } = req.params;
+
+        const register = await db.query.cashRegisters.findFirst({
+            where: and(eq(cashRegisters.organizationId, orgId!), eq(cashRegisters.status, 'open'))
+        });
+
+        if (!register) return res.status(400).json({ message: "Caja cerrada" });
+
+        const [sale] = await db.select().from(sales).where(eq(sales.id, saleId)).limit(1);
+        if (!sale) return res.status(404).json({ message: "Venta no encontrada" });
+
+        // Record "In" Transaction
+        await db.insert(cashTransactions).values({
+            organizationId: orgId!,
+            registerId: register.id,
+            sessionId: register.currentSessionId!,
+            type: "in",
+            category: "sales",
+            amount: sale.totalPrice,
+            description: `Liquidación de Chofer - Venta ${saleId.slice(0, 6)}`,
+            referenceId: saleId,
             performedBy: user.id
         });
 
-        res.json({ success: true, message: "Payout successful" });
+        // Update Balance
+        await db.update(cashRegisters)
+            .set({ balance: sql`${cashRegisters.balance} + ${sale.totalPrice}` })
+            .where(eq(cashRegisters.id, register.id));
 
+        res.json({ success: true, message: "Efectivo recibido correctamente" });
     } catch (error) {
-        console.error("Payout error:", error);
-        res.status(500).json({ message: "Internal server error" });
+        res.status(500).json({ message: "Error al procesar liquidación" });
     }
 });
 

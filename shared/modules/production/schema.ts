@@ -98,6 +98,8 @@ export const pieceworkTickets = pgTable("piecework_tickets", {
     sourceLocation: text("source_location"), // Where product was taken from
     destinationLocation: text("destination_location"), // Where product was sent
     notes: text("notes"),
+    signatureUrl: text("signature_url"), // Proof of recipient signature
+    paidAt: timestamp("paid_at"),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
 });

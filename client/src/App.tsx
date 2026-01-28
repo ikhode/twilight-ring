@@ -37,6 +37,7 @@ import SubscriptionSuccess from "@/pages/SubscriptionSuccess";
 import WorkflowEditor from "@/pages/WorkflowEditor";
 import Operations from "@/pages/Operations";
 import Kiosk from "@/pages/Kiosk";
+import Signature from "@/pages/Signature";
 
 import { AuthProvider } from "@/hooks/use-auth";
 import { RealtimeProvider } from "@/lib/realtime";
@@ -87,6 +88,7 @@ function Router() {
       <Route path="/kiosk-link" component={TerminalLink} />
       <Route path="/subscription-success" component={SubscriptionSuccess} />
       <Route path="/workflows" component={WorkflowEditor} />
+      <Route path="/sign/:token" component={Signature} />
       <Route component={NotFound} />
     </Switch>
   );

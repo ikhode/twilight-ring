@@ -55,6 +55,14 @@ export interface IStorage {
   // Piecework
   getPieceworkTickets(orgId: string): Promise<any[]>;
   createPieceworkTicket(ticket: any): Promise<schema.PieceworkTicket>;
+
+  // Payout Signature Flow
+  createPendingPayout(token: string, data: any): void;
+  getPendingPayout(token: string): any;
+  consumePendingPayout(token: string): any;
+
+  // Logistics/Cash
+  getPendingDriverSettlements(orgId: string): Promise<any[]>;
 }
 
 export class DrizzleStorage implements IStorage {
@@ -303,23 +311,49 @@ export class DrizzleStorage implements IStorage {
     }));
   }
 
-  // Piecework Methods
-  async getPieceworkTickets(orgId: string): Promise<any[]> {
-    return await db.query.pieceworkTickets.findMany({
-      where: (tickets, { eq }) => eq(tickets.organizationId, orgId),
-      orderBy: (tickets, { desc }) => [desc(tickets.createdAt)],
-      with: {
-        employee: true
-      }
-    });
+  // Payout Signature Flow Persistence
+  private pendingPayouts = new Map<string, any>();
+
+  createPendingPayout(token: string, data: any): void {
+    this.pendingPayouts.set(token, { ...data, createdAt: Date.now() });
+    // Auto-expire after 30 mins
+    setTimeout(() => this.pendingPayouts.delete(token), 30 * 60 * 1000);
   }
 
-  async createPieceworkTicket(ticket: any): Promise<schema.PieceworkTicket> {
-    const [newTicket] = await db.insert(schema.pieceworkTickets).values(ticket).returning();
-    return newTicket;
+  getPendingPayout(token: string): any {
+    return this.pendingPayouts.get(token);
+  }
+
+  consumePendingPayout(token: string): any {
+    const data = this.pendingPayouts.get(token);
+    this.pendingPayouts.delete(token);
+    return data;
+  }
+
+  async getPendingDriverSettlements(orgId: string): Promise<any[]> {
+    // Sales where paymentMethod is cash, paymentStatus is paid, but no cashTransaction links to it
+    // referenceId in cashTransactions would match sales.id
+    const settlements = await db.select({
+      saleId: schema.sales.id,
+      amount: schema.sales.totalPrice,
+      date: schema.sales.date,
+      driverId: schema.sales.driverId,
+      driverName: schema.employees.name
+    })
+      .from(schema.sales)
+      .leftJoin(schema.employees, eq(schema.sales.driverId, schema.employees.id))
+      .where(and(
+        eq(schema.sales.organizationId, orgId),
+        eq(schema.sales.paymentMethod, 'cash'),
+        eq(schema.sales.paymentStatus, 'paid'),
+        sql`NOT EXISTS (
+          SELECT 1 FROM ${schema.cashTransactions} 
+          WHERE ${schema.cashTransactions.referenceId} = ${schema.sales.id}
+        )`
+      ));
+    return settlements;
   }
 }
-
 
 export const storage = new DrizzleStorage();
 
