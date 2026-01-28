@@ -47,9 +47,10 @@ router.get("/tickets", async (req: Request, res: Response): Promise<void> => {
             return;
         }
 
-        const { employeeId, status } = req.query;
+        const { employeeId, status, batchId } = req.query;
         const targetEmployeeId = employeeId as string;
         const ticketStatus = status as string;
+        const targetBatchId = batchId as string;
 
         const conditions = [eq(pieceworkTickets.organizationId, orgId)];
 
@@ -59,6 +60,10 @@ router.get("/tickets", async (req: Request, res: Response): Promise<void> => {
 
         if (ticketStatus) {
             conditions.push(eq(pieceworkTickets.status, ticketStatus));
+        }
+
+        if (targetBatchId) {
+            conditions.push(eq(pieceworkTickets.batchId, targetBatchId));
         }
 
         console.log(`[DEBUG_TICKETS] Org: ${orgId}, Employee: ${targetEmployeeId}, Status: ${ticketStatus}`);

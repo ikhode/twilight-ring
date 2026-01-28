@@ -79,7 +79,7 @@ interface Employee {
     role: string;
 }
 
-type Stage = "batch" | "employee" | "quantity" | "completed";
+type Stage = "batch" | "report" | "completed";
 
 export default function ProductionTerminal({ sessionContext, onLogout }: ProductionTerminalProps) {
     const { toast } = useToast();
@@ -127,6 +127,26 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
         }
     });
 
+    // Fetch tickets for the current batch to show progress
+    const { data: batchTickets = [] } = useQuery<Ticket[]>({
+        queryKey: ["/api/piecework/tickets", "batch", selectedInstance?.id],
+        queryFn: async () => {
+            if (!selectedInstance) return [];
+            const res = await fetch(`/api/piecework/tickets?batchId=${selectedInstance.id}`, {
+                headers: getKioskHeaders({ employeeId: sessionContext.driver?.id })
+            });
+            if (!res.ok) return [];
+            return res.json();
+        },
+        enabled: !!selectedInstance
+    });
+
+    // Realtime invalidation for batch tickets
+    useRealtimeSubscription({
+        table: 'piecework_tickets',
+        queryKeyToInvalidate: ["/api/piecework/tickets", "batch", selectedInstance?.id]
+    });
+
     // Fetch all employees for selection
     const { data: employees = [] } = useQuery<Employee[]>({
         queryKey: ["/api/hr/employees"],
@@ -172,16 +192,16 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
     });
 
     const createTicketMutation = useMutation({
-        mutationFn: async () => {
-            if (!selectedInstance || !selectedEmployeeId) return;
+        mutationFn: async ({ empId, qty }: { empId: string, qty: number }) => {
+            if (!selectedInstance) return;
 
             const res = await fetch("/api/production/report", {
                 method: "POST",
                 headers: getKioskHeaders({ employeeId: sessionContext.driver?.id }),
                 body: JSON.stringify({
-                    employeeId: selectedEmployeeId,
+                    employeeId: empId,
                     instanceId: selectedInstance.id,
-                    quantity: quantity || 1
+                    quantity: qty
                 })
             });
             if (!res.ok) throw new Error("Error creating ticket");
@@ -190,10 +210,12 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
         onSuccess: () => {
             toast({
                 title: "Producción Registrada",
-                description: `Ticket generado satisfactoriamente para ${selectedInstance?.processName}.`,
+                description: `Ticket generado satisfactoriamente.`,
             });
-            setCurrentStage("completed");
+            // We don't change stage here, we stay in 'report' to allow more entries
             queryClient.invalidateQueries({ queryKey: ["/api/piecework/tickets"] });
+            setQuantity(0);
+            setSelectedEmployeeId(null);
         },
         onError: (err: any) => {
             toast({ title: "Error", description: err.message || "No se pudo registrar", variant: "destructive" });
@@ -208,6 +230,15 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
     };
 
     const totalPiecesToday = recentTickets.reduce((acc, t) => acc + (t.quantity || 0), 0);
+    const filteredEmployees = employees.filter(e =>
+        e.name.toLowerCase().includes(employeeSearch.toLowerCase())
+    );
+
+    // Calculate totals per employee in this batch
+    const batchTotals = batchTickets.reduce((acc: Record<string, number>, t: any) => {
+        acc[t.employeeId] = (acc[t.employeeId] || 0) + t.quantity;
+        return acc;
+    }, {});
 
     return (
         <div className="h-[100vh] w-full bg-[#020202] text-white selection:bg-primary/30 p-4 md:p-8 flex flex-col gap-6 overflow-hidden">
@@ -259,13 +290,13 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
                 <Card className="col-span-12 lg:col-span-8 bg-white/[0.01] border-white/5 rounded-[50px] flex flex-col overflow-hidden shadow-2xl relative">
                     {/* Progress Bar */}
                     <div className="absolute top-0 left-0 w-full h-1 flex gap-2 px-10 pt-6 z-10">
-                        {["batch", "employee", "quantity", "completed"].map((s, i) => (
+                        {["batch", "report", "completed"].map((s, i) => (
                             <div
                                 key={s}
                                 className={cn(
                                     "flex-1 h-1 rounded-full transition-all duration-700",
                                     currentStage === s ? "bg-primary shadow-[0_0_15px_rgba(var(--primary),0.5)]" :
-                                        ["batch", "employee", "quantity", "completed"].indexOf(currentStage) > i ? "bg-emerald-500" : "bg-white/5"
+                                        ["batch", "report", "completed"].indexOf(currentStage) > i ? "bg-emerald-500" : "bg-white/5"
                                 )}
                             />
                         ))}
@@ -346,7 +377,7 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
                                                 key={instance.id}
                                                 onClick={() => {
                                                     setSelectedInstance(instance);
-                                                    setCurrentStage("employee");
+                                                    setCurrentStage("report");
                                                 }}
                                                 className="group relative p-10 rounded-[45px] bg-white/[0.02] border border-white/5 hover:border-primary/50 hover:bg-primary/5 transition-all duration-500 text-left overflow-hidden shadow-lg"
                                             >
@@ -376,97 +407,104 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
                             </div>
                         )}
 
-                        {currentStage === "employee" && selectedInstance && (
-                            <div className="space-y-10 animate-in fade-in slide-in-from-right-8 duration-700">
-                                <div className="flex items-center justify-between">
+                        {currentStage === "report" && selectedInstance && (
+                            <div className="space-y-10 animate-in fade-in slide-in-from-right-8 duration-700 flex flex-col h-full">
+                                <div className="flex items-center justify-between shrink-0">
                                     <div className="space-y-2">
-                                        <h2 className="text-6xl font-black tracking-tight uppercase italic leading-tight">Seleccionar <br /><span className="text-primary underline decoration-primary/20">Operador</span></h2>
-                                        <p className="text-slate-500 font-bold uppercase tracking-[0.3em] text-xs">¿Quién realizó el trabajo en {selectedInstance.processName}?</p>
+                                        <h2 className="text-6xl font-black tracking-tight uppercase italic leading-tight">Reporte <br /><span className="text-primary underline decoration-primary/20">de Lote</span></h2>
+                                        <p className="text-slate-500 font-bold uppercase tracking-[0.3em] text-xs">Estableciendo producción para: {selectedInstance.processName}</p>
                                     </div>
-                                    <Button variant="ghost" size="icon" onClick={() => setCurrentStage("batch")} className="h-20 w-20 rounded-full bg-white/5 hover:bg-white/10 transition-all border border-white/5 group">
-                                        <ArrowLeft className="w-8 h-8 group-hover:-translate-x-2 transition-transform" />
-                                    </Button>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {employees.map((emp) => (
-                                        <button
-                                            key={emp.id}
-                                            onClick={() => {
-                                                setSelectedEmployeeId(emp.id);
-                                                setCurrentStage("quantity");
-                                            }}
-                                            className="group flex items-center gap-6 p-8 rounded-[35px] bg-white/[0.02] border border-white/5 hover:border-primary/40 hover:bg-primary/5 transition-all duration-500 text-left"
-                                        >
-                                            <div className="w-16 h-16 rounded-2xl bg-slate-900 border border-white/5 flex items-center justify-center group-hover:scale-110 group-hover:bg-primary/20 transition-all duration-500">
-                                                <div className="text-xl font-black text-primary uppercase">{emp.name.charAt(0)}</div>
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <h3 className="text-lg font-black text-white uppercase italic tracking-tighter truncate group-hover:text-primary transition-colors">{emp.name}</h3>
-                                                <p className="text-[9px] text-slate-600 font-bold uppercase tracking-widest truncate">{emp.role}</p>
-                                            </div>
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {currentStage === "quantity" && selectedInstance && selectedEmployeeId && (
-                            <div className="h-full flex flex-col justify-center max-w-2xl mx-auto space-y-12 animate-in fade-in zoom-in-95 duration-700">
-                                <div className="text-center space-y-8">
-                                    <h2 className="text-8xl font-black tracking-tighter uppercase italic leading-none">Reportar <br /><span className="text-primary italic">Volumen</span></h2>
-                                    <div className="flex items-center justify-center gap-6">
-                                        <Badge className="bg-white/5 text-slate-400 border-white/10 h-10 px-8 uppercase text-[12px] font-black tracking-[0.3em] rounded-full">PROCESO: {selectedInstance.processName}</Badge>
-                                        <span className="text-slate-800 text-3xl opacity-20">/</span>
-                                        <Badge className="bg-white/5 text-slate-400 border-white/10 h-10 px-8 uppercase text-[12px] font-black tracking-[0.3em] rounded-full">OPERADOR: {employees.find(e => e.id === selectedEmployeeId)?.name}</Badge>
+                                    <div className="flex items-center gap-4">
+                                        <div className="relative group">
+                                            <input
+                                                placeholder="BUSCAR EMPLEADO..."
+                                                value={employeeSearch}
+                                                onChange={(e) => setEmployeeSearch(e.target.value)}
+                                                className="h-20 bg-white/5 border border-white/10 rounded-3xl px-8 w-80 text-lg font-bold focus:outline-none focus:border-primary/50 transition-all uppercase italic tracking-tighter"
+                                            />
+                                        </div>
+                                        <Button variant="ghost" size="icon" onClick={() => setCurrentStage("batch")} className="h-20 w-20 rounded-3xl bg-white/5 hover:bg-white/10 transition-all border border-white/5 group">
+                                            <ArrowLeft className="w-8 h-8 group-hover:-translate-x-2 transition-transform" />
+                                        </Button>
                                     </div>
                                 </div>
 
-                                <div className="relative group p-6 rounded-[60px] bg-black/40 border-2 border-white/5 focus-within:border-primary/50 transition-all duration-700 shadow-3xl">
-                                    <input
-                                        type="number"
-                                        value={quantity || ""}
-                                        onChange={(e) => setQuantity(parseInt(e.target.value) || 0)}
-                                        className="w-full bg-transparent p-12 text-[12rem] font-black font-mono text-center text-white outline-none caret-primary leading-none"
-                                        placeholder="0"
-                                        autoFocus
-                                    />
-                                    <div className="absolute right-16 top-1/2 -translate-y-1/2 text-3xl font-black text-slate-800 uppercase italic tracking-widest pointer-events-none opacity-40">
-                                        PIEZAS
-                                    </div>
-                                    <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 flex gap-4">
-                                        {[10, 50, 100, 500].map(val => (
-                                            <button
-                                                key={val}
-                                                onClick={() => setQuantity(q => q + val)}
-                                                className="h-16 px-10 rounded-full bg-white/5 border border-white/10 hover:bg-primary hover:text-black font-black text-xl transition-all shadow-xl active:scale-90"
+                                <ScrollArea className="flex-1 -mx-4 px-4 custom-scrollbar">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-20">
+                                        {filteredEmployees.map((emp) => (
+                                            <div
+                                                key={emp.id}
+                                                className={cn(
+                                                    "group p-8 rounded-[40px] border transition-all duration-500 flex flex-col gap-6",
+                                                    selectedEmployeeId === emp.id
+                                                        ? "bg-primary/10 border-primary/50"
+                                                        : "bg-white/[0.02] border-white/5 hover:border-white/20"
+                                                )}
                                             >
-                                                +{val}
-                                            </button>
+                                                <div className="flex items-center gap-6">
+                                                    <div className="w-16 h-16 rounded-2xl bg-slate-900 border border-white/5 flex items-center justify-center">
+                                                        <div className="text-xl font-black text-primary uppercase">{emp.name.charAt(0)}</div>
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <h3 className="text-lg font-black text-white uppercase italic tracking-tighter truncate">{emp.name}</h3>
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                                                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest truncate">Total: {batchTotals[emp.id] || 0} pza</p>
+                                                        </div>
+                                                    </div>
+                                                    <Button
+                                                        onClick={() => setSelectedEmployeeId(selectedEmployeeId === emp.id ? null : emp.id)}
+                                                        variant="ghost"
+                                                        className="h-14 w-14 rounded-2xl bg-white/5"
+                                                    >
+                                                        {selectedEmployeeId === emp.id ? <X className="w-6 h-6" /> : <Plus className="w-6 h-6" />}
+                                                    </Button>
+                                                </div>
+
+                                                {selectedEmployeeId === emp.id && (
+                                                    <div className="space-y-6 animate-in slide-in-from-top-4 duration-500">
+                                                        <div className="flex items-center gap-4">
+                                                            <input
+                                                                type="number"
+                                                                value={quantity || ""}
+                                                                onChange={(e) => setQuantity(parseInt(e.target.value) || 0)}
+                                                                className="flex-1 h-20 bg-black/40 border border-white/10 rounded-2xl p-6 text-4xl font-mono font-black text-center outline-none focus:border-primary transition-all"
+                                                                placeholder="0"
+                                                                autoFocus
+                                                            />
+                                                            <Button
+                                                                onClick={() => createTicketMutation.mutate({ empId: emp.id, qty: quantity })}
+                                                                disabled={quantity <= 0 || createTicketMutation.isPending}
+                                                                className="h-20 px-8 rounded-2xl bg-primary text-black font-black uppercase italic tracking-tighter text-xl"
+                                                            >
+                                                                {createTicketMutation.isPending ? <Loader2 className="w-8 h-8 animate-spin" /> : "REGISTRAR"}
+                                                            </Button>
+                                                        </div>
+                                                        <div className="flex gap-2">
+                                                            {[10, 50, 100].map(v => (
+                                                                <Button
+                                                                    key={v}
+                                                                    variant="outline"
+                                                                    onClick={() => setQuantity(v)}
+                                                                    className="flex-1 h-12 rounded-xl border-white/5 hover:bg-primary/20 text-[10px] font-black"
+                                                                >
+                                                                    {v} PCS
+                                                                </Button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
                                         ))}
                                     </div>
-                                </div>
+                                </ScrollArea>
 
-                                <div className="grid grid-cols-2 gap-10 pt-16">
+                                <div className="absolute bottom-4 right-4 animate-bounce">
                                     <Button
-                                        variant="ghost"
-                                        size="lg"
-                                        onClick={() => setCurrentStage("employee")}
-                                        className="h-28 rounded-[40px] border-2 border-white/5 text-2xl font-black uppercase tracking-tighter hover:bg-white/5 transition-all text-slate-500"
+                                        onClick={() => setCurrentStage("completed")}
+                                        className="h-20 px-10 rounded-3xl bg-emerald-500 text-black font-black uppercase italic tracking-tighter text-xl shadow-2xl"
                                     >
-                                        Regresar
-                                    </Button>
-                                    <Button
-                                        size="lg"
-                                        disabled={quantity <= 0 || createTicketMutation.isPending}
-                                        onClick={() => createTicketMutation.mutate()}
-                                        className="h-28 rounded-[40px] bg-primary hover:bg-primary/90 text-black text-4xl font-black uppercase tracking-tighter italic shadow-2xl transition-all active:scale-95"
-                                    >
-                                        {createTicketMutation.isPending ? (
-                                            <Loader2 className="w-12 h-12 animate-spin" />
-                                        ) : (
-                                            <>REGISTRAR <Plus className="w-12 h-12 ml-4 stroke-[4]" /></>
-                                        )}
+                                        FINALIZAR REGISTRO <CheckCircle2 className="w-6 h-6 ml-4" />
                                     </Button>
                                 </div>
                             </div>
