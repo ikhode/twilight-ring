@@ -91,6 +91,8 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
     const [isStartBatchOpen, setIsStartBatchOpen] = useState(false);
     const [selectedProcessId, setSelectedProcessId] = useState<string>("");
     const [employeeSearch, setEmployeeSearch] = useState("");
+    const [isFinishBatchOpen, setIsFinishBatchOpen] = useState(false);
+    const [closureData, setClosureData] = useState({ yields: 0, notes: "" });
 
     // Realtime Reactivity
     useRealtimeSubscription({
@@ -219,6 +221,34 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
         },
         onError: (err: any) => {
             toast({ title: "Error", description: err.message || "No se pudo registrar", variant: "destructive" });
+        }
+    });
+
+    const finishBatchMutation = useMutation({
+        mutationFn: async () => {
+            if (!selectedInstance) return;
+            const res = await fetch(`/api/production/instances/${selectedInstance.id}/finish`, {
+                method: "POST",
+                headers: getKioskHeaders({ employeeId: sessionContext.driver?.id }),
+                body: JSON.stringify({
+                    yields: closureData.yields,
+                    notes: closureData.notes
+                })
+            });
+            if (!res.ok) throw new Error("Error al finalizar lote");
+            return res.json();
+        },
+        onSuccess: () => {
+            toast({
+                title: "Lote Finalizado",
+                description: "El lote ha sido cerrado y el inventario actualizado.",
+            });
+            setIsFinishBatchOpen(false);
+            setCurrentStage("completed");
+            queryClient.invalidateQueries({ queryKey: ["/api/production/instances"] });
+        },
+        onError: (err: any) => {
+            toast({ title: "Error", description: err.message || "Fallo al finalizar", variant: "destructive" });
         }
     });
 
@@ -499,12 +529,59 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
                                     </div>
                                 </ScrollArea>
 
-                                <div className="absolute bottom-4 right-4 animate-bounce">
+                                <div className="absolute bottom-4 right-4 flex gap-4">
+                                    <Dialog open={isFinishBatchOpen} onOpenChange={setIsFinishBatchOpen}>
+                                        <DialogTrigger asChild>
+                                            <Button
+                                                className="h-20 px-10 rounded-3xl bg-red-500/10 border border-red-500/20 text-red-500 font-black uppercase italic tracking-tighter text-xl hover:bg-red-500 hover:text-white transition-all shadow-2xl"
+                                            >
+                                                FINALIZAR LOTE <StopCircle className="w-6 h-6 ml-4" />
+                                            </Button>
+                                        </DialogTrigger>
+                                        <DialogContent className="bg-[#0a0a0a]/95 border-white/10 text-white backdrop-blur-3xl rounded-[40px] p-12 max-w-2xl">
+                                            <DialogHeader className="space-y-6">
+                                                <DialogTitle className="text-5xl font-black italic uppercase tracking-tighter">Cierre de <span className="text-primary">Producción</span></DialogTitle>
+                                                <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Reporta el rendimiento final para cerrar este lote</p>
+                                            </DialogHeader>
+
+                                            <div className="space-y-10 py-10">
+                                                <div className="space-y-4">
+                                                    <label className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500">RENDIMIENTO TOTAL (PIEZAS/KG)</label>
+                                                    <input
+                                                        type="number"
+                                                        value={closureData.yields || ""}
+                                                        onChange={(e) => setClosureData({ ...closureData, yields: parseInt(e.target.value) || 0 })}
+                                                        className="w-full h-24 bg-white/5 border border-white/10 rounded-3xl px-10 text-5xl font-mono font-black text-primary outline-none focus:border-primary/50 transition-all"
+                                                        placeholder="0"
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-4">
+                                                    <label className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500">NOTAS DE CIERRE</label>
+                                                    <textarea
+                                                        value={closureData.notes}
+                                                        onChange={(e) => setClosureData({ ...closureData, notes: e.target.value })}
+                                                        className="w-full h-32 bg-white/5 border border-white/10 rounded-3xl p-8 text-lg font-bold outline-none focus:border-primary/50 transition-all resize-none"
+                                                        placeholder="OBSERVACIONES DEL TURNO..."
+                                                    />
+                                                </div>
+
+                                                <Button
+                                                    onClick={() => finishBatchMutation.mutate()}
+                                                    disabled={finishBatchMutation.isPending}
+                                                    className="w-full h-28 rounded-[35px] bg-primary text-black text-3xl font-black uppercase italic tracking-tighter shadow-2xl hover:scale-[1.02] active:scale-95 transition-all"
+                                                >
+                                                    {finishBatchMutation.isPending ? <Loader2 className="w-10 h-10 animate-spin" /> : "CONFIRMAR CIERRE"}
+                                                </Button>
+                                            </div>
+                                        </DialogContent>
+                                    </Dialog>
+
                                     <Button
                                         onClick={() => setCurrentStage("completed")}
                                         className="h-20 px-10 rounded-3xl bg-emerald-500 text-black font-black uppercase italic tracking-tighter text-xl shadow-2xl"
                                     >
-                                        FINALIZAR REGISTRO <CheckCircle2 className="w-6 h-6 ml-4" />
+                                        VER RESUMEN <CheckCircle2 className="w-6 h-6 ml-4" />
                                     </Button>
                                 </div>
                             </div>
