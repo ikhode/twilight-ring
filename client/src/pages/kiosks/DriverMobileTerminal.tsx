@@ -94,12 +94,33 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
     const [isArrived, setIsArrived] = useState(false);
     const [showSignatureModal, setShowSignatureModal] = useState(false);
     const [showTicketModal, setShowTicketModal] = useState(false);
-    const [stopStatus, setStopStatus] = useState<'pending' | 'en_camino' | 'arrived' | 'operación' | 'finalizada_operación'>('pending');
+    const [stopStatus, setStopStatus] = useState<'pending' | 'en_camino' | 'arrived' | 'operación' | 'finalizada_operación'>(
+        (localStorage.getItem(`stop_status_${employee.id}`) as any) || 'pending'
+    );
+    const [hasArrivedAuto, setHasArrivedAuto] = useState(false);
     const [wakeLock, setWakeLock] = useState<any>(null);
     const [distanceToStop, setDistanceToStop] = useState<number | null>(null);
+    const [hasLoadedData, setHasLoadedData] = useState(false);
 
     const signatureRef = useRef<SignatureCanvas>(null);
     const queryClient = useQueryClient();
+
+    // Persist status
+    useEffect(() => {
+        localStorage.setItem(`stop_status_${employee.id}`, stopStatus);
+    }, [stopStatus, employee.id]);
+
+    useEffect(() => {
+        if (activeStopId) {
+            localStorage.setItem(`active_stop_id_${employee.id}`, activeStopId);
+        }
+    }, [activeStopId, employee.id]);
+
+    // Load active stop on mount
+    useEffect(() => {
+        const savedId = localStorage.getItem(`active_stop_id_${employee.id}`);
+        if (savedId) setActiveStopId(savedId);
+    }, [employee.id]);
 
     // Screen Wake Lock
     useEffect(() => {
@@ -137,9 +158,12 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
                         const dist = calculateDistance(latitude, longitude, activeStop.locationLat, activeStop.locationLng);
                         setDistanceToStop(dist);
 
+                        setDistanceToStop(dist);
+
                         // Auto-arrival if within 100m and currently en_camino
-                        if (dist < 0.1 && stopStatus === 'en_camino') {
+                        if (dist < 0.1 && stopStatus === 'en_camino' && !hasArrivedAuto) {
                             setStopStatus('arrived');
+                            setHasArrivedAuto(true); // Prevent repeating auto-arrival if user manually resets
                         }
                     }
 
@@ -179,8 +203,13 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
             return res.json();
         },
         enabled: !!employee?.id,
-        refetchInterval: 30000
+        refetchInterval: 30000,
     });
+
+    // Effect to track data loading
+    useEffect(() => {
+        if (route) setHasLoadedData(true);
+    }, [route]);
 
     // Helper: Haversine distance in KM
     function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -194,9 +223,10 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
         return R * c;
     }
 
-    // Demo data fallback if no active route found
+    // Demo data fallback logic
     const stops = useMemo(() => {
         if (route?.stops?.length) return route.stops;
+        if (hasLoadedData) return []; // If we loaded real data and it's empty, route is finished
         return [
             {
                 id: "1",
@@ -221,10 +251,10 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
                 status: 'pending'
             }
         ] as Stop[];
-    }, [route]);
+    }, [route, hasLoadedData]);
 
     const activeStop = useMemo(() =>
-        stops.find(s => s.id === activeStopId) || stops.find(s => s.status === 'pending' || s.status === 'arrived'),
+        stops.find((s: Stop) => s.id === activeStopId) || stops.find((s: Stop) => s.status === 'pending' || s.status === 'arrived'),
         [stops, activeStopId]);
 
     const completeStopMutation = useMutation({
@@ -241,8 +271,10 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
             queryClient.invalidateQueries({ queryKey: ["/api/logistics/driver-route", employee.id] });
             setShowSignatureModal(false);
             setStopStatus('pending');
+            setHasArrivedAuto(false);
             setActiveStopId(null);
             setDistanceToStop(null);
+            localStorage.removeItem(`active_stop_id_${employee.id}`);
         }
     });
 
@@ -268,6 +300,40 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
             <div className="h-screen w-screen bg-black flex flex-col items-center justify-center gap-4">
                 <Loader2 className="w-12 h-12 text-primary animate-spin" />
                 <p className="text-white font-black uppercase tracking-widest text-xs animate-pulse">Optimizando Ruta...</p>
+            </div>
+        );
+    }
+
+    // Route Completed Screen
+    if (hasLoadedData && stops.length === 0) {
+        return (
+            <div className="h-screen w-screen bg-black flex flex-col items-center justify-center p-8 text-center">
+                <motion.div
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className="w-24 h-24 rounded-[32px] bg-primary/20 flex items-center justify-center mb-8"
+                >
+                    <CheckCircle2 className="w-12 h-12 text-primary" />
+                </motion.div>
+                <h1 className="text-4xl font-black italic uppercase italic tracking-tighter mb-4">Ruta Finalizada</h1>
+                <p className="text-slate-400 font-bold uppercase tracking-widest text-xs mb-12">Todas las paradas han sido completadas</p>
+
+                <div className="w-full max-w-sm grid grid-cols-1 gap-4">
+                    <div className="p-6 rounded-[32px] bg-white/5 border border-white/10 flex items-center justify-between">
+                        <div className="text-left">
+                            <p className="text-[10px] font-black uppercase text-primary mb-1">Monto Total Hoy</p>
+                            <p className="text-2xl font-black">$0.00</p>
+                        </div>
+                        <Badge className="bg-primary text-black">DIARIO</Badge>
+                    </div>
+                </div>
+
+                <Button
+                    className="mt-12 h-16 w-full max-w-sm rounded-[32px] bg-white text-black font-black uppercase italic text-lg"
+                    onClick={() => window.location.reload()}
+                >
+                    Finalizar Turno
+                </Button>
             </div>
         );
     }
@@ -431,7 +497,7 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
 
                             <ScrollArea className="h-20 mb-4">
                                 <div className="space-y-2">
-                                    {activeStop?.products.map((p, i) => (
+                                    {activeStop?.products.map((p: { name: string; quantity: number }, i: number) => (
                                         <div key={i} className="flex items-center justify-between p-3 rounded-2xl bg-white/[0.03] border border-white/5">
                                             <div className="flex items-center gap-3">
                                                 <Package className="w-4 h-4 text-primary" />
@@ -568,7 +634,7 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
                                     </div>
 
                                     <div className="space-y-1 mb-4">
-                                        {activeStop?.products.map((p, i) => (
+                                        {activeStop?.products.map((p: { name: string; quantity: number }, i: number) => (
                                             <p key={i} className="text-xs font-bold text-slate-300">
                                                 • {p.quantity} x {p.name}
                                             </p>
@@ -653,7 +719,7 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
                                     </div>
                                     <div className="pt-4 border-t border-slate-100">
                                         <p className="text-[10px] font-black uppercase text-slate-400 mb-2">Desglose:</p>
-                                        {activeStop?.products.map((p, i) => (
+                                        {activeStop?.products.map((p: { name: string; quantity: number }, i: number) => (
                                             <div key={i} className="flex justify-between text-xs mb-1">
                                                 <span>{p.name}</span>
                                                 <span className="font-bold">x{p.quantity}</span>
