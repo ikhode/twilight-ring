@@ -88,7 +88,7 @@ export const onboardingSteps: OnboardingStep[] = [
             },
             {
                 element: '[data-tour="crm-nav"]',
-                intro: '<strong>Módulo CRM</strong><br/>Aquí administras clientes, cotizaciones y oportunidades de venta.<br/><br/>👉 <em>Haz clic para ir a CRM</em>',
+                intro: '<strong>Socios de Negocio</strong><br/>Aquí administras socios, clientes, proveedores y oportunidades.<br/><br/>👉 <em>Haz clic para entrar</em>',
                 position: 'right',
                 actionTrigger: 'nav_/crm'
             },

@@ -126,6 +126,30 @@ router.post("/groups", async (req, res) => {
     }
 });
 
+router.patch("/groups/:id", async (req, res) => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const { name, description } = req.body;
+        const groupId = req.params.id;
+
+        const updates: any = {};
+        if (name !== undefined) updates.name = name;
+        if (description !== undefined) updates.description = description;
+
+        if (Object.keys(updates).length > 0) {
+            await db.update(productGroups)
+                .set(updates)
+                .where(and(eq(productGroups.id, groupId), eq(productGroups.organizationId, orgId)));
+        }
+
+        res.json({ success: true, message: "Group updated" });
+    } catch (error) {
+        res.status(500).json({ message: "Error updating group" });
+    }
+});
+
 router.get("/units", async (req, res) => {
     try {
         const orgId = await getOrgIdFromRequest(req);
@@ -255,7 +279,11 @@ router.patch("/products/:id", async (req, res): Promise<void> => {
         }
 
         const productId = req.params.id;
-        const { stock, price, isActive, reason } = req.body;
+        const {
+            name, sku, categoryId, groupId,
+            isSellable, isPurchasable, isProductionInput, isProductionOutput,
+            unitId, price, cost, stock, isActive, reason
+        } = req.body;
 
         // 1. Get current state
         const product = await db.query.products.findFirst({
@@ -268,22 +296,32 @@ router.patch("/products/:id", async (req, res): Promise<void> => {
         }
 
         const updates: any = {};
+        if (name !== undefined) updates.name = name;
+        if (sku !== undefined) updates.sku = sku;
+        if (categoryId !== undefined) updates.categoryId = categoryId;
+        if (groupId !== undefined) updates.groupId = groupId === 'none' ? null : groupId;
+        if (isSellable !== undefined) updates.isSellable = isSellable;
+        if (isPurchasable !== undefined) updates.isPurchasable = isPurchasable;
+        if (isProductionInput !== undefined) updates.isProductionInput = isProductionInput;
+        if (isProductionOutput !== undefined) updates.isProductionOutput = isProductionOutput;
+        if (unitId !== undefined) updates.unitId = unitId;
         if (typeof price === 'number') updates.price = price;
+        if (typeof cost === 'number') updates.cost = cost;
         if (typeof isActive === 'boolean') updates.isActive = isActive;
 
         // 2. Handle Stock Adjustment with Traceability
         if (typeof stock === 'number') {
-            const diff = stock - product.stock;
+            const diff = stock - (product.stock || 0);
             if (diff !== 0) {
                 updates.stock = stock;
 
                 // Get userId from session for full traceability
-                const userId = (req as any).user?.id; // Assumes auth middleware sets req.user
+                const userId = (req as any).user?.id;
 
                 await db.insert(inventoryMovements).values({
                     organizationId: orgId,
                     productId: productId,
-                    userId: userId || null, // Who made this change
+                    userId: userId || null,
                     quantity: diff,
                     type: "adjustment",
                     beforeStock: product.stock,

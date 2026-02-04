@@ -141,13 +141,14 @@ export function registerBusinessDocumentRoutes(app: Express) {
                 return;
             }
 
-            const { status, type, extractedData } = req.body;
+            const { status, type, extractedData, expiresAt } = req.body;
 
             const [updated] = await db.update(businessDocuments)
                 .set({
                     status,
                     type,
                     extractedData,
+                    expiresAt: expiresAt ? new Date(expiresAt) : undefined,
                     updatedAt: new Date()
                 })
                 .where(and(
@@ -159,6 +160,33 @@ export function registerBusinessDocumentRoutes(app: Express) {
             res.json(updated);
         } catch (error) {
             res.status(500).json({ message: "Update error" });
+        }
+    });
+
+    // GET /api/business-documents/alerts (Documents expiring soon)
+    app.get("/api/business-documents/alerts", async (req: Request, res: Response) => {
+        try {
+            const orgId = await getOrgIdFromRequest(req);
+            if (!orgId) {
+                res.status(401).json({ message: "Unauthorized" });
+                return;
+            }
+
+            const thirtyDaysFromNow = new Date();
+            thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+
+            const expiringDocs = await db.query.businessDocuments.findMany({
+                where: and(
+                    eq(businessDocuments.organizationId, orgId),
+                    sql`${businessDocuments.expiresAt} <= ${thirtyDaysFromNow}`
+                ),
+                orderBy: [desc(businessDocuments.expiresAt)]
+            });
+
+            res.json(expiringDocs);
+        } catch (error) {
+            console.error("Alerts error:", error);
+            res.status(500).json({ message: "Internal server error" });
         }
     });
 }

@@ -26,22 +26,7 @@ export function AppLayout({ children, title, subtitle }: AppLayoutProps) {
 
   useEffect(() => {
     if (loading) return;
-
-    // Onboarding Enforcement
-    // If authenticated but organization onboarding is pending, force them to the onboarding page
-    if (organization?.onboardingStatus === 'pending' && location !== '/onboarding') {
-      const t = setTimeout(() => setLocation('/onboarding'), 100);
-      return () => clearTimeout(t);
-    }
-
-    // Default legacy enforcement for tour active state
-    const isCompleted = localStorage.getItem('nexus_introjs_completed');
-    const isTourActive = localStorage.getItem('nexus_tour_active');
-
-    if (!isCompleted && !isTourActive && location !== '/onboarding' && organization?.onboardingStatus === 'completed') {
-      // If DB says completed but local tour isn't done (maybe new device), let them decide, but here we enforce tour
-      // Or we can just let it be. The user wants to choose experience first.
-    }
+    // All onboarding enforcement is now handled by OnboardingGuard
   }, [location, setLocation, organization, loading]);
 
   return (

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "../storage";
 import {
-    purchases, products, inventoryMovements, suppliers, expenses,
+    purchases, products, inventoryMovements, suppliers, expenses, cashRegisters,
     insertPurchaseSchema, insertSupplierSchema, userOrganizations
 } from "../../shared/schema";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
@@ -57,13 +57,24 @@ router.post("/", async (req, res): Promise<void> => {
             return;
         }
 
-        // Idempotency: Check if batch already exists
-        const existing = await db.query.purchases.findFirst({
-            where: and(eq(purchases.batchId, batchId), eq(purchases.organizationId, orgId))
-        });
-        if (existing) {
-            res.status(400).json({ message: "Esta orden de compra ya ha sido procesada o el ID de lote está duplicado.", batchId });
-            return;
+        // Pre-Validation: Check Cash Balance for Cash + Paid items
+        if (paymentMethod === 'cash' && status === 'paid') {
+            const register = await db.query.cashRegisters.findFirst({
+                where: and(eq(cashRegisters.organizationId, orgId), eq(cashRegisters.status, 'open'))
+            });
+            if (!register) {
+                res.status(400).json({ message: "No hay una caja abierta para procesar el pago en efectivo." });
+                return;
+            }
+            const totalRequired = items.reduce((sum: number, item: any) => sum + (Number(item.cost) * Number(item.quantity)), 0);
+            if (register.balance < totalRequired) {
+                res.status(400).json({
+                    message: "Fondos insuficientes en caja",
+                    required: totalRequired,
+                    available: register.balance
+                });
+                return;
+            }
         }
 
         // Get user for approval check
@@ -88,6 +99,20 @@ router.post("/", async (req, res): Promise<void> => {
 
                 const totalAmount = item.cost * item.quantity;
                 const requiresApproval = !isAdmin && totalAmount > 500000; // Example: > $5,000 MXN requires admin
+
+                // NEW: Price Range Validation
+                if (productStr.minPurchasePrice !== null && item.cost < productStr.minPurchasePrice) {
+                    res.status(400).json({
+                        message: `El precio unitario (${item.cost / 100}) es menor al mínimo permitido para ${productStr.name} (${productStr.minPurchasePrice / 100})`
+                    });
+                    return;
+                }
+                if (productStr.maxPurchasePrice !== null && item.cost > productStr.maxPurchasePrice) {
+                    res.status(400).json({
+                        message: `El precio unitario (${item.cost / 100}) excede el máximo permitido para ${productStr.name} (${productStr.maxPurchasePrice / 100})`
+                    });
+                    return;
+                }
 
                 const [record] = await db.insert(purchases).values({
                     organizationId: orgId,
@@ -280,6 +305,27 @@ router.patch("/:id/pay", async (req, res): Promise<void> => {
             return;
         }
 
+        const effectiveMethod = paymentMethod || purchase.paymentMethod;
+
+        // NEW: Validate cash funds if paying with cash
+        if (effectiveMethod === 'cash') {
+            const register = await db.query.cashRegisters.findFirst({
+                where: and(eq(cashRegisters.organizationId, orgId), eq(cashRegisters.status, 'open'))
+            });
+            if (!register) {
+                res.status(400).json({ message: "No hay una caja abierta para procesar el pago." });
+                return;
+            }
+            if (register.balance < purchase.totalAmount) {
+                res.status(400).json({
+                    message: "Fondos insuficientes en caja",
+                    required: purchase.totalAmount,
+                    available: register.balance
+                });
+                return;
+            }
+        }
+
         // Update method if provided
         if (paymentMethod) {
             await db.update(purchases).set({ paymentMethod }).where(eq(purchases.id, id));
@@ -394,6 +440,184 @@ router.patch("/batch/:batchId/receive", async (req, res): Promise<void> => {
         res.json({ message: `${pendingItems.length} items received successfully` });
     } catch (error) {
         res.status(500).json({ message: "Error receiving batch" });
+    }
+});
+
+/**
+ * Registers payment for all items in a batch.
+ */
+router.patch("/batch/:batchId/pay", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        const { batchId } = req.params;
+        const { paymentMethod } = req.body;
+
+        const pendingItems = await db.query.purchases.findMany({
+            where: and(
+                eq(purchases.batchId, batchId),
+                eq(purchases.organizationId, orgId),
+                eq(purchases.paymentStatus, "pending"),
+                eq(purchases.isApproved, true)
+            )
+        });
+
+        if (pendingItems.length === 0) {
+            res.status(400).json({ message: "No pending or approved items found in this batch" });
+            return;
+        }
+
+        const totalAmount = pendingItems.reduce((sum, item) => sum + item.totalAmount, 0);
+
+        // Validate cash funds if paying with cash
+        if (paymentMethod === 'cash') {
+            const register = await db.query.cashRegisters.findFirst({
+                where: and(eq(cashRegisters.organizationId, orgId), eq(cashRegisters.status, 'open'))
+            });
+            if (!register) {
+                res.status(400).json({ message: "No hay una caja abierta para procesar el pago." });
+                return;
+            }
+            if (register.balance < totalAmount) {
+                res.status(400).json({
+                    message: "Fondos insuficientes en caja",
+                    required: totalAmount,
+                    available: register.balance
+                });
+                return;
+            }
+        }
+
+        for (const item of pendingItems) {
+            if (paymentMethod) {
+                await db.update(purchases).set({ paymentMethod }).where(eq(purchases.id, item.id));
+                item.paymentMethod = paymentMethod;
+            }
+            await recordPurchasePayment(orgId, item);
+        }
+
+        res.json({ message: `${pendingItems.length} items paid successfully` });
+    } catch (error) {
+        console.error("Batch pay error:", error);
+        res.status(500).json({ message: "Error processing batch payment" });
+    }
+});
+
+/**
+ * Cancels all items in a batch.
+ */
+router.patch("/batch/:batchId/cancel", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        const { batchId } = req.params;
+
+        const items = await db.query.purchases.findMany({
+            where: and(
+                eq(purchases.batchId, batchId),
+                eq(purchases.organizationId, orgId),
+                eq(purchases.deliveryStatus, "pending")
+            )
+        });
+
+        if (items.length === 0) {
+            res.status(400).json({ message: "No compatible items found to cancel" });
+            return;
+        }
+
+        await db.update(purchases)
+            .set({ deliveryStatus: "cancelled" })
+            .where(and(eq(purchases.batchId, batchId), eq(purchases.organizationId, orgId)));
+
+        res.json({ message: "Order cancelled successfully" });
+    } catch (error) {
+        res.status(500).json({ message: "Error cancelling batch" });
+    }
+});
+
+/**
+ * Marks a purchase order as archived (Secure Deletion).
+ * Admin can delete permanently, others can only archive.
+ */
+router.delete("/batch/:batchId", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        const user = await getAuthenticatedUser(req);
+        if (!orgId || !user) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        const { batchId } = req.params;
+        const { permanent } = req.query;
+
+        const membership = await db.query.userOrganizations.findFirst({
+            where: and(eq(userOrganizations.userId, user.id), eq(userOrganizations.organizationId, orgId))
+        });
+
+        const isAdmin = membership?.role === 'admin';
+
+        if (permanent === 'true') {
+            if (!isAdmin) {
+                res.status(403).json({ message: "Only administrators can permanently delete records" });
+                return;
+            }
+            await db.delete(purchases).where(and(eq(purchases.batchId, batchId), eq(purchases.organizationId, orgId)));
+            res.json({ message: "Batch permanently deleted" });
+            return;
+        }
+
+        // Default: Soft Delete (Archive)
+        await db.update(purchases)
+            .set({
+                isArchived: true,
+                deletedAt: new Date(),
+                deletedBy: user.id
+            })
+            .where(and(eq(purchases.batchId, batchId), eq(purchases.organizationId, orgId)));
+
+        res.json({ message: "Batch archived successfully" });
+    } catch (error) {
+        console.error("Delete purchase error:", error);
+        res.status(500).json({ message: "Error deleting purchase order" });
+    }
+});
+
+/**
+ * Updates logistics for all items in a batch.
+ */
+router.patch("/batch/:batchId/logistics", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        const { batchId } = req.params;
+        const { driverId, vehicleId, freightCost, logisticsMethod } = req.body;
+
+        const updateData: any = {};
+        if (driverId !== undefined) updateData.driverId = driverId;
+        if (vehicleId !== undefined) updateData.vehicleId = vehicleId;
+        if (freightCost !== undefined) updateData.freightCost = freightCost;
+        if (logisticsMethod !== undefined) updateData.logisticsMethod = logisticsMethod;
+
+        await db.update(purchases)
+            .set(updateData)
+            .where(and(eq(purchases.batchId, batchId), eq(purchases.organizationId, orgId)));
+
+        res.json({ message: "Batch logistics updated" });
+    } catch (error) {
+        res.status(500).json({ message: "Error updating batch logistics" });
     }
 });
 

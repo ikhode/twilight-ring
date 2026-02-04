@@ -89,11 +89,12 @@ function RecenterMap({ coords }: { coords: [number, number] }) {
 }
 
 export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMobileProps) {
-    const [activeStopId, setActiveStopId] = useState<string | null>(null);
     const [currentPosition, setCurrentPosition] = useState<[number, number] | null>(null);
     const [isArrived, setIsArrived] = useState(false);
     const [showSignatureModal, setShowSignatureModal] = useState(false);
     const [showTicketModal, setShowTicketModal] = useState(false);
+    const [lastCompletedStopId, setLastCompletedStopId] = useState<string | null>(null);
+    const [activeStopId, setActiveStopId] = useState<string | null>(localStorage.getItem(`active_stop_id_${employee.id}`));
     const [stopStatus, setStopStatus] = useState<'pending' | 'en_camino' | 'arrived' | 'operación' | 'finalizada_operación'>(
         (localStorage.getItem(`stop_status_${employee.id}`) as any) || 'pending'
     );
@@ -253,9 +254,11 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
         ] as Stop[];
     }, [route, hasLoadedData]);
 
-    const activeStop = useMemo(() =>
-        stops.find((s: Stop) => s.id === activeStopId) || stops.find((s: Stop) => s.status === 'pending' || s.status === 'arrived'),
-        [stops, activeStopId]);
+    const activeStop = useMemo(() => {
+        const candidateStops = stops.filter((s: Stop) => s.id !== lastCompletedStopId);
+        return candidateStops.find((s: Stop) => s.id === activeStopId) ||
+            candidateStops.find((s: Stop) => s.status === 'pending' || s.status === 'arrived');
+    }, [stops, activeStopId, lastCompletedStopId]);
 
     const completeStopMutation = useMutation({
         mutationFn: async (data: { stopId: string; signature?: string; entityType?: string }) => {
@@ -267,7 +270,8 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
             if (!res.ok) throw new Error("Fallo al registrar");
             return res.json();
         },
-        onSuccess: () => {
+        onSuccess: (data, variables) => {
+            setLastCompletedStopId(variables.stopId);
             queryClient.invalidateQueries({ queryKey: ["/api/logistics/driver-route", employee.id] });
             setShowSignatureModal(false);
             setStopStatus('pending');

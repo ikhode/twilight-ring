@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { AliveValue } from "./AliveValue";
 import { useConfiguration } from "@/context/ConfigurationContext";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/use-auth";
 
 interface SearchResult {
     id: string;
@@ -23,6 +24,7 @@ export function SemanticSearch() {
     const [results, setResults] = useState<SearchResult[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const { themeColor } = useConfiguration();
+    const { session } = useAuth();
 
     // Toggle with Cmd+K
     useEffect(() => {
@@ -44,7 +46,10 @@ export function SemanticSearch() {
         try {
             const res = await fetch("/api/search/semantic", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${session?.access_token}`
+                },
                 body: JSON.stringify({ query: val }),
             });
             const data = await res.json();

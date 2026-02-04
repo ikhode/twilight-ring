@@ -62,6 +62,8 @@ export default function Inventory() {
   const [isAdjustDialogOpen, setIsAdjustDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [selectedProductForHistory, setSelectedProductForHistory] = useState<any>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
 
   // Dynamic Placeholders
   const placeholders: Record<string, string> = {
@@ -209,10 +211,45 @@ export default function Inventory() {
     return list.map((p: any) => ({
       ...p,
       price: p.price / 100,
+      cost: (p.cost || 0) / 100,
       status: p.stock < 100 ? "critical" : p.stock < 500 ? "low" : "available",
       unit: p.unit || "pza"
     }));
   }, [dbProducts]);
+
+  const groupedProducts = useMemo(() => {
+    const groups: Record<string, any> = {};
+    const ungrouped: any[] = [];
+
+    products.forEach(p => {
+      if (p.groupId && p.group) {
+        if (!groups[p.groupId]) {
+          groups[p.groupId] = {
+            id: p.groupId,
+            name: p.group.name,
+            sku: `GROUP-${p.groupId.slice(0, 4).toUpperCase()}`,
+            category: p.category,
+            stock: 0,
+            price: p.price, // Use first product's price as group price for now
+            status: "available",
+            unit: p.unit,
+            isGroup: true,
+            products: []
+          };
+        }
+        groups[p.groupId].stock += p.stock;
+        groups[p.groupId].products.push(p);
+      } else {
+        ungrouped.push({ ...p, isGroup: false });
+      }
+    });
+
+    const result = [...ungrouped, ...Object.values(groups)];
+    return result.map(p => ({
+      ...p,
+      status: p.stock < 100 ? "critical" : p.stock < 500 ? "low" : "available"
+    }));
+  }, [products]);
 
   const [newProduct, setNewProduct] = useState({
     name: "",
@@ -241,14 +278,14 @@ export default function Inventory() {
   }, [newProduct.name]);
 
   const filteredProducts = useMemo(() => {
-    return products.filter(
+    return groupedProducts.filter(
       (p) =>
         (p.isActive !== false) &&
         (p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
           (p.category || "").toLowerCase().includes(searchQuery.toLowerCase()))
     );
-  }, [products, searchQuery]);
+  }, [groupedProducts, searchQuery]);
 
   const stats = useMemo(() => ({
     totalProducts: products.length,
@@ -270,35 +307,72 @@ export default function Inventory() {
       queryClient.invalidateQueries({ queryKey: ["/api/inventory/products"] });
       setIsAddDialogOpen(false);
       toast({ title: "Producto Creado", description: "El producto se ha registrado correctamente." });
-      setNewProduct({
-        name: "",
-        sku: "",
-        category: "",
-        categoryId: "",
-        groupId: "",
-        productType: "both",
-        isSellable: true,
-        isPurchasable: true,
-        isProductionInput: false,
-        isProductionOutput: false,
-        stock: 0,
-        unit: "pza",
-        unitId: "",
-        price: 0,
-        cost: 0
-      });
-
-      // Onboarding Action
+      resetForm();
       window.dispatchEvent(new CustomEvent('NEXUS_ONBOARDING_ACTION', { detail: 'product_created' }));
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error de Registro",
-        description: error.message,
-        variant: "destructive"
-      });
+      toast({ title: "Error de Registro", description: error.message, variant: "destructive" });
     }
   });
+
+  const updateProductMutation = useMutation({
+    mutationFn: async (productData: any) => {
+      const res = await apiRequest("PATCH", `/api/inventory/products/${productData.id}`, productData, {
+        Authorization: `Bearer ${session?.access_token}`
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/inventory/products"] });
+      setIsAddDialogOpen(false);
+      setIsEditing(false);
+      toast({ title: "Producto Actualizado", description: "Los cambios se han guardado." });
+      resetForm();
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error de Actualización", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const updateGroupMutation = useMutation({
+    mutationFn: async ({ id, name }: { id: string, name: string }) => {
+      const res = await apiRequest("PATCH", `/api/inventory/groups/${id}`, { name }, {
+        Authorization: `Bearer ${session?.access_token}`
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/inventory/products"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/inventory/groups"] });
+      setIsAddDialogOpen(false);
+      setIsEditing(false);
+      toast({ title: "Grupo Actualizado", description: "Los cambios se han guardado." });
+      resetForm();
+    }
+  });
+
+  const resetForm = () => {
+    setNewProduct({
+      name: "",
+      sku: "",
+      category: "",
+      categoryId: "",
+      groupId: "",
+      productType: "both",
+      isSellable: true,
+      isPurchasable: true,
+      isProductionInput: false,
+      isProductionOutput: false,
+      stock: 0,
+      unit: "pza",
+      unitId: "",
+      price: 0,
+      cost: 0
+    });
+    setIsEditing(false);
+    setSelectedProduct(null);
+    setEditingGroupId(null);
+  };
 
   const archiveProductMutation = useMutation({
     mutationFn: async (productId: string) => {
@@ -332,17 +406,46 @@ export default function Inventory() {
     }
   });
 
+  const handleEdit = (item: any) => {
+    if (item.isGroup) {
+      setEditingGroupId(item.id);
+      setIsEditing(true);
+      setNewProduct(prev => ({ ...prev, name: item.name })); // For group, only name is editable in this view for now
+    } else {
+      setSelectedProduct(item);
+      setIsEditing(true);
+      setNewProduct({
+        ...item,
+        price: item.price, // already decimal
+        cost: item.cost, // already decimal
+        groupId: item.groupId || "",
+        categoryId: item.categoryId || ""
+      });
+    }
+    setIsAddDialogOpen(true);
+  };
+
   const handleAddProduct = () => {
     const payload: any = { ...newProduct };
     if (!payload.categoryId) delete payload.categoryId;
-    if (!payload.groupId) delete payload.groupId;
+    if (!payload.groupId || payload.groupId === "") delete payload.groupId;
 
-    createProductMutation.mutate({
+    const data = {
       ...payload,
       unitId: payload.unitId || null,
-      price: Math.round(newProduct.price * 100), // to cents
-      cost: Math.round(newProduct.cost * 100) // to cents
-    });
+      price: Math.round(newProduct.price * 100),
+      cost: Math.round(newProduct.cost * 100)
+    };
+
+    if (isEditing) {
+      if (editingGroupId) {
+        updateGroupMutation.mutate({ id: editingGroupId, name: newProduct.name });
+      } else if (selectedProduct) {
+        updateProductMutation.mutate({ ...data, id: selectedProduct.id });
+      }
+    } else {
+      createProductMutation.mutate(data);
+    }
   };
 
   const formatCurrency = (amount: number) =>
@@ -430,8 +533,12 @@ export default function Inventory() {
                             <Package className="w-5 h-5 text-primary" />
                           </div>
                           <div>
-                            <DialogTitle className="text-xl font-bold tracking-tight uppercase italic">{currentLabels.addProductTitle}</DialogTitle>
-                            <DialogDescription className="text-slate-500 text-xs">{currentLabels.description}</DialogDescription>
+                            <DialogTitle className="text-xl font-bold tracking-tight uppercase italic">
+                              {isEditing ? (editingGroupId ? "Editar Grupo" : "Editar Producto") : currentLabels.addProductTitle}
+                            </DialogTitle>
+                            <DialogDescription className="text-slate-500 text-xs">
+                              {isEditing ? "Modifique los detalles técnicos del item seleccionado." : currentLabels.description}
+                            </DialogDescription>
                           </div>
                         </div>
                       </DialogHeader>
@@ -491,7 +598,7 @@ export default function Inventory() {
                         <div className="space-y-2">
                           <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Grupo (Opcional)</Label>
                           <div className="flex gap-2">
-                            <Select value={newProduct.groupId} onValueChange={(v) => setNewProduct({ ...newProduct, groupId: v === 'none' ? '' : v })}>
+                            <Select value={newProduct.groupId || 'none'} onValueChange={(v) => setNewProduct({ ...newProduct, groupId: v === 'none' ? '' : v })}>
                               <SelectTrigger className="bg-slate-900/50 border-slate-800 focus:border-primary/50 transition-all flex-1">
                                 <SelectValue placeholder="Sin grupo..." />
                               </SelectTrigger>
@@ -601,12 +708,11 @@ export default function Inventory() {
                         <Button
                           className="bg-primary hover:bg-primary/90 text-white font-bold px-8 shadow-[0_0_20px_rgba(59,130,246,0.3)] transition-all hover:scale-105"
                           onClick={() => {
-                            // In real scenario we'd use useCognitiveDiagnostics here but it's inside provider
                             handleAddProduct();
                           }}
-                          disabled={createProductMutation.isPending}
+                          disabled={createProductMutation.isPending || updateProductMutation.isPending || updateGroupMutation.isPending}
                         >
-                          {createProductMutation.isPending ? "Guardando..." : "Confirmar Registro"}
+                          {createProductMutation.isPending || updateProductMutation.isPending || updateGroupMutation.isPending ? "Guardando..." : (isEditing ? "Guardar Cambios" : "Confirmar Registro")}
                         </Button>
                       </DialogFooter>
                     </CognitiveProvider>
@@ -627,7 +733,12 @@ export default function Inventory() {
                         <Package className="w-6 h-6 text-muted-foreground" />
                       </div>
                       <div>
-                        <p className="font-medium">{item.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">{item.name}</p>
+                          {item.isGroup && (
+                            <Badge variant="outline" className="text-[9px] uppercase border-blue-500/30 text-blue-400 bg-blue-500/5">Grupo</Badge>
+                          )}
+                        </div>
                         <p className="text-xs text-muted-foreground font-mono">{item.sku}</p>
                       </div>
                     </div>
@@ -641,14 +752,14 @@ export default function Inventory() {
                       <div className="flex flex-col items-start gap-1">
                         <Badge variant="outline" className="border-warning text-warning bg-warning/5 text-[10px] uppercase font-bold tracking-wider">
                           <AlertTriangle className="w-3 h-3 mr-1" />
-                          Agota en {item.cognitive.daysRemaining} días
+                          Agota en {item.cognitive?.daysRemaining ?? "..."} días
                         </Badge>
-                        <span className="text-[10px] text-muted-foreground">Sugerido: +{item.cognitive.suggestedOrder} {item.unit}</span>
+                        <span className="text-[10px] text-muted-foreground">Sugerido: +{item.cognitive?.suggestedOrder ?? 0} {item.unit}</span>
                       </div>
                     ) : (
                       <span className="text-[10px] text-muted-foreground opacity-50 flex items-center gap-1">
                         <CheckCircle2 className="w-3 h-3 text-success" />
-                        Stock Saludable ({item.cognitive.daysRemaining}d)
+                        {item.cognitive ? `Stock Saludable (${item.cognitive.daysRemaining}d)` : "Calculando..."}
                       </span>
                     )
                   ),
@@ -712,15 +823,25 @@ export default function Inventory() {
                       <Button
                         variant="outline"
                         size="sm"
-                        data-testid={`button-adjust-stock-${item.id}`}
-                        onClick={() => {
-                          setSelectedProduct(item);
-                          setIsAdjustDialogOpen(true);
-                        }}
+                        onClick={() => handleEdit(item)}
                       >
-                        <ArrowUpDown className="w-4 h-4 mr-1" />
-                        Ajustar
+                        <Plus className="w-4 h-4 mr-1 rotate-45" />
+                        Editar
                       </Button>
+                      {!item.isGroup && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          data-testid={`button-adjust-stock-${item.id}`}
+                          onClick={() => {
+                            setSelectedProduct(item);
+                            setIsAdjustDialogOpen(true);
+                          }}
+                        >
+                          <ArrowUpDown className="w-4 h-4 mr-1" />
+                          Ajustar
+                        </Button>
+                      )}
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
@@ -938,9 +1059,20 @@ function StockAdjustmentDialog({ isOpen, onOpenChange, product, onAdjust, isPend
   );
 }
 
+interface Movement {
+  id: string;
+  type: string;
+  quantity: number;
+  reason: string;
+  date: string;
+  createdAt: string;
+  userName?: string;
+  source?: string;
+}
+
 function MovementHistoryDialog({ isOpen, onOpenChange, product }: { isOpen: boolean, onOpenChange: (v: boolean) => void, product: any }) {
   const { session } = useAuth();
-  const { data: movements, isLoading } = useQuery({
+  const { data: movements, isLoading } = useQuery<Movement[]>({
     queryKey: [product?.id ? `/api/inventory/products/${product.id}/history` : null],
     queryFn: async () => {
       const res = await fetch(`/api/inventory/products/${product.id}/history`, {
@@ -970,9 +1102,9 @@ function MovementHistoryDialog({ isOpen, onOpenChange, product }: { isOpen: bool
               <div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin mx-auto" />
               <p className="text-sm text-muted-foreground animate-pulse">Analizando serie de tiempo...</p>
             </div>
-          ) : movements?.length > 0 ? (
+          ) : movements && movements.length > 0 ? (
             <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-              {movements.map((m: any) => (
+              {movements.map((m) => (
                 <div key={m.id} className="group flex items-center justify-between p-4 rounded-xl bg-slate-900/50 border border-white/5 hover:border-primary/20 transition-all duration-300">
                   <div className="flex items-center gap-4">
                     <div className={cn(
@@ -1011,7 +1143,7 @@ function MovementHistoryDialog({ isOpen, onOpenChange, product }: { isOpen: bool
                       {m.quantity > 0 ? '+' : ''}{m.quantity} {product?.unit}
                     </p>
                     <p className="text-[10px] text-muted-foreground italic opacity-70">
-                      Muelle: {m.source || 'Interno / Almacén'}
+                      Muelle: {m.source ?? 'Interno / Almacén'}
                     </p>
                   </div>
                 </div>
@@ -1025,7 +1157,7 @@ function MovementHistoryDialog({ isOpen, onOpenChange, product }: { isOpen: bool
           )}
         </div>
         <DialogFooter className="border-t border-white/5 pt-4 mt-2">
-          <Button variant="ghost" className="hover:bg-white/5" onClick={() => onOpenChange(false)}>
+          <Button variant="ghost" className="hover:bg-white/5" onClick={() => { onOpenChange(false); }}>
             Cerrar Expediente
           </Button>
         </DialogFooter>

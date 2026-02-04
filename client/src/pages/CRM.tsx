@@ -227,9 +227,9 @@ export default function CRM() {
   const { setIntent, setMode, setConfidence } = useCognitiveEngine();
 
   useEffect(() => {
-    setIntent("Gestión de Cartera de Clientes");
+    setIntent("Gestión de Socios de Negocio");
     setMode("analysis");
-    setConfidence(92);
+    setConfidence(98);
 
     return () => {
       setIntent(undefined as any);
@@ -261,7 +261,7 @@ export default function CRM() {
 
   if (!isEnabled) {
     return (
-      <AppLayout title="Gestión Comercial (CRM)" subtitle="Administración de relaciones">
+      <AppLayout title="Socios de Negocio" subtitle="Administración de relaciones">
         <div className="flex flex-col items-center justify-center h-[80vh] text-center space-y-4">
           <div className="p-4 bg-muted rounded-full">
             <Users className="w-12 h-12 text-muted-foreground" />
@@ -324,8 +324,8 @@ export default function CRM() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, (payload) => {
         queryClient.invalidateQueries({ queryKey: ["/api/crm/customers"] });
         toast({
-          title: "Cartera Actualizada",
-          description: "La IA ha procesado cambios en los clientes.",
+          title: "Directorio Actualizado",
+          description: "La IA ha procesado cambios en los socios.",
           duration: 2000
         });
       })
@@ -357,7 +357,7 @@ export default function CRM() {
   );
 
   return (
-    <AppLayout title="Gestión Comercial (CRM)" subtitle="Administración de relaciones y cartera">
+    <AppLayout title="Socios de Negocio" subtitle="Administración de relaciones y cartera">
       <div className="space-y-6">
         <Tabs defaultValue="clients" className="space-y-6">
           <TabsList className="bg-slate-900/50 border border-slate-800 p-1">
@@ -392,11 +392,11 @@ export default function CRM() {
                       <Badge variant="outline" className="text-[10px] h-4 border-primary/30 text-primary/80">Monitor Activo</Badge>
                     </h4>
                     <p className="text-sm text-slate-400 mt-1">
-                      {analysisData?.segments?.atRisk > 0
-                        ? `Se identificaron ${analysisData.segments.atRisk} clientes con pagos demorados que requieren conciliación inmediata.`
+                      {analysisData?.segments?.delinquentCount > 0
+                        ? `Se identificaron ${analysisData.segments.delinquentCount} socios con pagos demorados que requieren conciliación inmediata.`
                         : "No se detectan discrepancias en los ciclos de cobro. La liquidez de cartera es óptima."}
                     </p>
-                    {analysisData?.segments?.atRisk > 0 && (
+                    {analysisData?.segments?.delinquentCount > 0 && (
                       <div className="mt-3 flex gap-2">
                         <CognitiveButton
                           size="sm"

@@ -91,10 +91,20 @@ export const products = pgTable("products", {
     unitId: varchar("unit_id").references(() => productUnits.id), // New references
     price: integer("price").notNull().default(0), // in cents
     cost: integer("cost").notNull().default(0), // in cents
+
+    // Configurable Price Ranges for Business Logic
+    minPurchasePrice: integer("min_purchase_price"), // in cents
+    maxPurchasePrice: integer("max_purchase_price"), // in cents
+
     stock: integer("stock").notNull().default(0),
     minStock: integer("min_stock").notNull().default(0),
     isActive: boolean("is_active").notNull().default(true),
     isArchived: boolean("is_archived").notNull().default(false),
+
+    // Audit for Secure Deletion
+    deletedAt: timestamp("deleted_at"),
+    deletedBy: varchar("deleted_by"),
+
     createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -127,6 +137,11 @@ export const sales = pgTable("sales", {
     driverId: varchar("driver_id").references(() => employees.id),
     vehicleId: varchar("vehicle_id").references(() => vehicles.id),
     date: timestamp("date").defaultNow(),
+
+    // Secure Deletion & Archiving
+    isArchived: boolean("is_archived").notNull().default(false),
+    deletedAt: timestamp("deleted_at"),
+    deletedBy: varchar("deleted_by"),
 });
 
 export const purchases = pgTable("purchases", {
@@ -150,6 +165,11 @@ export const purchases = pgTable("purchases", {
     receivedAt: timestamp("received_at"),
     paidAt: timestamp("paid_at"),
     notes: text("notes"),
+
+    // Secure Deletion & Archiving
+    isArchived: boolean("is_archived").notNull().default(false),
+    deletedAt: timestamp("deleted_at"),
+    deletedBy: varchar("deleted_by"),
 });
 
 // Types

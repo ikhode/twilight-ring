@@ -138,12 +138,12 @@ export default function CashierTerminal({ sessionContext, onLogout }: CashierTer
         }
     });
 
-    // Fetch unpaid tickets for this employee (Ready for Payment = Approved)
+    // Fetch unpaid tickets for this employee (Ready for Payment = Pending or Approved)
     const { data: unpaidTickets = [] } = useQuery<UnpaidTicket[]>({
-        queryKey: ["/api/piecework/tickets/unpaid", employeeId, "approved"],
+        queryKey: ["/api/piecework/tickets/unpaid", employeeId, "payable"],
         queryFn: async () => {
             if (!employeeId) return [];
-            const res = await fetch(`/api/piecework/tickets?employeeId=${employeeId}&status=approved`, {
+            const res = await fetch(`/api/piecework/tickets?employeeId=${employeeId}&status=approved,pending`, {
                 headers: getAuthHeaders()
             });
             if (!res.ok) throw new Error("Failed to fetch tickets");
@@ -451,7 +451,12 @@ export default function CashierTerminal({ sessionContext, onLogout }: CashierTer
                                                     </div>
                                                     <div className="text-right">
                                                         <p className="text-xl font-mono font-black text-white">$ {(t.totalAmount / 100).toFixed(2)}</p>
-                                                        <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest mt-1">APROBADO</p>
+                                                        <p className={cn(
+                                                            "text-[9px] font-black uppercase tracking-widest mt-1",
+                                                            (t as any).status === 'approved' ? "text-emerald-500" : "text-amber-500"
+                                                        )}>
+                                                            {(t as any).status === 'approved' ? "APROBADO" : "PENDIENTE"}
+                                                        </p>
                                                     </div>
                                                 </div>
                                             ))}

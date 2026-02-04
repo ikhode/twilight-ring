@@ -1,8 +1,12 @@
 import { Handle, Position } from "reactflow";
-import { GitBranch, Filter, CheckCircle, MoreHorizontal } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { GitBranch, Filter, MoreHorizontal } from "lucide-react";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 
-export default function ConditionNode({ data }: { data: any }) {
+interface ConditionNodeData {
+    name: string;
+}
+
+export default function ConditionNode({ data }: { data: ConditionNodeData }) {
     return (
         <div className="relative group flex flex-col items-center">
             {/* Connector line from top */}

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import ReactFlow, {
     Background,
     Controls,
@@ -7,12 +7,17 @@ import ReactFlow, {
     addEdge,
     Node,
     Edge,
+    Position,
     Connection,
     OnNodesChange,
     OnEdgesChange,
     ReactFlowProvider,
     BackgroundVariant,
+    MiniMap,
+    Panel,
+    MarkerType,
 } from "reactflow";
+import dagre from 'dagre';
 import "reactflow/dist/style.css";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -28,7 +33,11 @@ import {
     Layers,
     Bot,
     ArrowLeft,
-    Check
+    Check,
+    LayoutGrid,
+    Navigation2,
+    Plus,
+    Trash2
 } from "lucide-react";
 import {
     Dialog,
@@ -48,6 +57,7 @@ import TriggerNode from "@/components/workflow/nodes/TriggerNode";
 import ActionNode from "@/components/workflow/nodes/ActionNode";
 import ConditionNode from "@/components/workflow/nodes/ConditionNode";
 import PlaceholderNode from "@/components/workflow/nodes/PlaceholderNode";
+import ConnectionLine from "@/components/workflow/FloatingConnectionLine";
 
 const nodeTypes = {
     trigger: TriggerNode,
@@ -78,6 +88,12 @@ interface WorkflowData {
     outputProductIds?: string[];
     outputProductId?: string; // Legacy support
     inputProductId?: string;
+    piecework?: {
+        enabled: boolean;
+        rate: number;
+        unit: string;
+        basis: string;
+    };
 }
 
 interface ProcessData {
@@ -91,38 +107,89 @@ interface Product {
     id: string;
     name: string;
     unit: string;
+    groupId?: string | null;
+    isArchived: boolean;
+    isProductionInput: boolean;
+    isProductionOutput: boolean;
+    group?: {
+        id: string;
+        name: string;
+    } | null;
 }
 
 interface Suggestion {
     id: string;
     name: string;
     description: string;
-    workflow: any;
+    workflow: WorkflowData;
 }
 
-export default function WorkflowEditorWrapper() {
-    return (
-        <ReactFlowProvider>
-            <WorkflowEditor />
-        </ReactFlowProvider>
-    );
-}
 
 function WorkflowEditor() {
     const { session } = useAuth();
     const { toast } = useToast();
-    const [location, setLocation] = useLocation();
+    const [_location, setLocation] = useLocation();
     const searchString = useSearch();
-    const searchParams = new URLSearchParams(searchString);
-    const processId = searchParams.get("processId");
+    const _searchParams = new URLSearchParams(searchString);
+    const processId = _searchParams.get("processId");
 
     const [nodes, setNodes] = useState<Node[]>([]);
     const [edges, setEdges] = useState<Edge[]>([]);
     const [isCatalogOpen, setIsCatalogOpen] = useState(false);
+    const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+
+    // Dagre Layouting Logic
+    const dagreGraph = new dagre.graphlib.Graph();
+    dagreGraph.setDefaultEdgeLabel(() => ({}));
+
+    const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = 'TB') => {
+        const isHorizontal = direction === 'LR';
+        dagreGraph.setGraph({ rankdir: direction });
+
+        nodes.forEach((node) => {
+            dagreGraph.setNode(node.id, { width: 320, height: 200 });
+        });
+
+        edges.forEach((edge) => {
+            dagreGraph.setEdge(edge.source, edge.target);
+        });
+
+        dagre.layout(dagreGraph);
+
+        const layoutedNodes = nodes.map((node) => {
+            const nodeWithPosition = dagreGraph.node(node.id);
+            node.targetPosition = isHorizontal ? Position.Left : Position.Top;
+            node.sourcePosition = isHorizontal ? Position.Right : Position.Bottom;
+
+            node.position = {
+                x: nodeWithPosition.x - 320 / 2,
+                y: nodeWithPosition.y - 200 / 2,
+            };
+
+            return node;
+        });
+
+        return { nodes: layoutedNodes, edges };
+    };
+
+    const onLayout = useCallback(
+        (direction: string) => {
+            const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
+                nodes,
+                edges,
+                direction
+            );
+
+            setNodes([...layoutedNodes]);
+            setEdges([...layoutedEdges]);
+        },
+        [nodes, edges]
+    );
     const [searchTerm, setSearchTerm] = useState("");
     const [activeTab, setActiveTab] = useState("all");
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [processName, setProcessName] = useState("");
+    const [description, setDescription] = useState("");
     const [selectedInputProductId, setSelectedInputProductId] = useState<string | null>(null);
     const [selectedOutputProductIds, setSelectedOutputProductIds] = useState<string[]>([]);
     const [pieceworkConfig, setPieceworkConfig] = useState({
@@ -138,22 +205,27 @@ function WorkflowEditor() {
         queryKey: [`/api/cpe/processes/${processId}`],
         queryFn: async () => {
             if (!processId) return null;
-            const res = await fetch(`/api/cpe/processes/${processId}`);
+            const res = await fetch(`/api/cpe/processes/${processId}`, {
+                headers: {
+                    Authorization: `Bearer ${session?.access_token}`
+                }
+            });
             if (!res.ok) throw new Error("Failed to load process");
             return res.json() as Promise<ProcessData>;
         },
-        enabled: !!processId
+        enabled: !!processId && !!session?.access_token
     });
 
     // Hydrate State from Process
     useEffect(() => {
         if (existingProcess) {
             setProcessName(existingProcess.name);
+            setDescription(existingProcess.description || "");
             if (existingProcess.workflowData) {
                 setNodes(existingProcess.workflowData.nodes || []);
                 setEdges(existingProcess.workflowData.edges || []);
 
-                const wd = existingProcess.workflowData as any;
+                const wd = existingProcess.workflowData;
                 if (Array.isArray(wd.outputProductIds)) {
                     setSelectedOutputProductIds(wd.outputProductIds);
                 } else if (wd.outputProductId) {
@@ -175,52 +247,150 @@ function WorkflowEditor() {
                 }
             }
         } else if (!processId) {
-            // Default start node for new workflows
-            setNodes([
-                {
-                    id: "p-start",
-                    type: "placeholder",
-                    position: { x: 250, y: 50 },
-                    data: {
-                        label: "Añadir un disparador",
-                        onClick: () => {
-                            setActivePlaceholderId("p-start");
-                            setIsCatalogOpen(true);
-                        }
-                    },
-                },
-            ]);
+            resetEditor();
         }
     }, [existingProcess, processId]);
+
+    const resetEditor = () => {
+        setProcessName("");
+        setDescription("");
+        setSelectedInputProductId(null);
+        setSelectedOutputProductIds([]);
+        setPieceworkConfig({
+            enabled: false,
+            rate: 0,
+            unit: 'pza',
+            basis: 'output'
+        });
+        setNodes([
+            {
+                id: "p-start",
+                type: "placeholder",
+                position: { x: 250, y: 50 },
+                data: {
+                    label: "Añadir un disparador",
+                    onClick: () => {
+                        setActivePlaceholderId("p-start");
+                        setIsCatalogOpen(true);
+                    }
+                },
+            },
+        ]);
+        setEdges([]);
+        setLocation("/workflows"); // Clear processId from URL
+    };
 
     // Fetch Products
     const { data: products = [] } = useQuery<Product[]>({
         queryKey: ["/api/inventory/products"],
         queryFn: async () => {
-            const res = await fetch("/api/inventory/products");
+            const res = await fetch("/api/inventory/products", {
+                headers: {
+                    Authorization: `Bearer ${session?.access_token}`
+                }
+            });
             if (!res.ok) return [];
             return res.json() as Promise<Product[]>;
-        }
+        },
+        enabled: !!session?.access_token
     });
+
+    // Derived state for grouped products (Group name represents all products within it)
+    const groupedProducts = useMemo(() => {
+        const groups: Record<string, Product> = {};
+        const standalones: Product[] = [];
+
+        // Pre-filter archived products and only keep relevant ones for production
+        // Note: We include all products and will filter specific lists later for input vs output
+        const activeProducts = products.filter(p => !p.isArchived);
+
+        activeProducts.forEach(p => {
+            if (p.groupId && p.group) {
+                // Determine if this product should be the representative
+                const existing = groups[p.groupId];
+                const isExactMatch = p.name.toLowerCase() === p.group.name.toLowerCase();
+
+                if (!existing) {
+                    groups[p.groupId] = p;
+                } else {
+                    // If we find an exact name match, prioritize it over generic members
+                    if (isExactMatch) {
+                        // Merge flags to represent the whole group's capabilities
+                        const combined: Product = {
+                            ...p,
+                            isProductionInput: existing.isProductionInput || p.isProductionInput,
+                            isProductionOutput: existing.isProductionOutput || p.isProductionOutput
+                        };
+                        groups[p.groupId] = combined;
+                    } else {
+                        // Keep current representative but accumulate capability flags
+                        existing.isProductionInput = existing.isProductionInput || p.isProductionInput;
+                        existing.isProductionOutput = existing.isProductionOutput || p.isProductionOutput;
+                    }
+                }
+            } else {
+                standalones.push(p);
+            }
+        });
+
+        // Map grouped results to represent the group name
+        const groupedResults = Object.values(groups).map(p => ({
+            ...p,
+            name: p.group?.name || p.name // Use the group name as the label
+        }));
+
+        return [...standalones, ...groupedResults];
+    }, [products]);
 
     // Fetch Catalog
     const { data: catalog } = useQuery<Catalog>({
         queryKey: ["/api/automation/catalog"],
         queryFn: async () => {
-            const res = await fetch("/api/automation/catalog");
+            const res = await fetch("/api/automation/catalog", {
+                headers: {
+                    Authorization: `Bearer ${session?.access_token}`
+                }
+            });
             if (!res.ok) throw new Error("Failed to fetch catalog");
             return res.json() as Promise<Catalog>;
-        }
+        },
+        enabled: !!session?.access_token
     });
 
     // Fetch Suggestions
     const { data: suggestions } = useQuery<Suggestion[]>({
         queryKey: ["/api/automation/suggestions"],
         queryFn: async () => {
-            const res = await fetch("/api/automation/suggestions");
+            const res = await fetch("/api/automation/suggestions", {
+                headers: {
+                    Authorization: `Bearer ${session?.access_token}`
+                }
+            });
             if (!res.ok) throw new Error("Failed to fetch suggestions");
             return res.json() as Promise<Suggestion[]>;
-        }
+        },
+        enabled: !!session?.access_token
+    });
+
+    // Fetch All Workflows for Library
+    const { data: allWorkflows = [], refetch: refetchWorkflows } = useQuery<ProcessData[]>({
+        queryKey: ["/api/automations"],
+        queryFn: async () => {
+            const res = await fetch("/api/automations", {
+                headers: {
+                    Authorization: `Bearer ${session?.access_token}`
+                }
+            });
+            if (!res.ok) return [];
+            return res.json() as Promise<ProcessData[]>;
+        },
+        enabled: !!session?.access_token
+    });
+
+    // Realtime subscription for workflows
+    useSupabaseRealtime({
+        table: 'processes',
+        queryKey: ["/api/automations"],
     });
 
     const onNodesChange: OnNodesChange = useCallback(
@@ -234,7 +404,14 @@ function WorkflowEditor() {
     );
 
     const onConnect = useCallback(
-        (params: Connection) => { setEdges((eds) => addEdge({ ...params, animated: true }, eds)); },
+        (params: Connection) => {
+            setEdges((eds) => addEdge({
+                ...params,
+                animated: true,
+                markerEnd: { type: MarkerType.ArrowClosed, color: '#3b82f6' },
+                style: { strokeWidth: 2, stroke: '#3b82f6' }
+            }, eds));
+        },
         []
     );
 
@@ -313,7 +490,9 @@ function WorkflowEditor() {
                             source: id,
                             target: `p-${id}-yes`,
                             sourceHandle: 'yes',
+                            label: 'SÍ',
                             animated: true,
+                            markerEnd: { type: MarkerType.ArrowClosed, color: '#22c55e' },
                             style: { stroke: '#22c55e', strokeWidth: 2 }
                         },
                         {
@@ -321,8 +500,10 @@ function WorkflowEditor() {
                             source: id,
                             target: `p-${id}-no`,
                             sourceHandle: 'no',
+                            label: 'NO',
                             animated: true,
-                            style: { stroke: '#64748b', strokeWidth: 2 }
+                            markerEnd: { type: MarkerType.ArrowClosed, color: '#ef4444' },
+                            style: { stroke: '#ef4444', strokeWidth: 2 }
                         }
                     );
                 } else {
@@ -331,6 +512,8 @@ function WorkflowEditor() {
                         source: id,
                         target: `p-${id}`,
                         animated: true,
+                        markerEnd: { type: MarkerType.ArrowClosed, color: '#3b82f6' },
+                        style: { strokeWidth: 2, stroke: '#3b82f6' }
                     });
                 }
                 return newEdges;
@@ -344,9 +527,15 @@ function WorkflowEditor() {
         toast({ title: "Proceso Actualizado", description: `${item.name} se ha configurado.` });
     };
 
-    const applySuggestion = (suggestion: any) => {
-        setNodes(suggestion.workflow.nodes);
-        setEdges(suggestion.workflow.edges);
+    const applySuggestion = (suggestion: Suggestion) => {
+        const { nodes: newNodes, edges: newEdges } = getLayoutedElements(
+            suggestion.workflow.nodes,
+            suggestion.workflow.edges,
+            'TB'
+        );
+        setNodes(newNodes);
+        setEdges(newEdges);
+        setProcessName(suggestion.name);
         toast({ title: "IA: Proceso Sugerido Aplicado", description: suggestion.name });
     };
 
@@ -364,22 +553,19 @@ function WorkflowEditor() {
         mutationFn: async () => {
             const payload = {
                 name: processName || existingProcess?.name || "Nuevo Flujo",
-                description: existingProcess?.description || "Sin descripción",
+                description: description || "Sin descripción",
                 workflowData: {
                     nodes,
                     edges,
-                    outputProductIds: selectedOutputProductIds,
-                    // Backward compatibility
-                    outputProductId: selectedOutputProductIds.length > 0 ? selectedOutputProductIds[0] : null,
-                    inputProductId: selectedInputProductId,
-                    piecework: {
+                    // Generic data
+                    piecework: pieceworkConfig.enabled ? {
                         enabled: pieceworkConfig.enabled,
                         rate: Math.round(pieceworkConfig.rate * 100), // Store in cents
                         unit: pieceworkConfig.unit,
                         basis: pieceworkConfig.basis
-                    }
+                    } : undefined
                 },
-                type: "production"
+                type: "automation"
             };
 
             const url = processId
@@ -404,8 +590,12 @@ function WorkflowEditor() {
 
             return res.json();
         },
-        onSuccess: () => {
+        onSuccess: (data) => {
             toast({ title: "Flujo Guardado", description: "Los cambios se han sincronizado." });
+            refetchWorkflows();
+            if (!processId && data.id) {
+                setLocation(`/workflows?processId=${data.id}`);
+            }
         }
     });
 
@@ -434,12 +624,35 @@ function WorkflowEditor() {
                             <Button
                                 variant="outline"
                                 className="h-8 border-white/10 text-[10px] uppercase font-black"
+                                onClick={() => { setIsLibraryOpen(true); }}
+                            >
+                                <Layers className="w-3.5 h-3.5 mr-2" /> Biblioteca
+                            </Button>
+                            <Button
+                                variant="outline"
+                                className="h-8 border-white/10 text-[10px] uppercase font-black"
+                                onClick={resetEditor}
+                            >
+                                <Plus className="w-3.5 h-3.5 mr-2" /> Nuevo
+                            </Button>
+                            <div className="w-[1px] h-4 bg-white/10 mx-1" />
+                            <Button variant="outline" className="h-8 border-white/10 text-[10px] uppercase font-black">
+                                <Play className="w-3.5 h-3.5 mr-2" /> Simular
+                            </Button>
+                            <div className="w-[1px] h-4 bg-white/10 mx-1" />
+                            <Button
+                                variant="outline"
+                                className="h-8 border-white/10 text-[10px] uppercase font-black"
+                                onClick={() => onLayout('TB')}
+                            >
+                                <LayoutGrid className="w-3.5 h-3.5 mr-2" /> Layout
+                            </Button>
+                            <Button
+                                variant="outline"
+                                className="h-8 border-white/10 text-[10px] uppercase font-black"
                                 onClick={() => { setIsSettingsOpen(true); }}
                             >
                                 <Settings2 className="w-3.5 h-3.5 mr-2" /> Config
-                            </Button>
-                            <Button variant="outline" className="h-8 border-white/10 text-[10px] uppercase font-black">
-                                <Play className="w-3.5 h-3.5 mr-2" /> Simular
                             </Button>
                             <Button
                                 onClick={() => { saveMutation.mutate(); }}
@@ -457,12 +670,47 @@ function WorkflowEditor() {
                             onNodesChange={onNodesChange}
                             onEdgesChange={onEdgesChange}
                             onConnect={onConnect}
+                            onNodesDelete={(deleted) => toast({ title: "Nodos Eliminados", description: `${String(deleted.length)} elementos removidos.` })}
+                            onEdgesDelete={(deleted) => toast({ title: "Conexiones Eliminadas", description: `${String(deleted.length)} enlaces removidos.` })}
+                            onPaneContextMenu={(e) => {
+                                e.preventDefault();
+                                if (confirm("¿Limpiar todo el espacio de trabajo?")) {
+                                    setNodes([]);
+                                    setEdges([]);
+                                }
+                            }}
                             nodeTypes={nodeTypes}
+                            connectionLineComponent={ConnectionLine}
+                            snapToGrid={true}
+                            snapGrid={[20, 20]}
                             fitView
                             className="bg-slate-950"
+                            defaultEdgeOptions={{
+                                animated: true,
+                                style: { strokeWidth: 2 },
+                                markerEnd: { type: MarkerType.ArrowClosed }
+                            }}
                         >
                             <Background color="#cbd5e1" gap={20} size={1} variant={BackgroundVariant.Dots} className="opacity-20" />
                             <Controls className="bg-slate-900 border-white/10" />
+                            <MiniMap
+                                className="bg-slate-900/50 border border-white/5 rounded-2xl overflow-hidden"
+                                maskColor="rgba(0, 0, 0, 0.4)"
+                                nodeColor={(n) => {
+                                    if (n.type === 'trigger') return '#3b82f6';
+                                    if (n.type === 'action') return '#64748b';
+                                    if (n.type === 'condition') return '#f97316';
+                                    return '#1e293b';
+                                }}
+                            />
+                            <Panel position="bottom-right" className="flex gap-2 bg-black/40 p-2 rounded-xl backdrop-blur-md border border-white/5">
+                                <Button size="sm" variant="ghost" className="h-7 text-[9px] font-black uppercase" onClick={() => { onLayout('LR'); }}>
+                                    <Navigation2 className="w-3 h-3 mr-1 rotate-90" /> Horizontal
+                                </Button>
+                                <Button size="sm" variant="ghost" className="h-7 text-[9px] font-black uppercase" onClick={() => { onLayout('TB'); }}>
+                                    <Navigation2 className="w-3 h-3 mr-1" /> Vertical
+                                </Button>
+                            </Panel>
                         </ReactFlow>
                     </div>
                 </div>
@@ -515,7 +763,7 @@ function WorkflowEditor() {
                                         {filteredActions?.map((a) => (
                                             <div
                                                 key={a.id}
-                                                onClick={() => { addStep(a, a.type || 'action'); }}
+                                                onClick={() => { addStep(a, a.type ?? 'action'); }}
                                                 className="p-2 bg-slate-800/50 rounded-lg hover:bg-slate-800 transition-all cursor-pointer flex items-center gap-2"
                                             >
                                                 <div className="w-6 h-6 rounded bg-slate-700 flex items-center justify-center">
@@ -583,7 +831,6 @@ function WorkflowEditor() {
                                         const targetCategory = categoryMap[activeTab] || 'all';
 
                                         const filterItem = (item: CatalogItem) => {
-                                            if (!item) return false;
                                             const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                                                 item.description.toLowerCase().includes(searchTerm.toLowerCase());
 
@@ -595,7 +842,7 @@ function WorkflowEditor() {
 
                                         return (
                                             <>
-                                                {catalog?.triggers?.filter(filterItem).map((t) => (
+                                                {catalog?.triggers.filter(filterItem).map((t) => (
                                                     <Card
                                                         key={t.id}
                                                         onClick={() => { addStep(t, 'trigger'); }}
@@ -606,7 +853,7 @@ function WorkflowEditor() {
                                                         <p className="text-[10px] text-slate-500 mt-1">{t.description}</p>
                                                     </Card>
                                                 ))}
-                                                {catalog?.conditions?.filter(filterItem).map((c) => (
+                                                {catalog?.conditions.filter(filterItem).map((c) => (
                                                     <Card
                                                         key={c.id}
                                                         onClick={() => { addStep(c, 'condition'); }}
@@ -617,7 +864,7 @@ function WorkflowEditor() {
                                                         <p className="text-[10px] text-slate-500 mt-1">{c.description}</p>
                                                     </Card>
                                                 ))}
-                                                {catalog?.actions?.filter(filterItem).map((a) => (
+                                                {catalog?.actions.filter(filterItem).map((a) => (
                                                     <Card
                                                         key={a.id}
                                                         onClick={() => { addStep(a, 'action'); }}
@@ -638,152 +885,95 @@ function WorkflowEditor() {
                 </DialogContent>
             </Dialog>
 
+            <Dialog open={isLibraryOpen} onOpenChange={setIsLibraryOpen}>
+                <DialogContent className="max-w-2xl bg-slate-950 border-slate-800 p-6">
+                    <DialogHeader>
+                        <DialogTitle className="text-white flex items-center gap-2">
+                            <Layers className="w-5 h-5 text-primary" />
+                            Biblioteca de Automatizaciones
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="grid gap-4 mt-4">
+                        {allWorkflows.length === 0 ? (
+                            <div className="py-12 text-center border border-dashed border-slate-800 rounded-2xl">
+                                <p className="text-sm text-slate-500 uppercase font-black tracking-widest">No hay flujos guardados</p>
+                            </div>
+                        ) : (
+                            allWorkflows.map((w) => (
+                                <div
+                                    key={w.id}
+                                    className="p-4 bg-white/5 border border-white/5 rounded-xl flex items-center justify-between hover:bg-white/10 transition-all group"
+                                >
+                                    <div className="cursor-pointer flex-1" onClick={() => {
+                                        setLocation(`/workflows?processId=${w.id}`);
+                                        setIsLibraryOpen(false);
+                                    }}>
+                                        <p className="text-xs font-black text-white group-hover:text-primary transition-colors">{w.name}</p>
+                                        <p className="text-[10px] text-slate-500 leading-tight mt-1">{w.description || 'Sin descripción'}</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="h-8 w-8 text-slate-500 hover:text-red-500"
+                                            onClick={async (e) => {
+                                                e.stopPropagation();
+                                                if (confirm("¿Estás seguro de eliminar esta automatización?")) {
+                                                    await fetch(`/api/automations/${w.id}`, {
+                                                        method: "DELETE",
+                                                        headers: { Authorization: `Bearer ${session?.access_token}` }
+                                                    });
+                                                    refetchWorkflows();
+                                                    toast({ title: "Flujo Eliminado", description: "Se ha removido de la biblioteca." });
+                                                }
+                                            }}
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </Button>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
+
             <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
                 <DialogContent className="bg-slate-900 border-slate-800 max-h-[80vh] overflow-y-auto w-full max-w-lg">
                     <DialogHeader>
-                        <DialogTitle className="text-white">Configuración del Proceso</DialogTitle>
+                        <DialogTitle className="text-white">Configuración del Flujo</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
                         <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-400 uppercase">Nombre del Proceso</label>
+                            <label className="text-xs font-bold text-slate-400 uppercase">Nombre del Flujo</label>
                             <Input
                                 value={processName}
                                 onChange={(e) => { setProcessName(e.target.value); }}
                                 className="bg-slate-950 border-slate-800"
+                                placeholder="ej. Detección de Fraude"
                             />
                         </div>
 
                         <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-400 uppercase">Insumo Principal (Input)</label>
-                            <p className="text-[10px] text-slate-500">Materia prima que se consume automáticamete al iniciar o finalizar lotes.</p>
-                            <ScrollArea className="h-32 rounded-md border border-slate-800 bg-slate-950 p-2">
-                                <div className="space-y-1">
-                                    {products.map((p) => (
-                                        <div
-                                            key={`in-${p.id}`}
-                                            onClick={() => { setSelectedInputProductId(p.id); }}
-                                            className={cn(
-                                                "p-2 rounded cursor-pointer flex justify-between items-center text-xs transition-colors",
-                                                selectedInputProductId === p.id
-                                                    ? "bg-amber-500/20 text-amber-500 border border-amber-500/30"
-                                                    : "text-slate-400 hover:bg-slate-900 border border-transparent"
-                                            )}
-                                        >
-                                            <div className="flex flex-col">
-                                                <span className="font-semibold">{p.name}</span>
-                                                <span className="text-[9px] opacity-70">Unidad: {p.unit}</span>
-                                            </div>
-                                            {selectedInputProductId === p.id && <Zap className="w-3 h-3" />}
-                                        </div>
-                                    ))}
-                                </div>
-                            </ScrollArea>
+                            <label className="text-xs font-bold text-slate-400 uppercase">Descripción</label>
+                            <Input
+                                value={description}
+                                onChange={(e) => setDescription(e.target.value)}
+                                className="bg-slate-950 border-slate-800"
+                                placeholder="Escribe el propósito de esta automatización..."
+                            />
                         </div>
-
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-400 uppercase">Producto Resultante (Output)</label>
-                            <p className="text-[10px] text-slate-500">Selecciona uno o más productos que se generan. <span className="text-primary font-bold">El primero seleccionado será el principal.</span></p>
-                            <ScrollArea className="h-48 rounded-md border border-slate-800 bg-slate-950 p-2">
-                                <div className="space-y-1">
-                                    {products.map((p) => {
-                                        const isSelected = selectedOutputProductIds.includes(p.id);
-                                        const isMain = selectedOutputProductIds[0] === p.id;
-
-                                        return (
-                                            <div
-                                                key={`out-${p.id}`}
-                                                onClick={() => { toggleOutputProduct(p.id); }}
-                                                className={cn(
-                                                    "p-2 rounded cursor-pointer flex justify-between items-center text-xs transition-colors group",
-                                                    isSelected
-                                                        ? "bg-primary/20 text-primary border border-primary/30"
-                                                        : "text-slate-400 hover:bg-slate-900 border border-transparent"
-                                                )}
-                                            >
-                                                <div className="flex flex-col">
-                                                    <span className="font-semibold">{p.name}</span>
-                                                    <span className="text-[9px] opacity-70">Unidad: {p.unit}</span>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    {isMain && <span className="text-[8px] bg-primary text-white px-1 rounded uppercase font-bold">Principal</span>}
-                                                    {isSelected && <Check className="w-3 h-3" />}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </ScrollArea>
-                        </div>
-
-                        <div className="pt-4 border-t border-slate-800 space-y-4">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <label className="text-xs font-bold text-slate-400 uppercase">Configuración de Destajo</label>
-                                    <p className="text-[10px] text-slate-500">Habilitar pago automático por producción reportada.</p>
-                                </div>
-                                <div
-                                    className={cn("w-10 h-5 rounded-full cursor-pointer transition-colors relative", pieceworkConfig.enabled ? "bg-primary" : "bg-slate-800")}
-                                    onClick={() => setPieceworkConfig(prev => ({ ...prev, enabled: !prev.enabled }))}
-                                >
-                                    <div className={cn("absolute top-1 w-3 h-3 bg-white rounded-full transition-all", pieceworkConfig.enabled ? "left-6" : "left-1")} />
-                                </div>
-                            </div>
-
-                            {pieceworkConfig.enabled && (
-                                <div className="p-3 bg-slate-950 rounded-lg border border-slate-800 grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2">
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-bold text-slate-500 uppercase">Tarifa ($)</label>
-                                        <Input
-                                            type="number"
-                                            value={pieceworkConfig.rate || ''}
-                                            onChange={e => setPieceworkConfig(prev => ({ ...prev, rate: parseFloat(e.target.value) }))}
-                                            className="h-8 text-xs bg-slate-900 border-slate-700"
-                                            placeholder="0.00"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-bold text-slate-500 uppercase">Unidad de Pago</label>
-                                        <select
-                                            className="w-full h-8 text-xs bg-slate-900 border border-slate-700 rounded px-2 text-white"
-                                            value={pieceworkConfig.unit}
-                                            onChange={e => setPieceworkConfig(prev => ({ ...prev, unit: e.target.value }))}
-                                        >
-                                            <option value="pza">Por Pieza</option>
-                                            <option value="kg">Por Kilo</option>
-                                            <option value="100u">Por Ciento (100)</option>
-                                            <option value="1000u">Por Millar (1000)</option>
-                                        </select>
-                                    </div>
-                                    <div className="col-span-2 space-y-2">
-                                        <label className="text-[10px] font-bold text-slate-500 uppercase">Base de Cálculo</label>
-                                        <div className="flex gap-2">
-                                            <div
-                                                onClick={() => setPieceworkConfig(prev => ({ ...prev, basis: 'input' }))}
-                                                className={cn(
-                                                    "flex-1 p-2 rounded border text-xs cursor-pointer text-center transition-all",
-                                                    pieceworkConfig.basis === 'input' ? "bg-blue-500/20 border-blue-500 text-blue-400" : "bg-slate-900 border-slate-800 text-slate-400"
-                                                )}
-                                            >
-                                                Input (Mat. Prima Consumida)
-                                            </div>
-                                            <div
-                                                onClick={() => setPieceworkConfig(prev => ({ ...prev, basis: 'output' }))}
-                                                className={cn(
-                                                    "flex-1 p-2 rounded border text-xs cursor-pointer text-center transition-all",
-                                                    pieceworkConfig.basis === 'output' ? "bg-emerald-500/20 border-emerald-500 text-emerald-400" : "bg-slate-900 border-slate-800 text-slate-400"
-                                                )}
-                                            >
-                                                Output (Producto Generado)
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
                     </div>
                 </DialogContent>
             </Dialog>
         </AppLayout>
+    );
+}
+
+export default function AutomationWrapper() {
+    return (
+        <ReactFlowProvider>
+            <WorkflowEditor />
+        </ReactFlowProvider>
     );
 }

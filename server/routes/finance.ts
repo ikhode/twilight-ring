@@ -414,11 +414,17 @@ router.post("/driver-settlements/:saleId/receive", async (req, res) => {
 // GET /api/finance/summary
 router.get("/summary", async (req, res): Promise<void> => {
     try {
-        const { orgId } = await getContext(req);
-        if (!orgId) {
+        const { user, orgId } = await getContext(req);
+        if (!orgId || !user) {
             res.status(401).json({ message: "Unauthorized" });
             return;
         }
+
+        const membership = await db.query.userOrganizations.findFirst({
+            where: and(eq(users.id, user.id), eq(userOrganizations.organizationId, orgId))
+        });
+
+        const isAdminOrManager = membership?.role === 'admin' || membership?.role === 'manager';
 
         const { startDate, endDate } = req.query;
         const start = startDate ? new Date(startDate as string) : null;
@@ -445,13 +451,17 @@ router.get("/summary", async (req, res): Promise<void> => {
         ]);
 
         const expenseSum = totalExpenses.reduce((acc, curr) => acc + curr.amount, 0);
-        const salesSum = totalSales.filter(s => s.paymentStatus === 'paid').reduce((acc, curr) => acc + curr.totalPrice, 0);
+        const salesIncomeSum = totalSales.filter(s => s.paymentStatus === 'paid').reduce((acc, curr) => acc + curr.totalPrice, 0);
         const payrollSum = totalAdvances.reduce((acc, curr) => acc + curr.amount, 0);
-        const manualIncomeSum = totalPayments.filter(p => p.type === 'income').reduce((acc, curr) => acc + curr.amount, 0);
+
+        // Income Breakdown
+        const operationalIncome = salesIncomeSum + totalPayments.filter(p => p.type === 'income' && p.category !== 'capital').reduce((acc, curr) => acc + curr.amount, 0);
+        const capitalIncome = totalPayments.filter(p => p.type === 'income' && p.category === 'capital').reduce((acc, curr) => acc + curr.amount, 0);
+
         const manualPaymentExpenseSum = totalPayments.filter(p => p.type === 'expense').reduce((acc, curr) => acc + curr.amount, 0);
         const pieceworkLiability = pendingTickets.reduce((acc, curr) => acc + (Number(curr.totalAmount) || 0), 0);
 
-        const totalIncome = salesSum + manualIncomeSum;
+        const totalIncome = operationalIncome + capitalIncome;
         const totalOutflow = expenseSum + payrollSum + manualPaymentExpenseSum;
         const cashInRegisters = registers.reduce((acc, curr) => acc + curr.balance, 0);
         const bankBalance = accounts.reduce((acc, curr) => acc + curr.balance, 0);
@@ -502,9 +512,27 @@ router.get("/summary", async (req, res): Promise<void> => {
         const receivablesSum = pendingSales.reduce((acc, curr) => acc + curr.totalPrice, 0);
         const payablesSum = pendingPurchases.reduce((acc, curr) => acc + curr.totalAmount, 0);
 
+        if (!isAdminOrManager) {
+            // Limited view for regular users/operators
+            res.json({
+                balance: null, // Hidden
+                income: null, // Hidden
+                expenses: null, // Hidden
+                cashInRegisters, // Maybe visible? Usually yes for cashier
+                bankBalance: null, // Hidden
+                liabilities: pieceworkLiability, // Visible as it affects their work
+                pendingSalesCount: pendingSales.length,
+                pendingPurchasesCount: pendingPurchases.length,
+                recentTransactions: recentTransactions.map(t => ({ ...t, amount: '***' })) // Mask amounts
+            });
+            return;
+        }
+
         res.json({
             balance: currentBalance,
             income: totalIncome,
+            operationalIncome,
+            capitalIncome,
             expenses: totalOutflow,
             cashInRegisters,
             bankBalance,

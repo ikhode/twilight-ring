@@ -164,7 +164,15 @@ router.post("/report", async (req, res): Promise<void> => {
         }
 
         const workflow = process.workflowData as any;
-        const rate = Number(workflow?.piecework?.rate) || 0; // In cents
+        let rate = Number(workflow?.piecework?.rate) || 0; // Expecting cents
+
+        // HEURISTIC: If rate is extremely low (e.g. < 5) but piecework is enabled, 
+        // it might have been saved in dollars instead of cents accidentally.
+        if (workflow?.piecework?.enabled && rate > 0 && rate < 5) {
+            console.log(`[DEBUG] Detected low rate (${rate}), auto-multiplying by 100 for safety.`);
+            rate = Math.round(rate * 100);
+        }
+
         const safeQuantity = Number(quantity) || 0;
         const amount = Math.round(safeQuantity * rate);
 
@@ -336,6 +344,16 @@ router.post("/instances/:id/finish", async (req, res): Promise<void> => {
             // 1. Consumo Insumo Principal
             const inputProductId = workflow?.inputProductId || workflow?.meta?.inputProductId;
             if (inputProductId && inferredInputQty > 0) {
+                // NEW: Validate Stock before deduction
+                const [inputProduct] = await db.select().from(products).where(and(eq(products.id, inputProductId), eq(products.organizationId, orgId)));
+                if (!inputProduct || inputProduct.stock < inferredInputQty) {
+                    res.status(400).json({
+                        message: "Validación de Materia Prima Fallida",
+                        error: `Stock insuficiente de "${inputProduct?.name || 'Insumo'}": disponible ${inputProduct?.stock || 0}, requerido ${inferredInputQty}.`
+                    });
+                    return;
+                }
+
                 await db.update(products)
                     .set({ stock: sql`${products.stock} - ${inferredInputQty}` })
                     .where(and(eq(products.id, inputProductId), eq(products.organizationId, orgId)));

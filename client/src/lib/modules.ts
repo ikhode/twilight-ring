@@ -62,7 +62,7 @@ export const ERP_MODULES: SystemModule[] = [
     },
     {
         id: 'crm',
-        name: 'CRM',
+        name: 'Socios de Negocio',
         description: 'Gestión de clientes y proveedores',
         icon: Briefcase,
         href: '/crm',

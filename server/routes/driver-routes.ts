@@ -56,6 +56,7 @@ router.get("/driver-route/:employeeId", async (req, res): Promise<void> => {
                     deliveryStatus: purchases.deliveryStatus,
                     logisticsMethod: purchases.logisticsMethod,
                     vehicleId: purchases.vehicleId,
+                    paymentMethod: purchases.paymentMethod,
                     date: purchases.date,
                 })
                 .from(purchases)

@@ -81,7 +81,6 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     };
 
     const skipOnboarding = () => {
-        localStorage.setItem('nexus_introjs_completed', 'true');
         setLocation('/dashboard');
     };
 
@@ -249,7 +248,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
 
         // If all completed?
         if (unique.length === onboardingSteps.length) {
-            localStorage.setItem('nexus_introjs_completed', 'true');
+            // No longer using global localStorage flag
         }
 
         resetTour();

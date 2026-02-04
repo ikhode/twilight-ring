@@ -18,6 +18,7 @@ import { useQuery } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { useConfiguration } from "@/context/ConfigurationContext";
+import { HelpPopover } from "./HelpPopover";
 
 interface HeaderProps {
   title: string;
@@ -119,6 +120,8 @@ export function Header({ title, subtitle, children }: HeaderProps) {
         <div className="hidden md:block">
           {enabledModules.length > 0 && <SemanticSearch />}
         </div>
+
+        <HelpPopover />
 
         <Button
           variant="ghost"

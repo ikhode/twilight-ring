@@ -405,12 +405,18 @@ export default function Production() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
         body: JSON.stringify(data)
       });
-      if (!res.ok) throw new Error("Error finishing batch");
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || err.error || "Error finishing batch");
+      }
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/production/summary"] });
       toast({ title: "Lote Finalizado", description: "Inventario y rendimientos calculados." });
+    },
+    onError: (err: any) => {
+      toast({ variant: "destructive", title: "Fallo en Producción", description: err.message });
     }
   });
 

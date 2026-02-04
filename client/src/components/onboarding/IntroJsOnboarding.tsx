@@ -40,11 +40,10 @@ export function IntroJsOnboarding() {
 
     // Initial check handled by AppLayout enforcement, but redundant check here is fine
     useEffect(() => {
-        const hasCompletedOnboarding = localStorage.getItem('nexus_introjs_completed');
-        if (hasCompletedOnboarding) {
+        if (organization?.onboardingStatus === 'completed' && organization?.industry !== 'other') {
             setLocation('/dashboard');
         }
-    }, [setLocation]);
+    }, [organization, setLocation]);
 
     const handleIndustrySelect = async (industryKey: string) => {
         setIsSaving(true);

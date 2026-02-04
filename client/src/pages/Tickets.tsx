@@ -263,11 +263,13 @@ export default function Tickets() {
                           </Button>
                         </>
                       )}
-                      {item.status === "approved" && (
+                      {(item.status === "approved" || item.status === "pending") && (
                         <Button
                           size="sm"
                           onClick={() => handlePay(item.id)}
                           data-testid={`button-pay-${item.id}`}
+                          className={cn(item.status === "pending" && "text-success border-success/30 hover:bg-success/10")}
+                          variant={item.status === "pending" ? "outline" : "default"}
                         >
                           <DollarSign className="w-4 h-4 mr-1" />
                           Pagar

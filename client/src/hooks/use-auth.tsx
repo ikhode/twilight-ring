@@ -17,17 +17,23 @@ interface AuthContextType {
     signOut: () => Promise<void>;
 }
 
+/**
+ * Global authentication context for managing session, user, and active organization.
+ */
 const AuthContext = createContext<AuthContextType>({
     session: null,
     user: null,
     profile: null,
     organization: null,
     allOrganizations: [],
-    switchOrganization: () => { },
+    switchOrganization: () => { /* noop */ },
     loading: true,
-    signOut: async () => { },
+    signOut: async () => { /* noop */ },
 });
 
+/**
+ * Provider component that handles initial session load and auth state synchronization.
+ */
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [session, setSession] = useState<Session | null>(null);
     const [user, setUser] = useState<User | null>(null);
@@ -47,7 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             });
             if (res.status === 401) {
                 console.warn("[Auth] Profile fetch unauthorized - signing out");
-                signOut();
+                void signOut();
                 throw new Error("Unauthorized");
             }
             if (!res.ok) throw new Error("Failed to fetch profile");
@@ -79,7 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
 
         // Auth State Sync
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
             console.log(`[Auth Event] ${event}`);
             setSession(currentSession);
             setUser(currentSession?.user ?? null);
@@ -106,20 +112,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const target = allOrganizations.find(o => o.id === orgId);
         if (target) {
             console.log(`[Auth] Switching to organization: ${target.name} (${target.id})`);
+            setLoading(true);
             localStorage.setItem("nexus_active_org", target.id);
             setOrganization(target);
 
             // Invalidate all queries to trigger refresh with new organization header
-            queryClient.invalidateQueries();
+            await queryClient.invalidateQueries();
 
-            // Optional: Redirect to dashboard if on a page that might not be valid for the new org
-            // setLocation("/dashboard");
+            // The profile fetch will trigger the effect that sets loading to false
+            // but we add a safety timeout or just wait for invalidation
+            setTimeout(() => { setLoading(false); }, 500);
         }
     };
 
     const signOut = async () => {
         await supabase.auth.signOut();
-        setLocation("/login");
+        const loginPath = "/login";
+        setLocation(loginPath);
     };
 
     return (
@@ -138,4 +147,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
 }
 
+/**
+ * Hook to access the current authentication state and actions.
+ */
 export const useAuth = () => useContext(AuthContext);

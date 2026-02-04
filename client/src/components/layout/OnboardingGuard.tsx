@@ -18,42 +18,33 @@ export function OnboardingGuard({ children }: { children: React.ReactNode }) {
     const { organization, loading, user } = useAuth();
     const [location, setLocation] = useLocation();
 
-    useEffect(() => {
-        // Optimization: Check local flag first
-        const isCompletedLocally = localStorage.getItem("nexus_introjs_completed") === "true";
-        if (isCompletedLocally) return;
+    const isTourActive = localStorage.getItem('nexus_tour_active') === 'true';
 
-        if (loading) return;
+    const needsOnboarding = organization && (
+        organization.onboardingStatus === "pending" ||
+        (organization.industry === "other" && organization.onboardingStatus !== "completed")
+    );
+
+    useEffect(() => {
+        if (loading || !user || !organization) return;
 
         // Exempt public routes and auth routes
         const publicRoutes = ["/login", "/signup", "/", "/subscription-success"];
         if (publicRoutes.includes(location)) return;
 
-        // If not logged in, we don't enforce org onboarding (Protected routes will handle auth redirect)
-        if (!user) return;
-
-        // Check if organization exists and needs onboarding
-        // We check for 'pending' status OR if industry is explicitly 'other' (implying default/unset)
-        if (organization) {
-            const needsOnboarding =
-                organization.onboardingStatus === "pending" ||
-                (organization.industry === "other" && organization.onboardingStatus !== "completed");
-
-            if (needsOnboarding) {
-                if (location !== "/onboarding") {
-                    console.log("🚀 Redirecting to onboarding. Status:", organization.onboardingStatus, "Industry:", organization.industry);
-                    setLocation("/onboarding");
-                }
-            } else {
-                // If we passed the check, set the flag for future
-                localStorage.setItem("nexus_introjs_completed", "true");
+        // Check if organization needs onboarding and no tour is active
+        if (needsOnboarding && !isTourActive) {
+            if (location !== "/onboarding") {
+                console.log("🚀 Redirecting to onboarding. Status:", organization.onboardingStatus, "Industry:", organization.industry);
+                setLocation("/onboarding");
             }
         }
-    }, [organization, loading, user, location, setLocation]);
+    }, [organization, loading, user, location, setLocation, needsOnboarding, isTourActive]);
 
-    // Only show loader if we have NO user and NO organization yet
-    // This prevents the whole app from unmounting and losing state during refreshes
-    if (loading && !user && !organization) {
+    // Show loader while loading or if we are about to redirect
+    const isRedirecting = user && organization && needsOnboarding && location !== "/onboarding" && !isTourActive;
+
+    if (loading || isRedirecting) {
         return (
             <div className="h-screen w-full flex items-center justify-center bg-slate-950 text-slate-400">
                 <Loader2 className="w-8 h-8 text-primary animate-spin" />

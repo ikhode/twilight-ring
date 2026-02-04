@@ -2,7 +2,12 @@ import { Handle, Position } from "reactflow";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export default function PlaceholderNode({ data }: { data: any }) {
+interface PlaceholderNodeData {
+    label?: string;
+    onClick?: () => void;
+}
+
+export default function PlaceholderNode({ data }: { data: PlaceholderNodeData }) {
     const isTrigger = data.label?.toLowerCase().includes('trigger');
 
     return (

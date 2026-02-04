@@ -59,7 +59,11 @@ router.get("/tickets", async (req: Request, res: Response): Promise<void> => {
         }
 
         if (ticketStatus) {
-            conditions.push(eq(pieceworkTickets.status, ticketStatus));
+            if (ticketStatus.includes(',')) {
+                conditions.push(inArray(pieceworkTickets.status, ticketStatus.split(',') as any[]));
+            } else {
+                conditions.push(eq(pieceworkTickets.status, ticketStatus));
+            }
         }
 
         if (targetBatchId) {

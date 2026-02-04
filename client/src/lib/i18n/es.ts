@@ -144,7 +144,7 @@ export const es = {
         logistics: 'Logística',
         finance: 'Finanzas',
         hr: 'Recursos Humanos',
-        crm: 'CRM',
+        crm: 'Socios de Negocio',
         analytics: 'Analítica',
         operations: 'Operaciones',
         procurement: 'Compras',

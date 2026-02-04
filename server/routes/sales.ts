@@ -27,19 +27,35 @@ router.post("/", async (req, res) => {
             return res.status(400).json({ message: "Invalid payload: items array required" });
         }
 
+        // 1. Pre-Validation: Verify Stock for ALL items before processing any
+        const inventoryErrors: string[] = [];
+        const productData: Record<string, any> = {};
+
+        for (const item of items) {
+            const [product] = await db.select().from(products).where(and(eq(products.id, item.productId), eq(products.organizationId, orgId)));
+            if (!product || product.isArchived) {
+                inventoryErrors.push(`El producto ${item.productId} no existe o está archivado.`);
+            } else if (product.stock < item.quantity) {
+                inventoryErrors.push(`Stock insuficiente para "${product.name}": disponible ${product.stock}, solicitado ${item.quantity}.`);
+            } else {
+                productData[item.productId] = product;
+            }
+        }
+
+        if (inventoryErrors.length > 0) {
+            return res.status(400).json({
+                message: "Validación de Inventario Fallida",
+                errors: inventoryErrors
+            });
+        }
+
         const stats = { success: 0, errors: 0 };
         const successfulItems: any[] = [];
 
-        // Process sequentially to manage stock updates safely
+        // 2. Process items (Now safe because we pre-validated)
         for (const item of items) {
             try {
-                // 1. Verify Stock & Archive Status
-                const [product] = await db.select().from(products).where(and(eq(products.id, item.productId), eq(products.organizationId, orgId)));
-                if (!product || product.stock < item.quantity || product.archived) {
-                    console.warn(`Skipping item ${item.productId}: Insufficient stock or archived`);
-                    stats.errors++;
-                    continue; // Skip this item but attempt others
-                }
+                const product = productData[item.productId];
 
                 // 2. Create Sale Record
                 const [saleRecord] = await db.insert(sales).values({

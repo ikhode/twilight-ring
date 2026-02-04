@@ -1,16 +1,21 @@
 import { Handle, Position } from "reactflow";
 import { Mail, Banknote, MessageSquare, UserPlus, MoreHorizontal } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 
-const ICONS: Record<string, any> = {
+interface ActionNodeData {
+    id: string;
+    name: string;
+}
+
+const ACTION_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
     'send_email': Mail,
     'create_refund': Banknote,
     'discord_notify': MessageSquare,
     'update_crm': UserPlus,
 };
 
-export default function ActionNode({ data }: { data: any }) {
-    const Icon = ICONS[data.id] || MoreHorizontal;
+export default function ActionNode({ data }: { data: ActionNodeData }) {
+    const Icon = ACTION_ICONS[data.id] || MoreHorizontal;
 
     return (
         <div className="relative group p-[2px] rounded-2xl bg-gradient-to-br from-slate-700/50 to-transparent shadow-lg shadow-black/20">

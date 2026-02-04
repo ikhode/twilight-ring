@@ -58,7 +58,17 @@ export async function getAuthenticatedUser(req: Request) {
     if (authHeader) {
         try {
             const token = authHeader.replace("Bearer ", "");
-            const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+            // Retry once for transient network errors
+            let result;
+            try {
+                result = await supabaseAdmin.auth.getUser(token);
+            } catch (fetchErr) {
+                console.warn("[Auth] Transient fetch error, retrying...", fetchErr);
+                result = await supabaseAdmin.auth.getUser(token);
+            }
+
+            const { data: { user }, error } = result;
+
             if (error) {
                 console.warn(`[Auth] Token validation failed: ${error.message}`);
                 return null;

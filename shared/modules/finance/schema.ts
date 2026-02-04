@@ -23,6 +23,7 @@ export const payments = pgTable("payments", {
     type: text("type").notNull(), // "income", "expense"
     method: text("method"), // "cash", "transfer", "check"
     referenceId: varchar("reference_id"), // link to expense or sale
+    category: text("category"), // e.g. "capital", "operational", "loan"
     date: timestamp("date").defaultNow(),
 });
 

@@ -1,17 +1,22 @@
 import { Handle, Position } from "reactflow";
 import { Zap, Package, ShieldAlert, Users } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 
-const ICONS: Record<string, any> = {
+interface TriggerNodeData {
+    icon?: string;
+    name: string;
+    description?: string;
+}
+
+const TRIGGER_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
     zap: Zap,
     package: Package,
     'shield-alert': ShieldAlert,
     users: Users,
 };
 
-export default function TriggerNode({ data }: { data: any }) {
-    const Icon = ICONS[data.icon] || Zap;
+export default function TriggerNode({ data }: { data: TriggerNodeData }) {
+    const Icon = TRIGGER_ICONS[data.icon || 'zap'] || Zap;
 
     return (
         <div className="relative group p-[2px] rounded-2xl bg-gradient-to-br from-primary/40 to-transparent shadow-lg shadow-primary/5">
@@ -33,14 +38,12 @@ export default function TriggerNode({ data }: { data: any }) {
                 </CardContent>
             </Card>
 
-            {/* Input handle - allows connections TO this trigger */}
             <Handle
                 type="target"
                 position={Position.Top}
                 className="w-3 h-3 bg-primary border-4 border-slate-900 shadow-[0_0_10px_rgba(59,130,246,0.5)]"
             />
 
-            {/* Output handle - allows connections FROM this trigger */}
             <Handle
                 type="source"
                 position={Position.Bottom}

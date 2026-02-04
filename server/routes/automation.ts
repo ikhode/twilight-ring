@@ -85,16 +85,15 @@ export function registerAutomationRoutes(app: Express): void {
                     id: 'suggest-fraud',
                     name: 'Detección de Fraude B2B',
                     description: 'Basado en picos de ventas inusuales detectados por Radar.',
-                    trigger: { name: 'Venta de Alto Valor', icon: 'shield-alert' },
                     workflow: {
                         nodes: [
-                            { id: 't-1', type: 'trigger', data: { name: 'Venta > $10k', icon: 'shield-alert' } },
-                            { id: 'c-1', type: 'condition', data: { name: '¿Cliente nuevo?' } },
-                            { id: 'a-1', type: 'action', data: { id: 'discord_notify', name: 'Alertar a Gerencia' } }
+                            { id: 't-1', type: 'trigger', position: { x: 0, y: 0 }, data: { id: 'fraud_warning', name: 'Venta de Alto Valor', icon: 'shield-alert', description: 'Detectado por AI Guardian' } },
+                            { id: 'c-1', type: 'condition', position: { x: 0, y: 0 }, data: { id: 'risk_check', name: '¿Cliente nuevo?', description: 'Validar historial de cliente' } },
+                            { id: 'a-1', type: 'action', position: { x: 0, y: 0 }, data: { id: 'discord_notify', name: 'Alertar a Gerencia' } }
                         ],
                         edges: [
-                            { id: 'e1', source: 't-1', target: 'c-1' },
-                            { id: 'e2', source: 'c-1', target: 'a-1', sourceHandle: 'yes' }
+                            { id: 'e1', source: 't-1', target: 'c-1', animated: true },
+                            { id: 'e2', source: 'c-1', target: 'a-1', sourceHandle: 'yes', label: 'SÍ', animated: true }
                         ]
                     }
                 },
@@ -102,13 +101,14 @@ export function registerAutomationRoutes(app: Express): void {
                     id: 'suggest-stock',
                     name: 'Reabastecimiento Predictivo',
                     description: 'Tus niveles de inventario están bajando más rápido de lo esperado.',
-                    trigger: { name: 'Stock Bajo Crítico', icon: 'package' },
                     workflow: {
                         nodes: [
-                            { id: 't-2', type: 'trigger', data: { name: 'Stock < 10%', icon: 'package' } },
-                            { id: 'a-2', type: 'action', data: { id: 'create_refund', name: 'Generar Orden de Compra' } }
+                            { id: 't-2', type: 'trigger', position: { x: 0, y: 0 }, data: { id: 'inventory_low', name: 'Stock Bajo Crítico', icon: 'package', description: 'Stock < 10%' } },
+                            { id: 'a-2', type: 'action', position: { x: 0, y: 0 }, data: { id: 'restock_order', name: 'Generar Orden de Compra' } }
                         ],
-                        edges: [{ id: 'e3', source: 't-2', target: 'a-2' }]
+                        edges: [
+                            { id: 'e3', source: 't-2', target: 'a-2', animated: true }
+                        ]
                     }
                 }
             ];

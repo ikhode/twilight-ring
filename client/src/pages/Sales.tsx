@@ -338,9 +338,7 @@ function POSView() {
       setSelectedVehicle("");
       setIsPayDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ["/api/inventory/products"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/sales/stats"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/finance/summary"] });
-
+      queryClient.invalidateQueries({ queryKey: ["/api/sales/orders", "/api/sales/stats", "/api/finance/summary"] });
       // Onboarding Action
       window.dispatchEvent(new CustomEvent('NEXUS_ONBOARDING_ACTION', { detail: 'sale_completed' }));
 

@@ -141,6 +141,7 @@ export const businessDocuments = pgTable("business_documents", {
     relatedEntityType: text("related_entity_type"), // "employee", "supplier", "customer", "transaction"
     // Processing Metadata
     processingError: text("processing_error"),
+    expiresAt: timestamp("expires_at"),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
 });

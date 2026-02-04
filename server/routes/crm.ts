@@ -136,19 +136,24 @@ router.get("/analysis", async (req, res): Promise<void> => {
             let segment = "Standard";
 
             // Risk Logic
-            if (daysSinceLastContact > 60 || (c.balance || 0) < 0) churnRisk = "High";
+            // High risk if no contact in 60 days
+            if (daysSinceLastContact > 60) churnRisk = "High";
             else if (daysSinceLastContact > 30) churnRisk = "Medium";
 
+            // Delinquency Logic (for the "Credit Health" diagnosis)
+            const isDelinquent = (c.balance || 0) > 0 && daysSinceLastContact > 15;
+
             // Segmentation Logic
-            if ((c.balance || 0) > 50000) segment = "VIP";
-            else if (churnRisk === "High") segment = "At Risk";
+            if ((c.balance || 0) > 100000) segment = "VIP"; // Owes or moves > $1000
+            else if (isDelinquent) segment = "At Risk";
             else if (daysSinceLastContact > 90) segment = "Dormant";
 
             return {
                 customerId: c.id,
                 churnRisk,
                 segment,
-                daysSinceLastContact
+                daysSinceLastContact,
+                isDelinquent
             };
         });
 
@@ -156,7 +161,8 @@ router.get("/analysis", async (req, res): Promise<void> => {
         const segments = {
             vip: analysis.filter(a => a.segment === "VIP").length,
             atRisk: analysis.filter(a => a.segment === "At Risk").length,
-            dormant: analysis.filter(a => a.segment === "Dormant").length
+            dormant: analysis.filter(a => a.segment === "Dormant").length,
+            delinquentCount: analysis.filter(a => a.isDelinquent).length
         };
 
         res.json({ analysis, segments });
