@@ -36,6 +36,12 @@ import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { CognitiveButton, AliveValue, CognitiveInput } from "@/components/cognitive";
 import { useCognitiveEngine } from "@/lib/cognitive/engine";
+import {
+  Tooltip as UiTooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 function CreateCustomerDialog() {
   const { session } = useAuth();

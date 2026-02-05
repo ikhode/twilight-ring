@@ -213,161 +213,99 @@ export function CashControl({ employeeId: propEmployeeId }: CashControlProps) {
     );
 
     return (
-        <div className="grid lg:grid-cols-12 gap-8 h-full min-h-0">
-            {/* Main Control Panel (Large) */}
-            <div className="lg:col-span-8 flex flex-col gap-6">
-                <Card className="flex-1 bg-white/[0.02] border-white/5 rounded-[40px] shadow-2xl overflow-hidden relative group">
-                    <div className={`absolute top-0 left-0 w-2 h-full transition-all duration-700 ${isOpen ? 'bg-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)]' : 'bg-red-500'}`} />
+        <div className="h-full min-h-0 flex flex-col gap-6">
+            {/* Main Control Panel - Adapted for Sidebar/Vertical Context */}
+            <Card className="flex-1 bg-white/[0.02] border-white/5 rounded-[30px] shadow-2xl overflow-hidden relative group">
+                <div className={`absolute top-0 left-0 w-1.5 h-full transition-all duration-700 ${isOpen ? 'bg-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)]' : 'bg-red-500'}`} />
 
-                    <CardHeader className="p-10 flex flex-row items-center justify-between">
+                <CardHeader className="p-6 pb-2 flex flex-col gap-4">
+                    <div className="flex items-center justify-between">
                         <div className="space-y-1">
-                            <CardTitle className="text-4xl font-black italic uppercase tracking-tighter text-white flex items-center gap-4">
+                            <CardTitle className="text-xl font-black italic uppercase tracking-tighter text-white flex items-center gap-2">
                                 {register.name}
-                                <Badge variant={isOpen ? "default" : "destructive"} className={cn(
-                                    "uppercase tracking-[0.2em] text-[10px] py-1 px-3 border-2 transition-all duration-500",
-                                    isOpen ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-red-500/10 text-red-500 border-red-500/20"
-                                )}>
-                                    {isOpen ? "SISTEMA ACTIVO" : "SISTEMA CERRADO"}
-                                </Badge>
                             </CardTitle>
-                            <p className="text-slate-500 font-bold uppercase tracking-[0.3em] text-[10px]">Control de Flujos Financieros</p>
+                            <Badge variant={isOpen ? "default" : "destructive"} className={cn(
+                                "uppercase tracking-[0.2em] text-[8px] py-0.5 px-2 border transition-all duration-500",
+                                isOpen ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-red-500/10 text-red-500 border-red-500/20"
+                            )}>
+                                {isOpen ? "SISTEMA ACTIVO" : "SISTEMA CERRADO"}
+                            </Badge>
                         </div>
-
                         <Button
-                            size="lg"
+                            size="sm"
                             variant={isOpen ? "destructive" : "default"}
                             onClick={() => isOpen ? setCloseSessionDialog(true) : setOpenSessionDialog(true)}
                             className={cn(
-                                "h-16 px-8 rounded-2xl font-black uppercase tracking-widest text-xs transition-all duration-500 shadow-xl",
+                                "h-10 px-4 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all duration-500 shadow-xl",
                                 !isOpen && "bg-primary hover:bg-primary/90 text-black shadow-primary/20"
                             )}
                         >
                             {isOpen ? (
-                                <><Lock className="w-5 h-5 mr-3" /> CERRAR TURNO</>
+                                <><Lock className="w-3 h-3 mr-2" /> CERRAR</>
                             ) : (
-                                <><Unlock className="w-5 h-5 mr-3" /> ABRIR TURNO</>
+                                <><Unlock className="w-3 h-3 mr-2" /> ABRIR</>
                             )}
                         </Button>
-                    </CardHeader>
+                    </div>
+                </CardHeader>
 
-                    <CardContent className="p-10 pt-0 flex flex-col items-center justify-center space-y-12">
-                        <div className="flex flex-col items-center gap-4 group">
-                            <div className="p-6 rounded-full bg-white/[0.02] border border-white/5 group-hover:scale-110 transition-transform duration-700">
-                                <DollarSign className={cn("w-12 h-12", isOpen ? "text-emerald-500" : "text-slate-600")} />
-                            </div>
-                            <div className="text-center">
-                                <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.5em] mb-4">BALANCE TOTAL EN CAJA</p>
-                                <h2 className={cn(
-                                    "text-8xl font-black font-mono tracking-[-0.05em] transition-all duration-1000",
-                                    isOpen ? "text-white shadow-emerald-500/10" : "text-slate-800"
-                                )}>
-                                    $ {(register.balance / 100).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                                </h2>
-                            </div>
+                <CardContent className="p-6 pt-4 flex flex-col items-center justify-center space-y-8">
+                    <div className="flex flex-col items-center gap-2 group w-full">
+                        <div className="p-4 rounded-full bg-white/[0.02] border border-white/5 group-hover:scale-110 transition-transform duration-700">
+                            <DollarSign className={cn("w-8 h-8", isOpen ? "text-emerald-500" : "text-slate-600")} />
                         </div>
-
-                        <div className="grid grid-cols-2 gap-6 w-full max-w-2xl">
-                            <Button
-                                className="h-28 rounded-[30px] bg-emerald-500/5 hover:bg-emerald-500/10 border-2 border-emerald-500/10 text-emerald-500 hover:border-emerald-500/30 transition-all flex flex-col items-center justify-center gap-2 group"
-                                disabled={!isOpen}
-                                onClick={() => { setModalType('in'); setModalOpen(true); }}
-                            >
-                                <Plus className="w-8 h-8 group-hover:scale-125 transition-transform" />
-                                <span className="font-black uppercase tracking-[0.2em] text-[10px]">Registrar Ingreso</span>
-                            </Button>
-                            <Button
-                                className="h-28 rounded-[30px] bg-red-500/5 hover:bg-red-500/10 border-2 border-red-500/10 text-red-500 hover:border-red-500/30 transition-all flex flex-col items-center justify-center gap-2 group"
-                                disabled={!isOpen}
-                                onClick={() => { setModalType('out'); setModalOpen(true); }}
-                            >
-                                <Minus className="w-8 h-8 group-hover:scale-125 transition-transform" />
-                                <span className="font-black uppercase tracking-[0.2em] text-[10px]">Registrar Egreso</span>
-                            </Button>
+                        <div className="text-center w-full">
+                            <p className="text-[9px] text-slate-500 font-black uppercase tracking-[0.3em] mb-2">BALANCE ACTUAL</p>
+                            <h2 className={cn(
+                                "text-5xl font-black font-mono tracking-tight transition-all duration-1000 break-all",
+                                isOpen ? "text-white shadow-emerald-500/10" : "text-slate-800"
+                            )}>
+                                ${(register.balance / 100).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                            </h2>
                         </div>
-                    </CardContent>
-                </Card>
-            </div>
-
-            {/* Side Panel: Lists (Small) */}
-            <div className="lg:col-span-4 flex flex-col gap-6 overflow-hidden">
-                <Card className="bg-white/[0.02] border-white/5 rounded-[40px] flex flex-col min-h-0 shadow-2xl">
-                    <CardHeader className="p-8 border-b border-white/5 flex flex-row items-center justify-between shrink-0">
-                        <CardTitle className="text-xs font-black uppercase tracking-[0.3em] text-slate-500 flex items-center gap-3">
-                            <History className="w-4 h-4" />
-                            HISTORIAL RECIENTE
-                        </CardTitle>
-                        <Badge className="bg-white/5 text-slate-400 border-white/10 uppercase text-[9px]">En tiempo real</Badge>
-                    </CardHeader>
-                    <CardContent className="p-0 overflow-y-auto custom-scrollbar">
-                        <div className="divide-y divide-white/5">
-                            {stats?.transactions?.length > 0 ? stats.transactions.map((tx: any) => (
-                                <div key={tx.id} className="p-6 hover:bg-white/[0.01] transition-colors group flex items-center justify-between">
-                                    <div className="flex items-center gap-6">
-                                        <div className={cn(
-                                            "w-10 h-10 rounded-xl flex items-center justify-center border transition-all duration-500",
-                                            tx.type === 'in' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500" : "bg-red-500/10 border-red-500/20 text-red-500"
-                                        )}>
-                                            {tx.type === 'in' ? <Plus className="w-5 h-5" /> : <Minus className="w-5 h-5" />}
-                                        </div>
-                                        <div>
-                                            <p className="font-black text-white italic uppercase text-xs tracking-tight">{tx.description || tx.category}</p>
-                                            <p className="text-[10px] text-slate-600 font-bold uppercase tracking-widest mt-1">
-                                                {tx.category} • {new Date(tx.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <span className={cn(
-                                        "font-mono font-black text-sm",
-                                        tx.type === 'in' ? 'text-emerald-400' : 'text-red-400'
-                                    )}>
-                                        {tx.type === 'in' ? '+' : '-'}$ {(tx.amount / 100).toFixed(2)}
-                                    </span>
-                                </div>
-                            )) : (
-                                <div className="text-center py-20 text-slate-800 font-black uppercase italic tracking-widest text-[10px] opacity-20">
-                                    No hay movimientos recientes
-                                </div>
-                            )}
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Second Sidebar Card: Settlements/Pending */}
-                <Card className="bg-white/[0.02] border-white/5 rounded-[40px] shadow-2xl relative overflow-hidden group">
-                    {/* Background Pattern */}
-                    <div className="absolute top-0 right-0 p-8 opacity-[0.03]">
-                        <Truck className="w-32 h-32 rotate-12" />
                     </div>
 
-                    <CardHeader className="p-8 pb-4 shrink-0">
-                        <CardTitle className="text-xs font-black uppercase tracking-[0.3em] text-cyan-500 flex items-center gap-3">
-                            <Truck className="w-4 h-4" />
-                            LIQUIDACIONES PENDIENTES
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-8 pt-0 space-y-4">
-                        {driverSettlements?.length > 0 ? driverSettlements.map((s: any) => (
-                            <div key={s.saleId} className="flex items-center justify-between p-5 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-cyan-500/30 transition-all">
-                                <div>
-                                    <p className="text-xs font-black text-white uppercase italic">{s.driverName}</p>
-                                    <p className="text-[10px] font-mono font-bold text-cyan-400 mt-1">$ {(s.amount / 100).toFixed(2)}</p>
-                                </div>
-                                <Button
-                                    size="sm"
-                                    onClick={() => handleReceiveDriverCash(s.saleId)}
-                                    className="h-10 px-4 rounded-xl bg-cyan-500/10 hover:bg-cyan-500 text-cyan-400 hover:text-black font-black uppercase text-[10px] tracking-widest transition-all"
-                                >
-                                    COBRAR
-                                </Button>
+                    <div className="grid grid-cols-2 gap-3 w-full">
+                        <Button
+                            className="h-20 rounded-[20px] bg-emerald-500/5 hover:bg-emerald-500/10 border border-emerald-500/10 text-emerald-500 hover:border-emerald-500/30 transition-all flex flex-col items-center justify-center gap-1 group"
+                            disabled={!isOpen}
+                            onClick={() => { setModalType('in'); setModalOpen(true); }}
+                        >
+                            <Plus className="w-6 h-6 group-hover:scale-125 transition-transform" />
+                            <span className="font-black uppercase tracking-[0.1em] text-[9px]">Ingreso</span>
+                        </Button>
+                        <Button
+                            className="h-20 rounded-[20px] bg-red-500/5 hover:bg-red-500/10 border border-red-500/10 text-red-500 hover:border-red-500/30 transition-all flex flex-col items-center justify-center gap-1 group"
+                            disabled={!isOpen}
+                            onClick={() => { setModalType('out'); setModalOpen(true); }}
+                        >
+                            <Minus className="w-6 h-6 group-hover:scale-125 transition-transform" />
+                            <span className="font-black uppercase tracking-[0.1em] text-[9px]">Egreso</span>
+                        </Button>
+                    </div>
+
+                    {/* Pending Settlements Compact */}
+                    {driverSettlements?.length > 0 && (
+                        <div className="w-full bg-cyan-950/10 border border-cyan-500/20 rounded-xl p-3 animate-in fade-in">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-[9px] font-black text-cyan-500 uppercase tracking-wider flex items-center gap-1"><Truck className="w-3 h-3" /> Liquidaciones</span>
+                                <Badge variant="outline" className="text-[9px] border-cyan-800 text-cyan-400 bg-cyan-950/30 px-1 py-0">{driverSettlements.length}</Badge>
                             </div>
-                        )) : (
-                            <div className="text-center py-10 text-slate-800 font-black uppercase text-[10px] tracking-widest opacity-20">
-                                Chóferes al día
+                            <div className="space-y-1">
+                                {driverSettlements.slice(0, 2).map((s: any) => (
+                                    <div key={s.saleId} className="flex justify-between items-center text-[10px]">
+                                        <span className="text-slate-400 truncate max-w-[100px]">{s.driverName}</span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-mono text-cyan-400 font-bold">${(s.amount / 100).toFixed(0)}</span>
+                                            <Button size="sm" variant="ghost" className="h-4 w-4 p-0 hover:bg-cyan-500/20 text-cyan-500 rounded-full" onClick={() => handleReceiveDriverCash(s.saleId)}><Plus className="w-3 h-3" /></Button>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
-                        )}
-                    </CardContent>
-                </Card>
-            </div>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
 
             <TransactionModal
                 isOpen={modalOpen}
@@ -376,7 +314,7 @@ export function CashControl({ employeeId: propEmployeeId }: CashControlProps) {
                 employeeId={propEmployeeId}
             />
 
-            {/* Open Session Dialog */}
+            {/* Dialogs remain the same size as they are overlays */}
             <Dialog open={openSessionDialog} onOpenChange={setOpenSessionDialog}>
                 <DialogContent className="bg-slate-950 border-white/10 text-white rounded-[40px] p-10 max-w-lg">
                     <DialogHeader className="mb-8">
@@ -415,7 +353,6 @@ export function CashControl({ employeeId: propEmployeeId }: CashControlProps) {
                 </DialogContent>
             </Dialog>
 
-            {/* Close Session Dialog (Arqueo) */}
             <Dialog open={closeSessionDialog} onOpenChange={setCloseSessionDialog}>
                 <DialogContent className="bg-slate-950 border-white/10 text-white rounded-[40px] p-10 max-w-md">
                     <DialogHeader className="mb-8">
@@ -473,7 +410,6 @@ export function CashControl({ employeeId: propEmployeeId }: CashControlProps) {
                 </DialogContent>
             </Dialog>
 
-            {/* Payout QR Dialog */}
             <Dialog open={!!qrDialog} onOpenChange={() => setQrDialog(null)}>
                 <DialogContent className="bg-white text-slate-950 border-none shadow-2xl rounded-[50px] p-12 max-w-sm">
                     <DialogHeader className="mb-8">

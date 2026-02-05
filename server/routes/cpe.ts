@@ -181,7 +181,7 @@ export function registerCPERoutes(app: Express) {
             const orgId = await getOrgIdFromRequest(req);
             if (!orgId) return res.status(401).json({ message: "Unauthorized" });
 
-            const { name, description, workflowData } = req.body;
+            const { name, description, workflowData, orderIndex } = req.body;
 
             // Verify ownership
             const existing = await db.query.processes.findFirst({
@@ -195,7 +195,8 @@ export function registerCPERoutes(app: Express) {
                 updatedAt: new Date(),
                 name: name || existing.name,
                 description: description !== undefined ? description : existing.description,
-                workflowData: workflowData !== undefined ? workflowData : existing.workflowData
+                workflowData: workflowData !== undefined ? workflowData : existing.workflowData,
+                orderIndex: orderIndex !== undefined ? orderIndex : existing.orderIndex
             };
 
             const [updated] = await db.update(processes)

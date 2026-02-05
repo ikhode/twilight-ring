@@ -24,8 +24,8 @@ router.get("/products", async (req, res): Promise<void> => {
 
         const inv = await db.query.products.findMany({
             where: and(
-                eq(products.organizationId, orgId),
-                eq(products.isArchived, false)
+                eq(products.organizationId, orgId)
+                // eq(products.isArchived, false) -- User wants to see archived items
             ),
             with: {
                 categoryRef: true,
@@ -282,8 +282,8 @@ router.patch("/products/:id", async (req, res): Promise<void> => {
         const {
             name, sku, categoryId, groupId,
             isSellable, isPurchasable, isProductionInput, isProductionOutput,
-            unitId, price, cost, stock, isActive, reason
-        } = req.body;
+            unitId, price, cost, stock, isActive, isArchived, reason
+        } = req.body; // Added isArchived to destructuring
 
         // 1. Get current state
         const product = await db.query.products.findFirst({
@@ -307,7 +307,9 @@ router.patch("/products/:id", async (req, res): Promise<void> => {
         if (unitId !== undefined) updates.unitId = unitId;
         if (typeof price === 'number') updates.price = price;
         if (typeof cost === 'number') updates.cost = cost;
+        if (typeof cost === 'number') updates.cost = cost;
         if (typeof isActive === 'boolean') updates.isActive = isActive;
+        if (typeof isArchived === 'boolean') updates.isArchived = isArchived; // Added isArchived update logic
 
         // 2. Handle Stock Adjustment with Traceability
         if (typeof stock === 'number') {
@@ -397,6 +399,52 @@ router.get("/products/:id/history", async (req, res): Promise<void> => {
     } catch (error) {
         console.error("Product history error:", error);
         res.status(500).json({ message: "Failed to fetch product history" });
+    }
+});
+
+/**
+ * Elimina un producto de forma segura (Soft Delete).
+ * Mantiene la integridad histórica ocultando el item de todas las listas activas.
+ * @route DELETE /api/inventory/products/:id
+ */
+router.delete("/products/:id", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        const productId = req.params.id;
+
+        // 1. Verify existence
+        const product = await db.query.products.findFirst({
+            where: and(eq(products.id, productId), eq(products.organizationId, orgId))
+        });
+
+        if (!product) {
+            res.status(404).json({ message: "Product not found" });
+            return;
+        }
+
+        // 2. Perform Soft Delete
+        // We set deletedAt AND isArchived/isActive to ensure it's hidden from all existing queries
+        await db.update(products)
+            .set({
+                deletedAt: new Date(),
+                isArchived: true,
+                isActive: false,
+                // userId could be tracked if we had the field in schema for 'deletedBy', 
+                // schema says 'deletedBy', let's try to set it if we have user info
+                deletedBy: (req as any).user?.id || null
+            })
+            .where(eq(products.id, productId));
+
+        res.json({ success: true, message: "Item deleted safely" });
+
+    } catch (error) {
+        console.error("Delete product error:", error);
+        res.status(500).json({ message: "Failed to delete product" });
     }
 });
 

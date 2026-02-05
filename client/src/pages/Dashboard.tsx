@@ -34,12 +34,19 @@ import { CognitiveKPI } from "@/components/dashboard/CognitiveKPI";
 import { ScenarioSimulator } from "@/components/dashboard/ScenarioSimulator";
 import { TrustTimeline } from "@/components/dashboard/TrustTimeline";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 import { DailyBriefing } from "@/components/cognitive/DailyBriefing";
 import { useConfiguration } from "@/context/ConfigurationContext";
 import { SalesFunnelWidget } from "@/components/widgets/SalesFunnelWidget";
 import { TopCustomersWidget } from "@/components/widgets/TopCustomersWidget";
 import { MarketTrendsWidget } from "@/components/widgets/MarketTrendsWidget";
+import { YieldAnalysis } from "@/components/analytics/YieldAnalysis";
 
 /**
  * Dashboard Component
@@ -288,24 +295,34 @@ export default function Dashboard() {
           </div>
 
           {/* Confidence Widget */}
-          <Card className="bg-slate-900/50 border-slate-800 flex flex-col justify-center p-6">
-            <div className="text-right mb-4">
-              <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Nivel de Confianza (TrustNet)</p>
-              <p className="text-4xl font-black text-white italic tracking-tighter">
-                {stats?.trustScore || stats?.dataMaturityScore || 0}<span className="text-lg text-primary">%</span>
-              </p>
-            </div>
-            <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${stats?.trustScore || stats?.dataMaturityScore || 0}%` }}
-                className="h-full bg-primary shadow-[0_0_15px_rgba(59,130,246,0.6)]"
-              />
-            </div>
-            <p className="text-[9px] text-slate-500 mt-2 text-right uppercase font-bold tracking-tight">
-              {stats?.hasEnoughData ? "Blockchain verification active - Ledger Sync OK" : "Datos insuficientes para validación completa"}
-            </p>
-          </Card>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Card className="bg-slate-900/50 border-slate-800 flex flex-col justify-center p-6 cursor-help">
+                  <div className="text-right mb-4">
+                    <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Nivel de Confianza (TrustNet)</p>
+                    <p className="text-4xl font-black text-white italic tracking-tighter">
+                      {stats?.trustScore || stats?.dataMaturityScore || 0}<span className="text-lg text-primary">%</span>
+                    </p>
+                  </div>
+                  <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${stats?.trustScore || stats?.dataMaturityScore || 0}%` }}
+                      className="h-full bg-primary shadow-[0_0_15px_rgba(59,130,246,0.6)]"
+                    />
+                  </div>
+                  <p className="text-[9px] text-slate-500 mt-2 text-right uppercase font-bold tracking-tight">
+                    {stats?.hasEnoughData ? "Blockchain verification active - Ledger Sync OK" : "Datos insuficientes para validación completa"}
+                  </p>
+                </Card>
+              </TooltipTrigger>
+              <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-3 max-w-xs">
+                <p className="font-bold text-primary uppercase tracking-widest text-[9px] mb-1">Métrica de Integridad</p>
+                <p>Calculado mediante la validación sintáctica de transacciones, consistencia en el libro mayor (TrustNet) y madurez de los datos históricos procesados por el motor de IA.</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </motion.div>
 
         {/* Adaptive KPIs (Rewritten to use CognitiveKPI) */}
@@ -323,6 +340,7 @@ export default function Dashboard() {
             insight={stats?.hasEnoughData
               ? `El modelo detecta un aumento inusual en ventas ${stats?.industry === 'manufacturing' ? 'B2B' : 'directas'}.`
               : "Esperando registros de ventas para análisis de tendencia."}
+            explanation="Suma total de órdenes pagadas y facturadas en el periodo actual, filtrado por las reglas de validación de TrustNet."
             icon={DollarSign}
           />
           <CognitiveKPI
@@ -333,6 +351,7 @@ export default function Dashboard() {
             insight={stats?.hasEnoughData
               ? "Calculada en tiempo real basada en las instancias de procesos activas."
               : "Analizando flujos de procesos iniciales."}
+            explanation="Relación entre el tiempo teórico de producción y el tiempo real reportado mediante Kioskos T-CAC."
             icon={Factory}
           />
           <CognitiveKPI
@@ -341,6 +360,7 @@ export default function Dashboard() {
             change={stats?.anomalies > 0 ? 100 : 0}
             trend={stats?.anomalies > 0 ? "down" : "neutral"}
             insight={stats?.anomalies > 0 ? `Se han detectado ${stats.anomalies} anomalías críticas hoy.` : "No se detectan amenazas activas en el sistema."}
+            explanation="Detecciones automáticas de inconsistencias en inventario, accesos no autorizados o desviaciones en costos operativos."
             icon={Truck}
           />
           <CognitiveKPI
@@ -349,6 +369,7 @@ export default function Dashboard() {
             change={0}
             trend="neutral"
             insight="Asistencia verificada por el módulo de Control de Tiempo."
+            explanation="Número total de colaboradores activos detectados mediante FaceID y registros de entrada/salida."
             icon={Users}
           />
         </motion.div>
@@ -364,11 +385,18 @@ export default function Dashboard() {
                 transition={{ duration: 0.3 }}
                 className="space-y-6"
               >
+
                 {/* 1. Cognitive Process Section (Traceability & Optimization) */}
                 {(role === 'production' || role === 'admin') && (
-                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                    <ProcessTimeline instanceId={activeInstanceId} />
-                    <OptimizationMap />
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                      <ProcessTimeline instanceId={activeInstanceId} />
+                      <OptimizationMap />
+                    </div>
+                    {/* Yield Analysis Report */}
+                    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200">
+                      <YieldAnalysis />
+                    </div>
                   </div>
                 )}
 

@@ -17,7 +17,6 @@ interface AppState {
     // Universal Config (Product Categories, etc.)
     productCategories: string[];
     defaultUnits: string[];
-    productTypeLabels: Record<string, { label: string, context: string }>;
     cedisAddress?: string;
     cedisLat?: number;
     cedisLng?: number;
@@ -31,7 +30,6 @@ interface AppState {
         productCategories?: string[],
         defaultUnits?: string[],
         industryName?: string,
-        productTypeLabels?: Record<string, { label: string, context: string }>,
         cedisAddress?: string,
         cedisLat?: number,
         cedisLng?: number
@@ -51,12 +49,6 @@ export const useAppStore = create<AppState>()(
             themeColor: "#3b82f6",
             productCategories: [],
             defaultUnits: ["pza"],
-            productTypeLabels: {
-                both: { label: "Compra y Venta", context: "Optimización de margen y rotación." },
-                purchase: { label: "Materia Prima", context: "Monitoreo de desabasto operativo." },
-                sale: { label: "Producto Final", context: "Ajuste dinámico de precios." },
-                internal: { label: "Uso Interno", context: "Control de gasto operativo." }
-            },
             cedisAddress: "",
             cedisLat: undefined,
             cedisLng: undefined,
@@ -67,13 +59,12 @@ export const useAppStore = create<AppState>()(
             setModules: (modules) => set({ enabledModules: modules }),
 
             setUniversalConfig: (config) => set((state) => ({
-                productCategories: config.productCategories || state.productCategories,
-                defaultUnits: config.defaultUnits || state.defaultUnits,
-                industryName: config.industryName || state.industryName,
-                productTypeLabels: config.productTypeLabels || state.productTypeLabels,
-                cedisAddress: config.cedisAddress !== undefined ? config.cedisAddress : state.cedisAddress,
-                cedisLat: config.cedisLat !== undefined ? config.cedisLat : state.cedisLat,
-                cedisLng: config.cedisLng !== undefined ? config.cedisLng : state.cedisLng
+                productCategories: config.productCategories ?? state.productCategories,
+                defaultUnits: config.defaultUnits ?? state.defaultUnits,
+                industryName: config.industryName ?? state.industryName,
+                cedisAddress: config.cedisAddress ?? state.cedisAddress,
+                cedisLat: config.cedisLat ?? state.cedisLat,
+                cedisLng: config.cedisLng ?? state.cedisLng
             })),
 
             applyIndustryTemplate: (industryKey) => {

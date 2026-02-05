@@ -31,6 +31,12 @@ import {
   Settings,
 } from "lucide-react";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -89,47 +95,75 @@ export default function Purchases() {
       <div className="space-y-6">
         {/* Metrics Row */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
-            <CardContent className="pt-6 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">
-                  Órdenes Pendientes
-                </p>
-                <div className="text-2xl font-bold">{pendingCount}</div>
-              </div>
-              <div className="p-3 bg-amber-500/10 rounded-full text-amber-500">
-                <Truck className="w-6 h-6" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">
-                  Recibidas / Cerradas
-                </p>
-                <div className="text-2xl font-bold">{receivedCount}</div>
-              </div>
-              <div className="p-3 bg-green-500/10 rounded-full text-green-500">
-                <CheckCircle className="w-6 h-6" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">
-                  Gasto Total (Histórico)
-                </p>
-                <div className="text-2xl font-bold">
-                  {formatCurrency(totalSpent)}
-                </div>
-              </div>
-              <div className="p-3 bg-blue-500/10 rounded-full text-blue-500">
-                <ShoppingBag className="w-6 h-6" />
-              </div>
-            </CardContent>
-          </Card>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Card className="cursor-help">
+                  <CardContent className="pt-6 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">
+                        Órdenes Pendientes
+                      </p>
+                      <div className="text-2xl font-bold">{pendingCount}</div>
+                    </div>
+                    <div className="p-3 bg-amber-500/10 rounded-full text-amber-500">
+                      <Truck className="w-6 h-6" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </TooltipTrigger>
+              <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-3 max-w-xs">
+                <p className="font-bold text-amber-500 uppercase tracking-widest text-[9px] mb-1">Logística de Entrada</p>
+                <p>Órdenes de compra autorizadas que aún no han sido recibidas físicamente en el almacén.</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Card className="cursor-help">
+                  <CardContent className="pt-6 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">
+                        Recibidas / Cerradas
+                      </p>
+                      <div className="text-2xl font-bold">{receivedCount}</div>
+                    </div>
+                    <div className="p-3 bg-green-500/10 rounded-full text-green-500">
+                      <CheckCircle className="w-6 h-6" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </TooltipTrigger>
+              <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-3 max-w-xs">
+                <p className="font-bold text-emerald-500 uppercase tracking-widest text-[9px] mb-1">Confirmación de Stock</p>
+                <p>Insumos que ya han pasado el control de calidad y se encuentran disponibles en el inventario operativo.</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Card className="cursor-help">
+                  <CardContent className="pt-6 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">
+                        Gasto Total (Histórico)
+                      </p>
+                      <div className="text-2xl font-bold">
+                        {formatCurrency(totalSpent)}
+                      </div>
+                    </div>
+                    <div className="p-3 bg-blue-500/10 rounded-full text-blue-500">
+                      <ShoppingBag className="w-6 h-6" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </TooltipTrigger>
+              <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-3 max-w-xs">
+                <p className="font-bold text-blue-500 uppercase tracking-widest text-[9px] mb-1">Flujo de Capital</p>
+                <p>Inversión total acumulada en abastecimiento. Refleja tanto facturas pagadas como compromisos por liquidar.</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
 
         {/* Main Content */}

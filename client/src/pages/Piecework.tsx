@@ -26,14 +26,20 @@ import {
     FileText,
     Search,
     Filter,
-    AlertTriangle
+    AlertTriangle,
+    Settings,
+    Edit,
+    Trash
 } from "lucide-react";
 
 export default function Piecework() {
-    const { session } = useAuth();
+    const { session, profile } = useAuth();
+    const isAdmin = profile?.role === 'admin' || profile?.role === 'owner';
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const [isCreateOpen, setIsCreateOpen] = useState(false);
+    const [isManageOpen, setIsManageOpen] = useState(false);
+    const [editingTask, setEditingTask] = useState<any>(null);
     const [fraudWarning, setFraudWarning] = useState(false);
     const [activeTab, setActiveTab] = useState("all");
 
@@ -52,6 +58,19 @@ export default function Piecework() {
                 headers: { Authorization: `Bearer ${session.access_token}` }
             });
             if (!res.ok) throw new Error("Failed to fetch tickets");
+            return res.json();
+        },
+        enabled: !!session?.access_token
+    });
+
+    const { data: tasks = [], isLoading: isLoadingTasks } = useQuery({
+        queryKey: ["/api/piecework/tasks"],
+        queryFn: async () => {
+            if (!session?.access_token) return [];
+            const res = await fetch("/api/piecework/tasks", {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!res.ok) return [];
             return res.json();
         },
         enabled: !!session?.access_token
@@ -137,6 +156,123 @@ export default function Piecework() {
                                     <Filter className="w-4 h-4" />
                                 </Button>
 
+                                {isAdmin && (
+                                    <Dialog open={isManageOpen} onOpenChange={setIsManageOpen}>
+                                        <DialogTrigger asChild>
+                                            <Button variant="outline" size="icon">
+                                                <Settings className="w-4 h-4" />
+                                            </Button>
+                                        </DialogTrigger>
+                                        <DialogContent className="max-w-2xl">
+                                            <DialogHeader>
+                                                <DialogTitle>Configuración de Tareas (Pagos)</DialogTitle>
+                                                <DialogDescription>Defina las tarifas y límites permitidos para el destajo.</DialogDescription>
+                                            </DialogHeader>
+
+                                            <div className="space-y-4">
+                                                <div className="border rounded-lg p-4 bg-slate-900/50">
+                                                    <h4 className="font-bold text-sm mb-3">{editingTask ? "Editar Tarea" : "Nueva Tarea"}</h4>
+                                                    <form onSubmit={async (e) => {
+                                                        e.preventDefault();
+                                                        const formData = new FormData(e.currentTarget);
+                                                        const payload = {
+                                                            name: formData.get('name'),
+                                                            unitPrice: Number(formData.get('unitPrice')) * 100,
+                                                            minRate: formData.get('minRate') ? Number(formData.get('minRate')) * 100 : null,
+                                                            maxRate: formData.get('maxRate') ? Number(formData.get('maxRate')) * 100 : null,
+                                                            unit: formData.get('unit') || 'pza'
+                                                        };
+
+                                                        try {
+                                                            const url = editingTask
+                                                                ? `/api/piecework/tasks/${editingTask.id}`
+                                                                : "/api/piecework/tasks";
+                                                            const method = editingTask ? "PUT" : "POST";
+
+                                                            const res = await fetch(url, {
+                                                                method,
+                                                                headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+                                                                body: JSON.stringify(payload)
+                                                            });
+
+                                                            if (!res.ok) throw new Error("Error saving task");
+
+                                                            toast({ title: "Guardado", description: "Tarea actualizada correctamente." });
+                                                            queryClient.invalidateQueries({ queryKey: ["/api/piecework/tasks"] });
+                                                            setEditingTask(null);
+                                                            (e.target as HTMLFormElement).reset();
+                                                        } catch (err) {
+                                                            toast({ variant: "destructive", title: "Error", description: "No se pudo guardar la tarea." });
+                                                        }
+                                                    }} className="grid grid-cols-2 gap-4">
+                                                        <div className="col-span-2">
+                                                            <Label>Nombre de la Tarea</Label>
+                                                            <Input name="name" required defaultValue={editingTask?.name} />
+                                                        </div>
+                                                        <div>
+                                                            <Label>Pago Estándar ($)</Label>
+                                                            <Input name="unitPrice" type="number" step="0.01" required defaultValue={editingTask ? editingTask.unitPrice / 100 : ""} />
+                                                        </div>
+                                                        <div>
+                                                            <Label>Unidad</Label>
+                                                            <Select name="unit" defaultValue={editingTask?.unit || "pza"}>
+                                                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="pza">Pieza</SelectItem>
+                                                                    <SelectItem value="par">Par</SelectItem>
+                                                                    <SelectItem value="kg">Kg</SelectItem>
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </div>
+                                                        <div>
+                                                            <Label className="text-emerald-500">Mínimo Permitido ($)</Label>
+                                                            <Input name="minRate" type="number" step="0.01" defaultValue={editingTask?.minRate ? editingTask.minRate / 100 : ""} placeholder="Opcional" />
+                                                        </div>
+                                                        <div>
+                                                            <Label className="text-red-500">Máximo Permitido ($)</Label>
+                                                            <Input name="maxRate" type="number" step="0.01" defaultValue={editingTask?.maxRate ? editingTask.maxRate / 100 : ""} placeholder="Opcional" />
+                                                        </div>
+                                                        <div className="col-span-2 flex justify-end gap-2 mt-2">
+                                                            {editingTask && <Button type="button" variant="ghost" onClick={() => setEditingTask(null)}>Cancelar Edición</Button>}
+                                                            <Button type="submit">{editingTask ? "Actualizar" : "Crear Tarea"}</Button>
+                                                        </div>
+                                                    </form>
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    <h4 className="font-bold text-sm">Tareas Existentes</h4>
+                                                    <div className="grid gap-2 max-h-[300px] overflow-y-auto">
+                                                        {tasks.map((t: any) => (
+                                                            <div key={t.id} className="flex items-center justify-between p-3 bg-slate-900 border rounded-lg">
+                                                                <div>
+                                                                    <p className="font-bold">{t.name}</p>
+                                                                    <div className="flex gap-2 text-xs text-muted-foreground">
+                                                                        <span>Std: ${t.unitPrice / 100}</span>
+                                                                        {t.minRate && <span className="text-emerald-500">Min: ${t.minRate / 100}</span>}
+                                                                        {t.maxRate && <span className="text-red-500">Max: ${t.maxRate / 100}</span>}
+                                                                    </div>
+                                                                </div>
+                                                                <div className="flex gap-1">
+                                                                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditingTask(t)}>
+                                                                        <Edit className="w-4 h-4" />
+                                                                    </Button>
+                                                                    <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={async () => {
+                                                                        if (!confirm("¿Eliminar tarea?")) return;
+                                                                        await fetch(`/api/piecework/tasks/${t.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${session?.access_token}` } });
+                                                                        queryClient.invalidateQueries({ queryKey: ["/api/piecework/tasks"] });
+                                                                    }}>
+                                                                        <Trash className="w-4 h-4" />
+                                                                    </Button>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </DialogContent>
+                                    </Dialog>
+                                )}
+
                                 <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                                     <DialogTrigger asChild>
                                         <Button className="gap-2">
@@ -184,15 +320,21 @@ export default function Piecework() {
 
                                             <div className="space-y-2">
                                                 <Label htmlFor="task">Tarea Realizada</Label>
-                                                <Select name="task" defaultValue="Pelado de Coco">
+                                                <Select name="task" onValueChange={(val) => {
+                                                    // Auto-fill price
+                                                    const t = tasks.find((t: any) => t.name === val);
+                                                    if (t) {
+                                                        const priceInput = document.getElementById('price') as HTMLInputElement;
+                                                        if (priceInput) priceInput.value = (t.unitPrice / 100).toFixed(2);
+                                                    }
+                                                }}>
                                                     <SelectTrigger>
                                                         <SelectValue placeholder="Seleccione tarea" />
                                                     </SelectTrigger>
                                                     <SelectContent>
-                                                        <SelectItem value="Pelado de Coco">Pelado de Coco</SelectItem>
-                                                        <SelectItem value="Deshuace">Deshuace</SelectItem>
-                                                        <SelectItem value="Empaquetado">Empaquetado (Caja)</SelectItem>
-                                                        <SelectItem value="Limpieza">Limpieza General</SelectItem>
+                                                        {tasks.map((t: any) => (
+                                                            <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>
+                                                        ))}
                                                     </SelectContent>
                                                 </Select>
                                             </div>
@@ -203,7 +345,7 @@ export default function Piecework() {
                                                 </div>
                                                 <div className="space-y-2">
                                                     <Label htmlFor="price">Pago por Unidad ($)</Label>
-                                                    <Input id="price" name="price" type="number" step="0.50" required defaultValue="5.00" />
+                                                    <Input id="price" name="price" type="number" step="0.50" required />
                                                 </div>
                                             </div>
                                             <div className="space-y-2">
@@ -269,6 +411,6 @@ export default function Piecework() {
                     </CardContent>
                 </Card>
             </div>
-        </AppLayout>
+        </AppLayout >
     );
 }

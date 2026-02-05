@@ -15,13 +15,18 @@ import {
     CheckCircle,
     ShoppingBag,
     Search,
-    Zap
+    Zap,
+    Store,
+    ShieldCheck,
+    Smartphone,
+    ScanFace
 } from "lucide-react";
 
 export interface SystemModule {
     id: string;
     name: string;
     description: string;
+    tooltip?: string;
     icon: any;
     href: string;
     category: 'operations' | 'finance' | 'hr' | 'commercial' | 'support' | 'analytics';
@@ -32,6 +37,7 @@ export const ERP_MODULES: SystemModule[] = [
         id: 'production',
         name: 'Producción',
         description: 'Control de procesos, destope, deshuace y secado',
+        tooltip: 'Habilita el seguimiento de lotes, eficiencia de maquinaria y control de mermas en tiempo real.',
         icon: Factory,
         href: '/production',
         category: 'operations'
@@ -40,6 +46,7 @@ export const ERP_MODULES: SystemModule[] = [
         id: 'inventory',
         name: 'Inventario Inteligente',
         description: 'Gestión predictiva de materia prima',
+        tooltip: 'Activa el análisis de stock crítico, valoración de inventario y alertas automáticas de abastecimiento.',
         icon: Box,
         href: '/inventory',
         category: 'operations'
@@ -56,14 +63,16 @@ export const ERP_MODULES: SystemModule[] = [
         id: 'sales',
         name: 'Ventas',
         description: 'Punto de venta y pedidos',
+        tooltip: 'Habilita la terminal de punto de venta (POS), gestión de preventa y reportes de rentabilidad por producto.',
         icon: ShoppingCart,
         href: '/sales',
         category: 'commercial'
     },
     {
         id: 'crm',
-        name: 'Socios de Negocio',
+        name: 'CRM',
         description: 'Gestión de clientes y proveedores',
+        tooltip: 'Centraliza expedientes de clientes/proveedores, análisis de riesgo crediticio y CRM predictivo.',
         icon: Briefcase,
         href: '/crm',
         category: 'commercial'
@@ -88,7 +97,7 @@ export const ERP_MODULES: SystemModule[] = [
         id: 'kiosks',
         name: 'Kioscos',
         description: 'Gestión de terminales y puntos de acceso',
-        icon: Monitor,
+        icon: Smartphone,
         href: '/kiosks',
         category: 'operations'
     },
@@ -121,7 +130,7 @@ export const ERP_MODULES: SystemModule[] = [
         id: 'vision',
         name: 'Smart Vision',
         description: 'Conteo y medición por cámara',
-        icon: Monitor,
+        icon: ScanFace,
         href: '/vision',
         category: 'operations'
     },
@@ -140,5 +149,21 @@ export const ERP_MODULES: SystemModule[] = [
         icon: Zap,
         href: '/workflows',
         category: 'operations'
+    },
+    {
+        id: 'marketplace',
+        name: 'Marketplace',
+        description: 'Integraciones y extensiones',
+        icon: Store,
+        href: '/marketplace',
+        category: 'commercial'
+    },
+    {
+        id: 'trustnet',
+        name: 'TrustNet',
+        description: 'Red de confianza y validación',
+        icon: ShieldCheck,
+        href: '/trust',
+        category: 'finance'
     }
 ];

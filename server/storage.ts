@@ -86,6 +86,7 @@ export class DrizzleStorage implements IStorage {
   async getProcesses(orgId: string): Promise<schema.Process[]> {
     return await db.query.processes.findMany({
       where: (processes, { eq }) => eq(processes.organizationId, orgId),
+      orderBy: (processes, { asc }) => [asc(processes.orderIndex)],
     });
   }
 

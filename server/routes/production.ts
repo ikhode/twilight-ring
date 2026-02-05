@@ -21,7 +21,7 @@ router.get("/processes", async (req, res): Promise<void> => {
             return;
         }
 
-        const list = await db.select().from(processes).where(eq(processes.organizationId, orgId));
+        const list = await db.select().from(processes).where(eq(processes.organizationId, orgId)).orderBy(sql`${processes.orderIndex} ASC`);
         res.json(list);
     } catch (error) {
         res.status(500).json({ message: "Failed to fetch processes" });
@@ -70,12 +70,13 @@ router.post("/instances", async (req, res): Promise<void> => {
             return;
         }
 
-        const { processId, metadata } = req.body;
+        const { processId, metadata, sourceBatchId } = req.body;
 
         const [instance] = await db.insert(processInstances).values({
             processId,
             status: "active",
             startedAt: new Date(),
+            sourceBatchId: sourceBatchId || null,
             aiContext: metadata || {}
         }).returning();
 
@@ -178,16 +179,64 @@ router.post("/report", async (req, res): Promise<void> => {
 
         console.log(`[DEBUG REPORT] Creating ticket: Quantity=${safeQuantity}, Rate=${rate}, Amount=${amount}, Instance=${instanceId}`);
 
+        // --- INVENTORY VALIDATION & CONSUMPTION (STRICT MODE) ---
+        // 1. Identify Input Product from Workflow
+        const inputProductId = workflow?.inputProductId || workflow?.meta?.inputProductId;
+        // 2. Determine Consumption Ratio (Default 1:1 or from recipe)
+        // For MVP, we assume 1 unit of Output consumes 1 unit of Input unless specified otherwise.
+        // Ideally this comes from a BOM/Recipe table.
+        const consumptionRatio = 1;
+        const requiredInput = safeQuantity * consumptionRatio;
+
+        if (inputProductId && requiredInput > 0) {
+            // 3. Check Stock
+            const [inputProduct] = await db.select().from(products).where(and(eq(products.id, inputProductId), eq(products.organizationId, orgId)));
+
+            if (!inputProduct) {
+                res.status(400).json({ message: "Error de Configuración", error: "El insumo configurado en el proceso no existe en el inventario." });
+                return;
+            }
+
+            if (inputProduct.stock < requiredInput) {
+                // STRICT BLOCKING
+                res.status(400).json({
+                    message: "Validación de Materia Prima Fallida",
+                    error: `Stock insuficiente de "${inputProduct.name}": disponible ${inputProduct.stock}, requerido ${requiredInput}. Deteniendo proceso.`
+                });
+                return;
+            }
+
+            // 4. Deduct Stock Immediately (Real-time tracking)
+            // Note: Some flows might prefer to deduct at "Finish Batch", but for strict control we deduct per ticket.
+            // If the user wants "Backflush" (at the end), we'd skip this. 
+            // For now, based on user request "detener si se agota", we deduct NOW.
+
+            await db.update(products)
+                .set({ stock: sql`${products.stock} - ${requiredInput}` })
+                .where(eq(products.id, inputProductId));
+
+            await db.insert(inventoryMovements).values({
+                organizationId: orgId,
+                productId: inputProductId,
+                quantity: -requiredInput,
+                type: "production_use",
+                referenceId: instanceId,
+                notes: `Consumo por Ticket de Destajo: ${safeQuantity}u generadas.`,
+                date: new Date()
+            });
+        }
+        // -------------------------------------------------------
+
         // 2. Create Ticket
         const [ticket] = await db.insert(pieceworkTickets).values({
             organizationId: orgId,
             batchId: instanceId,
             employeeId: employeeId,
+            creatorId: (req.user as any)?.id, // Autenticación del creador
             taskName: process.name,
             quantity: Number(quantity),
-            // unit: unit || workflow?.piecework?.unit || 'pza', // Removed as it is not in schema
             unitPrice: rate,
-            totalAmount: amount, // Fix: schema expects totalAmount
+            totalAmount: amount,
             status: "pending",
             createdAt: new Date()
         }).returning();
@@ -214,18 +263,86 @@ router.get("/summary", async (req, res): Promise<void> => {
         const allInstances = await db.query.processInstances.findMany({
             where: (pi, { eq }) => sql`${pi.processId} IN (SELECT id FROM processes WHERE organization_id = ${orgId})`,
             orderBy: (pi, { desc }) => [desc(pi.startedAt)],
-            limit: 50
+            limit: 100
         });
 
         const activeCount = allInstances.filter(i => i.status === "active").length;
-        const completedCount = allInstances.filter(i => i.status === "completed").length;
+        const completedInstances = allInstances.filter(i => i.status === "completed");
+        const completedCount = completedInstances.length;
+
+        // 1. Calculate Average Cycle Time (in hours)
+        let totalCycleTimeMs = 0;
+        let validCompletedCount = 0;
+        completedInstances.forEach(i => {
+            if (i.startedAt && i.completedAt) {
+                totalCycleTimeMs += new Date(i.completedAt).getTime() - new Date(i.startedAt).getTime();
+                validCompletedCount++;
+            }
+        });
+        const avgCycleTimeHours = validCompletedCount > 0
+            ? (totalCycleTimeMs / validCompletedCount / (1000 * 60 * 60)).toFixed(1)
+            : "0.0";
+
+        // 2. Fetch Waste (Merma) from anomalies in the last 30 days
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        const anomalies = await db.select()
+            .from(processEvents)
+            .where(and(
+                eq(processEvents.eventType, "anomaly"),
+                sql`${processEvents.timestamp} > ${thirtyDaysAgo}`,
+                sql`${processEvents.instanceId} IN (SELECT id FROM process_instances WHERE process_id IN (SELECT id FROM processes WHERE organization_id = ${orgId}))`
+            ));
+
+        // Real Waste Calculation: Sum quantity from anomalies vs Total Production
+        let totalWasteQty = 0;
+        anomalies.forEach(a => {
+            totalWasteQty += Number((a.data as any)?.quantity) || 0;
+        });
+
+        // Calculate Total Production from Key Metrics or Completed Instances
+        let totalProductionQty = 0;
+        completedInstances.forEach(i => {
+            const ctx = i.aiContext as any;
+            // Support both object yields {pid: qty} and legacy single number
+            if (ctx?.yields) {
+                if (typeof ctx.yields === 'object' && ctx.yields.final) {
+                    // logic from /finish route stores { final: yields }
+                    const final = ctx.yields.final;
+                    if (typeof final === 'object') {
+                        totalProductionQty += Object.values(final).reduce((a: number, b: any) => a + (Number(b) || 0), 0);
+                    } else {
+                        totalProductionQty += Number(final) || 0;
+                    }
+                } else {
+                    totalProductionQty += Number(ctx.yields) || 0;
+                }
+            }
+        });
+
+        // Avoid division by zero
+        const totalVolume = totalProductionQty + totalWasteQty;
+        const wastePercentage = totalVolume > 0
+            ? ((totalWasteQty / totalVolume) * 100).toFixed(1)
+            : "0.0";
+
+        // 3. Efficiency (For now: Completion Rate)
+        // Future: Compare actual duration vs expected duration from process_steps
+        const totalStarted = activeCount + completedCount;
+        const efficiency = totalStarted > 0
+            ? ((completedCount / totalStarted) * 100).toFixed(1)
+            : "0.0";
 
         res.json({
             activeCount,
             completedCount,
             totalCount: allInstances.length,
-            efficiency: completedCount > 0 ? 92 : 0, // Mocked OEE for now
-            recentInstances: allInstances.slice(0, 5)
+            efficiency,
+            waste: wastePercentage,
+            avgCycleTime: avgCycleTimeHours,
+            recentInstances: allInstances.slice(0, 5),
+            activeInstances: allInstances.filter(i => i.status === "active")
         });
     } catch (error) {
         res.status(500).json({ message: "Failed to fetch production summary" });

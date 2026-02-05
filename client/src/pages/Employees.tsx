@@ -414,7 +414,12 @@ export default function Employees() {
           </Card>
           <Card className="bg-slate-900/50 border-slate-800" data-tour="attendance-section">
             <CardContent className="pt-6">
-              <AliveValue label="Activos Ahora" value={stats.active} trend="up" explanation="98% de asistencia hoy" />
+              <AliveValue
+                label="Activos Ahora"
+                value={stats.active}
+                trend="up"
+                explanation={`Asistencia del ${Math.round((stats.active / (stats.total || 1)) * 100)}% hoy. Objetivo de disponibilidad operacional: 95%.`}
+              />
             </CardContent>
           </Card>
           <Card className="bg-slate-900/50 border-slate-800">

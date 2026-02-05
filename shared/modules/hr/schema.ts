@@ -37,6 +37,7 @@ export const employees = pgTable("employees", {
     latitude: text("latitude"),
     longitude: text("longitude"),
     isArchived: boolean("is_archived").notNull().default(false),
+    attributes: jsonb("attributes").default({}), // Universal Extensibility
     createdAt: timestamp("created_at").defaultNow(),
 });
 

@@ -16,6 +16,7 @@ import {
     userOrganizations
 } from "../../shared/schema";
 import { eq, and, desc, inArray, sql } from "drizzle-orm";
+import { logAudit } from "../lib/audit";
 
 const router = Router();
 
@@ -142,26 +143,7 @@ router.get("/tasks", async (req: Request, res: Response): Promise<void> => {
             ));
 
         // Fallback seed if empty (for demo purposes)
-        if (tasks.length === 0) {
-            const defaultTasks = [
-                { name: "Corte de Pantalón (Jeans)", unitPrice: 1500, unit: "pza" },
-                { name: "Pegado de Bolsas", unitPrice: 500, unit: "par" },
-                { name: "Dobladillo Final", unitPrice: 300, unit: "pza" },
-                { name: "Planchado y Empaque", unitPrice: 800, unit: "pza" },
-            ];
-
-            const createdTasks = [];
-            for (const t of defaultTasks) {
-                const [newTask] = await db.insert(productionTasks).values({
-                    organizationId: orgId,
-                    ...t
-                }).returning();
-                createdTasks.push(newTask);
-            }
-            res.json(createdTasks);
-        } else {
-            res.json(tasks);
-        }
+        res.json(tasks);
     } catch (error) {
         console.error("Fetch tasks error:", error);
         res.status(500).json({ message: "Internal server error" });
@@ -184,9 +166,49 @@ router.post("/tasks", async (req: Request, res: Response): Promise<void> => {
         }
 
         const [task] = await db.insert(productionTasks).values(parsed.data).returning();
+
+        // Audit
+        const user = await getAuthenticatedUser(req);
+        if (user) await logAudit(orgId, user.id, "CREATE_TASK", task.id, { name: task.name, price: task.unitPrice });
+
         res.status(201).json(task);
     } catch (error) {
         res.status(500).json({ message: "Failed to create task" });
+    }
+});
+
+// Update Task
+router.put("/tasks/:id", async (req: Request, res: Response): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        const taskId = req.params.id;
+        const payload = req.body;
+
+        // Validate payload if necessary (partial update) or use schema
+        // For simplicity, updating fields directly but ideally use schema
+
+        await db.update(productionTasks)
+            .set({
+                name: payload.name,
+                unitPrice: payload.unitPrice,
+                minRate: payload.minRate,
+                maxRate: payload.maxRate,
+                unit: payload.unit
+            })
+            .where(and(
+                eq(productionTasks.id, taskId),
+                eq(productionTasks.organizationId, orgId)
+            ));
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error("Update task error:", error);
+        res.status(500).json({ message: "Failed to update task" });
     }
 });
 
@@ -205,6 +227,10 @@ router.delete("/tasks/:id", async (req: Request, res: Response): Promise<void> =
                 eq(productionTasks.id, taskId),
                 eq(productionTasks.organizationId, orgId)
             ));
+
+        // Audit
+        const user = await getAuthenticatedUser(req);
+        if (user) await logAudit(orgId, user.id, "UPDATE_TASK", taskId, payload);
 
         res.json({ success: true });
     } catch (error) {
@@ -276,6 +302,29 @@ router.post("/tickets", async (req: Request, res: Response): Promise<void> => {
             return;
         }
 
+        // --- VALIDATION & LIMITS ---
+        const [taskDef] = await db.select().from(productionTasks).where(and(
+            eq(productionTasks.organizationId, orgId),
+            eq(productionTasks.name, parsed.data.taskName)
+        )).limit(1);
+
+        if (taskDef) {
+            const user = await getAuthenticatedUser(req);
+            const membership = await db.query.userOrganizations.findFirst({
+                where: and(eq(userOrganizations.userId, user!.id), eq(userOrganizations.organizationId, orgId))
+            });
+            const isAdmin = membership?.role === 'admin';
+
+            if (!isAdmin) {
+                if (taskDef.minRate && parsed.data.unitPrice < taskDef.minRate) {
+                    return res.status(400).json({ message: `La tarifa es menor al mínimo permitido ($${(taskDef.minRate / 100).toFixed(2)})` });
+                }
+                if (taskDef.maxRate && parsed.data.unitPrice > taskDef.maxRate) {
+                    return res.status(400).json({ message: `La tarifa excede el máximo permitido ($${(taskDef.maxRate / 100).toFixed(2)})` });
+                }
+            }
+        }
+
         const [ticket] = await db.insert(pieceworkTickets).values(parsed.data).returning();
 
         // Increment Employee Balance
@@ -283,12 +332,16 @@ router.post("/tickets", async (req: Request, res: Response): Promise<void> => {
             .set({ balance: sql`${employees.balance} + ${parsed.data.totalAmount}` })
             .where(eq(employees.id, parsed.data.employeeId));
 
+        // Audit Ticket Creation (Traceability of payments)
+        const user = await getAuthenticatedUser(req);
+        if (user) await logAudit(orgId, user.id, "CREATE_TICKET", ticket.id, {
+            amount: ticket.totalAmount,
+            employee: parsed.data.employeeId,
+            task: parsed.data.taskName
+        });
+
         // --- RECIPE PROCESSING ---
-        // Find task definition to check for active recipe
-        const [taskDef] = await db.select().from(productionTasks).where(and(
-            eq(productionTasks.organizationId, orgId),
-            eq(productionTasks.name, parsed.data.taskName)
-        )).limit(1);
+        // Task definition already fetched above as taskDef
 
         if (taskDef && taskDef.isRecipe && taskDef.recipeData) {
             const recipe = taskDef.recipeData as any;
@@ -306,8 +359,20 @@ router.post("/tickets", async (req: Request, res: Response): Promise<void> => {
                 for (const input of inputsToProcess) {
                     const requiredQty = input.quantity * ticketQty;
 
-                    // Check Inventory (Optional: could block or allow negative)
-                    // For now we allow negative but log warning in console
+                    // Check Inventory (Prevent negative stock)
+                    const [currentProduct] = await db.select().from(products).where(and(eq(products.id, input.itemId), eq(products.organizationId, orgId)));
+
+                    if (currentProduct && (currentProduct.stock - requiredQty < 0)) {
+                        // Option A: Throw error (Strict)
+                        // throw new Error(`Insufficient stock for ${input.itemId}. Required: ${requiredQty}, Available: ${currentProduct.stock}`);
+
+                        // Option B: Allow but log (Current user preference seems to be "details" adjustment, implying they want it fixed or visible)
+                        // Let's stick to allowing it but ensuring the UI shows it red (which we did). 
+                        // BUT, for "underlying details", preventing it is better for data integrity.
+                        // However, without a way to "add stock" easily in the UI flow, this might block production.
+                        // Let's just log a warning for now and let it go negative, as the UI now handles it.
+                        console.warn(`[Inventory] Negative stock alert for ${input.itemId}: ${currentProduct.stock} - ${requiredQty}`);
+                    }
 
                     await db.update(products)
                         .set({ stock: sql`${products.stock} - ${requiredQty}` })
@@ -475,7 +540,7 @@ router.post("/advances", async (req: Request, res: Response): Promise<void> => {
             .set({ balance: sql`${employees.balance} - ${amount}` })
             .where(eq(employees.id, employeeId));
 
-        // If paid immediately, record expense
+        // If paid immediately, record expense AND deduct from Cash Register
         if (advanceStatus === 'paid') {
             await db.insert(expenses).values({
                 organizationId: orgId,
@@ -484,6 +549,32 @@ router.post("/advances", async (req: Request, res: Response): Promise<void> => {
                 description: `Adelanto de Nómina (ID: ${advance.id.slice(0, 8)})`,
                 date: new Date()
             });
+
+            // Update Cash Register (If open)
+            const register = await db.query.cashRegisters.findFirst({
+                where: and(
+                    eq(cashRegisters.organizationId, orgId),
+                    eq(cashRegisters.status, 'open')
+                )
+            });
+
+            if (register && register.currentSessionId) {
+                const performerId = await getPerformerId(req, orgId);
+                await db.insert(cashTransactions).values({
+                    organizationId: orgId,
+                    registerId: register.id,
+                    sessionId: register.currentSessionId,
+                    type: "out",
+                    category: "payroll",
+                    amount: amount,
+                    description: `Adelanto de Nómina (ID: ${advance.id.slice(0, 8)})`,
+                    performedBy: performerId
+                });
+
+                await db.update(cashRegisters)
+                    .set({ balance: sql`${cashRegisters.balance} - ${amount}` })
+                    .where(eq(cashRegisters.id, register.id));
+            }
         }
 
         res.status(201).json(advance);

@@ -11,4 +11,6 @@ if (!supabaseUrl || !supabaseAnonKey) {
     console.warn("Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY");
 }
 
-export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
+import { Database } from '../types/database.types';
+
+export const supabase = createClient<Database>(supabaseUrl || '', supabaseAnonKey || '');

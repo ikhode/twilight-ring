@@ -57,9 +57,9 @@ export function DataTable<T extends { id: string | number }>({
               </TableCell>
             </TableRow>
           ) : (
-            data.map((item) => (
+            data.map((item, index) => (
               <TableRow
-                key={item.id}
+                key={`${item.id}-${index}`}
                 onClick={() => onRowClick?.(item)}
                 className={cn(
                   "transition-colors",

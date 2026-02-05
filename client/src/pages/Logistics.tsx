@@ -20,6 +20,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 import { useConfiguration } from "@/context/ConfigurationContext";
 import { CognitiveInput, CognitiveField } from "@/components/cognitive";
@@ -512,6 +518,10 @@ export default function Logistics() {
     });
 
 
+    const deliveredCount = salesOrders.filter((s: any) => s.deliveryStatus === 'delivered').length;
+    const totalSales = salesOrders.length;
+    const fleetEfficiency = totalSales > 0 ? ((deliveredCount / totalSales) * 100).toFixed(1) : "0.0";
+
     return (
         <AppLayout title="Logística Inteligente">
             <Tabs defaultValue="dashboard" className="space-y-6 h-full">
@@ -527,46 +537,85 @@ export default function Logistics() {
                         <div className="lg:col-span-3 flex flex-col gap-6">
                             {/* KPI Cards */}
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                <Card className="bg-slate-900/50 border-slate-800">
-                                    <CardHeader className="p-4 pb-2"><CardTitle className="text-xs text-slate-400 uppercase tracking-wider">Flota Activa</CardTitle></CardHeader>
-                                    <CardContent className="p-4 pt-0">
-                                        <div className="flex items-end gap-2">
-                                            <span className="text-2xl font-black text-white">{driverLocations.length}</span>
-                                            <span className="text-xs text-green-500 font-bold mb-1">En Ruta</span>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                                <Card className="bg-slate-900/50 border-slate-800">
-                                    <CardHeader className="p-4 pb-2"><CardTitle className="text-xs text-slate-400 uppercase tracking-wider">Entregas Pendientes</CardTitle></CardHeader>
-                                    <CardContent className="p-4 pt-0">
-                                        <div className="flex items-end gap-2">
-                                            <span className="text-2xl font-black text-white">
-                                                {salesOrders.filter((s: any) => s.deliveryStatus !== 'delivered').length}
-                                            </span>
-                                            <span className="text-xs text-slate-500 mb-1">Órdenes</span>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                                <Card className="bg-slate-900/50 border-slate-800">
-                                    <CardHeader className="p-4 pb-2"><CardTitle className="text-xs text-slate-400 uppercase tracking-wider">Vehículos Disp.</CardTitle></CardHeader>
-                                    <CardContent className="p-4 pt-0">
-                                        <div className="flex items-end gap-2">
-                                            <span className="text-2xl font-black text-white">
-                                                {vehiclesData.filter((v: any) => v.status === 'active').length}
-                                            </span>
-                                            <span className="text-xs text-slate-500 mb-1">De {vehiclesData.length} total</span>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                                <Card className="bg-slate-900/50 border-slate-800">
-                                    <CardHeader className="p-4 pb-2"><CardTitle className="text-xs text-slate-400 uppercase tracking-wider">Eficiencia</CardTitle></CardHeader>
-                                    <CardContent className="p-4 pt-0">
-                                        <div className="flex items-end gap-2">
-                                            <span className="text-2xl font-black text-green-400">98.5%</span>
-                                            <span className="text-xs text-green-500/50 mb-1">↑ 2.1%</span>
-                                        </div>
-                                    </CardContent>
-                                </Card>
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Card className="bg-slate-900/50 border-slate-800 cursor-help">
+                                                <CardHeader className="p-4 pb-2"><CardTitle className="text-xs text-slate-400 uppercase tracking-wider">Flota Activa</CardTitle></CardHeader>
+                                                <CardContent className="p-4 pt-0">
+                                                    <div className="flex items-end gap-2">
+                                                        <span className="text-2xl font-black text-white">{driverLocations.length}</span>
+                                                        <span className="text-xs text-green-500 font-bold mb-1">En Ruta</span>
+                                                    </div>
+                                                </CardContent>
+                                            </Card>
+                                        </TooltipTrigger>
+                                        <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-3 max-w-xs">
+                                            <p className="font-bold text-primary uppercase tracking-widest text-[9px] mb-1">Monitoreo en Tiempo Real</p>
+                                            <p>Número de unidades que están transmitiendo su ubicación GPS actualmente a través de la App de Conductor.</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Card className="bg-slate-900/50 border-slate-800 cursor-help">
+                                                <CardHeader className="p-4 pb-2"><CardTitle className="text-xs text-slate-400 uppercase tracking-wider">Entregas Pendientes</CardTitle></CardHeader>
+                                                <CardContent className="p-4 pt-0">
+                                                    <div className="flex items-end gap-2">
+                                                        <span className="text-2xl font-black text-white">
+                                                            {salesOrders.filter((s: any) => s.deliveryStatus !== 'delivered').length}
+                                                        </span>
+                                                        <span className="text-xs text-slate-500 mb-1">Órdenes</span>
+                                                    </div>
+                                                </CardContent>
+                                            </Card>
+                                        </TooltipTrigger>
+                                        <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-3 max-w-xs">
+                                            <p className="font-bold text-blue-500 uppercase tracking-widest text-[9px] mb-1">Cola de Despacho</p>
+                                            <p>Ventas confirmadas que aún no han sido marcadas como entregadas por el personal de logística.</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Card className="bg-slate-900/50 border-slate-800 cursor-help">
+                                                <CardHeader className="p-4 pb-2"><CardTitle className="text-xs text-slate-400 uppercase tracking-wider">Vehículos Disp.</CardTitle></CardHeader>
+                                                <CardContent className="p-4 pt-0">
+                                                    <div className="flex items-end gap-2">
+                                                        <span className="text-2xl font-black text-white">
+                                                            {vehiclesData.filter((v: any) => v.status === 'active').length}
+                                                        </span>
+                                                        <span className="text-xs text-slate-500 mb-1">De {vehiclesData.length} total</span>
+                                                    </div>
+                                                </CardContent>
+                                            </Card>
+                                        </TooltipTrigger>
+                                        <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-3 max-w-xs">
+                                            <p className="font-bold text-green-500 uppercase tracking-widest text-[9px] mb-1">Capacidad Logística</p>
+                                            <p>Unidades en estado operativo listas para ser asignadas a nuevas rutas de entrega o recolección.</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Card className="bg-slate-900/50 border-slate-800 cursor-help">
+                                                <CardHeader className="p-4 pb-2"><CardTitle className="text-xs text-slate-400 uppercase tracking-wider">Eficiencia</CardTitle></CardHeader>
+                                                <CardContent className="p-4 pt-0">
+                                                    <div className="flex items-end gap-2">
+                                                        <span className={cn("text-2xl font-black", Number(fleetEfficiency) > 80 ? "text-green-400" : "text-amber-400")}>
+                                                            {fleetEfficiency}%
+                                                        </span>
+                                                        <span className="text-xs text-slate-500 mb-1">Global</span>
+                                                    </div>
+                                                </CardContent>
+                                            </Card>
+                                        </TooltipTrigger>
+                                        <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-3 max-w-xs">
+                                            <p className="font-bold text-emerald-500 uppercase tracking-widest text-[9px] mb-1">Tasa de Cumplimiento</p>
+                                            <p>Porcentaje de órdenes de venta entregadas con éxito vs el total de órdenes procesadas en el sistema.</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
                             </div>
 
                             {/* Live Map */}

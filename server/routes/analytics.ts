@@ -5,7 +5,7 @@ import {
     insertAnalyticsMetricSchema, inventoryMovements, customReports, analyticsSnapshots,
     expenses, sales, payments, payrollAdvances, employees, workHistory,
     pieceworkTickets, processEvents, processInstances, bankAccounts, cashRegisters, products,
-    metricModels
+    metricModels, purchases
 } from "../../shared/schema";
 import { eq, desc, and, sql, gte, lte } from "drizzle-orm";
 
@@ -397,6 +397,96 @@ router.get("/advanced/:type", async (req, res) => {
     } catch (error) {
         console.error("Advanced report error:", error);
         res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+/**
+ * PRODUCTION YIELD ANALYSIS
+ * Compares Purchase (Theoretical) vs. Payroll/Output (Actual)
+ */
+router.get("/yield", async (req, res) => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) { return res.status(401).json({ message: "Unauthorized" }); }
+
+        // 1. Get Purchases that have a Batch ID (Raw Material Batches)
+        const batchPurchases = await db.query.purchases.findMany({
+            where: and(
+                eq(purchases.organizationId, orgId),
+                sql`${purchases.batchId} IS NOT NULL`
+            ),
+            with: { product: true, supplier: true },
+            orderBy: desc(purchases.date),
+            limit: 50
+        });
+
+        const report = [];
+
+        for (const purchase of batchPurchases) {
+            if (!purchase.batchId) continue;
+
+            // 2. Get Production Instances linked to this Batch
+            const instances = await db.query.processInstances.findMany({
+                where: eq(processInstances.sourceBatchId, purchase.batchId),
+                with: { process: true }
+            });
+
+            // 3. Get Tickets linked to these Instances
+            const instanceIds = instances.map(i => i.id);
+            let tickets = [];
+            if (instanceIds.length > 0) {
+                // Fetch tickets where batchId IN instanceIds
+                // Note: Drizzle syntax for "inArray" might differ slightly based on version, using findMany with filter
+                tickets = await db.query.pieceworkTickets.findMany({
+                    where: and(
+                        eq(pieceworkTickets.organizationId, orgId),
+                        sql`${pieceworkTickets.batchId} IN ${instanceIds}`
+                    )
+                });
+            }
+
+            // 4. Calculate Stats
+            const totalOutput = tickets.reduce((sum, t) => sum + (Number(t.quantity) || 0), 0); // Assuming primary unit
+            const totalPayrollCost = tickets.reduce((sum, t) => sum + (Number(t.totalAmount) || 0), 0);
+
+            // Expected Yield Calculation
+            // masterProductId might be the purchase product itself (if it IS a master) or the purchase product is the variant.
+            // Scenario: Purchase "Bulto" (Variant). Master "Coco" (Unit).
+            // Variant config: expectedYield = 50.
+            // If purchase product has expectedYield, use it.
+            const yieldConfig = purchase.product?.expectedYield || 0;
+            const itemQuantity = purchase.quantity || 0;
+            const expectedTotal = yieldConfig > 0 ? (itemQuantity * yieldConfig) : 0;
+
+            const yieldPercentage = expectedTotal > 0 ? ((totalOutput / expectedTotal) * 100) : 0;
+
+            // ROI / Cost per Unit
+            // Purchase Cost + Payroll Cost / Total Output
+            const totalInputCost = purchase.totalAmount + totalPayrollCost;
+            const realUnitCost = totalOutput > 0 ? (totalInputCost / totalOutput) : 0;
+
+            report.push({
+                batchId: purchase.batchId,
+                date: purchase.date,
+                supplier: purchase.supplier?.name || "Desconocido",
+                product: purchase.product?.name || "Insumo",
+                purchaseQty: itemQuantity,
+                purchaseCost: purchase.totalAmount,
+                expectedYieldPerUnit: yieldConfig,
+                expectedTotalOutput: expectedTotal,
+                actualOutput: totalOutput,
+                yieldPercentage: Number(yieldPercentage.toFixed(1)),
+                payrollCost: totalPayrollCost,
+                totalCost: totalInputCost,
+                realUnitCost: Math.round(realUnitCost), // in cents
+                inProgress: instances.some(i => i.status === 'active')
+            });
+        }
+
+        res.json(report);
+    } catch (error) {
+        console.error("Yield Analysis Error:", error);
+        res.status(500).json({ message: "Failed to generate yield analysis" });
     }
 });
 

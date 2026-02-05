@@ -38,6 +38,12 @@ import { useAuth } from "@/hooks/use-auth";
 import { useConfiguration } from "@/context/ConfigurationContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import {
+  Tooltip as UiTooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 import {
   Dialog,
@@ -426,7 +432,7 @@ function POSView() {
   const products = useMemo(() => {
     const list = Array.isArray(dbProducts) ? dbProducts : [];
     return list
-      .filter((p: any) => p.isSellable !== false)
+      .filter((p: any) => p.isSellable !== false && p.isActive !== false)
       .map((p: any) => ({
         ...p,
         price: p.price / 100,
@@ -1061,11 +1067,43 @@ function SalesMetrics() {
   const avgTicket = transactionCount > 0 ? salesToday / transactionCount : 0;
 
   return (
-    <>
-      <StatCard title="Ventas Hoy" value={formatCurrency(salesToday / 100)} icon={DollarSign} trend={metrics?.hasEnoughData ? 12.5 : 0} variant="success" />
-      <StatCard title="Transacciones" value={transactionCount.toString()} icon={Receipt} variant="primary" />
-      <StatCard title="Ticket Promedio" value={formatCurrency(avgTicket / 100)} icon={TrendingUp} trend={metrics?.hasEnoughData ? 5.2 : 0} />
-    </>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="cursor-help">
+            <StatCard title="Ventas Hoy" value={formatCurrency(salesToday / 100)} icon={DollarSign} trend={metrics?.hasEnoughData ? 12.5 : 0} variant="success" />
+          </div>
+        </TooltipTrigger>
+        <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-3 max-w-xs">
+          <p className="font-bold text-emerald-500 uppercase tracking-widest text-[9px] mb-1">Ingresos de Caja</p>
+          <p>Total de ventas confirmadas el día de hoy. Incluye pagos en efectivo y transferencias validadas.</p>
+        </TooltipContent>
+      </Tooltip>
+
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="cursor-help">
+            <StatCard title="Transacciones" value={transactionCount.toString()} icon={Receipt} variant="primary" />
+          </div>
+        </TooltipTrigger>
+        <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-3 max-w-xs">
+          <p className="font-bold text-blue-500 uppercase tracking-widest text-[9px] mb-1">Volumen Operativo</p>
+          <p>Número total de notas de venta procesadas por el sistema en las últimas 24 horas.</p>
+        </TooltipContent>
+      </Tooltip>
+
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="cursor-help">
+            <StatCard title="Ticket Promedio" value={formatCurrency(avgTicket / 100)} icon={TrendingUp} trend={metrics?.hasEnoughData ? 5.2 : 0} />
+          </div>
+        </TooltipTrigger>
+        <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-3 max-w-xs">
+          <p className="font-bold text-indigo-500 uppercase tracking-widest text-[9px] mb-1">Valor de Cliente</p>
+          <p>Promedio de ingresos generados por cada transacción. Indicador de eficiencia en upselling.</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 

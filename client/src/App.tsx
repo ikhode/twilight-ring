@@ -7,6 +7,7 @@ import NotFound from "@/pages/not-found";
 import Landing from "@/pages/Landing";
 import Auth from "@/pages/Auth";
 import { IntroJsOnboarding } from "@/components/onboarding/IntroJsOnboarding";
+import { ProtectedRoute } from "@/lib/protected-route";
 import Dashboard from "@/pages/Dashboard";
 import Vision from "@/pages/Vision";
 import Kiosks from "@/pages/Kiosks";
@@ -20,6 +21,7 @@ import Logistics from "@/pages/Logistics";
 import Finance from "@/pages/Finance";
 import BankAccounts from "@/pages/finance/BankAccounts";
 import PayrollManager from "@/pages/finance/PayrollManager";
+import FinancialReports from "@/pages/FinancialReports";
 import CRM from "@/pages/CRM";
 import Purchases from "@/pages/Purchases";
 import Tickets from "@/pages/Tickets";
@@ -35,6 +37,7 @@ import Demo from "@/pages/Demo";
 import TerminalLink from "@/pages/TerminalLink";
 import SubscriptionSuccess from "@/pages/SubscriptionSuccess";
 import WorkflowEditor from "@/pages/WorkflowEditor";
+import Workflows from "@/pages/Workflows";
 import Operations from "@/pages/Operations";
 import Kiosk from "@/pages/Kiosk";
 import Signature from "@/pages/Signature";
@@ -57,38 +60,45 @@ function Router() {
       <Route path="/login" component={Auth} />
       <Route path="/signup" component={Auth} />
       <Route path="/onboarding" component={IntroJsOnboarding} />
-      <Route path="/dashboard" component={Dashboard} />
-      <Route path="/vision" component={Vision} />
-      <Route path="/kiosks" component={Kiosks} />
+
+      {/* Public / Kiosk Routes */}
       <Route path="/kiosk" component={Kiosk} />
       <Route path="/kiosk-terminal/:id" component={KioskInterface} />
       <Route path="/driver" component={DriverTerminal} />
       <Route path="/driver-pwa" component={DriverTerminal} />
-      <Route path="/employees" component={Employees} />
-      <Route path="/inventory" component={Inventory} />
-      <Route path="/production" component={Production} />
-      <Route path="/sales" component={Sales} />
-      <Route path="/logistics" component={Logistics} />
-      <Route path="/finance" component={Finance} />
-      <Route path="/finance/accounts" component={BankAccounts} />
-      <Route path="/finance/payroll" component={PayrollManager} />
-      <Route path="/crm" component={CRM} />
-      <Route path="/marketplace" component={Marketplace} />
-      <Route path="/operations" component={Operations} />
-      <Route path="/purchases" component={Purchases} />
-      <Route path="/tickets" component={Tickets} />
-      <Route path="/documents" component={Documents} />
-      <Route path="/piecework" component={Piecework} />
-      <Route path="/analytics" component={Analytics} />
-      <Route path="/settings" component={Settings} />
-      <Route path="/trust" component={TrustNet} />
-      <Route path="/admin" component={Admin} />
-      <Route path="/query" component={Query} />
-      <Route path="/demo" component={Demo} />
       <Route path="/kiosk-link" component={TerminalLink} />
-      <Route path="/subscription-success" component={SubscriptionSuccess} />
-      <Route path="/workflows" component={WorkflowEditor} />
       <Route path="/sign/:token" component={Signature} />
+
+      {/* Protected System Routes (Admin/Owner/Manager only) */}
+      <ProtectedRoute path="/dashboard" component={Dashboard} />
+      <ProtectedRoute path="/vision" component={Vision} />
+      <ProtectedRoute path="/kiosks" component={Kiosks} /> {/* Mangement of Kiosks */}
+      <ProtectedRoute path="/employees" component={Employees} />
+      <ProtectedRoute path="/inventory" component={Inventory} />
+      <ProtectedRoute path="/production" component={Production} />
+      <ProtectedRoute path="/sales" component={Sales} />
+      <ProtectedRoute path="/logistics" component={Logistics} />
+      <ProtectedRoute path="/finance" component={Finance} />
+      <ProtectedRoute path="/finance/accounts" component={BankAccounts} />
+      <ProtectedRoute path="/finance/payroll" component={PayrollManager} />
+      <ProtectedRoute path="/finance/reports" component={FinancialReports} />
+      <ProtectedRoute path="/crm" component={CRM} />
+      <ProtectedRoute path="/marketplace" component={Marketplace} />
+      <ProtectedRoute path="/operations" component={Operations} />
+      <ProtectedRoute path="/purchases" component={Purchases} />
+      <ProtectedRoute path="/tickets" component={Tickets} />
+      <ProtectedRoute path="/documents" component={Documents} />
+      <ProtectedRoute path="/piecework" component={Piecework} />
+      <ProtectedRoute path="/analytics" component={Analytics} />
+      <ProtectedRoute path="/settings" component={Settings} />
+      <ProtectedRoute path="/trust" component={TrustNet} />
+      <ProtectedRoute path="/admin" component={Admin} />
+      <ProtectedRoute path="/query" component={Query} />
+      <ProtectedRoute path="/demo" component={Demo} />
+      <ProtectedRoute path="/subscription-success" component={SubscriptionSuccess} />
+      <ProtectedRoute path="/workflows" component={Workflows} />
+      <ProtectedRoute path="/workflow-editor" component={WorkflowEditor} />
+
       <Route component={NotFound} />
     </Switch>
   );

@@ -40,6 +40,12 @@ import {
 import { cn } from "@/lib/utils";
 import { EthicsPanel } from "@/components/ai/EthicsPanel";
 import { Zap } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 import { useToast } from "@/hooks/use-toast";
 import { useConfiguration, IndustryType } from "@/context/ConfigurationContext";
@@ -147,23 +153,36 @@ export default function Settings() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {ERP_MODULES.map((mod) => (
-                    <div key={mod.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-950/50 border border-slate-800">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-slate-900 rounded-lg text-slate-400">
-                          {React.createElement(mod.icon as any, { className: "w-4 h-4" })}
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold text-white uppercase italic">{mod.name}</p>
-                          <p className="text-[10px] text-slate-500">{mod.description}</p>
-                        </div>
-                      </div>
-                      <Switch
-                        checked={enabledModules.includes(mod.id)}
-                        onCheckedChange={() => toggleModule(mod.id)}
-                      />
-                    </div>
-                  ))}
+                  <TooltipProvider text-white>
+                    {ERP_MODULES.map((mod) => (
+                      <Tooltip key={mod.id}>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950/50 border border-slate-800 hover:border-primary/20 transition-all cursor-help">
+                            <div className="flex items-center gap-3">
+                              <div className="p-2 bg-slate-900 rounded-lg text-slate-400">
+                                {React.createElement(mod.icon as any, { className: "w-4 h-4" })}
+                              </div>
+                              <div>
+                                <p className="text-xs font-bold text-white uppercase italic">{mod.name}</p>
+                                <p className="text-[10px] text-slate-500">{mod.description}</p>
+                              </div>
+                            </div>
+                            <Switch
+                              checked={enabledModules.includes(mod.id)}
+                              onCheckedChange={() => toggleModule(mod.id)}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-3 max-w-xs">
+                          <div className="space-y-1">
+                            <p className="font-bold text-primary uppercase tracking-widest text-[9px]">Capacidad del Módulo</p>
+                            <p>{mod.tooltip || "Habilita funciones avanzadas para este departamento."}</p>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    ))}
+                  </TooltipProvider>
                 </div>
               </CardContent>
             </Card>

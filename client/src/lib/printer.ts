@@ -45,7 +45,7 @@ export const printThermalTicket = (ticket: any, organizationName: string = "IkHO
         <body>
             <div class="header text-center">
                 <div class="bold" style="font-size: 14px;">${organizationName}</div>
-                <div>TICKET DE DESTAJO</div>
+                <div>TICKET DE PRODUCCIÓN</div>
                 <div>${date}</div>
             </div>
             
@@ -72,9 +72,9 @@ export const printThermalTicket = (ticket: any, organizationName: string = "IkHO
             
             <div class="footer text-center">
                 <svg id="barcode"></svg>
-                <div style="font-size: 8px; margin-top: 2px;">${ticket.id}</div>
-                <div style="margin-top: 10px;">Firma del Supervisor</div>
-                <br/><br/>
+                <div style="font-size: 10px; margin-top: 5px; font-weight: bold;">ID: ${ticket.ticketNumber || ticket.id}</div>
+                <div style="font-size: 8px; margin-top: 10px; color: #666;">AUTENTICACIÓN ELECTRÓNICA</div>
+                <br/>
                 <div class="divider"></div>
             </div>
             
@@ -82,10 +82,10 @@ export const printThermalTicket = (ticket: any, organizationName: string = "IkHO
             <script>
                 window.onload = function() {
                     try {
-                        JsBarcode("#barcode", "${ticket.id}", {
+                        JsBarcode("#barcode", "${ticket.ticketNumber || ticket.id}", {
                             format: "CODE128",
-                            width: 1.5,
-                            height: 35,
+                            width: 2,
+                            height: 40,
                             displayValue: false,
                             margin: 0
                         });

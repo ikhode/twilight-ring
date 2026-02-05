@@ -37,7 +37,18 @@ import {
   ChevronRight,
   History as HistoryIcon,
   Bot,
-  Activity
+  Activity,
+  Trash2,
+  Upload,
+  RefreshCw,
+  MoreVertical,
+  Edit,
+  XCircle,
+  ArrowRight,
+  TrendingUp,
+  Info,
+  Settings,
+  Settings2
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -45,14 +56,17 @@ import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { CognitiveButton, AliveValue, CognitiveInput, CognitiveField, CognitiveProvider, GuardianDiagnostic, GuardianSafeStatus } from "@/components/cognitive";
 import { useConfiguration } from "@/context/ConfigurationContext";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 import { useAppStore } from "@/store/app-store";
 
+
+
 export default function Inventory() {
-  const { session } = useAuth();
+  const { session, profile } = useAuth();
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'manager';
   const { toast } = useToast();
   const { universalConfig, industry } = useConfiguration();
   const { productTypeLabels } = useAppStore();
@@ -212,8 +226,11 @@ export default function Inventory() {
       ...p,
       price: p.price / 100,
       cost: (p.cost || 0) / 100,
-      status: p.stock < 100 ? "critical" : p.stock < 500 ? "low" : "available",
-      unit: p.unit || "pza"
+      status: p.isArchived ? "archived" : (p.stock <= 0 ? "critical" : p.stock < 100 ? "low" : "available"),
+      // Fix unit display: Prioritize abbreviation, then name, then legacy unit, then default
+      unit: p.unitRef?.abbreviation || p.unitRef?.name || p.unit || "pza",
+      // Flag for negative stock to show in UI
+      isNegativeStock: p.stock < 0
     }));
   }, [dbProducts]);
 
@@ -267,6 +284,9 @@ export default function Inventory() {
     unitId: "",
     price: 0,
     cost: 0,
+    // Master/Variant Logic
+    masterProductId: "",
+    expectedYield: 0
   });
 
   // Auto-generate SKU
@@ -280,18 +300,22 @@ export default function Inventory() {
   const filteredProducts = useMemo(() => {
     return groupedProducts.filter(
       (p) =>
-        (p.isActive !== false) &&
-        (p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (p.category || "").toLowerCase().includes(searchQuery.toLowerCase()))
+      // (p.isActive !== false) && // Allow archived/inactive to show in search
+      (p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (p.category || "").toLowerCase().includes(searchQuery.toLowerCase()))
     );
   }, [groupedProducts, searchQuery]);
 
   const stats = useMemo(() => ({
-    totalProducts: products.length,
+    totalValue: products.reduce((acc, p) => acc + p.stock * p.price, 0),
+    healthyStock: products.filter((p) => p.status === "available").length,
     lowStock: products.filter((p) => p.status === "low").length,
     criticalStock: products.filter((p) => p.status === "critical").length,
-    totalValue: products.reduce((acc, p) => acc + p.stock * p.price, 0),
+    totalProducts: products.length,
+    stockHealthScore: products.length > 0
+      ? Math.round((products.filter((p) => p.status === "available").length / products.length) * 100)
+      : 100
   }), [products]);
 
   const queryClient = useQueryClient();
@@ -355,19 +379,20 @@ export default function Inventory() {
     setNewProduct({
       name: "",
       sku: "",
-      category: "",
       categoryId: "",
       groupId: "",
-      productType: "both",
       isSellable: true,
       isPurchasable: true,
       isProductionInput: false,
       isProductionOutput: false,
       stock: 0,
-      unit: "pza",
       unitId: "",
       price: 0,
-      cost: 0
+      cost: 0,
+      minPurchasePrice: 0,
+      maxPurchasePrice: 0,
+      masterProductId: "",
+      expectedYield: 0
     });
     setIsEditing(false);
     setSelectedProduct(null);
@@ -376,7 +401,7 @@ export default function Inventory() {
 
   const archiveProductMutation = useMutation({
     mutationFn: async (productId: string) => {
-      const res = await apiRequest("PATCH", `/api/inventory/products/${productId}`, { isActive: false }, {
+      const res = await apiRequest("PATCH", `/api/inventory/products/${productId}`, { isArchived: true, isActive: false }, {
         Authorization: `Bearer ${session?.access_token}`
       });
       return res.json();
@@ -384,6 +409,22 @@ export default function Inventory() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/inventory/products"] });
       toast({ title: "Producto Archivado", description: "El producto se ha desactivado correctamente." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const deleteProductMutation = useMutation({
+    mutationFn: async (productId: string) => {
+      const res = await apiRequest("DELETE", `/api/inventory/products/${productId}`, undefined, {
+        Authorization: `Bearer ${session?.access_token}`
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/inventory/products"] });
+      toast({ title: "Producto Eliminado", description: "El producto ha sido eliminado permanentemente del listado activo." });
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -419,7 +460,12 @@ export default function Inventory() {
         price: item.price, // already decimal
         cost: item.cost, // already decimal
         groupId: item.groupId || "",
-        categoryId: item.categoryId || ""
+        categoryId: item.categoryId || item.category?.id || "",
+        masterProductId: item.masterProductId || "",
+        expectedYield: item.expectedYield || 0,
+        unitId: item.unitId || item.unit?.id || "",
+        minPurchasePrice: item.minPurchasePrice || 0,
+        maxPurchasePrice: item.maxPurchasePrice || 0
       });
     }
     setIsAddDialogOpen(true);
@@ -434,14 +480,20 @@ export default function Inventory() {
       ...payload,
       unitId: payload.unitId || null,
       price: Math.round(newProduct.price * 100),
-      cost: Math.round(newProduct.cost * 100)
+      cost: Math.round(newProduct.cost * 100),
+      masterProductId: payload.masterProductId || null,
+      expectedYield: payload.expectedYield || 0,
+      minPurchasePrice: payload.minPurchasePrice || 0,
+      maxPurchasePrice: payload.maxPurchasePrice || 0
     };
 
     if (isEditing) {
       if (editingGroupId) {
         updateGroupMutation.mutate({ id: editingGroupId, name: newProduct.name });
-      } else if (selectedProduct) {
+      } else if (selectedProduct && selectedProduct.id) {
         updateProductMutation.mutate({ ...data, id: selectedProduct.id });
+      } else {
+        toast({ title: "Error Crítico", description: "No se encontró el ID del producto a editar. Refresque la página.", variant: "destructive" });
       }
     } else {
       createProductMutation.mutate(data);
@@ -457,31 +509,77 @@ export default function Inventory() {
   return (
     <AppLayout title="Inventario Inteligente" subtitle="Gestión predictiva de materia prima y producto terminado">
       <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <StatCard
-            title="Total Items en Inventario"
-            value={<AliveValue value={stats.totalProducts} unit="" />}
-            icon={Package}
-            variant="primary"
-          />
-          <StatCard
-            title="Stock Bajo"
-            value={<AliveValue value={stats.lowStock} unit="" allowTrend />}
-            icon={TrendingDown}
-            variant="warning"
-          />
-          <StatCard
-            title="Stock Crítico"
-            value={<AliveValue value={stats.criticalStock} unit="" allowTrend />}
-            icon={AlertTriangle}
-            variant="destructive"
-          />
-          <StatCard
-            title="Valor Total"
-            value={formatCurrency(stats.totalValue)}
-            icon={DollarSign}
-            variant="success"
-          />
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="cursor-help">
+                  <StatCard
+                    title="Items en Inventario"
+                    value={<AliveValue value={stats.totalProducts} unit="" />}
+                    icon={Package}
+                    variant="primary"
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-3 max-w-xs">
+                <p className="font-bold text-primary uppercase tracking-widest text-[9px] mb-1">Catálogo Activo</p>
+                <p>Número total de referencias únicas registradas en el sistema que no han sido archivadas.</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="cursor-help">
+                  <StatCard
+                    title="Salud de Stock"
+                    value={`${stats.stockHealthScore}%`}
+                    icon={CheckCircle2}
+                    variant={stats.stockHealthScore > 90 ? "success" : stats.stockHealthScore > 70 ? "warning" : "destructive"}
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-3 max-w-xs">
+                <p className="font-bold text-emerald-500 uppercase tracking-widest text-[9px] mb-1">Disponibilidad Óptima</p>
+                <div className="space-y-1 my-2">
+                  <div className="flex justify-between">
+                    <span>Saludable:</span>
+                    <span className="font-bold text-emerald-500">{stats.healthyStock}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Stock Bajo:</span>
+                    <span className="font-bold text-amber-500">{stats.lowStock}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Crítico:</span>
+                    <span className="font-bold text-red-500">{stats.criticalStock}</span>
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-400 border-t border-white/5 pt-1 italic">
+                  Calculado como porcentaje de productos con stock suficiente vs total.
+                </p>
+              </TooltipContent>
+            </Tooltip>
+
+            <StatCard
+              title="Stock Bajo"
+              value={<AliveValue value={stats.lowStock} unit="" allowTrend />}
+              icon={TrendingDown}
+              variant="warning"
+            />
+            <StatCard
+              title="Stock Crítico"
+              value={<AliveValue value={stats.criticalStock} unit="" allowTrend />}
+              icon={AlertTriangle}
+              variant="destructive"
+            />
+            <StatCard
+              title="Valor Total"
+              value={formatCurrency(stats.totalValue)}
+              icon={DollarSign}
+              variant="success"
+            />
+          </TooltipProvider>
         </div>
 
         <Card>
@@ -518,6 +616,7 @@ export default function Inventory() {
                       data-tour="add-product-btn"
                       intent="register_inventory"
                       onClick={() => {
+                        resetForm();
                         window.dispatchEvent(new CustomEvent('NEXUS_ONBOARDING_ACTION', { detail: 'modal_opened_inventory' }));
                       }}
                     >
@@ -595,26 +694,52 @@ export default function Inventory() {
                           </div>
                         </div>
 
+                        {/* Row 2 */}
                         <div className="space-y-2">
-                          <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Grupo (Opcional)</Label>
+                          <div className="flex items-center gap-2">
+                            <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Familia del Producto</Label>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Info className="w-3 h-3 text-slate-500 cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-xs bg-slate-900 border-slate-700 text-white">
+                                  <p className="font-bold text-xs mb-1">¿Para qué sirve la Familia?</p>
+                                  <p className="text-xs">
+                                    Agrupa productos similares para <strong>reportes financieros</strong>.
+                                    <br /><br />
+                                    Ejemplo: "Familia Cocos" agrupa "Coco Unidad", "Bulto de Coco" y "Coco Pelado" para saber cuánto gastaste en total en cocos, sin importar su presentación.
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
                           <div className="flex gap-2">
                             <Select value={newProduct.groupId || 'none'} onValueChange={(v) => setNewProduct({ ...newProduct, groupId: v === 'none' ? '' : v })}>
                               <SelectTrigger className="bg-slate-900/50 border-slate-800 focus:border-primary/50 transition-all flex-1">
-                                <SelectValue placeholder="Sin grupo..." />
+                                <SelectValue placeholder="Sin familia asignada" />
                               </SelectTrigger>
                               <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                                <SelectItem value="none">Sin grupo</SelectItem>
+                                <SelectItem value="none">-- Sin familia --</SelectItem>
                                 {groupsList.map((g: any) => (
                                   <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
                             <Button variant="outline" size="icon" onClick={() => {
-                              const name = prompt("Nombre del nuevo grupo:");
-                              if (name) createGroupMutation.mutate(name);
+                              const name = prompt("Nombre de la nueva familia:");
+                              if (name) createGroupMutation.mutate({ name, description: "" });
                             }}>
                               <Plus className="w-4 h-4" />
                             </Button>
+                            {editingGroupId && (
+                              <Button variant="outline" size="icon" onClick={() => {
+                                const name = prompt("Nuevo nombre de la familia:", newProduct.name);
+                                if (name) updateGroupMutation.mutate({ id: editingGroupId, name });
+                              }}>
+                                <Settings className="w-4 h-4" />
+                              </Button>
+                            )}
                           </div>
                         </div>
 
@@ -655,12 +780,40 @@ export default function Inventory() {
                         )}
 
                         {newProduct.isPurchasable && (
-                          <div className="space-y-2" data-tour="product-cost-field">
-                            <Label htmlFor="cost" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Costo Unitario</Label>
-                            <div className="relative">
-                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs">$</span>
-                              <Input id="cost" type="number" step="0.01" value={newProduct.cost} onChange={(e) => setNewProduct({ ...newProduct, cost: parseFloat(e.target.value) || 0 })} className="pl-7 bg-slate-900/50 border-slate-800 focus:border-primary/50 transition-all" />
+                          <div className="space-y-4 border-l-2 border-slate-800 pl-4">
+                            <div className="space-y-2" data-tour="product-cost-field">
+                              <Label htmlFor="cost" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Costo Unitario</Label>
+                              <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs">$</span>
+                                <Input id="cost" type="number" step="0.01" value={newProduct.cost} onChange={(e) => setNewProduct({ ...newProduct, cost: parseFloat(e.target.value) || 0 })} className="pl-7 bg-slate-900/50 border-slate-800 focus:border-primary/50 transition-all" />
+                              </div>
                             </div>
+
+                            {/* Purchase Control - Admin Only */}
+                            {isAdmin && (
+                              <div className="bg-slate-900/40 p-3 rounded-lg border border-indigo-500/20">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Label className="text-[10px] font-bold uppercase tracking-widest text-indigo-400">Control de Compras</Label>
+                                  <Badge variant="outline" className="text-[9px] h-4 border-indigo-500/30 text-indigo-400">Admin</Badge>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="space-y-1">
+                                    <Label htmlFor="minPrice" className="text-[9px] text-slate-500">Mínimo</Label>
+                                    <div className="relative">
+                                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500 text-[10px]">$</span>
+                                      <Input id="minPrice" type="number" step="0.01" value={newProduct.minPurchasePrice} onChange={(e) => setNewProduct({ ...newProduct, minPurchasePrice: parseFloat(e.target.value) || 0 })} className="pl-5 h-8 text-xs bg-slate-950 border-slate-800" />
+                                    </div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label htmlFor="maxPrice" className="text-[9px] text-slate-500">Máximo</Label>
+                                    <div className="relative">
+                                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500 text-[10px]">$</span>
+                                      <Input id="maxPrice" type="number" step="0.01" value={newProduct.maxPurchasePrice} onChange={(e) => setNewProduct({ ...newProduct, maxPurchasePrice: parseFloat(e.target.value) || 0 })} className="pl-5 h-8 text-xs bg-slate-950 border-slate-800" />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
 
@@ -669,23 +822,15 @@ export default function Inventory() {
                           <Label htmlFor="unit" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">{currentLabels.unitLabel}</Label>
                           <div className="flex gap-2">
                             <Select
-                              value={newProduct.unitId || newProduct.unit}
-                              onValueChange={(v) => {
-                                if (v === "pza" || v === "kg") {
-                                  setNewProduct({ ...newProduct, unitId: "", unit: v });
-                                } else {
-                                  setNewProduct({ ...newProduct, unitId: v });
-                                }
-                              }}
+                              value={newProduct.unitId}
+                              onValueChange={(v) => setNewProduct({ ...newProduct, unitId: v })}
                             >
                               <SelectTrigger className="bg-slate-900/50 border-slate-800 focus:border-primary/50 transition-all flex-1">
-                                <SelectValue placeholder="Seleccionar..." />
+                                <SelectValue placeholder="Unidad..." />
                               </SelectTrigger>
                               <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                                <SelectItem value="pza">Pieza (pza)</SelectItem>
-                                <SelectItem value="kg">Kilogramo (kg)</SelectItem>
                                 {unitsList.map((u: any) => (
-                                  <SelectItem key={u.id} value={u.id}>{u.name} ({u.abbreviation})</SelectItem>
+                                  <SelectItem key={u.id} value={u.id}>{u.name} ({u.symbol})</SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
@@ -701,6 +846,70 @@ export default function Inventory() {
                         <div className="space-y-2">
                           <Label htmlFor="stock" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">{currentLabels.stockLabel}</Label>
                           <Input id="stock" type="number" value={newProduct.stock} onChange={(e) => setNewProduct({ ...newProduct, stock: parseInt(e.target.value) || 0 })} className="bg-slate-900/50 border-slate-800 focus:border-primary/50 transition-all" />
+                        </div>
+
+                        {/* Master/Variant Yield Config */}
+                        <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-4 space-y-4">
+                          <div className="flex items-center gap-2 border-b border-blue-500/20 pb-2 mb-2">
+                            <Settings2 className="w-4 h-4 text-blue-400" />
+                            <Label className="text-xs font-bold uppercase text-blue-400">Equivalencia y Rendimiento</Label>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Info className="w-3 h-3 text-blue-400 cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-sm bg-slate-900 border-slate-700 text-white">
+                                  <p className="font-bold text-xs mb-1 text-blue-400">Control de Inventario Unificado</p>
+                                  <p className="text-xs">
+                                    Esta sección conecta productos que son lo mismo pero en diferentes presentaciones.
+                                    <br /><br />
+                                    <strong>Ejemplo Clave:</strong>
+                                    <br />
+                                    Si compras por "Camión" o "Bulto", pero vendes o procesas por "Pieza":
+                                    <ul className="list-disc pl-4 mt-1 space-y-1">
+                                      <li>Crea "Coco (Pieza)" como producto base.</li>
+                                      <li>Crea "Bulto de Coco" y selecciona a "Coco (Pieza)" como Maestro.</li>
+                                      <li>Define que 1 Bulto = 50 Piezas.</li>
+                                    </ul>
+                                    <br />
+                                    Al comprar 1 Bulto, el sistema sumará automáticamente 50 Piezas a tu inventario.
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Producto Maestro (Base)</Label>
+                              <Select value={newProduct.masterProductId} onValueChange={(v) => setNewProduct({ ...newProduct, masterProductId: v === "none" ? "" : v })}>
+                                <SelectTrigger className="bg-slate-900/50 border-slate-800 focus:border-blue-500/50 transition-all">
+                                  <SelectValue placeholder="Seleccionar Base..." />
+                                </SelectTrigger>
+                                <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                                  <SelectItem value="none">-- Es Producto Maestro --</SelectItem>
+                                  {products.filter((p: any) => !p.masterProductId && p.id !== selectedProduct?.id).map((p: any) => (
+                                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <p className="text-[9px] text-slate-500">Si este item es una variante (ej. Bulto), selecciona su base (ej. Coco Unidad).</p>
+                            </div>
+
+                            {newProduct.masterProductId && (
+                              <div className="space-y-2">
+                                <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Rendimiento Esperado ({products.find(p => p.id === newProduct.masterProductId)?.unit || 'u'})</Label>
+                                <Input
+                                  type="number"
+                                  placeholder="Ej. 50"
+                                  value={newProduct.expectedYield}
+                                  onChange={(e) => setNewProduct({ ...newProduct, expectedYield: parseFloat(e.target.value) || 0 })}
+                                  className="bg-slate-900/50 border-slate-800 focus:border-blue-500/50 transition-all font-mono text-blue-400 font-bold"
+                                />
+                                <p className="text-[9px] text-slate-500">Cantidad estimada de unidades base que rinde este item.</p>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -754,7 +963,7 @@ export default function Inventory() {
                           <AlertTriangle className="w-3 h-3 mr-1" />
                           Agota en {item.cognitive?.daysRemaining ?? "..."} días
                         </Badge>
-                        <span className="text-[10px] text-muted-foreground">Sugerido: +{item.cognitive?.suggestedOrder ?? 0} {item.unit}</span>
+                        <span className="text-[10px] text-muted-foreground">Sugerido: +{item.cognitive?.suggestedOrder ?? 0} {item.unit?.symbol || "units"}</span>
                       </div>
                     ) : (
                       <span className="text-[10px] text-muted-foreground opacity-50 flex items-center gap-1">
@@ -768,7 +977,7 @@ export default function Inventory() {
                   key: "category",
                   header: "Categoría",
                   render: (item) => (
-                    <Badge variant="secondary">{item.category}</Badge>
+                    <Badge variant="secondary">{item.category?.name || "Sin Categoría"}</Badge>
                   ),
                 },
                 {
@@ -781,7 +990,7 @@ export default function Inventory() {
                       <div className="space-y-1.5 min-w-32">
                         <div className="flex items-center justify-between">
                           <span className="font-semibold font-mono">
-                            {item.stock.toLocaleString()} {item.unit}
+                            {item.stock.toLocaleString()} {item.unit?.symbol || "units"}
                           </span>
                           <StatusBadge status={item.status} />
                         </div>
@@ -859,6 +1068,25 @@ export default function Inventory() {
                         </TooltipTrigger>
                         <TooltipContent>
                           <p>Archivar producto</p>
+                        </TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive/70 hover:text-destructive hover:bg-destructive/20 border border-transparent hover:border-destructive/30"
+                            onClick={() => {
+                              if (confirm("¿ELIMINAR PERMANENTEMENTE?\n\nEsta acción ocultará el producto de todas las operaciones futuras.\nEl historial se mantendrá intacto para auditoría.\n\n¿Confirmar eliminación segura?")) {
+                                deleteProductMutation.mutate(item.id);
+                              }
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Eliminar permanentemente (Safe Delete)</p>
                         </TooltipContent>
                       </Tooltip>
                       <Tooltip>
@@ -1071,7 +1299,8 @@ interface Movement {
 }
 
 function MovementHistoryDialog({ isOpen, onOpenChange, product }: { isOpen: boolean, onOpenChange: (v: boolean) => void, product: any }) {
-  const { session } = useAuth();
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'owner';
   const { data: movements, isLoading } = useQuery<Movement[]>({
     queryKey: [product?.id ? `/api/inventory/products/${product.id}/history` : null],
     queryFn: async () => {

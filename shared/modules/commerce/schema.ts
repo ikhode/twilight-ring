@@ -1,4 +1,4 @@
-import { pgTable, text, varchar, timestamp, boolean, integer, jsonb, customType } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, boolean, integer, jsonb, customType, AnyPgColumn } from "drizzle-orm/pg-core";
 import { sql, relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -19,6 +19,7 @@ export const suppliers = pgTable("suppliers", {
     address: text("address"),
     latitude: text("latitude"),
     longitude: text("longitude"),
+    attributes: jsonb("attributes").default({}), // Universal Extensibility
     createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -38,6 +39,7 @@ export const customers = pgTable("customers", {
     address: text("address"),
     latitude: text("latitude"),
     longitude: text("longitude"),
+    attributes: jsonb("attributes").default({}), // Universal Extensibility
     createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -76,9 +78,13 @@ export const products = pgTable("products", {
     sku: text("sku").unique(),
 
     // Categorization
-    category: text("category"), // Legacy text field, keeping for safety
     categoryId: varchar("category_id").references(() => productCategories.id),
     groupId: varchar("group_id").references(() => productGroups.id),
+
+    // Master/Variant Logic (Yield Analysis)
+    masterProductId: varchar("master_product_id").references((): AnyPgColumn => products.id), // Self-reference for Master
+    expectedYield: integer("expected_yield"), // Estimated units per this item (e.g. 50 coconuts per sack)
+
 
     // Operation Logic Flags
     isSellable: boolean("is_sellable").notNull().default(true),
@@ -86,13 +92,12 @@ export const products = pgTable("products", {
     isProductionInput: boolean("is_production_input").notNull().default(false), // Consumable in process
     isProductionOutput: boolean("is_production_output").notNull().default(false), // Producible in process
 
-    productType: text("product_type").notNull().default("both"), // Legacy: "sale", "purchase", "service", "both"
-    unit: text("unit").notNull().default("pza"), // Legacy text field
     unitId: varchar("unit_id").references(() => productUnits.id), // New references
     price: integer("price").notNull().default(0), // in cents
     cost: integer("cost").notNull().default(0), // in cents
 
     // Configurable Price Ranges for Business Logic
+    attributes: jsonb("attributes").default({}), // Universal Extensibility
     minPurchasePrice: integer("min_purchase_price"), // in cents
     maxPurchasePrice: integer("max_purchase_price"), // in cents
 
@@ -198,13 +203,12 @@ export const insertProductCategorySchema = createInsertSchema(productCategories)
 export const insertProductGroupSchema = createInsertSchema(productGroups);
 export const insertProductUnitSchema = createInsertSchema(productUnits);
 export const insertProductSchema = createInsertSchema(products).extend({
-    category: z.string().optional(),
-    productType: z.string().optional(),
     isSellable: z.boolean().optional(),
     isPurchasable: z.boolean().optional(),
     isProductionInput: z.boolean().optional(),
     isProductionOutput: z.boolean().optional(),
-    unit: z.string().optional()
+    masterProductId: z.string().optional(),
+    expectedYield: z.number().optional()
 });
 export const insertInventoryMovementSchema = createInsertSchema(inventoryMovements);
 export const insertSaleSchema = createInsertSchema(sales);

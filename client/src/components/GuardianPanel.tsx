@@ -11,8 +11,16 @@ import {
     ExternalLink,
     Clock,
     ShieldCheck,
-    ArrowRight
+    ArrowRight,
+    Activity,
+    Info
 } from "lucide-react";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { motion, AnimatePresence } from "framer-motion";
 import { guardian, AnomalyAlert } from "@/lib/ai/guardian";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -98,9 +106,27 @@ export function GuardianPanel() {
                             </CardDescription>
                         </div>
                     </div>
-                    <Badge variant="outline" className="border-slate-800 text-slate-400 font-black uppercase text-[10px]">
-                        SOC 2 Certificado
-                    </Badge>
+                    <div className="flex flex-col items-end gap-2">
+                        <Badge variant="outline" className="border-slate-800 text-slate-400 font-black uppercase text-[10px]">
+                            SOC 2 Certificado
+                        </Badge>
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <div className={cn(
+                                        "flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[9px] font-black uppercase tracking-tighter cursor-help",
+                                        combinedAlerts.length > 0 ? "bg-red-500/10 border-red-500/30 text-red-500" : "bg-emerald-500/10 border-emerald-500/30 text-emerald-500"
+                                    )}>
+                                        <Activity className="w-3 h-3" />
+                                        Estado: {combinedAlerts.length > 0 ? "AMENAZA DETECTADA" : "NORMAL"}
+                                    </div>
+                                </TooltipTrigger>
+                                <TooltipContent className="bg-slate-900 border-slate-800 text-[10px] p-2 max-w-[150px]">
+                                    Indicador de salud del ecosistema basado en análisis de patrones en tiempo real.
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    </div>
                 </div>
             </CardHeader>
 
@@ -168,10 +194,20 @@ export function GuardianPanel() {
             </CardContent>
 
             <div className="p-4 border-t border-white/5 bg-slate-950/20 text-center">
-                <Button variant="ghost" className="w-full text-[10px] font-black uppercase text-primary hover:text-primary/80 tracking-widest italic group">
-                    Ver Reporte de Auditoría IA
-                    <ArrowRight className="ml-2 w-3 h-3 group-hover:translate-x-1 transition-transform" />
-                </Button>
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button variant="ghost" className="w-full text-[10px] font-black uppercase text-primary hover:text-primary/80 tracking-widest italic group">
+                                Ver Reporte de Auditoría IA
+                                <ArrowRight className="ml-2 w-3 h-3 group-hover:translate-x-1 transition-transform" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-900 border-slate-800 text-[10px] p-3 max-w-xs">
+                            <p className="font-bold text-primary mb-1 uppercase tracking-widest text-[9px]">Deep Audit Log</p>
+                            Genera una traza completa de decisiones tomadas por la Capa Guardian en las últimas 24h.
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
             </div>
         </Card>
     );

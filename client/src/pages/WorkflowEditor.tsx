@@ -24,6 +24,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
+import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 import {
     Zap,
     Settings2,
@@ -51,6 +52,14 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { AnimatePresence, motion } from "framer-motion";
+import { simulateWorkflow, SimulationResult, SimulationStep } from "@/lib/simulation-engine";
+import {
+    Tooltip as UiTooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // Custom Nodes
 import TriggerNode from "@/components/workflow/nodes/TriggerNode";
@@ -188,7 +197,103 @@ function WorkflowEditor() {
     const [searchTerm, setSearchTerm] = useState("");
     const [activeTab, setActiveTab] = useState("all");
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+    // --- Simulation State ---
+    const [isSimulating, setIsSimulating] = useState(false);
+    const [simStep, setSimStep] = useState<number>(-1);
+    const [simulationData, setSimulationData] = useState<SimulationResult | null>(null);
+    const [simLogs, setSimLogs] = useState<string[]>([]);
+    const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
+    const [activeEdgeId, setActiveEdgeId] = useState<string | null>(null);
+
+    const runSimulation = () => {
+        setIsSimulating(true);
+        setSimStep(0);
+        setSimLogs(["Initializing Simulation Environment..."]);
+
+        // Run Engine
+        const result = simulateWorkflow(nodes, edges);
+        setSimulationData(result);
+        setSimLogs(prev => [...prev, ...result.logs]);
+
+        // Playback Loop
+        let currentStepIdx = 0;
+
+        const playStep = () => {
+            if (currentStepIdx >= result.steps.length) {
+                setTimeout(() => {
+                    toast({ title: "Simulation Complete", description: "Process verification finished successfully." });
+                    setIsSimulating(false);
+                    setActiveNodeId(null);
+                    setActiveEdgeId(null);
+                }, 2000);
+                return;
+            }
+
+            const step = result.steps[currentStepIdx];
+
+            if (step.type === 'node_activation') {
+                setActiveNodeId(step.nodeId!);
+                setActiveEdgeId(null);
+            } else if (step.type === 'token_traversal') {
+                setActiveEdgeId(step.edgeId!);
+                // Keep source node active briefly or clear? Let's clear to show movement.
+                setActiveNodeId(null);
+            }
+
+            // Schedule next step
+            // We use the duration of the current step to determine when to trigger the next logical update
+            // However, for React visual sync, we might just use a fixed "Step Time" or use the step.duration directly.
+
+            setTimeout(() => {
+                currentStepIdx++;
+                playStep();
+            }, step.duration || 1000);
+        };
+
+        playStep();
+    };
+
+    /**
+     * Helper to render the Token moving across an edge.
+     * We need to find the source/target node positions to interpolate.
+     */
+    const SimulationOverlay = () => {
+        if (!activeEdgeId || !isSimulating) return null;
+
+        const edge = edges.find(e => e.id === activeEdgeId);
+        if (!edge) return null;
+
+        const sourceNode = nodes.find(n => n.id === edge.source);
+        const targetNode = nodes.find(n => n.id === edge.target);
+
+        if (!sourceNode || !targetNode) return null;
+
+        // Calculate absolute positions (ReactFlow manages this, but we have nodes array with position)
+        // Adjust for node width/height roughly (e.g. center)
+        const sx = sourceNode.position.x + 150; // approx center width
+        const sy = sourceNode.position.y + 50;  // approx center height
+        const tx = targetNode.position.x + 150;
+        const ty = targetNode.position.y + 50;
+
+        return (
+            <div className="absolute inset-0 pointer-events-none z-50 overflow-hidden">
+                <motion.div
+                    initial={{ x: sx, y: sy, opacity: 1, scale: 0.5 }}
+                    animate={{ x: tx, y: ty, opacity: 1, scale: 1 }}
+                    transition={{ duration: 1.5, ease: "easeInOut" }}
+                    className="absolute w-6 h-6 bg-primary rounded-full shadow-[0_0_20px_var(--primary)] flex items-center justify-center border-2 border-white"
+                >
+                    <Zap className="w-3 h-3 text-white fill-current" />
+                </motion.div>
+            </div>
+        );
+    };
+
+    // --- End Simulation ---
+
     const [processName, setProcessName] = useState("");
+
     const [description, setDescription] = useState("");
     const [selectedInputProductId, setSelectedInputProductId] = useState<string | null>(null);
     const [selectedOutputProductIds, setSelectedOutputProductIds] = useState<string[]>([]);
@@ -654,11 +759,26 @@ function WorkflowEditor() {
                             >
                                 <Settings2 className="w-3.5 h-3.5 mr-2" /> Config
                             </Button>
+                            <Button variant="outline" className="gap-2 border-orange-500/20 text-orange-400 hover:bg-orange-500/10 hover:text-orange-300 transition-all font-mono uppercase text-xs tracking-wider" onClick={runSimulation} disabled={isSimulating}>
+                                {isSimulating ? (
+                                    <>
+                                        <Bot className="w-4 h-4 animate-pulse" />
+                                        Simulando...
+                                    </>
+                                ) : (
+                                    <>
+                                        <PlayCircle className="w-4 h-4" />
+                                        Simular
+                                    </>
+                                )}
+                            </Button>
+
                             <Button
-                                onClick={() => { saveMutation.mutate(); }}
-                                className="h-8 bg-primary hover:bg-primary/90 text-[10px] uppercase font-black uppercase glow-xs"
+                                onClick={handleSave}
+                                className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_20px_-5px_var(--primary)] gap-2 font-bold"
                             >
-                                <Save className="w-3.5 h-3.5 mr-2" /> Guardar
+                                <Save className="w-4 h-4" />
+                                Guardar
                             </Button>
                         </div>
                     </div>
@@ -717,10 +837,22 @@ function WorkflowEditor() {
 
                 <div className="w-[320px] flex flex-col gap-4">
                     <Card className="bg-slate-900/50 border-slate-800 p-5 flex flex-col gap-4">
-                        <div className="flex items-center gap-2 text-primary">
-                            <Bot className="w-5 h-5 animate-pulse" />
-                            <h3 className="text-xs font-black uppercase tracking-widest leading-none">Sugerencias IA</h3>
-                        </div>
+                        <TooltipProvider>
+                            <UiTooltip>
+                                <TooltipTrigger asChild>
+                                    <div className="flex items-center gap-2 text-primary cursor-help">
+                                        <Bot className="w-5 h-5 animate-pulse" />
+                                        <h3 className="text-xs font-black uppercase tracking-widest leading-none">Sugerencias IA</h3>
+                                    </div>
+                                </TooltipTrigger>
+                                <TooltipContent className="bg-slate-900 border-primary/20 p-3 max-w-[200px]">
+                                    <p className="text-[10px] text-slate-300">
+                                        <span className="font-bold text-primary block mb-1 uppercase tracking-widest text-[9px]">Motor Cognitivo Nexus</span>
+                                        Analiza patrones operativos y sugiere flujos de trabajo optimizados basados en tu actividad real.
+                                    </p>
+                                </TooltipContent>
+                            </UiTooltip>
+                        </TooltipProvider>
                         <p className="text-[10px] text-slate-500 font-bold uppercase">Workflows diseñados para tu empresa:</p>
 
                         <div className="space-y-3">

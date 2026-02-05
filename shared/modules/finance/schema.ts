@@ -100,29 +100,7 @@ export const metricModels = pgTable("metric_models", {
     meta: jsonb("meta").default({}), // Hyperparameters or specific config
 });
 
-// TrustNet
-export const trustParticipants = pgTable("trust_participants", {
-    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }).unique(),
-    trustScore: integer("trust_score").notNull().default(0), // 0-1000
-    joinedAt: timestamp("joined_at").defaultNow(),
-    lastActiveAt: timestamp("last_active_at").defaultNow(),
-    contributionCount: integer("contribution_count").default(0),
-    multiplier: integer("multiplier").default(100), // 1.00 = 100
-    status: text("status").default("observation"), // "observation", "verified", "peer", "guardian"
-});
-
-export const sharedInsights = pgTable("shared_insights", {
-    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-    sourceOrgId: varchar("source_org_id").notNull().references(() => organizations.id),
-    industry: text("industry").notNull(),
-    metricKey: text("metric_key").notNull(),
-    value: integer("value").notNull(),
-    anonymizedContext: jsonb("anonymized_context").default({}),
-    verificationScore: integer("verification_score").default(0),
-    createdAt: timestamp("created_at").defaultNow(),
-
-});
+// TrustNet tables removed for clutter reduction (Zero Ruido)
 
 export const budgets = pgTable("budgets", {
     id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

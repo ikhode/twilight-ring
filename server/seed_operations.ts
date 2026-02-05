@@ -59,69 +59,103 @@ export async function seedOperations() {
 
         // Seed Maintenance
         if (vehicle) {
-            await db.insert(maintenanceLogs).values({
-                organizationId: orgId,
-                vehicleId: vehicle.id,
-                type: "preventive",
-                description: "Cambio de aceite y filtros preventivo",
-                mileageIn: 44500,
-                mileageOut: 44550,
-                cost: 2500,
-                partsUsed: [{ name: "Aceite Sintético", quantity: 1, cost: 1800 }]
+            const existingMaintenance = await db.query.maintenanceLogs.findFirst({
+                where: (logs, { eq }) => eq(logs.vehicleId, vehicle.id)
             });
+            if (!existingMaintenance) {
+                await db.insert(maintenanceLogs).values({
+                    organizationId: orgId,
+                    vehicleId: vehicle.id,
+                    type: "preventive",
+                    description: "Cambio de aceite y filtros preventivo",
+                    mileageIn: 44500,
+                    mileageOut: 44550,
+                    cost: 2500,
+                    partsUsed: [{ name: "Aceite Sintético", quantity: 1, cost: 1800 }]
+                });
+            }
         }
 
         // Seed Sales/Expenses
         if (product) {
-            await db.insert(sales).values({
+            const existingSale = await db.query.sales.findFirst({
+                where: (sales, { eq }) => eq(sales.productId, product.id)
+            });
+            if (!existingSale) {
+                await db.insert(sales).values({
+                    organizationId: orgId,
+                    productId: product.id,
+                    quantity: 100,
+                    totalPrice: 150000, // $1,500
+                });
+            }
+        }
+
+        const existingExpense = await db.query.expenses.findFirst({
+            where: (expenses, { eq, and }) => and(
+                eq(expenses.organizationId, orgId),
+                eq(expenses.amount, 50000)
+            )
+        });
+        if (!existingExpense) {
+            await db.insert(expenses).values({
                 organizationId: orgId,
-                productId: product.id,
-                quantity: 100,
-                totalPrice: 150000, // $1,500
+                amount: 50000, // $500
+                category: "Combustible",
+                description: "Carga diésel unidad ABC-1234",
             });
         }
 
-        await db.insert(expenses).values({
-            organizationId: orgId,
-            amount: 50000, // $500
-            category: "Combustible",
-            description: "Carga diésel unidad ABC-1234",
-        });
-
         // Seed Employees
-        const [emp1] = await db.insert(employees).values({
-            organizationId: orgId,
-            name: "Carlos Sanchez",
-            role: "Driver",
-            status: "active"
-        }).returning();
+        let emp1 = await db.query.employees.findFirst({
+            where: (e, { eq, and }) => and(eq(e.organizationId, orgId), eq(e.name, "Carlos Sanchez"))
+        });
+        if (!emp1) {
+            [emp1] = await db.insert(employees).values({
+                organizationId: orgId,
+                name: "Carlos Sanchez",
+                role: "Driver",
+                status: "active"
+            }).returning();
+        }
 
-        const [emp2] = await db.insert(employees).values({
-            organizationId: orgId,
-            name: "Maria Lopez",
-            role: "Operator",
-            status: "active"
-        }).returning();
+        let emp2 = await db.query.employees.findFirst({
+            where: (e, { eq, and }) => and(eq(e.organizationId, orgId), eq(e.name, "Maria Lopez"))
+        });
+        if (!emp2) {
+            [emp2] = await db.insert(employees).values({
+                organizationId: orgId,
+                name: "Maria Lopez",
+                role: "Operator",
+                status: "active"
+            }).returning();
+        }
 
         // Seed Payroll Advances
         if (emp1) {
-            await db.insert(payrollAdvances).values({
-                organizationId: orgId,
-                employeeId: emp1.id,
-                amount: 250000, // $2,500
-                status: "paid",
-                date: new Date()
-            });
+            const exist = await db.query.payrollAdvances.findFirst({ where: (p, { eq }) => eq(p.employeeId, emp1!.id) });
+            if (!exist) {
+                await db.insert(payrollAdvances).values({
+                    organizationId: orgId,
+                    employeeId: emp1.id,
+                    amount: 250000, // $2,500
+                    status: "paid",
+                    date: new Date()
+                });
+            }
         }
 
         if (emp2) {
-            await db.insert(payrollAdvances).values({
-                organizationId: orgId,
-                employeeId: emp2.id,
-                amount: 150000, // $1,500
-                status: "pending",
-                date: new Date()
-            });
+            const exist = await db.query.payrollAdvances.findFirst({ where: (p, { eq }) => eq(p.employeeId, emp2!.id) });
+            if (!exist) {
+                await db.insert(payrollAdvances).values({
+                    organizationId: orgId,
+                    employeeId: emp2.id,
+                    amount: 150000, // $1,500
+                    status: "pending",
+                    date: new Date()
+                });
+            }
         }
 
         console.log("✅ Operational data seeded successfully");

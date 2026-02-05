@@ -11,9 +11,11 @@ export const processes = pgTable("processes", {
     organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     description: text("description"),
-    type: text("type").notNull(), // "production", "sales", "logistics"
+    type: text("type").notNull(), // "production", "hr_onboarding", "sales_pipeline", "logistics_route", "finance_approval"
     isTemplate: boolean("is_template").default(false),
     workflowData: jsonb("workflow_data").default({}), // Stores React Flow nodes and edges
+    orderIndex: integer("order_index").default(0),
+    attributes: jsonb("attributes").default({}), // Universal Extensibility
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -41,6 +43,8 @@ export const processInstances = pgTable("process_instances", {
     completedAt: timestamp("completed_at"),
     healthScore: integer("health_score").default(100),
     aiContext: jsonb("ai_context").default({}), // RCA insights
+    sourceBatchId: varchar("source_batch_id"), // Link to Purchase Batch (Traceability)
+    organizationId: varchar("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
 });
 
 // Process Events (Traceability logs)
@@ -74,12 +78,15 @@ export const productionTasks = pgTable("production_tasks", {
     name: text("name").notNull(),
     description: text("description"),
     unitPrice: integer("unit_price").notNull(), // in cents
+    minRate: integer("min_rate"), // Lowest allowed pay per unit
+    maxRate: integer("max_rate"), // Highest allowed pay per unit
     unit: text("unit").notNull().default("pza"), // "pza", "par", "kg"
     active: boolean("active").notNull().default(true),
     // Recipe Fields
     isRecipe: boolean("is_recipe").default(false),
     // Structure: { inputs: [{ itemId: string, quantity: number }], outputs: [{ itemId: string, quantity: number }] }
     recipeData: jsonb("recipe_data").default({}),
+    attributes: jsonb("attributes").default({}), // Universal Extensibility
     createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -94,10 +101,12 @@ export const pieceworkTickets = pgTable("piecework_tickets", {
     totalAmount: integer("total_amount").notNull(), // in cents (quantity * unitPrice)
     batchId: varchar("batch_id"), // Optional link to specific production batch
     status: text("status").notNull().default("pending"), // "pending", "approved", "rejected", "paid"
+    attributes: jsonb("attributes").default({}), // Universal Extensibility
     approvedBy: varchar("approved_by").references(() => users.id),
     sourceLocation: text("source_location"), // Where product was taken from
     destinationLocation: text("destination_location"), // Where product was sent
     notes: text("notes"),
+    ticketNumber: integer("ticket_number").notNull().default(sql`floor(random() * 900000 + 100000)::int`), // Simple 6-digit number
     signatureUrl: text("signature_url"), // Proof of recipient signature
     paidAt: timestamp("paid_at"),
     createdAt: timestamp("created_at").defaultNow(),
@@ -109,7 +118,10 @@ export const insertProcessEventSchema = createInsertSchema(processEvents);
 export const insertProcessSchema = createInsertSchema(processes);
 export const insertRcaReportSchema = createInsertSchema(rcaReports);
 export const insertPieceworkTicketSchema = createInsertSchema(pieceworkTickets);
-export const insertProductionTaskSchema = createInsertSchema(productionTasks);
+export const insertProductionTaskSchema = createInsertSchema(productionTasks).extend({
+    minRate: z.number().optional(),
+    maxRate: z.number().optional()
+});
 
 // Types
 export type Process = typeof processes.$inferSelect;

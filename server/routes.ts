@@ -18,11 +18,13 @@ import crmRoutes from "./routes/crm";
 import analyticsRoutes from "./routes/analytics";
 import { hrRoutes } from "./routes/hr";
 import { cognitiveRoutes } from "./routes/cognitive";
-import { trustRoutes } from "./routes/trust";
+// import { trustRoutes } from "./routes/trust"; // Removed
 import { configRoutes } from "./routes/config";
 import { searchRoutes } from "./routes/search";
 import { whatsappRoutes } from "./routes/whatsapp";
 import { kioskRoutes } from "./routes/kiosks";
+import workflowsRouter from "./routes/workflows";
+import universalRouter from "./routes/universal";
 import productionRoutes from "./routes/production";
 import logisticsRoutes from "./routes/logistics";
 import { registerChatRoutes } from "./routes/chat";
@@ -92,6 +94,8 @@ export async function registerRoutes(
   app.use("/api/onboarding", onboardingRoutes);
   app.use("/api/dashboard", dashboardRoutes);
   app.use("/api/organization", organizationRoutes);
+  app.use("/api/cognitive", cognitiveRoutes);
+  // trustRoutes removed (Zero Ruido)
   app.use("/api/config", configRoutes);
   app.use("/api/search", searchRoutes);
   app.use("/api/whatsapp", whatsappRoutes); // Core Comms
@@ -122,6 +126,7 @@ export async function registerRoutes(
 
   // Production batches (no module guard for kiosks)
   app.use("/api/production", productionBatchesRoutes);
+  app.use("/api/workflows", workflowsRouter);
 
   // CRM / Sales
   app.use("/api/crm", requireModule("/crm"), crmRoutes);
@@ -142,8 +147,9 @@ export async function registerRoutes(
 
 
   // Specialized
+  app.use("/api/universal", universalRouter); // Universal ERP Data Layer
   app.use("/api/cognitive", cognitiveRoutes); // Core AI?
-  app.use("/api/trust", trustRoutes);
+  // trustRoutes removed (Zero Ruido)
   // app.use("/api/kiosks", kioskRoutes); // Moved up before requireAuth
 
   // AI Documentation & Chat

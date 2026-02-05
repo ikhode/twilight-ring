@@ -6,6 +6,7 @@ import {
 } from "../../shared/schema";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { getOrgIdFromRequest, getAuthenticatedUser } from "../auth_util";
+import { logAudit } from "../lib/audit";
 
 const router = Router();
 
@@ -98,6 +99,22 @@ router.post("/", async (req, res): Promise<void> => {
                 }
 
                 const totalAmount = item.cost * item.quantity;
+
+                // Validate Price Thresholds
+                // Only enforce for non-admins (or enforcement depending on config, here strict for non-admins)
+                if (!isAdmin) {
+                    const unitPrice = Number(item.cost);
+                    if (productStr.minPurchasePrice && unitPrice < productStr.minPurchasePrice) {
+                        return res.status(400).json({
+                            message: `El precio de compra para ${productStr.name} es menor al mínimo permitido ($${(productStr.minPurchasePrice / 100).toFixed(2)})`
+                        });
+                    }
+                    if (productStr.maxPurchasePrice && unitPrice > productStr.maxPurchasePrice) {
+                        return res.status(400).json({
+                            message: `El precio de compra para ${productStr.name} excede el máximo permitido ($${(productStr.maxPurchasePrice / 100).toFixed(2)})`
+                        });
+                    }
+                }
                 const requiresApproval = !isAdmin && totalAmount > 500000; // Example: > $5,000 MXN requires admin
 
                 // NEW: Price Range Validation

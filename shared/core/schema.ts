@@ -101,6 +101,19 @@ export const aiConfigurations = pgTable("ai_configurations", {
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Audit Logs for Traceability
+export const auditLogs = pgTable("audit_logs", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "set null" }),
+    action: text("action").notNull(), // e.g., 'UPDATE_PRICE', 'APPROVE_TICKET'
+    resourceId: text("resource_id"), // ID of the object being modified
+    details: jsonb("details").default({}), // Metadata, previous values, etc.
+    createdAt: timestamp("created_at").defaultNow()
+});
+
+export const insertAuditLogSchema = createInsertSchema(auditLogs);
+
 // Usage patterns for adaptive UI
 export const usagePatterns = pgTable("usage_patterns", {
     id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -250,6 +263,23 @@ export const chatMessages = pgTable("chat_messages", {
     metadata: jsonb("metadata").default({}),
     createdAt: timestamp("created_at").defaultNow(),
 });
+
+// TrustNet Events
+export const trustEvents = pgTable("trust_events", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    entityType: text("entity_type").notNull(), // "transaction", "log", "metric"
+    entityId: varchar("entity_id").notNull(),
+    hash: text("hash").notNull(),
+    previousHash: text("previous_hash"),
+    timestamp: timestamp("timestamp").defaultNow(),
+    verified: boolean("verified").default(false),
+    validatorNode: text("validator_node"),
+});
+
+export type TrustEvent = typeof trustEvents.$inferSelect;
+export type InsertTrustEvent = z.infer<typeof insertTrustEventSchema>;
+export const insertTrustEventSchema = createInsertSchema(trustEvents);
 
 // Types for AI
 export type KnowledgeBase = typeof knowledgeBase.$inferSelect;
