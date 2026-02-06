@@ -27,6 +27,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 import { RcaReport } from "../../../shared/schema";
+import { cn } from "@/lib/utils";
 
 export function GuardianPanel() {
     const [alerts, setAlerts] = useState<AnomalyAlert[]>([]);
