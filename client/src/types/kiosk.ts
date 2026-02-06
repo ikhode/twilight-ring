@@ -6,5 +6,7 @@ export interface KioskSession {
         id: string;
         name: string;
         role?: string;
+        status?: string;
+        currentStatus?: string;
     };
 }

@@ -123,6 +123,39 @@ export const insertProductionTaskSchema = createInsertSchema(productionTasks).ex
     maxRate: z.number().optional()
 });
 
+// Logs for Kiosk Activity (Granular Tracking)
+export const productionActivityLogs = pgTable("production_activity_logs", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: varchar("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+
+    // Type of activity
+    activityType: text("activity_type").notNull(), // 'production', 'break', 'lunch', 'bathroom', 'other'
+
+    // Link to context (only for production type)
+    taskId: varchar("task_id").references(() => productionTasks.id),
+    batchId: varchar("batch_id"), // Optional: if they are working on a specific batch
+
+    // Timeline
+    startedAt: timestamp("started_at").defaultNow(),
+    endedAt: timestamp("ended_at"),
+
+    // Outcome
+    status: text("status").notNull().default("active"), // 'active', 'pending_verification', 'completed', 'abandoned'
+    quantity: integer("quantity").default(0), // Self-reported quantity (if allowed) or verified quantity
+
+    // Metadata
+    metadata: jsonb("metadata").default({}),
+    notes: text("notes"),
+
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertProductionActivityLogSchema = createInsertSchema(productionActivityLogs);
+export type ProductionActivityLog = typeof productionActivityLogs.$inferSelect;
+export type InsertProductionActivityLog = z.infer<typeof insertProductionActivityLogSchema>;
+
 // Types
 export type Process = typeof processes.$inferSelect;
 export type ProcessStep = typeof processSteps.$inferSelect;
@@ -134,3 +167,4 @@ export type PieceworkTicket = typeof pieceworkTickets.$inferSelect;
 export type InsertProcessEvent = z.infer<typeof insertProcessEventSchema>;
 export type InsertRcaReport = z.infer<typeof insertRcaReportSchema>;
 export type InsertProductionTask = z.infer<typeof insertProductionTaskSchema>;
+

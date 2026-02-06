@@ -96,6 +96,8 @@ export const terminals = pgTable("terminals", {
     deviceSalt: text("device_salt"), // High-entropy salt for hardware binding
     provisioningToken: text("provisioning_token"), // One-time use token for linking
     provisioningExpiresAt: timestamp("provisioning_expires_at"),
+    // Session Behavior
+    sessionPersistence: boolean("session_persistence").notNull().default(false),
     // Real-time GPS Tracking
     lastLatitude: customType<{ data: number }>({ dataType() { return "real"; } })("last_latitude"),
     lastLongitude: customType<{ data: number }>({ dataType() { return "real"; } })("last_longitude"),

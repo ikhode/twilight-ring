@@ -360,7 +360,25 @@ router.get("/advanced/:type", async (req, res) => {
                     ...allExpenses.map(e => ({ id: e.id, name: e.category, amount: e.amount, type: 'expense', date: e.date })),
                     ...allSales.map(s => ({ id: s.id, name: "Venta", amount: s.totalPrice, type: 'income', date: s.date }))
                 ].sort((a, b) => new Date(b.date as Date).getTime() - new Date(a.date as Date).getTime()).slice(0, 100),
-                chart: [] // TODO: Aggregate by month
+                chart: (() => {
+                    const monthlyData: Record<string, { income: number, expense: number }> = {};
+                    [...allExpenses, ...allPayments.filter(p => p.type === 'out')].forEach(e => {
+                        const month = new Date(e.date as Date).toISOString().slice(0, 7); // YYYY-MM
+                        if (!monthlyData[month]) monthlyData[month] = { income: 0, expense: 0 };
+                        monthlyData[month].expense += e.amount;
+                    });
+                    [...allSales, ...allPayments.filter(p => p.type === 'income')].forEach(s => {
+                        const date = 'date' in s ? (s.date as Date) : new Date(); // Handle potential type diffs
+                        const month = new Date(date).toISOString().slice(0, 7);
+                        if (!monthlyData[month]) monthlyData[month] = { income: 0, expense: 0 };
+                        monthlyData[month].income += ('totalPrice' in s ? s.totalPrice : s.amount);
+                    });
+
+                    return Object.entries(monthlyData).map(([name, val]) => ({
+                        name,
+                        value: (val.income - val.expense) / 100 // Net Profit in standard units
+                    })).sort((a, b) => a.name.localeCompare(b.name));
+                })()
             });
         }
 

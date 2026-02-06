@@ -45,6 +45,7 @@ import CashierTerminal from "./kiosks/CashierTerminal";
 import AdminTerminal from "./kiosks/AdminTerminal";
 import LogisticsTerminal from "./kiosks/LogisticsTerminal";
 import { DriverTerminalMobile } from "./kiosks/DriverMobileTerminal";
+import AttendanceTerminal from "./kiosks/AttendanceTerminal";
 import { FaceAuthCamera } from "@/components/kiosks/FaceAuthCamera";
 import { format } from "date-fns";
 
@@ -70,7 +71,7 @@ export default function KioskInterface(): React.JSX.Element {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isScanning, setIsScanning] = useState(false);
   const [activeCapability, setActiveCapability] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<"launcher" | "main" | "entry-coco" | "worker-activity" | "faceid-config" | "login">("launcher");
+  const [activeView, setActiveView] = useState<"launcher" | "main" | "entry-coco" | "attendance" | "worker-activity" | "faceid-config" | "login" | "production" | "sales" | "driver_kiosk" | "admin">("launcher");
   const [selectedWorker, setSelectedWorker] = useState<Employee | null>(null);
   const [authenticatedEmployee, setAuthenticatedEmployee] = useState<Employee | null>(null);
   const [pendingCapability, setPendingCapability] = useState<string | null>(null);
@@ -88,15 +89,22 @@ export default function KioskInterface(): React.JSX.Element {
   const [wakeLock, setWakeLock] = useState<WakeLockSentinel | null>(null);
 
   // Fetch real Kiosk Data
-  const { data: kioskInfo, isLoading } = useQuery<Terminal | null>({
+  // Extended Interface for API Response
+  interface EnrichedTerminal extends Terminal {
+    organizationName?: string;
+    organizationSettings?: any;
+  }
+
+  // Fetch real Kiosk Data
+  const { data: kioskInfo, isLoading } = useQuery<EnrichedTerminal | null>({
     queryKey: [`/api/kiosks/device/${deviceId}`],
-    queryFn: async (): Promise<Terminal | null> => {
+    queryFn: async (): Promise<EnrichedTerminal | null> => {
       if (!deviceId) return null;
       // FIX: Encode deviceId to handle special chars in UserAgent
       const encodedId = encodeURIComponent(deviceId);
       const res = await fetch(`/api/kiosks/device/${encodedId}`);
       if (!res.ok) return null;
-      return res.json() as Promise<Terminal>;
+      return res.json() as Promise<EnrichedTerminal>;
     },
     enabled: !!deviceId,
   });
@@ -133,7 +141,9 @@ export default function KioskInterface(): React.JSX.Element {
   usePresence(`kiosk-${id}`, authenticatedEmployee ? {
     id: authenticatedEmployee.id,
     email: authenticatedEmployee.email || `${authenticatedEmployee.id}@kiosk.local`,
-    name: authenticatedEmployee.name
+    name: authenticatedEmployee.name,
+    organization_id: kioskInfo?.organizationId, // Enforce multi-tenancy in presence
+    role: authenticatedEmployee.role
   } : undefined);
 
   useEffect(() => {
@@ -146,10 +156,10 @@ export default function KioskInterface(): React.JSX.Element {
     if (kioskInfo?.capabilities && kioskInfo.capabilities.length > 0) {
       if (kioskInfo.capabilities.length === 1) {
         const firstCap = kioskInfo.capabilities[0];
-        // Definiendo el estado de manera asíncrona para evitar advertencias de ESLint sobre setState en efectos
+        // Direct Flow: Go straight to Login, skip "Main" welcome screen
         setTimeout(() => {
-          setActiveCapability((prev) => (prev !== firstCap ? firstCap : prev));
-          setActiveView((prev) => (prev !== "main" ? "main" : prev));
+          setPendingCapability(firstCap);
+          setActiveView((prev) => (prev !== "login" && !authenticatedEmployee ? "login" : prev));
         }, 0);
       } else {
         setTimeout(() => {
@@ -161,7 +171,7 @@ export default function KioskInterface(): React.JSX.Element {
         setActiveView((prev) => (prev !== "launcher" ? "launcher" : prev));
       }, 0);
     }
-  }, [kioskInfo?.capabilities]);
+  }, [kioskInfo?.capabilities, authenticatedEmployee]);
 
   // Secure Heartbeat
   useEffect(() => {
@@ -316,99 +326,11 @@ export default function KioskInterface(): React.JSX.Element {
   }
 
 
-  // 1. Production Terminal
-  if (kioskInfo?.capabilities?.includes("production")) {
-    if (!authenticatedEmployee) {
-      return (
-        <KioskLoginView
-          terminal={kioskInfo}
-          onAuthenticated={setAuthenticatedEmployee}
-        />
-      );
-    }
-    return (
-      <ProductionTerminal
-        sessionContext={{
-          terminal: kioskInfo as Terminal,
-          driver: authenticatedEmployee
-        }}
-        onLogout={() => {
-          setAuthenticatedEmployee(null);
-          localStorage.removeItem("last_auth_employee_id");
-        }}
-      />
-    );
-  }
+  // REMOVED EARLY RETURNS to allow activeView state to control flow
+  // Logic is now:
+  // 1. useEffect sets activeView based on capabilities (single -> specific, multiple -> launcher)
+  // 2. renderContent uses activeView to show correct component
 
-  // 1.5 Driver Terminal - Mobile Optimized
-  if (kioskInfo?.capabilities?.includes("driver_kiosk")) {
-    if (!authenticatedEmployee) {
-      return (
-        <KioskLoginView
-          terminal={kioskInfo}
-          onAuthenticated={setAuthenticatedEmployee}
-        />
-      );
-    }
-    return <DriverTerminalMobile employee={authenticatedEmployee} terminalId={kioskInfo.id} />;
-  }
-
-  // 1.5 Worker Activity (Mapped to Production)
-  if (kioskInfo?.capabilities?.includes("worker-activity")) {
-    if (!authenticatedEmployee) {
-      return (
-        <KioskLoginView
-          terminal={kioskInfo}
-          onAuthenticated={setAuthenticatedEmployee}
-        />
-      );
-    }
-    return (
-      <ProductionTerminal
-        sessionContext={{
-          terminal: kioskInfo as Terminal,
-          driver: authenticatedEmployee
-        }}
-        onLogout={() => {
-          setAuthenticatedEmployee(null);
-          localStorage.removeItem("last_auth_employee_id");
-        }}
-      />
-    );
-  }
-
-  // 2. Cashier Terminal (Caja Chica)
-  if (kioskInfo?.capabilities?.includes("sales")) {
-    // Enforcement: If no authenticated employee, show login screen
-    if (!authenticatedEmployee) {
-      return (
-        <KioskLoginView
-          terminal={kioskInfo}
-          onAuthenticated={setAuthenticatedEmployee}
-        />
-      );
-    }
-
-    return (
-      <CashierTerminal
-        sessionContext={{ terminal: kioskInfo as Terminal, driver: authenticatedEmployee }}
-        onLogout={() => {
-          setAuthenticatedEmployee(null);
-          localStorage.removeItem("last_auth_employee_id");
-        }}
-      />
-    );
-  }
-
-  // 3. Admin Terminal
-  if (session?.access_token && kioskInfo?.capabilities?.includes("admin")) {
-    return (
-      <AdminTerminal
-        sessionContext={{ terminal: kioskInfo as Terminal, driver: undefined }}
-        onLogout={() => window.location.reload()}
-      />
-    );
-  }
 
   // 2. Binding Shield View (If deviceId exists but terminal not found)
   if (!kioskInfo) {
@@ -594,12 +516,22 @@ export default function KioskInterface(): React.JSX.Element {
         <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 border-b border-white/5 pb-8 shrink-0">
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center border border-primary/30">
-                <Shield className="w-6 h-6 text-primary" />
-              </div>
-              <h1 className="text-6xl font-black italic tracking-[-0.05em] uppercase leading-none">
-                NEXUS<span className="text-slate-500 font-medium">.OS</span>
-              </h1>
+              {kioskInfo?.organizationSettings?.branding?.logoUrl ? (
+                <img
+                  src={kioskInfo.organizationSettings.branding.logoUrl}
+                  alt="Organization Logo"
+                  className="h-16 w-auto object-contain" // Height restricted, auto width
+                />
+              ) : (
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center border border-primary/30">
+                    <Shield className="w-6 h-6 text-primary" />
+                  </div>
+                  <h1 className="text-6xl font-black italic tracking-[-0.05em] uppercase leading-none">
+                    {kioskInfo?.organizationName || "NEXUS"}<span className="text-slate-500 font-medium">.OS</span>
+                  </h1>
+                </div>
+              )}
             </div>
             <p className="text-xs text-muted-foreground font-bold uppercase tracking-[0.4em] opacity-50">
               SISTEMA COGNITIVO MULTIPROPÓSITO
@@ -621,8 +553,9 @@ export default function KioskInterface(): React.JSX.Element {
           {activeView === "launcher" && renderLauncher()}
           {activeView === "main" && renderMainView()}
           {activeView === "entry-coco" && renderEntryCoco()}
-          {activeView === "worker-activity" && renderWorkerActivity()}
           {activeView === "faceid-config" && renderFaceIdConfig()}
+
+          {/* LOGIN VIEW */}
           {activeView === "login" && kioskInfo && (
             <KioskLoginView
               terminal={kioskInfo}
@@ -632,10 +565,54 @@ export default function KioskInterface(): React.JSX.Element {
                 if (pendingCapability) {
                   setActiveView(pendingCapability as any);
                   setPendingCapability(null);
+                } else if (kioskInfo.capabilities.length === 1) {
+                  // Direct auth flow
+                  setActiveView(kioskInfo.capabilities[0] as any);
                 } else {
                   setActiveView("launcher");
                 }
               }}
+            />
+          )}
+
+          {/* APPLICATION VIEWS - Require Authentication (except maybe Admin) */}
+          {(activeView === "production" || activeView === "worker-activity") && (
+            authenticatedEmployee ? (
+              <ProductionTerminal
+                sessionContext={{ terminal: kioskInfo as Terminal, driver: authenticatedEmployee }}
+                onLogout={() => { setAuthenticatedEmployee(null); setActiveView(kioskInfo.capabilities.length === 1 ? 'login' : 'launcher'); }}
+              />
+            ) : <KioskLoginView terminal={kioskInfo!} onAuthenticated={(emp) => { setAuthenticatedEmployee(emp); }} />
+          )}
+
+          {activeView === "sales" && (
+            authenticatedEmployee ? (
+              <CashierTerminal
+                sessionContext={{ terminal: kioskInfo as Terminal, driver: authenticatedEmployee }}
+                onLogout={() => { setAuthenticatedEmployee(null); setActiveView(kioskInfo.capabilities.length === 1 ? 'login' : 'launcher'); }}
+              />
+            ) : <KioskLoginView terminal={kioskInfo!} onAuthenticated={(emp) => { setAuthenticatedEmployee(emp); }} />
+          )}
+
+          {activeView === "attendance" && (
+            authenticatedEmployee ? (
+              <AttendanceTerminal
+                sessionContext={{ terminal: kioskInfo as Terminal, driver: authenticatedEmployee }}
+                onLogout={() => { setAuthenticatedEmployee(null); setActiveView(kioskInfo.capabilities.length === 1 ? 'login' : 'launcher'); }}
+              />
+            ) : <KioskLoginView terminal={kioskInfo!} onAuthenticated={(emp) => { setAuthenticatedEmployee(emp); }} />
+          )}
+
+          {activeView === "driver_kiosk" && (
+            authenticatedEmployee ? (
+              <DriverTerminalMobile employee={authenticatedEmployee} terminalId={kioskInfo!.id} />
+            ) : <KioskLoginView terminal={kioskInfo!} onAuthenticated={(emp) => { setAuthenticatedEmployee(emp); }} />
+          )}
+
+          {activeView === "admin" && (
+            <AdminTerminal
+              sessionContext={{ terminal: kioskInfo as Terminal, driver: undefined }}
+              onLogout={() => window.location.reload()}
             />
           )}
         </main>
@@ -651,13 +628,17 @@ export default function KioskInterface(): React.JSX.Element {
               <p className="text-[9px] font-mono">TLS 1.3 + FaceID</p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-primary" />
-              <span className="text-[9px] font-black tracking-widest uppercase">Nexus Cognitive OS v4.2</span>
+
+          {/* Platform Branding - Conditionally Rendered */}
+          {!kioskInfo?.organizationSettings?.branding?.removePlatformBranding && (
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-primary" />
+                <span className="text-[9px] font-black tracking-widest uppercase">Nexus Cognitive OS v4.2</span>
+              </div>
+              <p className="text-[9px] font-medium">© 2026 COCO FACTORY SYSTEMS</p>
             </div>
-            <p className="text-[9px] font-medium">© 2026 COCO FACTORY SYSTEMS</p>
-          </div>
+          )}
         </footer>
       </div>
     </div>

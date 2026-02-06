@@ -17,6 +17,7 @@ const router = Router();
 router.get("/products", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
+        console.log(`[Inv GET] Requesting products for OrgID: ${orgId}`);
         if (!orgId) {
             res.status(401).json({ message: "Unauthorized" });
             return;
@@ -255,6 +256,7 @@ router.get("/alerts", async (req, res): Promise<void> => {
             where: and(
                 eq(products.organizationId, orgId),
                 eq(products.isArchived, false),
+                eq(products.isActive, true),
                 sql`${products.stock} <= ${products.minStock}`
             )
         });
@@ -279,6 +281,7 @@ router.patch("/products/:id", async (req, res): Promise<void> => {
         }
 
         const productId = req.params.id;
+
         const {
             name, sku, categoryId, groupId,
             isSellable, isPurchasable, isProductionInput, isProductionOutput,

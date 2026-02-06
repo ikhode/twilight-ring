@@ -421,7 +421,7 @@ router.get("/summary", async (req, res): Promise<void> => {
         }
 
         const membership = await db.query.userOrganizations.findFirst({
-            where: and(eq(users.id, user.id), eq(userOrganizations.organizationId, orgId))
+            where: and(eq(userOrganizations.userId, user.id), eq(userOrganizations.organizationId, orgId))
         });
 
         const isAdminOrManager = membership?.role === 'admin' || membership?.role === 'manager';

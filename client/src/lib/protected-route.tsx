@@ -11,9 +11,9 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ component: Component, path, allowedRoles = ['admin', 'owner', 'manager'] }: ProtectedRouteProps) {
-    const { user, isLoading, profile } = useAuth();
+    const { user, loading, profile } = useAuth();
 
-    if (isLoading) {
+    if (loading) {
         return (
             <div className="flex items-center justify-center min-h-screen bg-slate-950">
                 <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />

@@ -53,6 +53,7 @@ import { ERP_MODULES } from "@/lib/modules";
 
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { BrandingSettings } from "@/components/settings/BrandingSettings";
 
 export default function Settings() {
   const { toast } = useToast();
@@ -352,6 +353,9 @@ export default function Settings() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Kiosk Branding Section */}
+            <BrandingSettings />
           </div>
         </TabsContent>
 

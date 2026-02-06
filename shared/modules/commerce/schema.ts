@@ -106,6 +106,11 @@ export const products = pgTable("products", {
     isActive: boolean("is_active").notNull().default(true),
     isArchived: boolean("is_archived").notNull().default(false),
 
+    // Legacy fields (Deprecated but needed for read access)
+    category: text("category"),
+    unit: text("unit"),
+    productType: text("product_type"),
+
     // Audit for Secure Deletion
     deletedAt: timestamp("deleted_at"),
     deletedBy: varchar("deleted_by"),
@@ -159,6 +164,7 @@ export const purchases = pgTable("purchases", {
     batchId: varchar("batch_id"), // Group items from same order
     paymentStatus: text("payment_status").notNull().default("pending"), // "pending", "paid", "refunded"
     paymentMethod: text("payment_method"), // "cash", "transfer", "credit"
+    bankAccountId: varchar("bank_account_id"), // link to bank account if transfer
     deliveryStatus: text("delivery_status").notNull().default("pending"), // "pending", "received", "partial", "returned", "cancelled"
     logisticsMethod: text("logistics_method").notNull().default("delivery"), // "delivery", "pickup"
     driverId: varchar("driver_id").references(() => employees.id),

@@ -41,6 +41,7 @@ import Workflows from "@/pages/Workflows";
 import Operations from "@/pages/Operations";
 import Kiosk from "@/pages/Kiosk";
 import Signature from "@/pages/Signature";
+import TerminalManager from "@/pages/admin/TerminalManager";
 
 import { AuthProvider } from "@/hooks/use-auth";
 import { RealtimeProvider } from "@/lib/realtime";
@@ -93,6 +94,7 @@ function Router() {
       <ProtectedRoute path="/settings" component={Settings} />
       <ProtectedRoute path="/trust" component={TrustNet} />
       <ProtectedRoute path="/admin" component={Admin} />
+      <ProtectedRoute path="/admin/terminals" component={TerminalManager} />
       <ProtectedRoute path="/query" component={Query} />
       <ProtectedRoute path="/demo" component={Demo} />
       <ProtectedRoute path="/subscription-success" component={SubscriptionSuccess} />
@@ -133,4 +135,5 @@ function App() {
   );
 }
 
+// Export App
 export default App;

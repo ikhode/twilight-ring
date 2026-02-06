@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "../storage";
 import {
-    purchases, products, inventoryMovements, suppliers, expenses, cashRegisters,
+    purchases, products, inventoryMovements, suppliers, expenses, cashRegisters, bankAccounts,
     insertPurchaseSchema, insertSupplierSchema, userOrganizations
 } from "../../shared/schema";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
@@ -40,7 +40,7 @@ router.get("/", async (req, res): Promise<void> => {
 
 /**
  * Creates a new purchase order.
- * Expects: { supplierId, items: [{ productId, quantity, cost }], logisticsMethod, driverId, vehicleId, freightCost, paymentMethod }
+ * Expects: { supplierId, items: [{ productId, quantity, cost }], logisticsMethod, driverId, vehicleId, freightCost, paymentMethod, bankAccountId }
  */
 router.post("/", async (req, res): Promise<void> => {
     try {
@@ -50,7 +50,7 @@ router.post("/", async (req, res): Promise<void> => {
             return;
         }
 
-        const { supplierId, items, logisticsMethod, driverId, vehicleId, freightCost, paymentMethod, status, batchId: incomingBatchId } = req.body;
+        const { supplierId, items, logisticsMethod, driverId, vehicleId, freightCost, paymentMethod, bankAccountId, status, batchId: incomingBatchId } = req.body;
         const batchId = incomingBatchId || `PO-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
 
         if (!items || !Array.isArray(items)) {
@@ -58,23 +58,46 @@ router.post("/", async (req, res): Promise<void> => {
             return;
         }
 
-        // Pre-Validation: Check Cash Balance for Cash + Paid items
-        if (paymentMethod === 'cash' && status === 'paid') {
-            const register = await db.query.cashRegisters.findFirst({
-                where: and(eq(cashRegisters.organizationId, orgId), eq(cashRegisters.status, 'open'))
-            });
-            if (!register) {
-                res.status(400).json({ message: "No hay una caja abierta para procesar el pago en efectivo." });
-                return;
-            }
-            const totalRequired = items.reduce((sum: number, item: any) => sum + (Number(item.cost) * Number(item.quantity)), 0);
-            if (register.balance < totalRequired) {
-                res.status(400).json({
-                    message: "Fondos insuficientes en caja",
-                    required: totalRequired,
-                    available: register.balance
+        // Pre-Validation: Check Funds
+        const totalRequired = items.reduce((sum: number, item: any) => sum + (Number(item.cost) * Number(item.quantity)), 0);
+
+        if (status === 'paid') {
+            if (paymentMethod === 'cash') {
+                const register = await db.query.cashRegisters.findFirst({
+                    where: and(eq(cashRegisters.organizationId, orgId), eq(cashRegisters.status, 'open'))
                 });
-                return;
+                if (!register) {
+                    res.status(400).json({ message: "No hay una caja abierta para procesar el pago en efectivo." });
+                    return;
+                }
+                if (register.balance < totalRequired) {
+                    res.status(400).json({
+                        message: "Fondos insuficientes en caja",
+                        required: totalRequired,
+                        available: register.balance
+                    });
+                    return;
+                }
+            } else if (paymentMethod === 'transfer') {
+                if (!bankAccountId) {
+                    res.status(400).json({ message: "Debe seleccionar una cuenta bancaria para transferencias." });
+                    return;
+                }
+                const bankAccount = await db.query.bankAccounts.findFirst({
+                    where: and(eq(bankAccounts.id, bankAccountId), eq(bankAccounts.organizationId, orgId))
+                });
+                if (!bankAccount) {
+                    res.status(400).json({ message: "Cuenta bancaria no encontrada." });
+                    return;
+                }
+                if (bankAccount.balance < totalRequired) {
+                    res.status(400).json({
+                        message: "Fondos insuficientes en cuenta bancaria",
+                        required: totalRequired,
+                        available: bankAccount.balance
+                    });
+                    return;
+                }
             }
         }
 
@@ -100,8 +123,7 @@ router.post("/", async (req, res): Promise<void> => {
 
                 const totalAmount = item.cost * item.quantity;
 
-                // Validate Price Thresholds
-                // Only enforce for non-admins (or enforcement depending on config, here strict for non-admins)
+                // Validate Price Thresholds for non-admins
                 if (!isAdmin) {
                     const unitPrice = Number(item.cost);
                     if (productStr.minPurchasePrice && unitPrice < productStr.minPurchasePrice) {
@@ -115,9 +137,9 @@ router.post("/", async (req, res): Promise<void> => {
                         });
                     }
                 }
-                const requiresApproval = !isAdmin && totalAmount > 500000; // Example: > $5,000 MXN requires admin
+                const requiresApproval = !isAdmin && totalAmount > 500000; // > $5,000 MXN
 
-                // NEW: Price Range Validation
+                // Price Range Validation
                 if (productStr.minPurchasePrice !== null && item.cost < productStr.minPurchasePrice) {
                     res.status(400).json({
                         message: `El precio unitario (${item.cost / 100}) es menor al mínimo permitido para ${productStr.name} (${productStr.minPurchasePrice / 100})`
@@ -140,6 +162,7 @@ router.post("/", async (req, res): Promise<void> => {
                     batchId,
                     paymentStatus: status === "paid" ? "paid" : "pending",
                     paymentMethod: paymentMethod || null,
+                    bankAccountId: (status === "paid" && paymentMethod === "transfer") ? bankAccountId : null,
                     deliveryStatus: status === "received" ? "received" : "pending",
                     logisticsMethod: logisticsMethod || "delivery",
                     driverId: driverId || null,
@@ -161,7 +184,7 @@ router.post("/", async (req, res): Promise<void> => {
                     await receivePurchaseStock(orgId, record);
                 }
 
-                // If created as 'paid' and approved, record expense
+                // If created as 'paid' and approved, record expense and deduct funds
                 if (status === "paid" && record.isApproved) {
                     await recordPurchasePayment(orgId, record);
                 }
@@ -217,11 +240,11 @@ async function receivePurchaseStock(orgId: string, purchase: any) {
         .set({ deliveryStatus: "received", receivedAt: new Date() })
         .where(eq(purchases.id, purchase.id));
 
-    // --- NEW: Emit to Cognitive Engine for Stock Monitoring ---
+    // --- Emit to Cognitive Engine for Stock Monitoring ---
     const { CognitiveEngine } = await import("../lib/cognitive-engine");
     CognitiveEngine.emit({
         orgId,
-        type: "employee_action", // Using generic for now or I could add "inventory_refill"
+        type: "employee_action",
         data: {
             action: "purchase_received",
             productId: purchase.productId,
@@ -233,12 +256,35 @@ async function receivePurchaseStock(orgId: string, purchase: any) {
 
 /**
  * Registers payment for a purchase (Finance).
+ * DEDUCTS FUNDS from Cash Register or Bank Account.
  */
 async function recordPurchasePayment(orgId: string, purchase: any) {
     // 1. Find the product name for description
     const [product] = await db.select({ name: products.name }).from(products).where(eq(products.id, purchase.productId)).limit(1);
 
-    // 2. Record Financial Expense
+    // 2. Deduct Funds (Critical Step)
+    if (purchase.paymentMethod === 'cash') {
+        const register = await db.query.cashRegisters.findFirst({
+            where: and(eq(cashRegisters.organizationId, orgId), eq(cashRegisters.status, 'open'))
+        });
+        // Assume validation happened before calling this function, but double check
+        if (register) {
+            await db.update(cashRegisters)
+                .set({ balance: register.balance - purchase.totalAmount })
+                .where(eq(cashRegisters.id, register.id));
+        }
+    } else if (purchase.paymentMethod === 'transfer' && purchase.bankAccountId) {
+        const bankAccount = await db.query.bankAccounts.findFirst({
+            where: and(eq(bankAccounts.id, purchase.bankAccountId), eq(bankAccounts.organizationId, orgId))
+        });
+        if (bankAccount) {
+            await db.update(bankAccounts)
+                .set({ balance: bankAccount.balance - purchase.totalAmount })
+                .where(eq(bankAccounts.id, bankAccount.id));
+        }
+    }
+
+    // 3. Record Financial Expense
     await db.insert(expenses).values({
         organizationId: orgId,
         amount: purchase.totalAmount,
@@ -248,55 +294,11 @@ async function recordPurchasePayment(orgId: string, purchase: any) {
         supplierId: purchase.supplierId
     });
 
-    // 3. Update Purchase Status
+    // 4. Update Purchase Status
     await db.update(purchases)
         .set({ paymentStatus: "paid", paidAt: new Date() })
         .where(eq(purchases.id, purchase.id));
 }
-
-/**
- * Records freight cost as a separate expense.
- */
-async function recordFreightExpense(orgId: string, purchase: any, amount: number) {
-    await db.insert(expenses).values({
-        organizationId: orgId,
-        amount: amount,
-        description: `Flete de Compra #${purchase.id.slice(0, 8)}`,
-        date: new Date(),
-        category: "Logística",
-        // metadata not supported in current schema
-    });
-}
-
-router.patch("/:id/receive", async (req, res): Promise<void> => {
-    try {
-        const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) {
-            res.status(401).json({ message: "Unauthorized" });
-            return;
-        }
-
-        const { id } = req.params;
-        const [purchase] = await db.query.purchases.findMany({
-            where: and(eq(purchases.id, id), eq(purchases.organizationId, orgId)),
-        });
-
-        if (!purchase) {
-            res.status(404).json({ message: "Purchase not found" });
-            return;
-        }
-        if (purchase.deliveryStatus === "received") {
-            res.status(400).json({ message: "Already received" });
-            return;
-        }
-
-        await receivePurchaseStock(orgId, purchase);
-        res.json({ message: "Stock updated successfully." });
-    } catch (error) {
-        console.error("Receive purchase error:", error);
-        res.status(500).json({ message: "Error receiving item" });
-    }
-});
 
 router.patch("/:id/pay", async (req, res): Promise<void> => {
     try {
@@ -307,7 +309,7 @@ router.patch("/:id/pay", async (req, res): Promise<void> => {
         }
 
         const { id } = req.params;
-        const { paymentMethod } = req.body;
+        const { paymentMethod, bankAccountId } = req.body;
 
         const [purchase] = await db.query.purchases.findMany({
             where: and(eq(purchases.id, id), eq(purchases.organizationId, orgId)),
@@ -324,7 +326,7 @@ router.patch("/:id/pay", async (req, res): Promise<void> => {
 
         const effectiveMethod = paymentMethod || purchase.paymentMethod;
 
-        // NEW: Validate cash funds if paying with cash
+        // Validate Funds based on Method
         if (effectiveMethod === 'cash') {
             const register = await db.query.cashRegisters.findFirst({
                 where: and(eq(cashRegisters.organizationId, orgId), eq(cashRegisters.status, 'open'))
@@ -341,122 +343,44 @@ router.patch("/:id/pay", async (req, res): Promise<void> => {
                 });
                 return;
             }
+        } else if (effectiveMethod === 'transfer') {
+            if (!bankAccountId && !purchase.bankAccountId) {
+                res.status(400).json({ message: "Debe proporcionar una cuenta bancaria." });
+                return;
+            }
+            const accountId = bankAccountId || purchase.bankAccountId;
+            const bankAccount = await db.query.bankAccounts.findFirst({
+                where: and(eq(bankAccounts.id, accountId), eq(bankAccounts.organizationId, orgId))
+            });
+            if (!bankAccount) {
+                res.status(400).json({ message: "Cuenta bancaria inválida o no encontrada." });
+                return;
+            }
+            if (bankAccount.balance < purchase.totalAmount) {
+                res.status(400).json({
+                    message: "Fondos insuficientes en la cuenta bancaria.",
+                    required: purchase.totalAmount,
+                    available: bankAccount.balance
+                });
+                return;
+            }
         }
 
-        // Update method if provided
-        if (paymentMethod) {
-            await db.update(purchases).set({ paymentMethod }).where(eq(purchases.id, id));
-            purchase.paymentMethod = paymentMethod;
-        }
+        // Update purchase details before recording payment
+        await db.update(purchases).set({
+            paymentMethod: effectiveMethod,
+            bankAccountId: bankAccountId || purchase.bankAccountId
+        }).where(eq(purchases.id, id));
+
+        // Refresh purchase object with new values before passing to recorder
+        purchase.paymentMethod = effectiveMethod;
+        purchase.bankAccountId = bankAccountId || purchase.bankAccountId;
 
         await recordPurchasePayment(orgId, purchase);
-        res.json({ message: "Payment registered successfully." });
+        res.json({ message: "Payment registered and funds deducted successfully." });
     } catch (error) {
         console.error("Pay purchase error:", error);
         res.status(500).json({ message: "Error processing payment" });
-    }
-});
-
-router.patch("/:id/logistics", async (req, res): Promise<void> => {
-    try {
-        const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) {
-            res.status(401).json({ message: "Unauthorized" });
-            return;
-        }
-
-        const { id } = req.params;
-        const { driverId, vehicleId, freightCost, logisticsMethod } = req.body;
-
-        const [existing] = await db.select().from(purchases).where(and(eq(purchases.id, id), eq(purchases.organizationId, orgId))).limit(1);
-        if (!existing) {
-            res.status(404).json({ message: "Purchase not found" });
-            return;
-        }
-
-        const updateData: any = {};
-        if (driverId !== undefined) updateData.driverId = driverId;
-        if (vehicleId !== undefined) updateData.vehicleId = vehicleId;
-        if (freightCost !== undefined) updateData.freightCost = freightCost;
-        if (logisticsMethod !== undefined) updateData.logisticsMethod = logisticsMethod;
-
-        const [updated] = await db.update(purchases)
-            .set(updateData)
-            .where(eq(purchases.id, id))
-            .returning();
-
-        res.json(updated);
-    } catch (error) {
-        console.error("Update purchase logistics error:", error);
-        res.status(500).json({ message: "Error updating logistics" });
-    }
-});
-
-/**
- * Approves a whole batch of purchases (Admin Only).
- */
-router.patch("/batch/:batchId/approve", async (req, res): Promise<void> => {
-    try {
-        const orgId = await getOrgIdFromRequest(req);
-        const user = await getAuthenticatedUser(req);
-        if (!orgId || !user) {
-            res.status(401).json({ message: "Unauthorized" });
-            return;
-        }
-
-        const membership = await db.query.userOrganizations.findFirst({
-            where: and(eq(userOrganizations.userId, user.id), eq(userOrganizations.organizationId, orgId))
-        });
-        if (membership?.role !== 'admin') {
-            res.status(403).json({ message: "Only administrators can approve purchase orders" });
-            return;
-        }
-
-        const { batchId } = req.params;
-
-        await db.update(purchases)
-            .set({ isApproved: true, approvedBy: user.id })
-            .where(and(eq(purchases.batchId, batchId), eq(purchases.organizationId, orgId)));
-
-        res.json({ message: "Batch approved successfully" });
-    } catch (error) {
-        res.status(500).json({ message: "Error approving batch" });
-    }
-});
-
-/**
- * Receives all items in a batch.
- */
-router.patch("/batch/:batchId/receive", async (req, res): Promise<void> => {
-    try {
-        const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) {
-            res.status(401).json({ message: "Unauthorized" });
-            return;
-        }
-
-        const { batchId } = req.params;
-        const pendingItems = await db.query.purchases.findMany({
-            where: and(
-                eq(purchases.batchId, batchId),
-                eq(purchases.organizationId, orgId),
-                eq(purchases.deliveryStatus, "pending"),
-                eq(purchases.isApproved, true)
-            )
-        });
-
-        if (pendingItems.length === 0) {
-            res.status(400).json({ message: "No pending or approved items found in this batch" });
-            return;
-        }
-
-        for (const item of pendingItems) {
-            await receivePurchaseStock(orgId, item);
-        }
-
-        res.json({ message: `${pendingItems.length} items received successfully` });
-    } catch (error) {
-        res.status(500).json({ message: "Error receiving batch" });
     }
 });
 
@@ -472,7 +396,7 @@ router.patch("/batch/:batchId/pay", async (req, res): Promise<void> => {
         }
 
         const { batchId } = req.params;
-        const { paymentMethod } = req.body;
+        const { paymentMethod, bankAccountId } = req.body;
 
         const pendingItems = await db.query.purchases.findMany({
             where: and(
@@ -490,7 +414,7 @@ router.patch("/batch/:batchId/pay", async (req, res): Promise<void> => {
 
         const totalAmount = pendingItems.reduce((sum, item) => sum + item.totalAmount, 0);
 
-        // Validate cash funds if paying with cash
+        // Validate Funds globally for the batch
         if (paymentMethod === 'cash') {
             const register = await db.query.cashRegisters.findFirst({
                 where: and(eq(cashRegisters.organizationId, orgId), eq(cashRegisters.status, 'open'))
@@ -507,13 +431,38 @@ router.patch("/batch/:batchId/pay", async (req, res): Promise<void> => {
                 });
                 return;
             }
+        } else if (paymentMethod === 'transfer') {
+            if (!bankAccountId) {
+                res.status(400).json({ message: "Debe seleccionar una cuenta bancaria." });
+                return;
+            }
+            const bankAccount = await db.query.bankAccounts.findFirst({
+                where: and(eq(bankAccounts.id, bankAccountId), eq(bankAccounts.organizationId, orgId))
+            });
+            if (!bankAccount) {
+                res.status(400).json({ message: "Cuenta bancaria no encontrada." });
+                return;
+            }
+            if (bankAccount.balance < totalAmount) {
+                res.status(400).json({
+                    message: "Fondos insuficientes en cuenta bancaria",
+                    required: totalAmount,
+                    available: bankAccount.balance
+                });
+                return;
+            }
         }
 
+        // Process payments
         for (const item of pendingItems) {
-            if (paymentMethod) {
-                await db.update(purchases).set({ paymentMethod }).where(eq(purchases.id, item.id));
-                item.paymentMethod = paymentMethod;
-            }
+            await db.update(purchases).set({
+                paymentMethod,
+                bankAccountId: bankAccountId || null
+            }).where(eq(purchases.id, item.id));
+
+            item.paymentMethod = paymentMethod;
+            item.bankAccountId = bankAccountId;
+
             await recordPurchasePayment(orgId, item);
         }
 

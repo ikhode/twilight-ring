@@ -36,6 +36,15 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+import { DataTable } from "@/components/shared/DataTable";
 
 export default function Finance() {
   const { session } = useAuth();
@@ -69,7 +78,98 @@ export default function Finance() {
       currency: "MXN",
     }).format(amount);
 
+  // Filters
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+
   const transactions = summary?.recentTransactions || [];
+
+  const uniqueCategories = Array.from(new Set(transactions.map((t: any) => t.category || "General")));
+
+  const filteredTransactions = transactions.filter((t: any) => {
+    if (typeFilter !== "all" && t.type !== typeFilter) return false;
+    if (categoryFilter !== "all" && (t.category || "General") !== categoryFilter) return false;
+    return true;
+  });
+
+  const columns = [
+    {
+      key: "description",
+      header: "Descripción",
+      render: (t: any) => (
+        <div>
+          <p className="font-medium text-slate-300">{t.description}</p>
+          {t.supplier && <span className="block text-xs text-slate-500">{t.supplier}</span>}
+        </div>
+      )
+    },
+    {
+      key: "category",
+      header: "Categoría",
+      render: (t: any) => (
+        <Badge variant="outline" className="text-[10px] capitalize text-slate-400 border-slate-700">
+          {t.category || "General"}
+        </Badge>
+      )
+    },
+    {
+      key: "date",
+      header: "Fecha",
+      className: "text-right",
+      render: (t: any) => <span className="text-slate-500 font-mono text-xs">{t.date}</span>
+    },
+    {
+      key: "amount",
+      header: "Monto",
+      className: "text-right",
+      render: (t: any) => (
+        <span className={cn(
+          "font-mono font-medium",
+          t.type === 'expense' ? "text-rose-400" : "text-emerald-400"
+        )}>
+          {typeof t.amount === 'number' && !isNaN(t.amount)
+            ? <>{t.type === 'expense' ? '-' : '+'}{formatCurrency(Math.abs(t.amount) / 100)}</>
+            : <span className="text-slate-600">***</span>
+          }
+        </span>
+      )
+    },
+    {
+      key: "status",
+      header: "Estado",
+      className: "text-center",
+      render: (t: any) => (
+        <Badge variant="outline" className="border-slate-700 text-slate-400 text-[10px] h-5">
+          {t.status}
+        </Badge>
+      )
+    },
+    {
+      key: "link",
+      header: "",
+      render: (t: any) => {
+        if (t.category === 'supplier' && t.referenceId) {
+          return (
+            <Link href={`/purchases?openBatchId=${t.referenceId}`}>
+              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-slate-400 hover:text-white">
+                <ArrowUpRight className="w-3 h-3" />
+              </Button>
+            </Link>
+          );
+        }
+        if (t.category === 'sales' && t.referenceId) {
+          return (
+            <Link href={`/sales?openSaleId=${t.referenceId}`}>
+              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-slate-400 hover:text-white">
+                <ArrowUpRight className="w-3 h-3" />
+              </Button>
+            </Link>
+          );
+        }
+        return null;
+      }
+    }
+  ];
 
   return (
     <AppLayout title="Finanzas" subtitle="Control financiero y reportes">
@@ -147,23 +247,37 @@ export default function Finance() {
             <div className="flex items-center justify-between p-1">
               <h3 className="text-lg font-semibold text-white">Resumen Financiero</h3>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" className="h-8 gap-2 border-dashed">
-                  <Plus className="h-3 w-3" /> Nueva Compra
-                </Button>
-                <Button size="sm" variant="outline" className="h-8 gap-2 border-dashed">
-                  <Building2 className="h-3 w-3" /> Gestionar Cuentas
-                </Button>
-                <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
+                <Select value={typeFilter} onValueChange={setTypeFilter}>
+                  <SelectTrigger className="h-8 w-32 border-dashed bg-transparent border-slate-700 text-xs">
+                    <SelectValue placeholder="Tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="income">Ingresos</SelectItem>
+                    <SelectItem value="expense">Egresos</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                  <SelectTrigger className="h-8 w-40 border-dashed bg-transparent border-slate-700 text-xs">
+                    <SelectValue placeholder="Categoría" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas</SelectItem>
+                    {uniqueCategories.map((c: any) => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="Reset Filters" onClick={() => { setTypeFilter("all"); setCategoryFilter("all"); }}>
                   <Filter className="h-4 w-4" />
                 </Button>
                 <Link to="/finance/reports">
                   <Button size="sm" variant="outline" className="h-8 gap-2 border-dashed">
-                    <History className="h-3 w-3" /> Reportes Detectados
+                    <History className="h-3 w-3" /> Reportes
                   </Button>
                 </Link>
-                <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
-                  <Download className="h-4 w-4" />
-                </Button>
               </div>
             </div>
 
@@ -195,54 +309,23 @@ export default function Finance() {
               <Plus className="mr-2 h-4 w-4" /> Nueva Transacción
             </Button>
 
-            {/* Main Transaction Table (Simplified) */}
+            {/* Main Transaction Table (Refactored) */}
             <Card className="bg-slate-950 border-slate-800/60">
               <CardHeader className="py-3 px-4 border-b border-slate-800/60">
-                <CardTitle className="text-sm font-medium">Movimientos</CardTitle>
+                <CardTitle className="text-sm font-medium">Movimientos Recientes</CardTitle>
+                <p className="text-[10px] text-slate-500">Doble click en Categoría o Estado para filtrar.</p>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm text-left">
-                    <thead className="bg-slate-900/50 text-slate-400 font-medium">
-                      <tr>
-                        <th className="px-4 py-3">Descripción</th>
-                        <th className="px-4 py-3 text-right">Fecha</th>
-                        <th className="px-4 py-3 text-right">Monto</th>
-                        <th className="px-4 py-3 text-center">Estado</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800/60">
-                      {transactions.length === 0 ? (
-                        <tr>
-                          <td colSpan={4} className="px-4 py-10 text-center text-slate-500">
-                            No hay datos disponibles
-                          </td>
-                        </tr>
-                      ) : (
-                        transactions.map((t: any, i: number) => (
-                          <tr key={`${t.id}-${i}`} className="hover:bg-slate-900/30 transition-colors">
-                            <td className="px-4 py-3 font-medium text-slate-300">
-                              {t.description}
-                              {t.supplier && <span className="block text-xs text-slate-500">{t.supplier}</span>}
-                            </td>
-                            <td className="px-4 py-3 text-right text-slate-500 font-mono text-xs">{t.date}</td>
-                            <td className={cn(
-                              "px-4 py-3 text-right font-mono font-medium",
-                              t.type === 'expense' ? "text-rose-400" : "text-emerald-400"
-                            )}>
-                              {t.type === 'expense' ? '-' : '+'}{formatCurrency(Math.abs(t.amount) / 100)}
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <Badge variant="outline" className="border-slate-700 text-slate-400 text-[10px] h-5">
-                                {t.status}
-                              </Badge>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                <DataTable
+                  columns={columns}
+                  data={filteredTransactions}
+                  onCellDoubleClick={(item, key, value) => {
+                    if (key === 'category') setCategoryFilter(value || "General");
+                    if (item.type) {
+                      // If they click something that implies type, we could set it, but simplest is category.
+                    }
+                  }}
+                />
               </CardContent>
             </Card>
 
@@ -283,7 +366,10 @@ export default function Finance() {
                         "text-xs font-mono font-bold",
                         t.type === 'expense' ? "text-rose-500" : "text-emerald-500"
                       )}>
-                        {t.type === 'expense' ? '-' : '+'}{formatCurrency(Math.abs(t.amount) / 100)}
+                        {typeof t.amount === 'number' && !isNaN(t.amount)
+                          ? <>{t.type === 'expense' ? '-' : '+'}{formatCurrency(Math.abs(t.amount) / 100)}</>
+                          : <span className="text-slate-600">***</span>
+                        }
                       </span>
                     </div>
                   ))}

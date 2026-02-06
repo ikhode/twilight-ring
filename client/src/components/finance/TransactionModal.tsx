@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { Loader2 } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface TransactionModalProps {
     isOpen: boolean;
@@ -32,20 +32,39 @@ export function TransactionModal({ isOpen, onClose, type, employeeId: propEmploy
         ? [
             { id: 'sales', label: 'Venta Mostrador' },
             { id: 'funding', label: 'Fondeo de Caja' },
-            { id: 'devolution', label: 'Devolución' },
-            { id: 'collection', label: 'Cobranza' }
+            { id: 'supplier_refund', label: 'Reembolso de Proveedor' },
+            { id: 'collection', label: 'Cobranza / Créditos' }
         ]
         : [
             { id: 'supplier', label: 'Pago a Proveedor' },
+            { id: 'customer_refund', label: 'Devolución a Cliente' },
             { id: 'payroll', label: 'Adelanto de Nómina' },
             { id: 'expense', label: 'Gasto General' },
-            { id: 'withdrawal', label: 'Retiro a Banco' },
-            { id: 'services', label: 'Pago de Servicios' }
+            { id: 'services', label: 'Pago de Servicios' },
+            { id: 'withdrawal', label: 'Retiro a Banco' }
         ];
+
+    const [selectedEmployee, setSelectedEmployee] = useState<string>("");
+
+    const { data: employees } = useQuery({
+        queryKey: ['/api/employees'],
+        queryFn: async () => {
+            const headers: Record<string, string> = {};
+            if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
+            const res = await fetch('/api/employees', { headers });
+            if (!res.ok) return [];
+            return res.json();
+        },
+        enabled: isOpen && formData.category === 'payroll'
+    });
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!formData.amount || !formData.category) return;
+        if (formData.category === 'payroll' && !selectedEmployee) {
+            toast({ title: "Requerido", description: "Seleccione un empleado para el adelanto de nómina.", variant: "destructive" });
+            return;
+        }
 
         setIsLoading(true);
         try {
@@ -75,7 +94,8 @@ export function TransactionModal({ isOpen, onClose, type, employeeId: propEmploy
                     type,
                     amount: Math.round(parseFloat(formData.amount) * 100), // convert to cents
                     category: formData.category,
-                    description: formData.description
+                    description: formData.description,
+                    targetEmployeeId: formData.category === 'payroll' ? selectedEmployee : undefined
                 })
             });
 
@@ -93,6 +113,7 @@ export function TransactionModal({ isOpen, onClose, type, employeeId: propEmploy
             });
             onClose();
             setFormData({ amount: "", category: "", description: "" });
+            setSelectedEmployee("");
 
         } catch (error: any) {
             toast({
@@ -153,6 +174,27 @@ export function TransactionModal({ isOpen, onClose, type, employeeId: propEmploy
                             </SelectContent>
                         </Select>
                     </div>
+
+                    {formData.category === 'payroll' && (
+                        <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                            <Label className="text-emerald-400">Seleccionar Empleado</Label>
+                            <Select
+                                value={selectedEmployee}
+                                onValueChange={setSelectedEmployee}
+                            >
+                                <SelectTrigger className="bg-slate-950 border-emerald-500/50">
+                                    <SelectValue placeholder="Busque empleado..." />
+                                </SelectTrigger>
+                                <SelectContent className="bg-slate-900 border-emerald-500/30">
+                                    {employees?.map((emp: any) => (
+                                        <SelectItem key={emp.id} value={emp.id}>
+                                            {emp.firstName} {emp.lastName}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
 
                     <div className="space-y-2">
                         <Label>Descripción / Referencia</Label>

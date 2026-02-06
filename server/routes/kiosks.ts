@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, storage } from "../storage";
-import { terminals, insertTerminalSchema, driverTokens, vehicles, employees } from "@shared/schema";
+import { terminals, insertTerminalSchema, driverTokens, vehicles, employees, productionActivityLogs, productionTasks, processInstances, organizations } from "@shared/schema";
 import { eq, and, gt } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import { getOrgIdFromRequest } from "../auth_util";
@@ -67,10 +67,27 @@ router.get("/device/:deviceId", async (req, res) => {
         const deviceId = req.params.deviceId;
         if (!deviceId) return res.status(400).json({ message: "Device ID Required" });
 
-        const result = await db.select().from(terminals).where(eq(terminals.deviceId, deviceId)).limit(1);
+        const result = await db.select({
+            terminal: terminals,
+            organization: organizations
+        })
+            .from(terminals)
+            .leftJoin(organizations, eq(terminals.organizationId, organizations.id))
+            .where(eq(terminals.deviceId, deviceId))
+            .limit(1);
+
         if (result.length === 0) return res.status(404).json({ message: "Terminal not found" });
 
-        res.json(result[0]);
+        const { terminal, organization } = result[0];
+
+        // Merge necessary org settings into the response for the frontend
+        const response = {
+            ...terminal,
+            organizationName: organization?.name,
+            organizationSettings: organization?.settings
+        };
+
+        res.json(response);
     } catch (error) {
         console.error("Error fetching kiosk by device:", error);
         res.status(500).json({ message: "Internal Server Error" });
@@ -289,10 +306,65 @@ router.post("/identify", async (req, res) => {
             return res.status(404).json({ message: "No match found" });
         }
 
-        res.json(match);
+        // Fetch Active Production Log
+        const [activeLog] = await db.select().from(productionActivityLogs)
+            .where(and(
+                eq(productionActivityLogs.employeeId, match.id),
+                eq(productionActivityLogs.status, 'active')
+            ))
+            .limit(1);
+
+        res.json({ ...match, activeLog });
     } catch (error) {
         console.error("Identify error:", error);
         res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+// Get Production Options (Tasks & Batches) for Kiosk Selection
+router.get("/:id/production-options", async (req, res) => {
+    try {
+        const terminalId = req.params.id;
+        const [terminal] = await db.select().from(terminals).where(eq(terminals.id, terminalId)).limit(1);
+        if (!terminal) return res.status(404).json({ message: "Terminal not found" });
+
+        const orgId = terminal.organizationId;
+
+        // Fetch Tasks
+        // We need to import productionTasks from schema if not already imported? 
+        // We imported it in schema.ts
+        // Wait, I need to check imports in kiosks.ts. I added productionActivityLogs, verify productionTasks.
+
+        // Fetch Active Batches
+        // We need processInstances
+
+        // Dynamic Import or using db.query if relations set up, or just importing specific tables active in this file.
+        // I need to add imports at top of file.
+
+        // Let's assume I will add imports in next step or use what's available.
+        // `import { productionTasks, processInstances, processes } from "@shared/schema";`
+
+        const tasks = await db.query.productionTasks.findMany({
+            where: (t, { eq, and }) => and(eq(t.organizationId, orgId), eq(t.active, true))
+        });
+
+        // Add Defined Processes (CPE)
+        const processesList = await db.query.processes.findMany({
+            where: (p, { eq, and }) => and(eq(p.organizationId, orgId))
+        });
+
+        const activeBatches = await db.query.processInstances.findMany({
+            where: (pi, { eq, and }) => and(eq(pi.organizationId, orgId), eq(pi.status, 'active')),
+            with: {
+                // process: true // If relation exists
+            },
+            limit: 20
+        });
+
+        res.json({ tasks, processes: processesList, batches: activeBatches });
+    } catch (error) {
+        console.error("Error fetching options:", error);
+        res.status(500).json({ message: "Internal Error" });
     }
 });
 
@@ -306,8 +378,8 @@ router.post("/identify", async (req, res) => {
  */
 router.post("/action", async (req, res) => {
     try {
-        const { employeeId, action, area, notes, terminalId } = req.body;
-        // action: "check_in", "check_out", "switch_area", "break", "resume"
+        const { employeeId, action, area, notes, terminalId, taskId, batchId, activityType } = req.body;
+        // action: "check_in", "check_out", "switch_area", "break", "resume", "start_activity", "end_activity"
 
         if (!terminalId) return res.status(400).json({ message: "Terminal ID required" });
 
@@ -316,19 +388,6 @@ router.post("/action", async (req, res) => {
         if (!terminal) return res.status(404).json({ message: "Terminal not found" });
 
         const orgId = terminal.organizationId;
-
-        // Verify Employee belongs to Org
-        // Verify Employee belongs to Org (Future check)
-        // const employee = await storage.getEmployee(employeeId); 
-        // Logic: getEmployee likely returns by ID. If IDs are UUIDs, collision is unlikely, but checking org match is safer.
-        // Or simple:
-        // const [employee] = await db.select().from(employees).where(and(eq(employees.id, employeeId), eq(employees.organizationId, orgId)));
-
-        // For now trusting storage.getEmployee(employeeId) fetches correctly, but we must verify org.
-        // Actually storage.getEmployee matches by ID log.
-        // Let's assume standard ID fetch. 
-        // We will perform the action inside storage which uses ID.
-        // Ideally: verify employee.organizationId === orgId.
 
         if (action === "check_in" || action === "switch_area" || action === "resume") {
             // Close previous session if exists
@@ -350,8 +409,58 @@ router.post("/action", async (req, res) => {
         }
         else if (action === "check_out") {
             await storage.closeWorkSession(employeeId);
+            // Close any active production logs as abandoned
+            await db.update(productionActivityLogs)
+                .set({ status: 'abandoned', endedAt: new Date() })
+                .where(and(
+                    eq(productionActivityLogs.employeeId, employeeId),
+                    eq(productionActivityLogs.status, 'active')
+                ));
+
             // Use undefined instead of null to match schema optional
             await storage.updateEmployeeStatus(employeeId, { currentStatus: "offline", currentArea: undefined });
+        }
+        else if (action === "start_activity") {
+            // End any current active log for this employee
+            await db.update(productionActivityLogs)
+                .set({ status: 'completed', endedAt: new Date() })
+                .where(and(
+                    eq(productionActivityLogs.employeeId, employeeId),
+                    eq(productionActivityLogs.status, 'active')
+                ));
+
+            // Create new log
+            await db.insert(productionActivityLogs).values({
+                organizationId: orgId,
+                employeeId,
+                activityType: activityType || 'production',
+                taskId: taskId || null,
+                batchId: batchId || null,
+                status: 'active',
+                notes: notes,
+                metadata: { terminalId }
+            });
+
+            await storage.updateEmployeeStatus(employeeId, {
+                currentStatus: activityType === 'production' ? 'working' : (activityType || 'busy')
+            });
+        }
+        else if (action === "end_activity") {
+            // End specific active log
+            await db.update(productionActivityLogs)
+                .set({
+                    // If it was production, it needs verification. If personal (break), it's completed.
+                    status: (activityType === 'production' || !activityType) ? 'pending_verification' : 'completed',
+                    endedAt: new Date()
+                })
+                .where(and(
+                    eq(productionActivityLogs.employeeId, employeeId),
+                    eq(productionActivityLogs.status, 'active')
+                ));
+
+            await storage.updateEmployeeStatus(employeeId, {
+                currentStatus: 'active' // Back to general active
+            });
         }
 
         res.json({ success: true });
@@ -517,6 +626,169 @@ router.get("/driver/session/:deviceId", async (req, res) => {
     } catch (error) {
         console.error("Session Check Error:", error);
         res.status(500).json({ message: "Session check failed" });
+    }
+});
+
+// PATCH /api/kiosks/:id - Update terminal configuration
+router.patch("/:id", async (req, res) => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const kioskId = req.params.id;
+        const { name, location, capabilities, status } = req.body;
+
+        // Verify ownership
+        const [existing] = await db.select().from(terminals)
+            .where(and(eq(terminals.id, kioskId), eq(terminals.organizationId, orgId)))
+            .limit(1);
+
+        if (!existing) return res.status(404).json({ message: "Terminal not found" });
+
+        const updates: any = {};
+        if (name !== undefined) updates.name = name;
+        if (location !== undefined) updates.location = location;
+        if (capabilities !== undefined) updates.capabilities = capabilities;
+        if (name !== undefined) updates.name = name;
+        if (location !== undefined) updates.location = location;
+        if (capabilities !== undefined) updates.capabilities = capabilities;
+        if (status !== undefined) updates.status = status;
+        if (req.body.sessionPersistence !== undefined) updates.sessionPersistence = req.body.sessionPersistence;
+
+        const [updated] = await db.update(terminals)
+            .set(updates)
+            .where(eq(terminals.id, kioskId))
+            .returning();
+
+        res.json(updated);
+    } catch (error) {
+        console.error("Error updating kiosk:", error);
+        res.status(500).json({ message: "Internal Server Error" });
+    }
+});
+
+// DELETE /api/kiosks/:id/binding - Revoke device binding (Soft Reset)
+router.delete("/:id/binding", async (req, res) => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const kioskId = req.params.id;
+
+        const [updated] = await db.update(terminals)
+            .set({
+                deviceId: null,
+                linkedDeviceId: null,
+                deviceSalt: null,
+                status: 'offline',
+                lastActiveAt: null
+            })
+            .where(and(eq(terminals.id, kioskId), eq(terminals.organizationId, orgId)))
+            .returning();
+
+        if (!updated) return res.status(404).json({ message: "Terminal not found" });
+
+        res.json({ success: true, message: "Device unbound successfully" });
+    } catch (error) {
+        console.error("Error revoking binding:", error);
+        res.status(500).json({ message: "Internal Server Error" });
+    }
+});
+
+// POST /api/kiosks/action - Register employee action (Check-in/out, Break, Activity)
+router.post("/action", async (req, res) => {
+    try {
+        const { employeeId, terminalId, action, activityType, notes } = req.body;
+        // const orgId = await getOrgIdFromRequest(req); // Not reliable from Kiosk device requests, use terminal logic
+
+        if (!employeeId || !terminalId || !action) {
+            return res.status(400).json({ message: "Missing required fields" });
+        }
+
+        // 1. Verify Terminal & Org
+        const [terminal] = await db.select().from(terminals).where(eq(terminals.id, terminalId)).limit(1);
+        if (!terminal) return res.status(404).json({ message: "Terminal not found" });
+        const orgId = terminal.organizationId;
+
+        // 2. Determine new status based on action
+        let newStatus = "active";
+        let logActivityType = "other";
+
+        switch (action) {
+            case "check_in":
+                newStatus = "active";
+                logActivityType = "check_in";
+                break;
+            case "check_out":
+                newStatus = "offline";
+                logActivityType = "check_out";
+                break;
+            case "break":
+                newStatus = "break";
+                logActivityType = req.body.breakType || "break";
+                break;
+            case "resume":
+                newStatus = "active";
+                logActivityType = "resume";
+                break;
+            case "start_activity":
+                newStatus = "working"; // Or specific activity status
+                logActivityType = activityType || "production";
+                break;
+            case "end_activity":
+                newStatus = "active";
+                logActivityType = "end_activity";
+                break;
+        }
+
+        // 3. Update Employee Status
+        await db.update(employees)
+            .set({
+                currentStatus: newStatus,
+                // If it's a check-in, we might want to update location or last seen, but currentStatus is key
+            } as any)
+            .where(eq(employees.id, employeeId));
+
+        // 4. Log Activity for Traceability
+        const [log] = await db.insert(productionActivityLogs).values({
+            organizationId: orgId,
+            employeeId: employeeId,
+            activityType: logActivityType,
+            status: "completed", // The event itself is completed
+            metadata: {
+                terminalId,
+                action,
+                notes,
+                timestamp: new Date().toISOString()
+            }
+        }).returning();
+
+        res.json({ success: true, status: newStatus, logId: log.id });
+
+    } catch (error: any) {
+        console.error("Error processing kiosk action:", error);
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// DELETE /api/kiosks/:id - Permanently delete terminal
+router.delete("/:id", async (req, res) => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const kioskId = req.params.id;
+
+        const result = await db.delete(terminals)
+            .where(and(eq(terminals.id, kioskId), eq(terminals.organizationId, orgId)))
+            .returning();
+
+        if (result.length === 0) return res.status(404).json({ message: "Terminal not found" });
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error("Error deleting kiosk:", error);
+        res.status(500).json({ message: "Internal Server Error" });
     }
 });
 

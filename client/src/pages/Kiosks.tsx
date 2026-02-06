@@ -515,6 +515,88 @@ export default function Kiosks() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        {/* Settings Dialog */}
+        <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+          <DialogContent className="max-w-xl">
+            <DialogHeader>
+              <DialogTitle className="font-display text-2xl flex items-center gap-2">
+                <Settings className="w-6 h-6 text-slate-500" />
+                Configuración de Terminal
+              </DialogTitle>
+              <DialogDescription>
+                Ajustes avanzados para {selectedKiosk?.name}
+              </DialogDescription>
+            </DialogHeader>
+
+            {selectedKiosk && (
+              <div className="space-y-6 py-4">
+                <div className="flex items-center justify-between p-4 rounded-xl border bg-muted/30">
+                  <div className="space-y-1">
+                    <Label className="text-base font-semibold flex items-center gap-2">
+                      <Lock className="w-4 h-4 text-indigo-500" />
+                      Sesión Persistente
+                    </Label>
+                    <p className="text-xs text-muted-foreground max-w-[300px]">
+                      Si está activo, el empleado permanecerá logueado después de realizar una acción (Check-in, Venta, etc).
+                      <br />
+                      <span className="font-bold text-amber-500">Recomendado solo para terminales de uso personal (Caja, Producción).</span>
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold uppercase text-muted-foreground">
+                      {selectedKiosk.sessionPersistence ? "Activo" : "Inactivo"}
+                    </span>
+                    <Checkbox
+                      id="sessionPersistence"
+                      className="h-6 w-6"
+                      checked={selectedKiosk.sessionPersistence || false}
+                      onCheckedChange={(checked) => {
+                        // Optimistic update
+                        const updated = { ...selectedKiosk, sessionPersistence: !!checked };
+                        setSelectedKiosk(updated);
+
+                        // Backend update via existing mutation logic or new one
+                        // Reuse create/update mutation pattern locally for now:
+                        fetch(`/api/kiosks/${selectedKiosk.id}`, {
+                          method: "PATCH",
+                          headers: {
+                            "Content-Type": "application/json",
+                            Authorization: `Bearer ${session?.access_token}`
+                          },
+                          body: JSON.stringify({ sessionPersistence: !!checked })
+                        }).then(res => {
+                          if (res.ok) {
+                            toast({ title: "Configuración actualizada" });
+                            queryClient.invalidateQueries({ queryKey: ["/api/kiosks"] });
+                          } else {
+                            toast({ title: "Error", variant: "destructive" });
+                          }
+                        });
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="bg-red-500/5 border border-red-500/10 rounded-xl p-4">
+                  <h4 className="flex items-center gap-2 font-bold text-red-500 mb-2">
+                    <Trash2 className="w-4 h-4" /> Zona de Peligro
+                  </h4>
+                  <p className="text-xs text-red-400/70 mb-4">
+                    Eliminar esta terminal revocará el acceso inmediatamente. Esta acción no se puede deshacer.
+                  </p>
+                  <Button variant="destructive" size="sm" className="w-full">
+                    Eliminar Terminal
+                  </Button>
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setIsSettingsOpen(false)}>Cerrar</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </AppLayout>
   );

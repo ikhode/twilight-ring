@@ -57,6 +57,10 @@ import { CognitiveInput, CognitiveField } from "@/components/cognitive";
 
 export default function Purchases() {
   const { session } = useAuth();
+  const search = window.location.search; // Simple access since wouter useSearch might need verify
+  const [activePurchase, setActivePurchase] = useState<any>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat("es-MX", {
       style: "currency",
@@ -75,6 +79,21 @@ export default function Purchases() {
     },
     enabled: !!session?.access_token,
   });
+
+  // Deep Linking Logic
+  useEffect(() => {
+    const params = new URLSearchParams(search);
+    const openBatchId = params.get("openBatchId");
+    if (openBatchId && purchases.length > 0) {
+      const target = purchases.find((p: any) => p.id === openBatchId);
+      if (target) {
+        setActivePurchase(target);
+        setIsDetailsOpen(true);
+        // Clean URL without reload
+        window.history.replaceState({}, '', '/purchases');
+      }
+    }
+  }, [search, purchases]);
 
   // Calculate Metrics
   const pendingCount = purchases.filter(
@@ -180,15 +199,32 @@ export default function Purchases() {
             </div>
           </CardHeader>
           <CardContent>
-            <PurchasesTable data={purchases} />
+            <PurchasesTable
+              data={purchases}
+              onView={(p) => {
+                setActivePurchase(p);
+                setIsDetailsOpen(true);
+              }}
+            />
           </CardContent>
         </Card>
       </div>
+
+      {/* Global Dialog for Details (Deep Linking Support) */}
+      <BatchDetailsDialog
+        open={isDetailsOpen}
+        onOpenChange={(open) => {
+          setIsDetailsOpen(open);
+          if (!open) setActivePurchase(null);
+        }}
+        batch={activePurchase}
+        formatCurrency={formatCurrency}
+      />
     </AppLayout>
   );
 }
 
-function PurchasesTable({ data }: { data: any[] }) {
+function PurchasesTable({ data, onView }: { data: any[], onView: (batch: any) => void }) {
   const { session, profile } = useAuth();
   const isAdmin = profile?.role === "admin";
   const queryClient = useQueryClient();
@@ -488,7 +524,15 @@ function PurchasesTable({ data }: { data: any[] }) {
       header: "",
       render: (it: any) => (
         <div className="flex gap-1 items-center">
-          <BatchDetailsDialog batch={it} formatCurrency={formatCurrency} />
+          <Button
+            size="sm"
+            variant="ghost"
+            title="Ver Detalles"
+            className="h-7 w-7 p-0"
+            onClick={() => onView(it)}
+          >
+            <Eye className="w-3.5 h-3.5" />
+          </Button>
 
           {it.deliveryStatus === "pending" && it.isApproved && (
             <Button
@@ -517,16 +561,7 @@ function PurchasesTable({ data }: { data: any[] }) {
           )}
 
           {it.paymentStatus === "pending" && it.isApproved && it.deliveryStatus !== "cancelled" && (
-            <Button
-              size="sm"
-              variant="outline"
-              title="Pagar todo"
-              className="h-7 w-7 p-0 bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 border-blue-500/20"
-              onClick={() => it.isBatch ? payBatchMutation.mutate(it.batchId) : payMutation.mutate(it.id)}
-              disabled={payMutation.isPending || payBatchMutation.isPending}
-            >
-              <FileText className="w-3.5 h-3.5" />
-            </Button>
+            <PurchasePaymentDialog purchase={it} />
           )}
 
           {it.deliveryStatus === "pending" && (
@@ -557,18 +592,25 @@ function PurchasesTable({ data }: { data: any[] }) {
   return <DataTable columns={columns} data={groupedData} />;
 }
 
-function BatchDetailsDialog({ batch, formatCurrency }: { batch: any, formatCurrency: (v: number) => string }) {
+function BatchDetailsDialog({
+  open,
+  onOpenChange,
+  batch,
+  formatCurrency
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  batch: any;
+  formatCurrency: (v: number) => string
+}) {
+  if (!batch) return null;
+
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="ghost" title="Ver Detalles" className="h-7 w-7 p-0">
-          <Eye className="w-3.5 h-3.5" />
-        </Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            Detalles de Orden de Compra: <span className="font-mono text-primary">{batch.batchId}</span>
+            Detalles de Orden de Compra: <span className="font-mono text-primary">{batch.batchId || batch.id}</span>
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-6 pt-4">
@@ -1209,10 +1251,23 @@ function CreatePurchaseDialog({ purchases = [] }: { purchases: any[] }) {
   const [selectedSupplier, setSelectedSupplier] = useState<string>("");
 
   const [paymentMethod, setPaymentMethod] = useState<string>("transfer");
+  const [bankAccountId, setBankAccountId] = useState<string>("");
   const [logisticsMethod, setLogisticsMethod] = useState<string>("delivery");
   const [driverId, setDriverId] = useState<string>("");
   const [vehicleId, setVehicleId] = useState<string>("");
   const [freightCost, setFreightCost] = useState<string | number>(0);
+
+  const { data: bankAccounts = [] } = useQuery({
+    queryKey: ["/api/finance/bank-accounts"],
+    queryFn: async () => {
+      const res = await fetch("/api/finance/bank-accounts", {
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: open,
+  });
 
   const { data: dbProducts = [] } = useQuery({
     queryKey: ["/api/inventory/products"],
@@ -1280,6 +1335,7 @@ function CreatePurchaseDialog({ purchases = [] }: { purchases: any[] }) {
           items,
           supplierId: selectedSupplier,
           paymentMethod,
+          bankAccountId: paymentMethod === 'transfer' ? bankAccountId : null,
           logisticsMethod,
           driverId: driverId || null,
           vehicleId: vehicleId || null,
@@ -1463,6 +1519,24 @@ function CreatePurchaseDialog({ purchases = [] }: { purchases: any[] }) {
                 </Select>
               </CognitiveField>
             </div>
+
+            {paymentMethod === 'transfer' && (
+              <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                <Label>Cuenta Bancaria (Origen)</Label>
+                <Select value={bankAccountId} onValueChange={setBankAccountId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar Cuenta..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {bankAccounts.map((acc: any) => (
+                      <SelectItem key={acc.id} value={acc.id}>
+                        {acc.bankName} - {acc.accountNumber.slice(-4)} ({new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(acc.balance / 100)})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {logisticsMethod === "pickup" && (
               <div className="p-3 bg-muted/50 rounded-lg space-y-3 animate-in fade-in slide-in-from-top-2">
@@ -1958,6 +2032,7 @@ function EditLogisticsDialog({ purchase }: { purchase: any }) {
           </div>
         </div>
 
+
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>
             Cancelar
@@ -1970,6 +2045,143 @@ function EditLogisticsDialog({ purchase }: { purchase: any }) {
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
             )}
             Guardar Cambios
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PurchasePaymentDialog({ purchase }: { purchase: any }) {
+  const { session } = useAuth();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [method, setMethod] = useState<string>("transfer");
+  const [bankAccountId, setBankAccountId] = useState<string>("");
+
+  const { data: bankAccounts = [] } = useQuery({
+    queryKey: ["/api/finance/bank-accounts"],
+    queryFn: async () => {
+      const res = await fetch("/api/finance/bank-accounts", {
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: open,
+  });
+
+  const payMutation = useMutation({
+    mutationFn: async () => {
+      const url = purchase.isBatch
+        ? `/api/purchases/batch/${purchase.batchId}/pay`
+        : `/api/purchases/${purchase.id}/pay`;
+
+      const res = await fetch(url, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify({
+          paymentMethod: method,
+          bankAccountId: method === 'transfer' ? bankAccountId : null
+        })
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Failed to pay");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/purchases"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/finance/summary"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/finance/bank-accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/finance/cash-registers"] });
+      setOpen(false);
+      toast({
+        title: "Pago Registrado",
+        description: "El gasto se ha reflejado en finanzas y los fondos han sido descontados.",
+      });
+    },
+    onError: (err: any) =>
+      toast({
+        title: "Error de Pago",
+        description: err.message || "No se pudo registrar el pago.",
+        variant: "destructive",
+      }),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button
+          size="sm"
+          variant="outline"
+          title="Pagar"
+          className="h-7 w-7 p-0 bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 border-blue-500/20"
+        >
+          <FileText className="w-3.5 h-3.5" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Registrar Pago de Compra</DialogTitle>
+        </DialogHeader>
+        <div className="py-4 space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Se registrará el egreso financiero y se descontarán los fondos del activo seleccionado.
+          </p>
+
+          <div className="space-y-2">
+            <Label>Método de Pago</Label>
+            <Select value={method} onValueChange={setMethod}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="transfer">Transferencia / Depósito</SelectItem>
+                <SelectItem value="cash">Efectivo</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {method === 'transfer' && (
+            <div className="space-y-2">
+              <Label>Cuenta de Origen</Label>
+              <Select value={bankAccountId} onValueChange={setBankAccountId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar Cuenta Bancaria" />
+                </SelectTrigger>
+                <SelectContent>
+                  {bankAccounts.map((acc: any) => (
+                    <SelectItem key={acc.id} value={acc.id}>
+                      {acc.bankName} - {acc.accountNumber.slice(-4)} ({new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(acc.balance / 100)})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <div className="pt-2">
+            <div className="flex justify-between text-sm font-bold">
+              <span>Total a Pagar:</span>
+              <span>{new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(purchase.totalAmount / 100)}</span>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+          <Button
+            onClick={() => payMutation.mutate()}
+            disabled={payMutation.isPending || (method === 'transfer' && !bankAccountId)}
+          >
+            {payMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            Confirmar Pago
           </Button>
         </DialogFooter>
       </DialogContent>

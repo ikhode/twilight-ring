@@ -59,6 +59,7 @@ import { CreateProcessDialog } from "@/components/production/CreateProcessDialog
 import { TaskSelector } from "@/components/production/TaskSelector";
 import { useConfiguration } from "@/context/ConfigurationContext";
 import { CognitiveInput, CognitiveField } from "@/components/cognitive";
+import { FloorControl } from "@/components/production/FloorControl";
 
 interface Ticket {
   id: number;
@@ -443,6 +444,8 @@ export default function Production() {
    */
   const removeInputRow = (id: number) => { setInputList(prev => prev.length > 1 ? prev.filter(item => item !== id) : prev); };
 
+  const [reportMode, setReportMode] = useState<'partial' | 'finish'>('partial');
+
   return (
     <AppLayout title="Producción" subtitle="Control de procesos y destajo">
       <div className="space-y-6">
@@ -455,6 +458,10 @@ export default function Production() {
             <TabsTrigger value="tickets" className="gap-2">
               <TicketIcon className="w-4 h-4" />
               Tickets de Producción
+            </TabsTrigger>
+            <TabsTrigger value="floor-control" className="gap-2">
+              <Users className="w-4 h-4" />
+              Control de Piso
             </TabsTrigger>
           </TabsList>
 
@@ -603,11 +610,11 @@ export default function Production() {
                             <Button
                               size="sm"
                               className="w-full bg-white text-black hover:bg-slate-200"
-                              onClick={() => { setSelectedBatchForReport(instance); setIsReportDialogOpen(true); }}
+                              onClick={() => { setSelectedBatchForReport(instance); setReportMode('partial'); setIsReportDialogOpen(true); }}
                             >
                               Reportar
                             </Button>
-                            <Button size="sm" variant="outline" className="w-full border-slate-700" onClick={() => { setSelectedBatchForReport(instance); /* TODO: FINISH DIALOG logic */ }}>
+                            <Button size="sm" variant="outline" className="w-full border-slate-700" onClick={() => { setSelectedBatchForReport(instance); setReportMode('finish'); setIsReportDialogOpen(true); }}>
                               Finalizar
                             </Button>
                           </div>
@@ -765,13 +772,26 @@ export default function Production() {
                 { key: "totalAmount", header: "Monto", render: (item) => formatCurrency(item.totalAmount || 0) },
                 {
                   key: "status", header: "Estado", render: (item) => (
-                    <Badge variant={item.status === 'paid' ? 'success' : item.status === 'approved' ? 'default' : 'secondary'}>
+                    <Badge
+                      variant={item.status === 'approved' ? 'default' : 'secondary'}
+                      className={item.status === 'paid' ? 'bg-emerald-500 hover:bg-emerald-600 border-transparent text-white' : ''}
+                    >
                       {item.status}
                     </Badge>
                   )
                 },
               ]}
             />
+          </TabsContent>
+
+          <TabsContent value="floor-control" className="space-y-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-xl font-bold font-display">Control de Piso</h2>
+                <p className="text-sm text-slate-500">Supervisión en tiempo real de actividades de operarios.</p>
+              </div>
+            </div>
+            <FloorControl />
           </TabsContent>
         </Tabs>
       </div>
@@ -785,11 +805,16 @@ export default function Production() {
             inventory={inventory}
             tickets={tickets}
             onConfirm={(data) => {
-              console.log("Reporting data:", data);
-              reportProductionMutation.mutate(data);
+              if (reportMode === 'finish') {
+                finishBatchMutation.mutate({ instanceId: selectedBatchForReport.id, yields: data.yields, notes: 'Finished via dialog' });
+                setIsReportDialogOpen(false);
+              } else {
+                console.log("Reporting data:", data);
+                reportProductionMutation.mutate(data);
+              }
             }}
             isVisionEnabled={isVisionEnabled}
-            isLoading={reportProductionMutation.isPending}
+            isLoading={reportMode === 'finish' ? finishBatchMutation.isPending : reportProductionMutation.isPending}
           />
         </DialogContent>
       </Dialog>

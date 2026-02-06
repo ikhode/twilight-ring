@@ -20,6 +20,8 @@ interface DataTableProps<T> {
   columns: Column<T>[];
   data: T[];
   onRowClick?: (item: T) => void;
+  onRowDoubleClick?: (item: T) => void;
+  onCellDoubleClick?: (item: T, key: keyof T, value: any) => void;
   emptyMessage?: string;
   className?: string;
 }
@@ -28,6 +30,8 @@ export function DataTable<T extends { id: string | number }>({
   columns,
   data,
   onRowClick,
+  onRowDoubleClick,
+  onCellDoubleClick,
   emptyMessage = "No hay datos disponibles",
   className,
 }: DataTableProps<T>) {
@@ -61,6 +65,7 @@ export function DataTable<T extends { id: string | number }>({
               <TableRow
                 key={`${item.id}-${index}`}
                 onClick={() => onRowClick?.(item)}
+                onDoubleClick={() => onRowDoubleClick?.(item)}
                 className={cn(
                   "transition-colors",
                   onRowClick && "cursor-pointer hover:bg-muted/50"
@@ -68,7 +73,14 @@ export function DataTable<T extends { id: string | number }>({
                 data-testid={`table-row-${item.id}`}
               >
                 {columns.map((column) => (
-                  <TableCell key={String(column.key)} className={column.className}>
+                  <TableCell
+                    key={String(column.key)}
+                    className={column.className}
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      onCellDoubleClick?.(item, column.key as keyof T, item[column.key as keyof T]);
+                    }}
+                  >
                     {column.render
                       ? column.render(item)
                       : String(item[column.key as keyof T] ?? "-")}

@@ -31,7 +31,8 @@ import {
   Activity,
   CheckCircle2,
   Check,
-  ChevronsUpDown
+  ChevronsUpDown,
+  Eye
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
@@ -162,9 +163,23 @@ interface CartItem {
 // --- Main Components ---
 
 export default function Sales() {
+  const [activeTab, setActiveTab] = useState("pos");
+  const [openSaleId, setOpenSaleId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const saleId = params.get("openSaleId");
+    if (saleId) {
+      setActiveTab("history");
+      setOpenSaleId(saleId);
+      // Optional: Clean URL
+      window.history.replaceState({}, '', '/sales');
+    }
+  }, []);
+
   return (
     <AppLayout title="Punto de Venta" subtitle="Ventas y facturación">
-      <Tabs defaultValue="pos" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList>
           <TabsTrigger value="pos" className="gap-2">
             <ShoppingBag className="w-4 h-4" />
@@ -189,7 +204,7 @@ export default function Sales() {
         </TabsContent>
 
         <TabsContent value="history">
-          <SalesHistory />
+          <SalesHistory openSaleId={openSaleId} />
         </TabsContent>
       </Tabs>
     </AppLayout>
@@ -862,11 +877,14 @@ function SalesTrends() {
   );
 }
 
-function SalesHistory() {
+function SalesHistory({ openSaleId }: { openSaleId?: string | null }) {
   const { session } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const formatCurrency = (amount: number) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(amount);
+
+  const [activeSale, setActiveSale] = useState<any>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const { data: orders = [] } = useQuery({
     queryKey: ["/api/sales/orders"],
@@ -876,6 +894,18 @@ function SalesHistory() {
     },
     enabled: !!session?.access_token
   });
+
+  // Deep Link Effect
+  useEffect(() => {
+    if (openSaleId && orders.length > 0) {
+      // Fuzzy match because ID coming from external might be numeric or string
+      const found = orders.find((o: any) => o.id == openSaleId);
+      if (found) {
+        setActiveSale(found);
+        setDetailsOpen(true);
+      }
+    }
+  }, [openSaleId, orders]);
 
   const updateDeliveryMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string, status: string }) => {
@@ -893,7 +923,7 @@ function SalesHistory() {
   });
 
   const columns = [
-    { key: "id", header: "ID", render: (it: any) => <span className="font-mono text-xs text-muted-foreground">#{it.id.slice(0, 6)}</span> },
+    { key: "id", header: "ID", render: (it: any) => <span className="font-mono text-xs text-muted-foreground">#{it.id.toString().slice(0, 6)}</span> },
     { key: "date", header: "Fecha", render: (it: any) => new Date(it.date).toLocaleString() },
     { key: "product", header: "Producto", render: (it: any) => it.product?.name || "Desconocido" },
     { key: "quantity", header: "Cant.", render: (it: any) => it.quantity },
@@ -924,6 +954,10 @@ function SalesHistory() {
       header: "Acciones",
       render: (it: any) => (
         <div className="flex gap-1">
+          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => { setActiveSale(it); setDetailsOpen(true); }}>
+            <Eye className="w-3.5 h-3.5" />
+          </Button>
+
           {it.paymentStatus !== "paid" && <PaySaleDialog sale={it} />}
           {it.deliveryStatus !== "delivered" && (
             <Button size="sm" variant="outline" onClick={() => updateDeliveryMutation.mutate({ id: it.id, status: "delivered" })}>
@@ -939,6 +973,7 @@ function SalesHistory() {
     <Card>
       <CardContent className="pt-6">
         <DataTable columns={columns} data={orders} />
+        <SaleDetailsDialog open={detailsOpen} onOpenChange={setDetailsOpen} sale={activeSale} formatCurrency={formatCurrency} />
       </CardContent>
     </Card>
   );
@@ -1042,6 +1077,53 @@ function PaySaleDialog({ sale }: { sale: any }) {
             {payMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
             {method === 'transfer' ? "Confirmar Recepción" : "Confirmar Pago"}
           </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SaleDetailsDialog({ open, onOpenChange, sale, formatCurrency }: { open: boolean, onOpenChange: (v: boolean) => void, sale: any, formatCurrency: (v: number) => string }) {
+  if (!sale) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Detalle de Venta #{sale.id.toString().slice(0, 6)}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <p className="text-muted-foreground text-xs">Fecha</p>
+              <p className="font-medium">{new Date(sale.date).toLocaleString()}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs">Total</p>
+              <p className="font-bold text-primary">{formatCurrency(sale.totalPrice / 100)}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs">Producto</p>
+              <p className="font-medium">{sale.product?.name || "N/A"} (x{sale.quantity})</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs">Método de Pago</p>
+              <p className="font-medium capitalize">{sale.paymentMethod || "N/A"}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs">Estado Pago</p>
+              <Badge variant={sale.paymentStatus === "paid" ? "default" : "secondary"}>
+                {sale.paymentStatus === "paid" ? "Pagado" : "Pendiente"}
+              </Badge>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs">Estado Entrega</p>
+              <Badge variant="outline">{sale.deliveryStatus}</Badge>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cerrar</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

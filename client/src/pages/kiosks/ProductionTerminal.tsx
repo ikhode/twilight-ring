@@ -47,6 +47,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import OperatorTerminal from "./OperatorTerminal";
 
 interface ProductionTerminalProps {
     sessionContext: KioskSession;
@@ -99,6 +100,14 @@ export default function ProductionTerminal({ sessionContext, onLogout }: Product
     const [mermaData, setMermaData] = useState({ reason: "", quantity: 0, type: "destopado" });
     const [closureData, setClosureData] = useState({ yields: 0, notes: "" });
     const [activeTab, setActiveTab] = useState("active_lots");
+
+    // ROLE CHECK: If Operator, show OperatorTerminal
+    const role = sessionContext.driver?.role?.toLowerCase();
+    const isOperator = role && role !== "admin" && role !== "supervisor" && role !== "jefe de planta";
+
+    if (isOperator) {
+        return <OperatorTerminal employee={sessionContext.driver} terminal={sessionContext.terminal} onLogout={onLogout} />;
+    }
 
     // Realtime Reactivity
     useRealtimeSubscription({

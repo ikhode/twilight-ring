@@ -9,6 +9,7 @@ export interface IndustryTemplate {
         price: number;
         cost: number;
     }[];
+    productTypeLabels?: Record<string, string>;
 }
 
 export const INDUSTRY_TEMPLATES: Record<string, IndustryTemplate> = {

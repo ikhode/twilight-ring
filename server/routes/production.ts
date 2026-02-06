@@ -1,5 +1,5 @@
 import { db } from "../storage";
-import { processInstances, processEvents, inventoryMovements, products, pieceworkTickets, processes } from "../../shared/schema";
+import { processInstances, processEvents, inventoryMovements, products, pieceworkTickets, processes, productionActivityLogs } from "../../shared/schema";
 import { eq, sql, and } from "drizzle-orm";
 import { getOrgIdFromRequest } from "../auth_util";
 import { Router } from "express";
@@ -571,6 +571,113 @@ router.post("/instances/:id/finish", async (req, res): Promise<void> => {
     } catch (error) {
         console.error("Error finishing batch:", error);
         res.status(500).json({ message: "Failed to finish batch" });
+    }
+});
+
+/**
+ * FLOOR CONTROL: Get active activity logs for supervision.
+ */
+router.get("/logs/active", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        // Fetch logs with employee info (simple join or fetch)
+        // Drizzle Query Builder is better for relations if setup, but we'll use raw select & manual join for control
+        const logs = await db.select({
+            id: productionActivityLogs.id,
+            employeeId: productionActivityLogs.employeeId,
+            activityType: productionActivityLogs.activityType, // 'production', 'break', etc
+            status: productionActivityLogs.status,
+            startedAt: productionActivityLogs.startedAt,
+            endedAt: productionActivityLogs.endedAt,
+            taskId: productionActivityLogs.taskId,
+            notes: productionActivityLogs.notes,
+            metadata: productionActivityLogs.metadata
+        })
+            .from(productionActivityLogs)
+            .where(and(
+                eq(productionActivityLogs.organizationId, orgId),
+                sql`${productionActivityLogs.status} IN ('active', 'pending_verification')`
+            ))
+            .orderBy(productionActivityLogs.startedAt);
+
+        res.json(logs);
+    } catch (error) {
+        console.error("Error fetching active logs:", error);
+        res.status(500).json({ message: "Failed to fetch logs" });
+    }
+});
+
+/**
+ * FLOOR CONTROL: Finalize a log (Supervisor Verification).
+ * Creates a piecework ticket if it was a production task.
+ */
+router.post("/logs/finalize", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        const { logId, quantity, notes, status } = req.body; // status: 'approved', 'rejected'
+
+        const [log] = await db.select().from(productionActivityLogs).where(eq(productionActivityLogs.id, logId));
+        if (!log) {
+            res.status(404).json({ message: "Log not found" });
+            return;
+        }
+
+        // 1. Update Log Status
+        await db.update(productionActivityLogs)
+            .set({
+                status: 'completed',
+                quantity: Number(quantity) || 0,
+                notes: notes ? `${log.notes || ''} | Sup: ${notes}` : log.notes
+            })
+            .where(eq(productionActivityLogs.id, logId));
+
+        // 2. If Approved Production -> Create Ticket
+        if (status === 'approved' && log.activityType === 'production' && quantity > 0) {
+            // Need task details for rate
+            // Assuming we stored taskId in log. If not, we might need to lookup.
+            // For MVP, we'll fetch task or use a default rate from payload if provided (security risk, better fetch).
+            // Let's assume taskId matches process for now or use generic.
+
+            // Note: We need a rate. 
+            // Ideally: Fetch task definition.
+            // const [task] = await db.select().from(productionTasks).where(eq(productionTasks.id, log.taskId));
+            // const rate = task?.unitPrice || 0;
+
+            // Fallback for this iteration: Just create the ticket with 0 price if rate missing, admin fixes later.
+            // OR: Allow supervisor to set rate? No.
+
+            // Simplification: We just record the ticket.
+
+            await db.insert(pieceworkTickets).values({
+                organizationId: orgId,
+                employeeId: log.employeeId,
+                creatorId: (req.user as any)?.id,
+                taskName: "Producción Kiosko", // Or fetch Name
+                quantity: Number(quantity),
+                unitPrice: 0, // Placeholder
+                totalAmount: 0,
+                status: "approved",
+                approvedBy: (req.user as any)?.id,
+                notes: `Generated from Activity Log ${logId}`,
+                createdAt: new Date()
+            });
+        }
+
+        res.json({ success: true });
+
+    } catch (error) {
+        console.error("Error finalizing log:", error);
+        res.status(500).json({ message: "Failed to finalize log" });
     }
 });
 

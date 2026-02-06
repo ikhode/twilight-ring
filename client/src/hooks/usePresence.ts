@@ -6,6 +6,8 @@ export interface PresenceState {
     user_id: string;
     email: string;
     name?: string;
+    role?: string;
+    organization_id?: string;
     page: string;
     online_at: string;
 }
@@ -14,7 +16,7 @@ export interface PresenceState {
  * Hook to track and display users present on a specific page
  * Uses Supabase Presence for real-time user tracking
  */
-export function usePresence(page: string, customIdentity?: { id: string; email: string; name: string }) {
+export function usePresence(page: string, customIdentity?: { id: string; email: string; name: string; role?: string; organization_id?: string }) {
     const { user, profile } = useAuth();
     const [onlineUsers, setOnlineUsers] = useState<PresenceState[]>([]);
     const [isTracking, setIsTracking] = useState(false);
@@ -54,6 +56,8 @@ export function usePresence(page: string, customIdentity?: { id: string; email: 
                     await channel.track({
                         user_id: trackId,
                         name: customIdentity?.name || profile?.user?.name || user?.email?.split('@')[0] || 'Unknown',
+                        role: customIdentity?.role || 'user',
+                        organization_id: customIdentity?.organization_id || 'unknown',
                         page,
                         online_at: new Date().toISOString(),
                     });
@@ -65,7 +69,7 @@ export function usePresence(page: string, customIdentity?: { id: string; email: 
             supabase.removeChannel(channel);
             setIsTracking(false);
         };
-    }, [user, profile, page, customIdentity?.id, customIdentity?.email, customIdentity?.name]);
+    }, [user, profile, page, customIdentity?.id, customIdentity?.email, customIdentity?.name, customIdentity?.role, customIdentity?.organization_id]);
 
     return { onlineUsers, isTracking };
 }

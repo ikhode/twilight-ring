@@ -132,9 +132,14 @@ export default function Inventory() {
   const { data: dbProducts, isLoading } = useQuery({
     queryKey: ["/api/inventory/products"],
     queryFn: async () => {
-      const res = await fetch("/api/inventory/products", {
-        headers: { Authorization: `Bearer ${session?.access_token}` }
-      });
+      const headers: Record<string, string> = {
+        "Authorization": `Bearer ${session?.access_token}`
+      };
+      const activeOrgId = localStorage.getItem("nexus_active_org");
+      if (activeOrgId) headers["x-organization-id"] = activeOrgId;
+
+      const res = await fetch("/api/inventory/products", { headers });
+      if (!res.ok) throw new Error("Failed to fetch products");
       return res.json();
     },
     enabled: !!session?.access_token
@@ -143,9 +148,14 @@ export default function Inventory() {
   const { data: alerts = [], isLoading: isAlertsLoading } = useQuery({
     queryKey: ["/api/inventory/alerts"],
     queryFn: async () => {
-      const res = await fetch("/api/inventory/alerts", {
-        headers: { Authorization: `Bearer ${session?.access_token}` }
-      });
+      const headers: Record<string, string> = {
+        "Authorization": `Bearer ${session?.access_token}`
+      };
+      const activeOrgId = localStorage.getItem("nexus_active_org");
+      if (activeOrgId) headers["x-organization-id"] = activeOrgId;
+
+      const res = await fetch("/api/inventory/alerts", { headers });
+      if (!res.ok) throw new Error("Failed to fetch alerts");
       return res.json();
     },
     enabled: !!session?.access_token
@@ -154,7 +164,13 @@ export default function Inventory() {
   const { data: categoriesList = [] } = useQuery({
     queryKey: ["/api/inventory/categories"],
     queryFn: async () => {
-      const res = await fetch("/api/inventory/categories", { headers: { Authorization: `Bearer ${session?.access_token}` } });
+      const headers: Record<string, string> = {
+        "Authorization": `Bearer ${session?.access_token}`
+      };
+      const activeOrgId = localStorage.getItem("nexus_active_org");
+      if (activeOrgId) headers["x-organization-id"] = activeOrgId;
+
+      const res = await fetch("/api/inventory/categories", { headers });
       if (!res.ok) return [];
       return res.json();
     },
@@ -164,7 +180,13 @@ export default function Inventory() {
   const { data: groupsList = [] } = useQuery({
     queryKey: ["/api/inventory/groups"],
     queryFn: async () => {
-      const res = await fetch("/api/inventory/groups", { headers: { Authorization: `Bearer ${session?.access_token}` } });
+      const headers: Record<string, string> = {
+        "Authorization": `Bearer ${session?.access_token}`
+      };
+      const activeOrgId = localStorage.getItem("nexus_active_org");
+      if (activeOrgId) headers["x-organization-id"] = activeOrgId;
+
+      const res = await fetch("/api/inventory/groups", { headers });
       if (!res.ok) return [];
       return res.json();
     },
@@ -174,7 +196,13 @@ export default function Inventory() {
   const { data: unitsList = [] } = useQuery({
     queryKey: ["/api/inventory/units"],
     queryFn: async () => {
-      const res = await fetch("/api/inventory/units", { headers: { Authorization: `Bearer ${session?.access_token}` } });
+      const headers: Record<string, string> = {
+        "Authorization": `Bearer ${session?.access_token}`
+      };
+      const activeOrgId = localStorage.getItem("nexus_active_org");
+      if (activeOrgId) headers["x-organization-id"] = activeOrgId;
+
+      const res = await fetch("/api/inventory/units", { headers });
       if (!res.ok) return [];
       return res.json();
     },
@@ -193,8 +221,8 @@ export default function Inventory() {
   });
 
   const createGroupMutation = useMutation({
-    mutationFn: async (name: string) => {
-      const res = await apiRequest("POST", "/api/inventory/groups", { name }, { Authorization: `Bearer ${session?.access_token}` });
+    mutationFn: async ({ name, description }: { name: string, description?: string }) => {
+      const res = await apiRequest("POST", "/api/inventory/groups", { name, description }, { Authorization: `Bearer ${session?.access_token}` });
       return res.json();
     },
     onSuccess: () => {
@@ -284,6 +312,8 @@ export default function Inventory() {
     unitId: "",
     price: 0,
     cost: 0,
+    minPurchasePrice: 0,
+    maxPurchasePrice: 0,
     // Master/Variant Logic
     masterProductId: "",
     expectedYield: 0
@@ -463,7 +493,7 @@ export default function Inventory() {
         categoryId: item.categoryId || item.category?.id || "",
         masterProductId: item.masterProductId || "",
         expectedYield: item.expectedYield || 0,
-        unitId: item.unitId || item.unit?.id || "",
+        unitId: item.unitId || item.unitRef?.id || "",
         minPurchasePrice: item.minPurchasePrice || 0,
         maxPurchasePrice: item.maxPurchasePrice || 0
       });
@@ -561,24 +591,56 @@ export default function Inventory() {
               </TooltipContent>
             </Tooltip>
 
-            <StatCard
-              title="Stock Bajo"
-              value={<AliveValue value={stats.lowStock} unit="" allowTrend />}
-              icon={TrendingDown}
-              variant="warning"
-            />
-            <StatCard
-              title="Stock Crítico"
-              value={<AliveValue value={stats.criticalStock} unit="" allowTrend />}
-              icon={AlertTriangle}
-              variant="destructive"
-            />
-            <StatCard
-              title="Valor Total"
-              value={formatCurrency(stats.totalValue)}
-              icon={DollarSign}
-              variant="success"
-            />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="cursor-help">
+                  <StatCard
+                    title="Stock Bajo"
+                    value={<AliveValue value={stats.lowStock} unit="" allowTrend />}
+                    icon={TrendingDown}
+                    variant="warning"
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-3 max-w-xs">
+                <p className="font-bold text-amber-500 uppercase tracking-widest text-[9px] mb-1">Alerta de Reabastecimiento</p>
+                <p>Productos con existencias por debajo del umbral seguro (100 unidades). Requieren compra próxima.</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="cursor-help">
+                  <StatCard
+                    title="Stock Crítico"
+                    value={<AliveValue value={stats.criticalStock} unit="" allowTrend />}
+                    icon={AlertTriangle}
+                    variant="destructive"
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-3 max-w-xs">
+                <p className="font-bold text-red-500 uppercase tracking-widest text-[9px] mb-1">Riesgo de Quiebre</p>
+                <p>Productos agotados o casi agotados (0 unidades). Afectan inmediatamente la capacidad de producción.</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="cursor-help">
+                  <StatCard
+                    title="Valor Total"
+                    value={formatCurrency(stats.totalValue)}
+                    icon={DollarSign}
+                    variant="success"
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-3 max-w-xs">
+                <p className="font-bold text-emerald-500 uppercase tracking-widest text-[9px] mb-1">Capital Inmovilizado</p>
+                <p>Valor monetario total del inventario actual, calculado a precio de costo promedio.</p>
+              </TooltipContent>
+            </Tooltip>
           </TooltipProvider>
         </div>
 
@@ -977,7 +1039,7 @@ export default function Inventory() {
                   key: "category",
                   header: "Categoría",
                   render: (item) => (
-                    <Badge variant="secondary">{item.category?.name || "Sin Categoría"}</Badge>
+                    <Badge variant="secondary">{item.category || "Sin Categoría"}</Badge>
                   ),
                 },
                 {
@@ -1267,13 +1329,34 @@ function StockAdjustmentDialog({ isOpen, onOpenChange, product, onAdjust, isPend
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="adj-reason" className="text-right">Motivo</Label>
-            <Input
-              id="adj-reason"
-              placeholder="Ej. Conteo cíclico, merma, corrección..."
+            <Select
               value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              className="col-span-3"
-            />
+              onValueChange={setReason}
+            >
+              <SelectTrigger className="col-span-3">
+                <SelectValue placeholder="Seleccionar motivo..." />
+              </SelectTrigger>
+              <SelectContent>
+                {(newStock > (product?.stock || 0)) ? (
+                  <>
+                    <SelectItem value="Compra / Reabastecimiento">Compra / Reabastecimiento</SelectItem>
+                    <SelectItem value="Producción / Rendimiento">Producción / Rendimiento</SelectItem>
+                    <SelectItem value="Devolución de Cliente">Devolución de Cliente</SelectItem>
+                    <SelectItem value="Ajuste de Inventario (+)">Ajuste de Inventario (+)</SelectItem>
+                  </>
+                ) : (newStock < (product?.stock || 0)) ? (
+                  <>
+                    <SelectItem value="Venta / Salida">Venta / Salida</SelectItem>
+                    <SelectItem value="Merma / Desperdicio">Merma / Desperdicio</SelectItem>
+                    <SelectItem value="Uso Interno / Consumo">Uso Interno / Consumo</SelectItem>
+                    <SelectItem value="Robo / Extravío">Robo / Extravío</SelectItem>
+                    <SelectItem value="Ajuste de Inventario (-)">Ajuste de Inventario (-)</SelectItem>
+                  </>
+                ) : (
+                  <SelectItem value="Sin cambios" disabled>Modifique el stock primero...</SelectItem>
+                )}
+              </SelectContent>
+            </Select>
           </div>
         </div>
         <DialogFooter>
@@ -1299,14 +1382,18 @@ interface Movement {
 }
 
 function MovementHistoryDialog({ isOpen, onOpenChange, product }: { isOpen: boolean, onOpenChange: (v: boolean) => void, product: any }) {
-  const { profile } = useAuth();
+  const { session, profile } = useAuth();
   const isAdmin = profile?.role === 'admin' || profile?.role === 'owner';
   const { data: movements, isLoading } = useQuery<Movement[]>({
     queryKey: [product?.id ? `/api/inventory/products/${product.id}/history` : null],
     queryFn: async () => {
-      const res = await fetch(`/api/inventory/products/${product.id}/history`, {
-        headers: { Authorization: `Bearer ${session?.access_token}` }
-      });
+      const headers: Record<string, string> = {
+        "Authorization": `Bearer ${session?.access_token}`
+      };
+      const activeOrgId = localStorage.getItem("nexus_active_org");
+      if (activeOrgId) headers["x-organization-id"] = activeOrgId;
+
+      const res = await fetch(`/api/inventory/products/${product.id}/history`, { headers });
       if (!res.ok) throw new Error("Failed to fetch history");
       return res.json();
     },

@@ -21,6 +21,9 @@ interface AppState {
     cedisLat?: number;
     cedisLng?: number;
 
+    // Dynamic Labels
+    productTypeLabels?: Record<string, string>;
+
     // Actions
     setIndustry: (industry: string) => void;
     setTheme: (theme: "glass" | "compact") => void;
