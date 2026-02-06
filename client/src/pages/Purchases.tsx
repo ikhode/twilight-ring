@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -1695,7 +1695,7 @@ function CreatePurchaseDialog({ purchases = [] }: { purchases: any[] }) {
                     Optimización de Abastecimiento
                   </span>
                 </div>
-                {cart.some(i => i.cost > 0 && dbProducts.find(p => p.id === i.productId)?.cost > (i.cost * 100)) && (
+                {cart.some((i: any) => i.cost > 0 && dbProducts.find((p: any) => p.id === i.productId)?.cost > (i.cost * 100)) && (
                   <Badge variant="outline" className="text-[8px] h-4 bg-emerald-500/10 text-emerald-500 border-emerald-500/20">
                     Oportunidad detectada
                   </Badge>
@@ -1718,7 +1718,7 @@ function CreatePurchaseDialog({ purchases = [] }: { purchases: any[] }) {
                       Ahorro vs histórico:{" "}
                       <span className="text-emerald-400 font-bold">
                         {formatCurrency(cart.reduce((acc, i) => {
-                          const p = dbProducts.find(prod => prod.id === i.productId);
+                          const p = dbProducts.find((prod: any) => prod.id === i.productId);
                           const histCost = (p?.cost || 0) / 100;
                           return acc + (histCost > i.cost ? (histCost - i.cost) * i.quantity : 0);
                         }, 0))}
@@ -1752,7 +1752,7 @@ function CreatePurchaseDialog({ purchases = [] }: { purchases: any[] }) {
                 <div className="grid grid-cols-2 gap-y-2 text-xs">
                   <div className="text-muted-foreground">Proveedor:</div>
                   <div className="font-medium text-right truncate">
-                    {suppliers.find(s => s.id === selectedSupplier)?.name || "No seleccionado"}
+                    {suppliers.find((s: any) => s.id === selectedSupplier)?.name || "No seleccionado"}
                   </div>
                   <div className="text-muted-foreground">Ítems:</div>
                   <div className="font-medium text-right">{cart.length}</div>

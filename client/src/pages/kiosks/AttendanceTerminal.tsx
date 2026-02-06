@@ -16,7 +16,8 @@ import {
     CheckCircle2,
     MapPin,
     AlertTriangle,
-    Loader2
+    Loader2,
+    Info
 } from "lucide-react";
 import { KioskSession } from "@/types/kiosk";
 import { cn } from "@/lib/utils";

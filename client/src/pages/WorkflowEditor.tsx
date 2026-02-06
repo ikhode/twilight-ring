@@ -30,6 +30,7 @@ import {
     Settings2,
     Save,
     Play,
+    PlayCircle,
     Search,
     Layers,
     Bot,
@@ -774,11 +775,12 @@ function WorkflowEditor() {
                             </Button>
 
                             <Button
-                                onClick={handleSave}
+                                onClick={() => saveMutation.mutate()}
+                                disabled={saveMutation.isPending}
                                 className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_20px_-5px_var(--primary)] gap-2 font-bold"
                             >
                                 <Save className="w-4 h-4" />
-                                Guardar
+                                {saveMutation.isPending ? "Guardando..." : "Guardar"}
                             </Button>
                         </div>
                     </div>

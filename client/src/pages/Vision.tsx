@@ -56,6 +56,11 @@ interface Employee {
     organization?: Organization;
 }
 
+interface Organization {
+    id: string;
+    name: string;
+}
+
 interface FaceResult {
     detection: faceapi.FaceDetection;
     match: faceapi.FaceMatch | null;
