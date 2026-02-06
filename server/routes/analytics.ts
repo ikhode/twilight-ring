@@ -449,19 +449,14 @@ router.get("/yield", async (req, res) => {
                 with: { process: true }
             });
 
-            // 3. Get Tickets linked to these Instances
-            const instanceIds = instances.map(i => i.id);
-            const tickets: any[] = [];
-            if (instanceIds.length > 0) {
-                // Fetch tickets where batchId IN instanceIds
-                const fetchedTickets = await db.query.pieceworkTickets.findMany({
-                    where: and(
-                        eq(pieceworkTickets.organizationId, orgId),
-                        inArray(pieceworkTickets.batchId, instanceIds)
-                    )
-                });
-                tickets.push(...fetchedTickets);
-            }
+            // 3. Get Tickets linked to this Batch (directly by batchId)
+            // Note: tickets.batchId refers to the purchase batch ID, not process instance ID
+            const tickets = await db.query.pieceworkTickets.findMany({
+                where: and(
+                    eq(pieceworkTickets.organizationId, orgId),
+                    eq(pieceworkTickets.batchId, purchase.batchId)
+                )
+            });
 
             // 4. Calculate Stats
             const totalOutput = tickets.reduce((sum, t) => sum + (Number(t.quantity) || 0), 0); // Assuming primary unit
