@@ -549,7 +549,7 @@ export default function KioskInterface(): React.JSX.Element {
           </div>
         </header>
 
-        <main className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+        <main className="flex-1 min-h-0 overflow-hidden">
           {activeView === "launcher" && renderLauncher()}
           {activeView === "main" && renderMainView()}
           {activeView === "entry-coco" && renderEntryCoco()}
@@ -650,7 +650,7 @@ export default function KioskInterface(): React.JSX.Element {
  */
 function KioskLoginView({ terminal, onAuthenticated }: { terminal: Terminal, onAuthenticated: (emp: Employee) => void }) {
   return (
-    <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6 text-white selection:bg-primary/30">
+    <div className="h-full bg-black flex flex-col items-center justify-center p-6 text-white selection:bg-primary/30">
       <div className="max-w-md w-full space-y-8 text-center">
         <div className="space-y-2">
           <Badge className="bg-primary/10 text-primary border-primary/20 mb-4 uppercase tracking-widest">

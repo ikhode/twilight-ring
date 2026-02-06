@@ -163,50 +163,7 @@ export default function AttendanceTerminal({ sessionContext, onLogout }: Attenda
     const currentTime = new Date();
 
     return (
-        <div className="h-full w-full flex flex-col gap-4 overflow-hidden">
-            {/* Header */}
-            <header className="flex flex-col md:flex-row items-center justify-between gap-4 pb-4 border-b border-white/5 shrink-0">
-                <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-[18px] bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30 shadow-[0_0_20px_rgba(99,102,241,0.2)]">
-                        <Clock className="w-6 h-6 text-indigo-500" />
-                    </div>
-                    <div className="space-y-0.5">
-                        <h1 className="text-2xl md:text-3xl font-black italic tracking-tighter uppercase leading-none">
-                            Control <span className="text-slate-500">Asistencia</span>
-                        </h1>
-                        <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="border-indigo-500/20 text-indigo-500 bg-indigo-500/5 uppercase text-[9px] font-black tracking-widest px-1.5 py-0.5">
-                                {sessionContext.terminal.location || "GENERAL"}
-                            </Badge>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-4 p-1.5 pr-4 rounded-[20px] bg-white/[0.02] border border-white/5">
-                    <div className="w-10 h-10 rounded-full bg-indigo-500/20 border-2 border-indigo-500/50 flex items-center justify-center overflow-hidden">
-                        <div className="text-base font-black text-indigo-500">{sessionContext.driver?.name?.charAt(0)}</div>
-                    </div>
-                    <div className="text-left">
-                        <p className="text-xs font-black text-white uppercase italic leading-none">{sessionContext.driver?.name}</p>
-                        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">
-                            ESTADO: <span className={cn(
-                                "text-indigo-500",
-                                status === "active" && "text-emerald-500",
-                                status === "break" && "text-amber-500",
-                                status === "offline" && "text-slate-500"
-                            )}>{status}</span>
-                        </p>
-                    </div>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={onLogout}
-                        className="ml-2 h-8 w-8 rounded-lg hover:bg-red-500/20 hover:text-red-500 transition-all duration-300"
-                    >
-                        <LogOut className="w-4 h-4" />
-                    </Button>
-                </div>
-            </header>
+        <div className="h-full w-full flex flex-col gap-3 overflow-hidden">
 
             {/* Main Action Grid */}
             <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-2">
@@ -216,15 +173,6 @@ export default function AttendanceTerminal({ sessionContext, onLogout }: Attenda
                     status === "active" ? "border-emerald-500/20" : "border-indigo-500/20"
                 )}>
                     <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
-
-                    <div className="relative z-10 text-center space-y-1 shrink-0 mb-4">
-                        <h2 className="text-5xl md:text-7xl font-black font-mono tracking-tighter tabular-nums leading-none">
-                            {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </h2>
-                        <p className="text-slate-500 font-bold uppercase tracking-[0.4em] text-[10px] md:text-xs">
-                            {currentTime.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}
-                        </p>
-                    </div>
 
                     <div className="relative z-10 flex-1 grid grid-cols-2 gap-4 min-h-0">
                         {(status === "offline" || status === "check_out") ? (
@@ -380,27 +328,26 @@ export default function AttendanceTerminal({ sessionContext, onLogout }: Attenda
                     </div>
                 </Card>
 
-                {/* Info / Status Panel */}
-                <div className="flex flex-col gap-4 min-h-0 overflow-hidden">
-                    <Card className="bg-white/[0.02] border-white/5 rounded-[30px] p-6 flex-1 min-h-0 flex flex-col">
-                        <div className="space-y-4 flex-1 overflow-y-auto scrollbar-none">
-                            <div className="flex items-center gap-3 sticky top-0 bg-[#060606] z-10 pb-2">
-                                <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                                <h3 className="text-lg font-black uppercase italic tracking-tighter">Resumen</h3>
-                            </div>
-
-                            <div className="space-y-3">
-                                <div className="p-4 rounded-2xl bg-white/5 flex justify-between items-center">
-                                    <span className="text-xs font-bold uppercase text-slate-400">Hora Entrada</span>
-                                    <span className="font-mono font-black text-xl">08:00 AM</span>
+                {/* INFO / STATUS PANEL */}
+                <div className="col-span-full lg:col-span-1 flex flex-col gap-3 min-h-0">
+                    <Card className="bg-white/[0.02] border-white/5 rounded-[30px] p-4 flex-1 min-h-0 flex flex-col">
+                        <div className="flex items-center gap-2 mb-3 shrink-0">
+                            <Info className="w-4 h-4 text-emerald-500" />
+                            <h3 className="text-sm font-black uppercase tracking-wider text-emerald-500">Resumen</h3>
+                        </div>
+                        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+                            <div className="space-y-2">
+                                <div className="p-3 rounded-xl bg-white/5 flex justify-between items-center">
+                                    <span className="text-[10px] font-bold uppercase text-slate-400">Hora Entrada</span>
+                                    <span className="font-mono font-black text-base">08:00 AM</span>
                                 </div>
-                                <div className="p-4 rounded-2xl bg-white/5 flex justify-between items-center">
-                                    <span className="text-xs font-bold uppercase text-slate-400">Tiempo Activo</span>
-                                    <span className="font-mono font-black text-xl text-emerald-500">4h 32m</span>
+                                <div className="p-3 rounded-xl bg-white/5 flex justify-between items-center">
+                                    <span className="text-[10px] font-bold uppercase text-slate-400">Tiempo Activo</span>
+                                    <span className="font-mono font-black text-base text-emerald-500">4h 32m</span>
                                 </div>
-                                <div className="p-4 rounded-2xl bg-white/5 flex justify-between items-center">
-                                    <span className="text-xs font-bold uppercase text-slate-400">Actividad Actual</span>
-                                    <span className="font-black uppercase text-xs text-indigo-400">{selectedActivity || "GENERAL"}</span>
+                                <div className="p-3 rounded-xl bg-white/5 flex justify-between items-center">
+                                    <span className="text-[10px] font-bold uppercase text-slate-400">Actividad Actual</span>
+                                    <span className="font-black uppercase text-[10px] text-indigo-400">{selectedActivity || "GENERAL"}</span>
                                 </div>
                             </div>
                         </div>

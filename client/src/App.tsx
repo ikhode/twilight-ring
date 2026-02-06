@@ -112,6 +112,23 @@ function Router() {
  */
 import { OnboardingGuard } from "@/components/layout/OnboardingGuard";
 
+import { useLocation } from "wouter";
+
+/**
+ * Root Application component layout to handle conditional global elements
+ */
+function AppLayout({ children }: { children: React.ReactNode }) {
+  const [location] = useLocation();
+  const isKiosk = location.startsWith("/kiosk") || location === "/driver" || location === "/driver-pwa" || location.startsWith("/sign/");
+
+  return (
+    <>
+      {!isKiosk && <Copilot />}
+      {children}
+    </>
+  );
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -122,10 +139,11 @@ function App() {
               <OnboardingProvider>
                 <Toaster />
                 <CognitiveBridge />
-                <Copilot />
-                <OnboardingGuard>
-                  <Router />
-                </OnboardingGuard>
+                <AppLayout>
+                  <OnboardingGuard>
+                    <Router />
+                  </OnboardingGuard>
+                </AppLayout>
               </OnboardingProvider>
             </TooltipProvider>
           </RealtimeProvider>
