@@ -232,7 +232,7 @@ router.post("/report", async (req, res): Promise<void> => {
             organizationId: orgId,
             batchId: instanceId,
             employeeId: employeeId,
-            creatorId: (req.user as any)?.id, // Autenticación del creador
+            creatorId: (req as any).user?.id, // Autenticación del creador
             taskName: process.name,
             quantity: Number(quantity),
             unitPrice: rate,
@@ -661,13 +661,13 @@ router.post("/logs/finalize", async (req, res): Promise<void> => {
             await db.insert(pieceworkTickets).values({
                 organizationId: orgId,
                 employeeId: log.employeeId,
-                creatorId: (req.user as any)?.id,
+                creatorId: (req as any).user?.id,
                 taskName: "Producción Kiosko", // Or fetch Name
                 quantity: Number(quantity),
                 unitPrice: 0, // Placeholder
                 totalAmount: 0,
                 status: "approved",
-                approvedBy: (req.user as any)?.id,
+                approvedBy: (req as any).user?.id,
                 notes: `Generated from Activity Log ${logId}`,
                 createdAt: new Date()
             });

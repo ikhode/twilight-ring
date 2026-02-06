@@ -245,7 +245,7 @@ router.post("/report", async (req, res): Promise<void> => {
             organizationId: orgId,
             batchId: instanceId,
             employeeId: employeeId,
-            creatorId: (req.user as any)?.id, // Autenticación del creador
+            creatorId: (req as any).user?.id, // Autenticación del creador
             taskName: process.name,
             quantity: Number(quantity),
             unitPrice: rate,

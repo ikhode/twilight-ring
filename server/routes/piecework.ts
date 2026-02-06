@@ -230,7 +230,7 @@ router.delete("/tasks/:id", async (req: Request, res: Response): Promise<void> =
 
         // Audit
         const user = await getAuthenticatedUser(req);
-        if (user) await logAudit(orgId, user.id, "UPDATE_TASK", taskId, payload);
+        if (user) await logAudit(orgId, user.id, "DELETE_TASK", taskId, { taskId });
 
         res.json({ success: true });
     } catch (error) {
@@ -317,10 +317,12 @@ router.post("/tickets", async (req: Request, res: Response): Promise<void> => {
 
             if (!isAdmin) {
                 if (taskDef.minRate && parsed.data.unitPrice < taskDef.minRate) {
-                    return res.status(400).json({ message: `La tarifa es menor al mínimo permitido ($${(taskDef.minRate / 100).toFixed(2)})` });
+                    res.status(400).json({ message: `La tarifa es menor al mínimo permitido ($${(taskDef.minRate / 100).toFixed(2)})` });
+                    return;
                 }
                 if (taskDef.maxRate && parsed.data.unitPrice > taskDef.maxRate) {
-                    return res.status(400).json({ message: `La tarifa excede el máximo permitido ($${(taskDef.maxRate / 100).toFixed(2)})` });
+                    res.status(400).json({ message: `La tarifa excede el máximo permitido ($${(taskDef.maxRate / 100).toFixed(2)})` });
+                    return;
                 }
             }
         }

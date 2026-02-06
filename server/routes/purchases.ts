@@ -127,14 +127,16 @@ router.post("/", async (req, res): Promise<void> => {
                 if (!isAdmin) {
                     const unitPrice = Number(item.cost);
                     if (productStr.minPurchasePrice && unitPrice < productStr.minPurchasePrice) {
-                        return res.status(400).json({
+                        res.status(400).json({
                             message: `El precio de compra para ${productStr.name} es menor al mínimo permitido ($${(productStr.minPurchasePrice / 100).toFixed(2)})`
                         });
+                        return;
                     }
                     if (productStr.maxPurchasePrice && unitPrice > productStr.maxPurchasePrice) {
-                        return res.status(400).json({
+                        res.status(400).json({
                             message: `El precio de compra para ${productStr.name} excede el máximo permitido ($${(productStr.maxPurchasePrice / 100).toFixed(2)})`
                         });
+                        return;
                     }
                 }
                 const requiresApproval = !isAdmin && totalAmount > 500000; // > $5,000 MXN

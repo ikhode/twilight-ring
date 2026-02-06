@@ -2,7 +2,7 @@ import { Express, Request, Response } from "express";
 import { db } from "../storage";
 import { businessDocuments } from "@shared/schema";
 import { getOrgIdFromRequest } from "../auth_util";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, sql } from "drizzle-orm";
 
 export function registerBusinessDocumentRoutes(app: Express) {
 

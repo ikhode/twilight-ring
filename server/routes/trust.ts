@@ -2,7 +2,7 @@ import { Router } from "express";
 import { getOrgIdFromRequest } from "../auth_util";
 import { trustNet } from "../services/trust";
 import { db } from "../storage";
-import { trustParticipants, sharedInsights, organizations, users } from "@shared/schema";
+// import { trustParticipants, sharedInsights, organizations, users } from "@shared/schema";
 import { eq, desc, and, ne } from "drizzle-orm";
 
 const router = Router();
@@ -12,10 +12,10 @@ router.get("/status", async (req, res) => {
     const orgId = await getOrgIdFromRequest(req);
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
-    await trustNet.ensureParticipant(orgId);
-    const [participant] = await db.select().from(trustParticipants).where(eq(trustParticipants.organizationId, orgId));
-
-    res.json(participant);
+    // TODO: Re-enable when trust tables are created
+    // await trustNet.ensureParticipant(orgId);
+    // const [participant] = await db.select().from(trustParticipants).where(eq(trustParticipants.organizationId, orgId));
+    res.json({ trustScore: 0, status: "observation" });
 });
 
 // Get Network Visualization Data (Mocked Graph for specific Org)
