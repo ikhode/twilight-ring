@@ -7,7 +7,7 @@ import {
     pieceworkTickets, processEvents, processInstances, bankAccounts, cashRegisters, products,
     metricModels, purchases
 } from "../../shared/schema";
-import { eq, desc, and, sql, gte, lte } from "drizzle-orm";
+import { eq, desc, and, sql, gte, lte, inArray } from "drizzle-orm";
 
 const router = Router();
 
@@ -451,16 +451,16 @@ router.get("/yield", async (req, res) => {
 
             // 3. Get Tickets linked to these Instances
             const instanceIds = instances.map(i => i.id);
-            let tickets = [];
+            const tickets: any[] = [];
             if (instanceIds.length > 0) {
                 // Fetch tickets where batchId IN instanceIds
-                // Note: Drizzle syntax for "inArray" might differ slightly based on version, using findMany with filter
-                tickets = await db.query.pieceworkTickets.findMany({
+                const fetchedTickets = await db.query.pieceworkTickets.findMany({
                     where: and(
                         eq(pieceworkTickets.organizationId, orgId),
-                        sql`${pieceworkTickets.batchId} IN ${instanceIds}`
+                        inArray(pieceworkTickets.batchId, instanceIds)
                     )
                 });
+                tickets.push(...fetchedTickets);
             }
 
             // 4. Calculate Stats
