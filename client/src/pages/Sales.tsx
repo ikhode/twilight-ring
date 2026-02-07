@@ -1150,7 +1150,7 @@ function SalesMetrics() {
 
   return (
     <TooltipProvider>
-      <Tooltip>
+      <UiTooltip delayDuration={0}>
         <TooltipTrigger asChild>
           <div className="cursor-help">
             <StatCard title="Ventas Hoy" value={formatCurrency(salesToday / 100)} icon={DollarSign} trend={metrics?.hasEnoughData ? 12.5 : 0} variant="success" />
@@ -1160,9 +1160,9 @@ function SalesMetrics() {
           <p className="font-bold text-emerald-500 uppercase tracking-widest text-[9px] mb-1">Ingresos de Caja</p>
           <p>Total de ventas confirmadas el día de hoy. Incluye pagos en efectivo y transferencias validadas.</p>
         </TooltipContent>
-      </Tooltip>
+      </UiTooltip>
 
-      <Tooltip>
+      <UiTooltip delayDuration={0}>
         <TooltipTrigger asChild>
           <div className="cursor-help">
             <StatCard title="Transacciones" value={transactionCount.toString()} icon={Receipt} variant="primary" />
@@ -1172,9 +1172,9 @@ function SalesMetrics() {
           <p className="font-bold text-blue-500 uppercase tracking-widest text-[9px] mb-1">Volumen Operativo</p>
           <p>Número total de notas de venta procesadas por el sistema en las últimas 24 horas.</p>
         </TooltipContent>
-      </Tooltip>
+      </UiTooltip>
 
-      <Tooltip>
+      <UiTooltip delayDuration={0}>
         <TooltipTrigger asChild>
           <div className="cursor-help">
             <StatCard title="Ticket Promedio" value={formatCurrency(avgTicket / 100)} icon={TrendingUp} trend={metrics?.hasEnoughData ? 5.2 : 0} />
@@ -1184,7 +1184,7 @@ function SalesMetrics() {
           <p className="font-bold text-indigo-500 uppercase tracking-widest text-[9px] mb-1">Valor de Cliente</p>
           <p>Promedio de ingresos generados por cada transacción. Indicador de eficiencia en upselling.</p>
         </TooltipContent>
-      </Tooltip>
+      </UiTooltip>
     </TooltipProvider>
   );
 }
