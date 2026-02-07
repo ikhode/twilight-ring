@@ -103,41 +103,41 @@ export function registerAuthRoutes(app: Express) {
         }
     });
 
-    // Login (Handled by Frontend mostly, but we can verify tokens here or provide a convenience route)
-    // For this implementation, we will rely on the Frontend to Login against Supabase, 
-    // and this endpoint sends back the Organization/User profile data based on the provided Token or Email
-    // Alternative: Proxy login using Admin API (not recommended for production, but okay for MVP)
-    app.post("/api/auth/login", async (req: Request, res: Response) => {
+
+    // Session Sync Endpoint - Frontend sends tokens, backend stores them in cookies
+    // This is needed because Supabase auth happens on client-side only
+    app.post("/api/auth/session", async (req: Request, res: Response) => {
         try {
-            const { email, password } = req.body;
-            // Note: It's better security practice to do signInWithPassword on the CLIENT side.
-            // If we do it here, we don't get the session cookie set on the client unless we proxy it back.
-            // We will assume this is a "Verify Credentials & Get Profile" endpoint or usage of Supabase Client SDK on backend.
+            const { access_token, refresh_token } = req.body;
 
-            // UNLESS: The user wants us to implement the login logic using the SDK here.
-            // Let's use the public client URL to sign in if possible, OR just return instructions to use client SDK.
-            // However, to keep the current flow working (ActionCards checks login), let's implement a backend proxy login
-            // BUT: supabase-js 'signInWithPassword' requires a non-admin client usually.
+            if (!access_token || !refresh_token) {
+                return res.status(400).json({ message: "Missing tokens" });
+            }
 
-            // Workaround: We will query the DB for the user profile to return enriched data
-            // assuming the frontend has already authenticated or is sending credentials.
+            const { createSupabaseServerClient } = await import("../supabase");
+            const supabase = createSupabaseServerClient(req, res);
 
-            // FOR NOW: Let's do the DB lookup and verification via Supabase REST API or just return a mock success
-            // because the Real Login happens on the Frontend with supabase.auth.signInWithPassword().
-
-            // Better: Return error saying "Please login via Frontend".
-            // OR: Since we are in "migration" mode, let's allow the frontend to handle the auth token.
-            // But the existing frontend Code calls this endpoint.
-
-            return res.status(200).json({
-                message: "Please use Supabase Auth on Client",
-                action: "USE_CLIENT_AUTH"
+            // Establish session from frontend tokens and store in cookies
+            const { data, error } = await supabase.auth.setSession({
+                access_token,
+                refresh_token
             });
 
+            if (error) {
+                console.error("[Auth] Session sync error:", error);
+                return res.status(401).json({ message: error.message });
+            }
+
+            res.json({
+                message: "Session established",
+                user: { id: data.user.id, email: data.user.email }
+            });
         } catch (error) {
+            console.error("[Auth] Session sync error:", error);
             res.status(500).json({ message: "Internal server error" });
         }
     });
+
 
     // Get user profile by ID (or Email if trusted)
     // In a real scenario, this would extract the User ID from the JWT sent in headers
@@ -245,9 +245,17 @@ export function registerAuthRoutes(app: Express) {
         }
     });
 
-    // Logout
+    // Logout - Clear Supabase session and cookies
     app.post("/api/auth/logout", async (req: Request, res: Response) => {
-        res.json({ message: "Logged out successfully" });
+        try {
+            const { createSupabaseServerClient } = await import("../supabase");
+            const supabase = createSupabaseServerClient(req, res);
+            await supabase.auth.signOut();
+            res.json({ message: "Logged out successfully" });
+        } catch (error) {
+            console.error("[Auth] Logout error:", error);
+            res.json({ message: "Logged out successfully" }); // Still respond OK
+        }
     });
 
     // Get Current User Org Data (XP, Level, Role)

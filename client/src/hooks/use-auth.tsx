@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase, syncSessionToCookies } from "@/lib/supabase";
 import { Session, User } from "@supabase/supabase-js";
 import { useLocation } from "wouter";
 import { Organization } from "@shared/core/schema";
@@ -85,10 +85,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
 
         // Auth State Sync
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
             console.log(`[Auth Event] ${event}`);
             setSession(currentSession);
             setUser(currentSession?.user ?? null);
+
+            // Sync session to backend cookies on sign in
+            if (event === 'SIGNED_IN' && currentSession) {
+                await syncSessionToCookies();
+            }
 
             if (!currentSession) {
                 setProfile(null);

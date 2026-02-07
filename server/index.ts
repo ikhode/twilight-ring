@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
+import cookieParser from "cookie-parser";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
@@ -23,6 +24,7 @@ app.use(
 );
 
 app.use(express.urlencoded({ limit: '50mb', extended: false }));
+app.use(cookieParser()); // Phase 2: Cookie parser for auth
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
