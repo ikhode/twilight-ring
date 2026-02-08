@@ -1,15 +1,19 @@
 import React from 'react';
 import { cn } from "@/lib/utils";
 import { useCognitiveEngine } from "@/lib/cognitive/engine";
-import { Shield, Activity, Lock, AlertTriangle, CheckCircle } from "lucide-react";
+import { Shield, Lock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { useSupabaseRealtime } from '@/hooks/useSupabaseRealtime';
+import { useConfiguration } from "@/context/ConfigurationContext";
 
 export function GuardianStatus({ className }: { className?: string }) {
+    const { aiConfig } = useConfiguration();
     const { systemConfidence, activeMode, setConfidence, setMode } = useCognitiveEngine();
     const { session } = useAuth();
+
+    if (!aiConfig.guardianEnabled) return null;
 
     // Fetch Real Guardian Status
     const { data: guardianStatusData } = useQuery({
@@ -29,7 +33,6 @@ export function GuardianStatus({ className }: { className?: string }) {
             return data;
         },
         enabled: !!session?.access_token,
-        // Removed refetchInterval - using Realtime instead
     });
 
     // Setup Realtime subscription for Guardian status

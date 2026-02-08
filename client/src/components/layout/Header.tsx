@@ -73,8 +73,8 @@ export function Header({ title, subtitle, children }: HeaderProps) {
 
   const xp = userOrg?.xp || 0;
   const level = userOrg?.level || 1;
-  const nextLevelXp = level * 1000;
-  const progress = (xp / nextLevelXp) * 100;
+  const currentLevelBase = (level - 1) * 1000;
+  const progress = Math.min(100, Math.max(0, ((xp - currentLevelBase) / 1000) * 100));
 
   return (
     <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-6 bg-background/80 backdrop-blur-lg border-b border-border">

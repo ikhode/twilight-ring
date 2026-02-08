@@ -2,7 +2,6 @@ import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { contextEngine, NavItem } from "@/lib/ai/context-engine";
 import { useAuth } from "@/hooks/use-auth";
-import { LevelIndicator } from "@/components/gamification/LevelIndicator";
 import { useState, useEffect } from "react";
 import { motion, LayoutGroup } from "framer-motion";
 import { Menu, Zap } from "lucide-react";
@@ -79,7 +78,7 @@ export function Sidebar({ className, onLinkClick }: SidebarProps) {
       <LayoutGroup>
         <nav className="flex-1 overflow-y-auto py-6 px-3 space-y-1 scrollbar-none">
 
-          {!collapsed && (
+          {useConfiguration().aiConfig.adaptiveUiEnabled && !collapsed && (
             <p className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-600 mb-2 flex justify-between">
               <span>Navegación Contextual</span>
               <Zap className="w-3 h-3 text-primary animate-pulse" />

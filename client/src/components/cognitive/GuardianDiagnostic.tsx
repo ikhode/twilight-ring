@@ -4,9 +4,12 @@ import { useCognitiveDiagnostics } from "./CognitiveContext";
 import { AlertTriangle, Brain, ShieldCheck, Activity, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+import { useConfiguration } from "@/context/ConfigurationContext";
+
 export function GuardianDiagnostic({ title = "Auditoria Cognitiva de Formulario" }: { title?: string }) {
+    const { aiConfig } = useConfiguration();
     const context = useCognitiveDiagnostics();
-    if (!context) return null;
+    if (!context || !aiConfig.guardianEnabled) return null;
 
     const { diagnostics, isAnalyzingForm } = context;
     const warnings = diagnostics.filter(d => d.type === 'warning');
