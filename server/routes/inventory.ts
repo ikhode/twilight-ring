@@ -140,6 +140,32 @@ router.post("/categories", async (req: Request, res: Response): Promise<void> =>
     }
 });
 
+router.patch("/categories/:id", async (req: Request, res: Response): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        const { name } = req.body;
+        const categoryId = req.params.id;
+
+        if (!name || typeof name !== 'string') {
+            res.status(400).json({ message: "Name is required" });
+            return;
+        }
+
+        await db.update(productCategories)
+            .set({ name })
+            .where(and(eq(productCategories.id, categoryId), eq(productCategories.organizationId, orgId)));
+
+        res.json({ success: true, message: "Category updated" });
+    } catch (error) {
+        res.status(500).json({ message: "Error updating category" });
+    }
+});
+
 router.get("/groups", async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
@@ -240,6 +266,36 @@ router.post("/units", async (req: Request, res: Response): Promise<void> => {
         res.status(201).json(unit);
     } catch (error) {
         res.status(500).json({ message: "Error creating unit" });
+    }
+});
+
+router.patch("/units/:id", async (req: Request, res: Response): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        const { name, abbreviation } = req.body;
+        const unitId = req.params.id;
+
+        const updates: Record<string, string> = {};
+        if (name && typeof name === 'string') updates.name = name;
+        if (abbreviation && typeof abbreviation === 'string') updates.abbreviation = abbreviation;
+
+        if (Object.keys(updates).length === 0) {
+            res.status(400).json({ message: "No valid fields to update" });
+            return;
+        }
+
+        await db.update(productUnits)
+            .set(updates)
+            .where(and(eq(productUnits.id, unitId), eq(productUnits.organizationId, orgId)));
+
+        res.json({ success: true, message: "Unit updated" });
+    } catch (error) {
+        res.status(500).json({ message: "Error updating unit" });
     }
 });
 

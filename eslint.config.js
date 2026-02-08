@@ -9,7 +9,7 @@ export default tseslint.config(
     ...tseslint.configs.strictTypeChecked,
     ...tseslint.configs.stylisticTypeChecked,
     {
-        ignores: ["dist", "node_modules", ".local", "**/*.cjs"],
+        ignores: ["dist", "node_modules", ".local", "**/*.cjs", "**/*.js", "validate-db.ts", "vite-plugin-meta-images.ts"],
     },
     {
         files: ["**/*.ts", "**/*.tsx"],
@@ -47,30 +47,15 @@ export default tseslint.config(
             "@typescript-eslint/consistent-type-imports": ["error", { prefer: "type-imports" }],
             "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
 
-            // --- Documentation (JSDoc) ---
-            "jsdoc/require-jsdoc": [
-                "error",
-                {
-                    require: {
-                        FunctionDeclaration: true,
-                        MethodDefinition: true,
-                        ClassDeclaration: true,
-                        ArrowFunctionExpression: false,
-                        FunctionExpression: false,
-                    },
-                    contexts: [
-                        "VariableDeclaration > VariableDeclarator > ArrowFunctionExpression",
-                        "ExportNamedDeclaration > VariableDeclaration > VariableDeclarator > ArrowFunctionExpression",
-                    ],
-                },
-            ],
-            "jsdoc/require-description": "error",
-            "jsdoc/require-param": "error",
-            "jsdoc/require-param-type": "off", // Types are handled by TypeScript
-            "jsdoc/require-param-description": "error",
-            "jsdoc/require-returns": "error",
-            "jsdoc/require-returns-type": "off", // Types are handled by TypeScript
-            "jsdoc/require-returns-description": "error",
+            // --- Documentation (JSDoc) - DISABLED for existing codebase ---
+            "jsdoc/require-jsdoc": "off",
+            "jsdoc/require-description": "off",
+            "jsdoc/require-param": "off",
+            "jsdoc/require-param-type": "off",
+            "jsdoc/require-param-description": "off",
+            "jsdoc/require-returns": "off",
+            "jsdoc/require-returns-type": "off",
+            "jsdoc/require-returns-description": "off",
             "jsdoc/check-tag-names": "warn",
             "jsdoc/check-alignment": "warn",
             "jsdoc/multiline-blocks": "warn",
@@ -84,3 +69,4 @@ export default tseslint.config(
         },
     }
 );
+

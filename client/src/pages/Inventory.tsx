@@ -48,7 +48,9 @@ import {
   TrendingUp,
   Info,
   Settings,
-  Settings2
+  Settings2,
+  Loader2,
+  Pencil
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -57,6 +59,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CognitiveButton, AliveValue, CognitiveInput, CognitiveField, CognitiveProvider, GuardianDiagnostic, GuardianSafeStatus } from "@/components/cognitive";
 import { useConfiguration } from "@/context/ConfigurationContext";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
@@ -78,6 +81,23 @@ export default function Inventory() {
   const [selectedProductForHistory, setSelectedProductForHistory] = useState<any>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+
+  // Popover form states for inline creation
+  const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [groupPopoverOpen, setGroupPopoverOpen] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [unitPopoverOpen, setUnitPopoverOpen] = useState(false);
+  const [newUnitName, setNewUnitName] = useState("");
+  const [newUnitAbbreviation, setNewUnitAbbreviation] = useState("");
+
+  // Edit popover states
+  const [editCategoryPopoverOpen, setEditCategoryPopoverOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<{ id: string; name: string } | null>(null);
+  const [editGroupPopoverOpen, setEditGroupPopoverOpen] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<{ id: string; name: string } | null>(null);
+  const [editUnitPopoverOpen, setEditUnitPopoverOpen] = useState(false);
+  const [editingUnit, setEditingUnit] = useState<{ id: string; name: string; abbreviation: string } | null>(null);
 
   // Dynamic Placeholders
   const placeholders: Record<string, string> = {
@@ -149,6 +169,10 @@ export default function Inventory() {
   useSupabaseRealtime({ table: 'products', queryKey: ["/api/inventory/products"] });
   useSupabaseRealtime({ table: 'inventory_alerts', queryKey: ["/api/inventory/alerts"] });
   useSupabaseRealtime({ table: 'inventory_movements', queryKey: ["/api/inventory/products"] });
+  // Realtime for metadata tables
+  useSupabaseRealtime({ table: 'product_categories', queryKey: ["/api/inventory/categories"] });
+  useSupabaseRealtime({ table: 'product_groups', queryKey: ["/api/inventory/groups"] });
+  useSupabaseRealtime({ table: 'product_units', queryKey: ["/api/inventory/units"] });
 
   const { data: alerts = [], isLoading: isAlertsLoading } = useQuery({
     queryKey: ["/api/inventory/alerts"],
@@ -221,29 +245,78 @@ export default function Inventory() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/inventory/categories"] });
-      toast({ title: "Categoría Creada" });
+      setCategoryPopoverOpen(false);
+      setNewCategoryName("");
+      toast({ title: "Categoría Creada", description: "La categoría se ha registrado correctamente." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     }
   });
 
   const createGroupMutation = useMutation({
     mutationFn: async ({ name, description }: { name: string, description?: string }) => {
-      const res = await apiRequest("POST", "/api/inventory/groups", { name, description }, { Authorization: `Bearer ${session?.access_token}` });
+      const res = await apiRequest("POST", "/api/inventory/groups", { name, description });
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/inventory/groups"] });
-      toast({ title: "Grupo Creado" });
+      setGroupPopoverOpen(false);
+      setNewGroupName("");
+      toast({ title: "Familia Creada", description: "La familia/grupo se ha registrado correctamente." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     }
   });
 
   const createUnitMutation = useMutation({
     mutationFn: async ({ name, abbreviation }: { name: string, abbreviation: string }) => {
-      const res = await apiRequest("POST", "/api/inventory/units", { name, abbreviation }, { Authorization: `Bearer ${session?.access_token}` });
+      const res = await apiRequest("POST", "/api/inventory/units", { name, abbreviation });
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/inventory/units"] });
-      toast({ title: "Unidad Creada" });
+      setUnitPopoverOpen(false);
+      setNewUnitName("");
+      setNewUnitAbbreviation("");
+      toast({ title: "Unidad Creada", description: "La unidad de medida se ha registrado correctamente." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  });
+
+  // Update mutations for editing existing items
+  const updateCategoryMutation = useMutation({
+    mutationFn: async ({ id, name }: { id: string; name: string }) => {
+      const res = await apiRequest("PATCH", `/api/inventory/categories/${id}`, { name });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/inventory/categories"] });
+      setEditCategoryPopoverOpen(false);
+      setEditingCategory(null);
+      toast({ title: "Categoría Actualizada" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const updateUnitMutation = useMutation({
+    mutationFn: async ({ id, name, abbreviation }: { id: string; name: string; abbreviation: string }) => {
+      const res = await apiRequest("PATCH", `/api/inventory/units/${id}`, { name, abbreviation });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/inventory/units"] });
+      setEditUnitPopoverOpen(false);
+      setEditingUnit(null);
+      toast({ title: "Unidad Actualizada" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     }
   });
 
@@ -755,12 +828,93 @@ export default function Inventory() {
                                 ))}
                               </SelectContent>
                             </Select>
-                            <Button variant="outline" size="icon" onClick={() => {
-                              const name = prompt("Nombre de la nueva categoría:");
-                              if (name) createCategoryMutation.mutate(name);
-                            }}>
-                              <Plus className="w-4 h-4" />
-                            </Button>
+                            <Popover open={categoryPopoverOpen} onOpenChange={setCategoryPopoverOpen}>
+                              <PopoverTrigger asChild>
+                                <Button variant="outline" size="icon">
+                                  <Plus className="w-4 h-4" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-80 bg-slate-950 border-slate-800 p-4" align="start">
+                                <div className="space-y-3">
+                                  <div className="space-y-1">
+                                    <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nueva Categoría</Label>
+                                    <p className="text-[10px] text-slate-500">Crea una nueva categoría para clasificar productos.</p>
+                                  </div>
+                                  <Input
+                                    placeholder="Ej: Materia Prima, Producto Terminado..."
+                                    value={newCategoryName}
+                                    onChange={(e) => setNewCategoryName(e.target.value)}
+                                    className="bg-slate-900/50 border-slate-700 focus:border-primary/50"
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter' && newCategoryName.trim()) {
+                                        createCategoryMutation.mutate(newCategoryName.trim());
+                                      }
+                                    }}
+                                  />
+                                  <div className="flex gap-2 justify-end">
+                                    <Button variant="ghost" size="sm" onClick={() => { setCategoryPopoverOpen(false); setNewCategoryName(""); }}>
+                                      Cancelar
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      onClick={() => newCategoryName.trim() && createCategoryMutation.mutate(newCategoryName.trim())}
+                                      disabled={!newCategoryName.trim() || createCategoryMutation.isPending}
+                                    >
+                                      {createCategoryMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Crear"}
+                                    </Button>
+                                  </div>
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                            {/* Edit Category Button */}
+                            {newProduct.categoryId && (
+                              <Popover open={editCategoryPopoverOpen} onOpenChange={setEditCategoryPopoverOpen}>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    onClick={() => {
+                                      const cat = categoriesList.find((c: any) => c.id === newProduct.categoryId);
+                                      if (cat) setEditingCategory({ id: cat.id, name: cat.name });
+                                    }}
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-80 bg-slate-950 border-slate-800 p-4" align="start">
+                                  <div className="space-y-3">
+                                    <div className="space-y-1">
+                                      <Label className="text-xs font-bold text-amber-400 uppercase tracking-wider">Editar Categoría</Label>
+                                      <p className="text-[10px] text-slate-500">Modifica el nombre de la categoría seleccionada.</p>
+                                    </div>
+                                    <Input
+                                      placeholder="Nuevo nombre..."
+                                      value={editingCategory?.name || ""}
+                                      onChange={(e) => setEditingCategory(prev => prev ? { ...prev, name: e.target.value } : null)}
+                                      className="bg-slate-900/50 border-slate-700 focus:border-amber-500/50"
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && editingCategory?.name.trim()) {
+                                          updateCategoryMutation.mutate({ id: editingCategory.id, name: editingCategory.name.trim() });
+                                        }
+                                      }}
+                                    />
+                                    <div className="flex gap-2 justify-end">
+                                      <Button variant="ghost" size="sm" onClick={() => { setEditCategoryPopoverOpen(false); setEditingCategory(null); }}>
+                                        Cancelar
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        className="bg-amber-600 hover:bg-amber-700"
+                                        onClick={() => editingCategory?.name.trim() && updateCategoryMutation.mutate({ id: editingCategory.id, name: editingCategory.name.trim() })}
+                                        disabled={!editingCategory?.name.trim() || updateCategoryMutation.isPending}
+                                      >
+                                        {updateCategoryMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Guardar"}
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
+                            )}
                           </div>
                         </div>
 
@@ -796,19 +950,100 @@ export default function Inventory() {
                                 ))}
                               </SelectContent>
                             </Select>
-                            <Button variant="outline" size="icon" onClick={() => {
-                              const name = prompt("Nombre de la nueva familia:");
-                              if (name) createGroupMutation.mutate({ name, description: "" });
-                            }}>
-                              <Plus className="w-4 h-4" />
-                            </Button>
-                            {editingGroupId && (
-                              <Button variant="outline" size="icon" onClick={() => {
-                                const name = prompt("Nuevo nombre de la familia:", newProduct.name);
-                                if (name) updateGroupMutation.mutate({ id: editingGroupId, name });
-                              }}>
-                                <Settings className="w-4 h-4" />
-                              </Button>
+                            <Popover open={groupPopoverOpen} onOpenChange={setGroupPopoverOpen}>
+                              <PopoverTrigger asChild>
+                                <Button variant="outline" size="icon">
+                                  <Plus className="w-4 h-4" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-80 bg-slate-950 border-slate-800 p-4" align="start">
+                                <div className="space-y-3">
+                                  <div className="space-y-1">
+                                    <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nueva Familia</Label>
+                                    <p className="text-[10px] text-slate-500">Agrupa productos similares para reportes financieros consolidados.</p>
+                                  </div>
+                                  <Input
+                                    placeholder="Ej: Familia Cocos, Familia Lácteos..."
+                                    value={newGroupName}
+                                    onChange={(e) => setNewGroupName(e.target.value)}
+                                    className="bg-slate-900/50 border-slate-700 focus:border-primary/50"
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter' && newGroupName.trim()) {
+                                        createGroupMutation.mutate({ name: newGroupName.trim(), description: "" });
+                                      }
+                                    }}
+                                  />
+                                  <div className="flex gap-2 justify-end">
+                                    <Button variant="ghost" size="sm" onClick={() => { setGroupPopoverOpen(false); setNewGroupName(""); }}>
+                                      Cancelar
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      onClick={() => newGroupName.trim() && createGroupMutation.mutate({ name: newGroupName.trim(), description: "" })}
+                                      disabled={!newGroupName.trim() || createGroupMutation.isPending}
+                                    >
+                                      {createGroupMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Crear"}
+                                    </Button>
+                                  </div>
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                            {/* Edit Group Button - Show when a group is selected */}
+                            {newProduct.groupId && newProduct.groupId !== 'none' && (
+                              <Popover open={editGroupPopoverOpen} onOpenChange={setEditGroupPopoverOpen}>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    onClick={() => {
+                                      const grp = groupsList.find((g: any) => g.id === newProduct.groupId);
+                                      if (grp) setEditingGroup({ id: grp.id, name: grp.name });
+                                    }}
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-80 bg-slate-950 border-slate-800 p-4" align="start">
+                                  <div className="space-y-3">
+                                    <div className="space-y-1">
+                                      <Label className="text-xs font-bold text-amber-400 uppercase tracking-wider">Editar Familia</Label>
+                                      <p className="text-[10px] text-slate-500">Modifica el nombre de la familia seleccionada.</p>
+                                    </div>
+                                    <Input
+                                      placeholder="Nuevo nombre..."
+                                      value={editingGroup?.name || ""}
+                                      onChange={(e) => setEditingGroup(prev => prev ? { ...prev, name: e.target.value } : null)}
+                                      className="bg-slate-900/50 border-slate-700 focus:border-amber-500/50"
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && editingGroup?.name.trim()) {
+                                          updateGroupMutation.mutate({ id: editingGroup.id, name: editingGroup.name.trim() });
+                                          setEditGroupPopoverOpen(false);
+                                          setEditingGroup(null);
+                                        }
+                                      }}
+                                    />
+                                    <div className="flex gap-2 justify-end">
+                                      <Button variant="ghost" size="sm" onClick={() => { setEditGroupPopoverOpen(false); setEditingGroup(null); }}>
+                                        Cancelar
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        className="bg-amber-600 hover:bg-amber-700"
+                                        onClick={() => {
+                                          if (editingGroup?.name.trim()) {
+                                            updateGroupMutation.mutate({ id: editingGroup.id, name: editingGroup.name.trim() });
+                                            setEditGroupPopoverOpen(false);
+                                            setEditingGroup(null);
+                                          }
+                                        }}
+                                        disabled={!editingGroup?.name.trim() || updateGroupMutation.isPending}
+                                      >
+                                        {updateGroupMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Guardar"}
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
                             )}
                           </div>
                         </div>
@@ -904,13 +1139,121 @@ export default function Inventory() {
                                 ))}
                               </SelectContent>
                             </Select>
-                            <Button variant="outline" size="icon" onClick={() => {
-                              const name = prompt("Nombre de la nueva unidad (ej. Bulto 50kg):");
-                              const abb = prompt("Abreviatura (ej. b50):");
-                              if (name && abb) createUnitMutation.mutate({ name, abbreviation: abb });
-                            }}>
-                              <Plus className="w-4 h-4" />
-                            </Button>
+                            <Popover open={unitPopoverOpen} onOpenChange={setUnitPopoverOpen}>
+                              <PopoverTrigger asChild>
+                                <Button variant="outline" size="icon">
+                                  <Plus className="w-4 h-4" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-80 bg-slate-950 border-slate-800 p-4" align="start">
+                                <div className="space-y-3">
+                                  <div className="space-y-1">
+                                    <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nueva Unidad de Medida</Label>
+                                    <p className="text-[10px] text-slate-500">Define cómo se mide este tipo de producto.</p>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div className="space-y-1">
+                                      <Label className="text-[9px] text-slate-500">Nombre</Label>
+                                      <Input
+                                        placeholder="Ej: Bulto 50kg"
+                                        value={newUnitName}
+                                        onChange={(e) => setNewUnitName(e.target.value)}
+                                        className="bg-slate-900/50 border-slate-700 focus:border-primary/50 text-sm"
+                                      />
+                                    </div>
+                                    <div className="space-y-1">
+                                      <Label className="text-[9px] text-slate-500">Abreviatura</Label>
+                                      <Input
+                                        placeholder="Ej: b50"
+                                        value={newUnitAbbreviation}
+                                        onChange={(e) => setNewUnitAbbreviation(e.target.value)}
+                                        className="bg-slate-900/50 border-slate-700 focus:border-primary/50 text-sm"
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter' && newUnitName.trim() && newUnitAbbreviation.trim()) {
+                                            createUnitMutation.mutate({ name: newUnitName.trim(), abbreviation: newUnitAbbreviation.trim() });
+                                          }
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="flex gap-2 justify-end">
+                                    <Button variant="ghost" size="sm" onClick={() => { setUnitPopoverOpen(false); setNewUnitName(""); setNewUnitAbbreviation(""); }}>
+                                      Cancelar
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      onClick={() => newUnitName.trim() && newUnitAbbreviation.trim() && createUnitMutation.mutate({ name: newUnitName.trim(), abbreviation: newUnitAbbreviation.trim() })}
+                                      disabled={!newUnitName.trim() || !newUnitAbbreviation.trim() || createUnitMutation.isPending}
+                                    >
+                                      {createUnitMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Crear"}
+                                    </Button>
+                                  </div>
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                            {/* Edit Unit Button */}
+                            {newProduct.unitId && (
+                              <Popover open={editUnitPopoverOpen} onOpenChange={setEditUnitPopoverOpen}>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    onClick={() => {
+                                      const unit = unitsList.find((u: any) => u.id === newProduct.unitId);
+                                      if (unit) setEditingUnit({ id: unit.id, name: unit.name, abbreviation: unit.symbol || unit.abbreviation || "" });
+                                    }}
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-80 bg-slate-950 border-slate-800 p-4" align="start">
+                                  <div className="space-y-3">
+                                    <div className="space-y-1">
+                                      <Label className="text-xs font-bold text-amber-400 uppercase tracking-wider">Editar Unidad</Label>
+                                      <p className="text-[10px] text-slate-500">Modifica el nombre y abreviatura de la unidad.</p>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div className="space-y-1">
+                                        <Label className="text-[9px] text-slate-500">Nombre</Label>
+                                        <Input
+                                          placeholder="Ej: Bulto 50kg"
+                                          value={editingUnit?.name || ""}
+                                          onChange={(e) => setEditingUnit(prev => prev ? { ...prev, name: e.target.value } : null)}
+                                          className="bg-slate-900/50 border-slate-700 focus:border-amber-500/50 text-sm"
+                                        />
+                                      </div>
+                                      <div className="space-y-1">
+                                        <Label className="text-[9px] text-slate-500">Abreviatura</Label>
+                                        <Input
+                                          placeholder="Ej: b50"
+                                          value={editingUnit?.abbreviation || ""}
+                                          onChange={(e) => setEditingUnit(prev => prev ? { ...prev, abbreviation: e.target.value } : null)}
+                                          className="bg-slate-900/50 border-slate-700 focus:border-amber-500/50 text-sm"
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && editingUnit?.name.trim() && editingUnit?.abbreviation.trim()) {
+                                              updateUnitMutation.mutate({ id: editingUnit.id, name: editingUnit.name.trim(), abbreviation: editingUnit.abbreviation.trim() });
+                                            }
+                                          }}
+                                        />
+                                      </div>
+                                    </div>
+                                    <div className="flex gap-2 justify-end">
+                                      <Button variant="ghost" size="sm" onClick={() => { setEditUnitPopoverOpen(false); setEditingUnit(null); }}>
+                                        Cancelar
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        className="bg-amber-600 hover:bg-amber-700"
+                                        onClick={() => editingUnit?.name.trim() && editingUnit?.abbreviation.trim() && updateUnitMutation.mutate({ id: editingUnit.id, name: editingUnit.name.trim(), abbreviation: editingUnit.abbreviation.trim() })}
+                                        disabled={!editingUnit?.name.trim() || !editingUnit?.abbreviation.trim() || updateUnitMutation.isPending}
+                                      >
+                                        {updateUnitMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Guardar"}
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
+                            )}
                           </div>
                         </div>
                         <div className="space-y-2">
