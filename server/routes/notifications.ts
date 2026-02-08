@@ -123,11 +123,11 @@ router.get("/", async (req, res): Promise<void> => {
         }
 
         // Sort by date (newest first)
-        notifications.sort((a, b) =>
+        alerts.sort((a, b) =>
             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
 
-        res.json(notifications.slice(0, 10)); // Return top 10
+        res.json(alerts.slice(0, 10)); // Return top 10
     } catch (error) {
         console.error("Notifications error:", error);
         res.status(500).json({ message: "Failed to fetch notifications" });

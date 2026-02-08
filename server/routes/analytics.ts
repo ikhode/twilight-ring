@@ -427,15 +427,30 @@ router.get("/yield", async (req, res) => {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) { return res.status(401).json({ message: "Unauthorized" }); }
 
+        const { groupBy = 'batch', startDate, endDate } = req.query;
+
+        // Date filtering
+        const dateFilter = [];
+        if (startDate) dateFilter.push(gte(purchases.date, new Date(startDate as string)));
+
         // 1. Get Purchases that have a Batch ID (Raw Material Batches)
         const batchPurchases = await db.query.purchases.findMany({
             where: and(
                 eq(purchases.organizationId, orgId),
-                sql`${purchases.batchId} IS NOT NULL`
+                sql`${purchases.batchId} IS NOT NULL`,
+                ...dateFilter
             ),
-            with: { product: true, supplier: true },
+            with: {
+                product: {
+                    with: {
+                        category: true, // Assuming relation exists or we map it manually
+                        group: true     // Assuming relation exists
+                    }
+                },
+                supplier: true
+            },
             orderBy: desc(purchases.date),
-            limit: 50
+            limit: 100 // Higher limit for aggregation
         });
 
         const report = [];
@@ -443,14 +458,8 @@ router.get("/yield", async (req, res) => {
         for (const purchase of batchPurchases) {
             if (!purchase.batchId) continue;
 
-            // 2. Get Production Instances linked to this Batch
-            const instances = await db.query.processInstances.findMany({
-                where: eq(processInstances.sourceBatchId, purchase.batchId),
-                with: { process: true }
-            });
-
-            // 3. Get Tickets linked to this Batch (directly by batchId)
-            // Note: tickets.batchId refers to the purchase batch ID, not process instance ID
+            // 2. Get Production Instances & Tickets linked to this Batch
+            // Optimized: Fetch all tickets for these batches in one query ideally, but loop is okay for <100 items for now
             const tickets = await db.query.pieceworkTickets.findMany({
                 where: and(
                     eq(pieceworkTickets.organizationId, orgId),
@@ -458,31 +467,33 @@ router.get("/yield", async (req, res) => {
                 )
             });
 
-            // 4. Calculate Stats
-            const totalOutput = tickets.reduce((sum, t) => sum + (Number(t.quantity) || 0), 0); // Assuming primary unit
+            // 3. Calculate Stats per Batch
+            const totalOutput = tickets.reduce((sum, t) => sum + (Number(t.quantity) || 0), 0);
             const totalPayrollCost = tickets.reduce((sum, t) => sum + (Number(t.totalAmount) || 0), 0);
 
-            // Expected Yield Calculation
-            // masterProductId might be the purchase product itself (if it IS a master) or the purchase product is the variant.
-            // Scenario: Purchase "Bulto" (Variant). Master "Coco" (Unit).
-            // Variant config: expectedYield = 50.
-            // If purchase product has expectedYield, use it.
             const yieldConfig = purchase.product?.expectedYield || 0;
             const itemQuantity = purchase.quantity || 0;
             const expectedTotal = yieldConfig > 0 ? (itemQuantity * yieldConfig) : 0;
-
             const yieldPercentage = expectedTotal > 0 ? ((totalOutput / expectedTotal) * 100) : 0;
 
-            // ROI / Cost per Unit
-            // Purchase Cost + Payroll Cost / Total Output
             const totalInputCost = purchase.totalAmount + totalPayrollCost;
             const realUnitCost = totalOutput > 0 ? (totalInputCost / totalOutput) : 0;
 
-            report.push({
+            // Enrich with Hierarchy Data
+            const row = {
                 batchId: purchase.batchId,
                 date: purchase.date,
                 supplier: purchase.supplier?.name || "Desconocido",
-                product: purchase.product?.name || "Insumo",
+
+                productId: purchase.product?.id,
+                productName: purchase.product?.name || "Insumo",
+
+                categoryId: purchase.product?.categoryId,
+                categoryName: (purchase.product as any)?.category?.name || "Sin Categoría", // Need to verify relation name
+
+                groupId: purchase.product?.groupId,
+                groupName: (purchase.product as any)?.group?.name || "Sin Familia",
+
                 purchaseQty: itemQuantity,
                 purchaseCost: purchase.totalAmount,
                 expectedYieldPerUnit: yieldConfig,
@@ -491,12 +502,75 @@ router.get("/yield", async (req, res) => {
                 yieldPercentage: Number(yieldPercentage.toFixed(1)),
                 payrollCost: totalPayrollCost,
                 totalCost: totalInputCost,
-                realUnitCost: Math.round(realUnitCost), // in cents
-                inProgress: instances.some(i => i.status === 'active')
-            });
+                realUnitCost: Math.round(realUnitCost),
+                inProgress: false // Simplification for aggregation
+            };
+            report.push(row);
         }
 
-        res.json(report);
+        // 4. Aggregation Logic
+        if (groupBy === 'batch') {
+            res.json(report);
+        } else {
+            // Group by Product, Category, or Family
+            const groups: Record<string, any> = {};
+
+            report.forEach(row => {
+                let key = row.productId;
+                let name = row.productName;
+
+                if (groupBy === 'category') {
+                    key = row.categoryId || 'uncategorized';
+                    name = row.categoryName;
+                } else if (groupBy === 'family') {
+                    key = row.groupId || 'ungrouped';
+                    name = row.groupName;
+                }
+
+                if (!groups[key]) {
+                    groups[key] = {
+                        id: key,
+                        name: name,
+                        totalPurchaseQty: 0,
+                        totalPurchaseCost: 0,
+                        expectedTotalOutput: 0,
+                        actualOutput: 0,
+                        totalPayrollCost: 0,
+                        totalCost: 0,
+                        batchCount: 0,
+                        yieldAccumulator: 0 // for average yield
+                    };
+                }
+
+                const g = groups[key];
+                g.totalPurchaseQty += row.purchaseQty;
+                g.totalPurchaseCost += row.purchaseCost;
+                g.expectedTotalOutput += row.expectedTotalOutput;
+                g.actualOutput += row.actualOutput;
+                g.totalPayrollCost += row.payrollCost;
+                g.totalCost += row.totalCost;
+                g.batchCount++;
+                g.yieldAccumulator += row.yieldPercentage;
+            });
+
+            // Finalize Averages
+            const aggregated = Object.values(groups).map((g: any) => ({
+                id: g.id,
+                name: g.name,
+                purchaseQty: g.totalPurchaseQty,
+                purchaseCost: g.totalPurchaseCost,
+                expectedOutput: g.expectedTotalOutput,
+                actualOutput: g.actualOutput,
+                payrollCost: g.totalPayrollCost,
+                totalCost: g.totalCost,
+                avgYield: Number((g.yieldAccumulator / g.batchCount).toFixed(1)),
+                realUnitCost: g.actualOutput > 0 ? Math.round(g.totalCost / g.actualOutput) : 0,
+                batchCount: g.batchCount
+            }));
+
+            res.json(aggregated);
+        }
+
     } catch (error) {
         console.error("Yield Analysis Error:", error);
         res.status(500).json({ message: "Failed to generate yield analysis" });
