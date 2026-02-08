@@ -149,7 +149,10 @@ function DriverLinkDialog() {
                                 <SelectTrigger><SelectValue placeholder="Seleccionar Conductor" /></SelectTrigger>
                                 <SelectContent>
                                     {(drivers || [])
-                                        .filter((d: any) => d.role === 'driver')
+                                        .filter((d: any) => {
+                                            const role = d.role?.toLowerCase() || "";
+                                            return role === 'driver' || role === 'general' || role === 'chofer' || role === 'conductor';
+                                        })
                                         .sort((a: any, b: any) => {
                                             // Priority 1: Active status
                                             if (a.currentStatus === 'active' && b.currentStatus !== 'active') return -1;
@@ -294,7 +297,10 @@ function GenerateRouteDialog() {
                             <SelectTrigger><SelectValue placeholder="Seleccionar Conductor" /></SelectTrigger>
                             <SelectContent>
                                 {(drivers || [])
-                                    .filter((d: any) => d.role === 'driver')
+                                    .filter((d: any) => {
+                                        const role = d.role?.toLowerCase() || "";
+                                        return role === 'driver' || role === 'general' || role === 'chofer' || role === 'conductor';
+                                    })
                                     .sort((a: any, b: any) => {
                                         // Priority: Active > Break > Offline
                                         const score = (status: string) => status === 'active' ? 3 : status === 'break' ? 2 : 1;

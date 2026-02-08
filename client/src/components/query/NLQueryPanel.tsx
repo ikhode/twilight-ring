@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,6 +44,7 @@ export function NLQueryPanel() {
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const [showSQL, setShowSQL] = useState(false);
     const { toast } = useToast();
+    const { session } = useAuth();
 
     useEffect(() => {
         loadSuggestions();
@@ -52,7 +54,7 @@ export function NLQueryPanel() {
         try {
             const response = await fetch("/api/nl-query/suggestions", {
                 headers: {
-                    Authorization: `Bearer ${localStorage.getItem("token")}`
+                    Authorization: `Bearer ${session?.access_token}`
                 }
             });
             if (response.ok) {
@@ -76,7 +78,7 @@ export function NLQueryPanel() {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    Authorization: `Bearer ${localStorage.getItem("token")}`
+                    Authorization: `Bearer ${session?.access_token}`
                 },
                 body: JSON.stringify({ query: finalQuery })
             });

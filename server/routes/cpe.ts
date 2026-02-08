@@ -1,6 +1,6 @@
 import { Express, Request, Response } from "express";
 import { storage, db } from "../storage";
-import { insertProcessEventSchema, insertProcessSchema, processes } from "../../shared/schema";
+import { insertProcessEventSchema, insertProcessSchema, processes, productionTasks } from "../../shared/schema";
 import { getOrgIdFromRequest } from "../auth_util";
 import { eq, and } from "drizzle-orm";
 
@@ -12,10 +12,23 @@ export function registerCPERoutes(app: Express) {
             if (!orgId) {
                 return res.status(401).json({ message: "Unauthorized" });
             }
-            const processes = await storage.getProcesses(orgId);
-            res.json(processes);
+            const list = await storage.getProcesses(orgId);
+            res.json(list);
         } catch (error) {
             res.status(500).json({ message: "Error fetching processes", error });
+        }
+    });
+
+    // Get all production tasks for catalog
+    app.get("/api/cpe/tasks", async (req: Request, res: Response) => {
+        try {
+            const orgId = await getOrgIdFromRequest(req);
+            if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+            const tasks = await db.select().from(productionTasks).where(eq(productionTasks.organizationId, orgId));
+            res.json(tasks);
+        } catch (error) {
+            res.status(500).json({ message: "Error fetching tasks", error });
         }
     });
 
@@ -175,13 +188,13 @@ export function registerCPERoutes(app: Express) {
             res.status(500).json({ message: "Error creating process event", error });
         }
     });
-    // Upate a process (Workflow Editor Save)
-    app.put("/api/cpe/processes/:id", async (req: Request, res: Response) => {
+    // Update a process (Workflow Editor Save)
+    const updateProcessHandler = async (req: Request, res: Response) => {
         try {
             const orgId = await getOrgIdFromRequest(req);
             if (!orgId) return res.status(401).json({ message: "Unauthorized" });
 
-            const { name, description, workflowData, orderIndex } = req.body;
+            const { name, description, workflowData, workflow_data, orderIndex } = req.body;
 
             // Verify ownership
             const existing = await db.query.processes.findFirst({
@@ -195,7 +208,7 @@ export function registerCPERoutes(app: Express) {
                 updatedAt: new Date(),
                 name: name || existing.name,
                 description: description !== undefined ? description : existing.description,
-                workflowData: workflowData !== undefined ? workflowData : existing.workflowData,
+                workflowData: workflow_data || workflowData || existing.workflowData,
                 orderIndex: orderIndex !== undefined ? orderIndex : existing.orderIndex
             };
 
@@ -209,7 +222,11 @@ export function registerCPERoutes(app: Express) {
             console.error("Update process error:", error);
             res.status(500).json({ message: "Error updating process", error });
         }
-    });
+    };
+
+    app.put("/api/cpe/processes/:id", updateProcessHandler);
+    app.patch("/api/cpe/processes/:id", updateProcessHandler);
+
 
     // Delete a process
     app.delete("/api/cpe/processes/:id", async (req: Request, res: Response) => {

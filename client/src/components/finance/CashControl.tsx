@@ -27,6 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { QRCodeSVG } from "qrcode.react";
 import { Textarea } from "@/components/ui/textarea";
+import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 
 interface CashControlProps {
     employeeId?: string; // Optional: when used in Kiosk
@@ -50,6 +51,17 @@ export function CashControl({ employeeId: propEmployeeId }: CashControlProps) {
 
     // Payout QR Dialog
     const [qrDialog, setQrDialog] = useState<any>(null);
+
+    // Realtime Subscriptions
+    useSupabaseRealtime({ table: 'cash_transactions', queryKey: ['/api/finance/cash/stats'] });
+    useSupabaseRealtime({ table: 'cash_sessions', queryKey: ['/api/finance/cash/stats'] });
+    useSupabaseRealtime({ table: 'cash_registers', queryKey: ['/api/finance/cash/stats'] });
+    useSupabaseRealtime({
+        table: 'sales',
+        queryKey: ['/api/finance/driver-settlements'],
+        filter: `delivery_status=eq.delivered` // Example filter if applicable, or just generic
+    });
+    useSupabaseRealtime({ table: 'piecework_tickets', queryKey: ['/api/piecework/tickets', { status: 'approved' }] });
 
     const getAuthHeaders = () => {
         const headers: Record<string, string> = { 'Content-Type': 'application/json' };

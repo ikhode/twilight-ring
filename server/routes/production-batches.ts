@@ -41,7 +41,7 @@ router.get("/batches", async (req, res): Promise<void> => {
             id: product.sku || `LOTE-${product.id}`,
             name: product.name,
             quality: product.category || 'GENERAL',
-            stock: product.currentStock,
+            stock: product.stock,
             unit: product.unit
         }));
 

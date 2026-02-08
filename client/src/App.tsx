@@ -15,7 +15,7 @@ import KioskInterface from "@/pages/KioskInterface";
 import DriverTerminal from "@/pages/DriverTerminal";
 import Employees from "@/pages/Employees";
 import Inventory from "@/pages/Inventory";
-import Production from "@/pages/Production";
+import ProductionHub from "@/pages/ProductionHub";
 import Sales from "@/pages/Sales";
 import Logistics from "@/pages/Logistics";
 import Finance from "@/pages/Finance";
@@ -73,10 +73,10 @@ function Router() {
       {/* Protected System Routes (Admin/Owner/Manager only) */}
       <ProtectedRoute path="/dashboard" component={Dashboard} />
       <ProtectedRoute path="/vision" component={Vision} />
-      <ProtectedRoute path="/kiosks" component={Kiosks} /> {/* Mangement of Kiosks */}
+      <ProtectedRoute path="/kiosks" component={Kiosks} />
       <ProtectedRoute path="/employees" component={Employees} />
       <ProtectedRoute path="/inventory" component={Inventory} />
-      <ProtectedRoute path="/production" component={Production} />
+      <ProtectedRoute path="/production" component={ProductionHub} />
       <ProtectedRoute path="/sales" component={Sales} />
       <ProtectedRoute path="/logistics" component={Logistics} />
       <ProtectedRoute path="/finance" component={Finance} />

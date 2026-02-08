@@ -55,7 +55,7 @@ router.get("/tickets", async (req: Request, res: Response): Promise<void> => {
 
         const conditions = [eq(pieceworkTickets.organizationId, orgId)];
 
-        if (targetEmployeeId) {
+        if (targetEmployeeId && targetEmployeeId !== 'undefined' && targetEmployeeId !== 'null') {
             conditions.push(eq(pieceworkTickets.employeeId, targetEmployeeId));
         }
 
@@ -71,7 +71,7 @@ router.get("/tickets", async (req: Request, res: Response): Promise<void> => {
             conditions.push(eq(pieceworkTickets.batchId, targetBatchId));
         }
 
-        console.log(`[DEBUG_TICKETS] Org: ${orgId}, Employee: ${targetEmployeeId}, Status: ${ticketStatus}`);
+        console.log(`[DEBUG_TICKETS] Org: ${orgId}, Employee: ${targetEmployeeId} (Sanitized), Status: ${ticketStatus}`);
 
         const tickets = await db.query.pieceworkTickets.findMany({
             where: and(...conditions),

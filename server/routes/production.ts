@@ -365,7 +365,7 @@ router.post("/instances/:id/finish", async (req, res): Promise<void> => {
         }
 
         const instanceId = req.params.id;
-        const { yields, estimatedInput, notes } = req.body;
+        const { yields = 0, estimatedInput = 0, notes } = req.body;
 
         // 1. Update Instance Status & Context
         await db.update(processInstances)

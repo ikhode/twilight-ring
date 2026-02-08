@@ -1,5 +1,6 @@
 
 import { useState, useEffect } from "react";
+import { ProcessWorkflowEditor } from "./ProcessWorkflowEditor";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +37,8 @@ export function CreateProcessDialog({ open, onOpenChange, editingProcess, invent
 
     const [localInputId, setLocalInputId] = useState<string | null>(null);
     const [localOutputIds, setLocalOutputIds] = useState<string[]>([]);
+    const [localNodes, setLocalNodes] = useState<any[]>([]);
+    const [localEdges, setLocalEdges] = useState<any[]>([]);
 
     // Piecework State
     const [pieceworkEnabled, setPieceworkEnabled] = useState(false);
@@ -64,6 +67,8 @@ export function CreateProcessDialog({ open, onOpenChange, editingProcess, invent
                 setPaymentBasis(editingProcess.workflowData?.piecework?.basis || "output");
                 setOriginLocation(editingProcess.workflowData?.meta?.origin_location || "");
                 setTargetLocation(editingProcess.workflowData?.meta?.target_location || "");
+                setLocalNodes(editingProcess.workflowData?.nodes || []);
+                setLocalEdges(editingProcess.workflowData?.edges || []);
             } else {
                 // Reset for new
                 setName("");
@@ -78,6 +83,8 @@ export function CreateProcessDialog({ open, onOpenChange, editingProcess, invent
                 setPaymentBasis("output");
                 setOriginLocation("");
                 setTargetLocation("");
+                setLocalNodes([]);
+                setLocalEdges([]);
             }
         }
     }, [open, editingProcess]);
@@ -106,7 +113,9 @@ export function CreateProcessDialog({ open, onOpenChange, editingProcess, invent
                     ...(editingProcess?.workflowData?.meta || {}),
                     origin_location: originLocation,
                     target_location: targetLocation
-                }
+                },
+                nodes: localNodes,
+                edges: localEdges
             }
         };
 
@@ -187,90 +196,26 @@ export function CreateProcessDialog({ open, onOpenChange, editingProcess, invent
                                 </div>
                             </TabsContent>
 
-                            {/* TAB: TRANSFORMATION */}
+
+                            {/* TAB: VISUAL WORKFLOW */}
                             <TabsContent value="transform" className="space-y-6 animate-in fade-in slide-in-from-right-2 duration-300 focus-visible:ring-0">
-                                {/* CONSUME */}
-                                <div className="bg-slate-900/30 rounded-xl border border-dashed border-slate-800 p-4 space-y-3">
-                                    <div className="flex items-center gap-2">
-                                        <Layers className="w-4 h-4 text-blue-500" />
-                                        <Label className="text-xs font-black uppercase text-slate-400">Consume Inventario (Input)</Label>
-                                    </div>
-                                    <Select value={localInputId || "none"} onValueChange={(v) => setLocalInputId(v === "none" ? null : v)}>
-                                        <SelectTrigger className="bg-slate-950 border-slate-800 h-11">
-                                            <SelectValue placeholder="Seleccionar insumo..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="none">-- Sin consumo directo --</SelectItem>
-                                            {inventory
-                                                .filter((i: any) => i.isProductionInput === true)
-                                                .map((i: any) => (
-                                                    <SelectItem key={i.id} value={i.id}>
-                                                        {i.name}
-                                                        {i.category && <span className="text-[10px] opacity-50 ml-2">({i.category?.name || i.category})</span>}
-                                                    </SelectItem>
-                                                ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
+                                <ProcessWorkflowEditor
+                                    inventory={inventory}
+                                    initialNodes={editingProcess?.workflowData?.nodes || []}
+                                    initialEdges={editingProcess?.workflowData?.edges || []}
+                                    onChange={(nodes, edges) => {
+                                        // Auto-detect inputs and outputs from graph
+                                        const inputs = nodes.filter((n: any) => n.type === 'start').map((n: any) => n.data.inventoryId).filter(Boolean);
+                                        const outputs = nodes.filter((n: any) => n.type === 'end').map((n: any) => n.data.inventoryId).filter(Boolean);
 
-                                {/* PRODUCE */}
-                                <div className="space-y-3">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <Package className="w-4 h-4 text-emerald-500" />
-                                            <Label className="text-xs font-black uppercase text-slate-400">Genera Inventario (Output)</Label>
-                                        </div>
-                                        <Badge variant="outline" className="text-[10px] border-slate-800 text-slate-500">Selección Múltiple</Badge>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-3 max-h-[220px] overflow-y-auto pr-1">
-                                        {inventory
-                                            .filter((i: any) => i.isProductionOutput === true)
-                                            .map((i: any) => {
-                                                const isSelected = localOutputIds.includes(i.id);
-                                                return (
-                                                    <div
-                                                        key={i.id}
-                                                        onClick={() => setLocalOutputIds(prev => prev.includes(i.id) ? prev.filter(x => x !== i.id) : [...prev, i.id])}
-                                                        className={cn(
-                                                            "relative p-3 rounded-xl border cursor-pointer transition-all hover:translate-x-1 flex items-center justify-between group",
-                                                            isSelected
-                                                                ? "bg-emerald-950/20 border-emerald-500/50 shadow-[0_0_15px_-5px_rgba(16,185,129,0.1)]"
-                                                                : "bg-slate-900/50 border-slate-800 hover:border-slate-700 hover:bg-slate-900"
-                                                        )}
-                                                    >
-                                                        <span className={cn("text-xs font-medium transition-colors", isSelected ? "text-emerald-300" : "text-slate-400 group-hover:text-slate-200")}>{i.name}</span>
-                                                        {isSelected && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
-                                                    </div>
-                                                )
-                                            })}
-                                    </div>
-                                </div>
-
-                                {/* LOCATIONS */}
-                                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-800/50">
-                                    <div className="space-y-2">
-                                        <Label className="text-[10px] uppercase font-bold text-slate-500 flex items-center gap-2">
-                                            <Layers className="w-3 h-3 text-blue-500" /> Ubicación Origen (Sugerida)
-                                        </Label>
-                                        <Input
-                                            value={originLocation}
-                                            onChange={(e) => setOriginLocation(e.target.value)}
-                                            placeholder="Ej: Patio de Recepción"
-                                            className="bg-slate-950 border-slate-800 h-10 text-xs"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label className="text-[10px] uppercase font-bold text-slate-500 flex items-center gap-2">
-                                            <Package className="w-3 h-3 text-emerald-500" /> Ubicación Destino (Sugerida)
-                                        </Label>
-                                        <Input
-                                            value={targetLocation}
-                                            onChange={(e) => setTargetLocation(e.target.value)}
-                                            placeholder="Ej: Cestas de Producción"
-                                            className="bg-slate-950 border-slate-800 h-10 text-xs"
-                                        />
-                                    </div>
+                                        setLocalNodes(nodes);
+                                        setLocalEdges(edges);
+                                        setLocalInputId(inputs.length > 0 ? (inputs[0] as string) : null);
+                                        setLocalOutputIds(outputs as string[]);
+                                    }}
+                                />
+                                <div className="text-[10px] text-slate-500 flex justify-end">
+                                    * Los insumos y productos se detectan automáticamente del diagrama.
                                 </div>
                             </TabsContent>
 

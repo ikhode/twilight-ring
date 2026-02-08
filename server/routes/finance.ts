@@ -568,7 +568,7 @@ router.get("/summary", async (req, res): Promise<void> => {
 
         console.log("Fetching recent transactions...");
         // --- NEW: Fetch Recent Transactions for History ---
-        const [recentExpenses, recentPayments] = await Promise.all([
+        const [recentExpenses, recentPayments, recentCash] = await Promise.all([
             db.query.expenses.findMany({
                 where: eq(expenses.organizationId, orgId),
                 orderBy: [desc(expenses.date)],
@@ -580,6 +580,11 @@ router.get("/summary", async (req, res): Promise<void> => {
             db.query.payments.findMany({
                 where: eq(payments.organizationId, orgId),
                 orderBy: [desc(payments.date)],
+                limit: 10
+            }),
+            db.query.cashTransactions.findMany({
+                where: eq(cashTransactions.organizationId, orgId),
+                orderBy: [desc(cashTransactions.timestamp)],
                 limit: 10
             })
         ]);
@@ -602,6 +607,15 @@ router.get("/summary", async (req, res): Promise<void> => {
                 date: p.date?.toISOString().split('T')[0],
                 type: p.type === 'income' ? 'sale' : 'expense', // Map 'income' -> 'sale' visual style for green
                 status: 'completed'
+            })),
+            ...(recentCash || []).map(c => ({
+                id: `cash_${c.id}`,
+                description: c.description || "Movimiento de Caja",
+                amount: c.type === 'in' ? (Number(c.amount) || 0) : -(Number(c.amount) || 0),
+                date: c.timestamp?.toISOString().split('T')[0],
+                type: c.type === 'in' ? 'sale' : 'expense',
+                status: 'completed',
+                category: c.category
             }))
         ].sort((a, b) => new Date(b.date as string).getTime() - new Date(a.date as string).getTime()).slice(0, 10);
 

@@ -382,7 +382,7 @@ export default function Production() {
   });
 
   const finishBatchMutation = useMutation({
-    mutationFn: async (data: { instanceId: string, yields: any, notes?: string }) => {
+    mutationFn: async (data: { instanceId: string, yields: any, estimatedInput: number, coProducts?: any[], notes?: string }) => {
       const res = await fetch(`/api/production/instances/${data.instanceId}/finish`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },

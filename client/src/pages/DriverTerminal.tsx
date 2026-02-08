@@ -345,7 +345,7 @@ export default function DriverTerminal() {
                             <h2 className="text-2xl font-black uppercase italic tracking-tighter">Ruta Activa</h2>
                             <div className="flex items-center gap-2 mt-1">
                                 <PulseDot color="bg-green-500" />
-                                <span className="text-xs font-mono text-green-500">EN LINEA • {driverIdentity?.vehicle?.plate}</span>
+                                <span className="text-xs font-mono text-green-500">EN LINEA • {driverIdentity?.vehicle?.plate} • {driverIdentity?.name}</span>
                             </div>
                         </div>
                         <div className="text-right flex flex-col items-end gap-2">

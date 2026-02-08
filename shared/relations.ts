@@ -73,7 +73,7 @@ export const salesRelations = relations(schema.sales, ({ one }) => ({
     }),
 }));
 
-export const productsRelations = relations(schema.products, ({ one }) => ({
+export const productsRelations = relations(schema.products, ({ one, many }) => ({
     categoryRef: one(schema.productCategories, {
         fields: [schema.products.categoryId],
         references: [schema.productCategories.id],
@@ -86,6 +86,9 @@ export const productsRelations = relations(schema.products, ({ one }) => ({
         fields: [schema.products.unitId],
         references: [schema.productUnits.id],
     }),
+    inventoryMovements: many(schema.inventoryMovements),
+    sales: many(schema.sales),
+    purchases: many(schema.purchases),
 }));
 
 export const productCategoriesRelations = relations(schema.productCategories, ({ many }) => ({
@@ -98,6 +101,17 @@ export const productGroupsRelations = relations(schema.productGroups, ({ many })
 
 export const productUnitsRelations = relations(schema.productUnits, ({ many }) => ({
     products: many(schema.products),
+}));
+
+export const inventoryMovementsRelations = relations(schema.inventoryMovements, ({ one }) => ({
+    product: one(schema.products, {
+        fields: [schema.inventoryMovements.productId],
+        references: [schema.products.id],
+    }),
+    user: one(schema.users, {
+        fields: [schema.inventoryMovements.userId],
+        references: [schema.users.id],
+    }),
 }));
 
 export const pieceworkTicketsRelations = relations(schema.pieceworkTickets, ({ one }) => ({

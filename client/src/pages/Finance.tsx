@@ -71,6 +71,11 @@ export default function Finance() {
   useSupabaseRealtime({ table: 'cash_registers', queryKey: ["/api/finance/summary"] });
   useSupabaseRealtime({ table: 'bank_accounts', queryKey: ["/api/finance/summary"] });
   useSupabaseRealtime({ table: 'payroll_advances', queryKey: ["/api/finance/summary"] });
+  useSupabaseRealtime({ table: 'purchases', queryKey: ["/api/finance/summary"] });
+  useSupabaseRealtime({ table: 'piecework_tickets', queryKey: ["/api/finance/summary"] });
+  useSupabaseRealtime({ table: 'products', queryKey: ["/api/finance/summary"] });
+  useSupabaseRealtime({ table: 'cash_sessions', queryKey: ["/api/finance/summary"] });
+  useSupabaseRealtime({ table: 'ai_insights', queryKey: ["/api/finance/summary"] });
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat("es-MX", {

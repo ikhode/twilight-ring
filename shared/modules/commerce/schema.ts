@@ -104,7 +104,6 @@ export const products = pgTable("products", {
     stock: integer("stock").notNull().default(0),
     minStock: integer("min_stock").notNull().default(0),
     isActive: boolean("is_active").notNull().default(true),
-    isActive: boolean("is_active").notNull().default(true),
     isArchived: boolean("is_archived").notNull().default(false),
 
     // Visual Identity (TensorFlow)
@@ -161,8 +160,6 @@ export const sales = pgTable("sales", {
     paymentMethod: text("payment_method"), // "cash", "transfer", "credit"
     bankAccountId: varchar("bank_account_id"), // link to bank account if transfer
     deliveryStatus: text("delivery_status").notNull().default("pending"), // "pending", "shipped", "delivered", "returned"
-    driverId: varchar("driver_id").references(() => employees.id),
-    vehicleId: varchar("vehicle_id").references(() => vehicles.id),
     driverId: varchar("driver_id").references(() => employees.id),
     vehicleId: varchar("vehicle_id").references(() => vehicles.id),
     date: timestamp("date").defaultNow(),
@@ -248,5 +245,6 @@ export const insertProductSchema = createInsertSchema(products).extend({
 export const insertInventoryMovementSchema = createInsertSchema(inventoryMovements);
 export const insertSaleSchema = createInsertSchema(sales);
 export const insertPurchaseSchema = createInsertSchema(purchases);
+
 
 // End of File

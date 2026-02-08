@@ -60,9 +60,9 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   // Always seed system metadata on startup (idempotent)
-  console.log("⚙️ Syncing system metadata (Modules & Documentation)...");
-  await seedModules();
-  await seedDocumentation();
+  // console.log("⚙️ Syncing system metadata (Modules & Documentation)...");
+  // await seedModules();
+  // await seedDocumentation();
 
   // Seed optional demo data if SEED=true
   if (process.env.SEED === "true") {

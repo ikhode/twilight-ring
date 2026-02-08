@@ -1,0 +1,39 @@
+.react-flow__connection-path {
+    stroke: #3b82f6;
+    stroke-width: 2px;
+    stroke-dasharray: 4;
+    animation: dash 1s linear infinite;
+}
+
+.react-flow__edge-path {
+    stroke: #1e293b;
+    stroke-width: 2.5px;
+    transition: stroke 0.3s ease;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+    stroke: #3b82f6;
+    filter: drop-shadow(0 0 5px rgba(59, 130, 246, 0.5));
+}
+
+@keyframes dash {
+    from {
+        stroke-dashoffset: 8;
+    }
+
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+.react-flow__handle {
+    width: 8px !important;
+    height: 8px !important;
+    border: 2px solid #0f172a !important;
+    transition: all 0.2s ease !important;
+}
+
+.react-flow__handle:hover {
+    transform: scale(1.5) !important;
+    background-color: #3b82f6 !important;
+}

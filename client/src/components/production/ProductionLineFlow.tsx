@@ -54,17 +54,26 @@ export function ProductionLineFlow({ processes = [], inventory = [], onSelect, o
         }
     };
 
-    useEffect(() => {
-        let interval: NodeJS.Timeout;
-        if (isSimulating) {
-            interval = setInterval(() => {
-                setSimStep((prev) => (prev + 1) % (activeNodes.length + 1));
-            }, 2000);
-        }
-        return () => clearInterval(interval);
-    }, [isSimulating, activeNodes.length]);
+
+
+    // Check if we have a primary graph defined in any process
+    const masterGraphProcess = processes.find(p => p.workflowData?.nodes && p.workflowData.nodes.length > 0);
 
     const activeNodes = useMemo(() => {
+        if (masterGraphProcess) {
+            // Use the saved graph nodes
+            return masterGraphProcess.workflowData.nodes.map((node: any) => ({
+                ...node,
+                data: {
+                    ...node.data,
+                    isSimulating,
+                    simActive: isSimulating && simStep === node.data.orderIndex,
+                    onClick: () => onSelect && onSelect(masterGraphProcess),
+                    onDelete: () => onDelete && onDelete(masterGraphProcess.id)
+                }
+            }));
+        }
+
         const sorted = [...processes].sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
 
         return sorted.map((p, idx) => {
@@ -107,9 +116,34 @@ export function ProductionLineFlow({ processes = [], inventory = [], onSelect, o
                 }
             };
         });
-    }, [processes, inventory, onSelect, onDelete, isSimulating, simStep]);
+    }, [processes, masterGraphProcess, inventory, onSelect, onDelete, isSimulating, simStep]);
 
-    const edges = useMemo(() => {
+    useEffect(() => {
+        let interval: NodeJS.Timeout;
+        if (isSimulating) {
+            interval = setInterval(() => {
+                setSimStep((prev) => (prev + 1) % (activeNodes.length + 1));
+            }, 2000);
+        }
+        return () => clearInterval(interval);
+    }, [isSimulating, activeNodes.length]);
+
+    const flowEdges = useMemo(() => {
+        if (masterGraphProcess && masterGraphProcess.workflowData.edges) {
+            return masterGraphProcess.workflowData.edges.map((edge: any) => ({
+                ...edge,
+                animated: isSimulating,
+                style: {
+                    stroke: '#3b82f6',
+                    strokeWidth: 2,
+                },
+                markerEnd: {
+                    type: MarkerType.ArrowClosed,
+                    color: '#3b82f6',
+                },
+            }));
+        }
+
         const e: Edge[] = [];
         const sortedNodes = [...activeNodes].sort((a, b) => (a.data.orderIndex || 0) - (b.data.orderIndex || 0));
         for (let i = 0; i < sortedNodes.length - 1; i++) {
@@ -136,13 +170,13 @@ export function ProductionLineFlow({ processes = [], inventory = [], onSelect, o
             });
         }
         return e;
-    }, [activeNodes, isSimulating, simStep]);
+    }, [activeNodes, masterGraphProcess, isSimulating, simStep]);
 
     return (
         <div className="h-[500px] w-full bg-[#030712] rounded-3xl border border-slate-800/50 shadow-2xl relative overflow-hidden group/flow">
             <ReactFlow
                 nodes={activeNodes}
-                edges={edges}
+                edges={flowEdges}
                 nodeTypes={nodeTypes}
                 fitView
                 fitViewOptions={{ padding: 0.3 }}
