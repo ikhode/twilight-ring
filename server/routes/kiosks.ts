@@ -267,6 +267,32 @@ router.patch("/:id/heartbeat", async (req, res) => {
             })
             .where(eq(terminals.id, kioskId));
 
+        // SYNC: Update Driver Status if assigned
+        if (terminal.driverId) {
+            await db.update(employees)
+                .set({
+                    currentStatus: 'active',
+                    currentArea: 'En Ruta', // Contextual info
+                    latitude: latitude?.toString(),
+                    longitude: longitude?.toString(),
+                    // lastSeenAt: new Date() // If schema had this
+                } as any)
+                .where(eq(employees.id, terminal.driverId));
+        }
+
+        // SYNC: Update Driver Status if assigned
+        if (terminal.driverId) {
+            await db.update(employees)
+                .set({
+                    currentStatus: 'active',
+                    currentArea: 'En Ruta', // Contextual info
+                    latitude: latitude?.toString(),
+                    longitude: longitude?.toString(),
+                    // lastSeenAt: new Date() // If schema had this
+                } as any)
+                .where(eq(employees.id, terminal.driverId));
+        }
+
         res.json({ status: "ok" });
     } catch (error) {
         console.error("Error updating heartbeat:", error);

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "../storage";
-import { getOrgIdFromRequest } from "../auth_util";
-import { processEvents, sales, products, employees } from "../../shared/schema";
+import { getOrgIdFromRequest, getAuthenticatedUser } from "../auth_util";
+import { processEvents, sales, products, employees, notifications } from "../../shared/schema";
 import { eq, and, desc, sql, gte, lt } from "drizzle-orm";
 
 const router = Router();
@@ -26,14 +26,12 @@ router.get("/", async (req, res): Promise<void> => {
             newEmployees
         ] = await Promise.all([
             // Critical process anomalies
-            db.query.processEvents.findMany({
-                where: and(
-                    eq(processEvents.eventType, 'anomaly'),
-                    gte(processEvents.timestamp, last24Hours)
-                ),
-                orderBy: desc(processEvents.timestamp),
-                limit: 5
-            }),
+            db.select().from(processEvents).where(and(
+                eq(processEvents.eventType, 'anomaly'),
+                gte(processEvents.timestamp, last24Hours)
+            ))
+                .orderBy(desc(processEvents.timestamp))
+                .limit(5),
 
             // Low stock alerts - Get all products and filter in memory to avoid SQL parsing issues
             db.select()
@@ -42,23 +40,29 @@ router.get("/", async (req, res): Promise<void> => {
                 .limit(100), // Get more and filter in-memory
 
             // Pending payment orders
-            db.query.sales.findMany({
-                where: and(
-                    eq(sales.organizationId, orgId),
-                    eq(sales.paymentStatus, 'pending'),
-                    gte(sales.date, last24Hours)
-                ),
-                limit: 5
-            }),
+            db.select().from(sales).where(and(
+                eq(sales.organizationId, orgId),
+                eq(sales.paymentStatus, 'pending'),
+                gte(sales.date, last24Hours)
+            ))
+                .limit(5),
 
             // Recently added employees (last 7 days)
-            db.query.employees.findMany({
-                where: and(
-                    eq(employees.organizationId, orgId),
-                    gte(employees.createdAt, new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000))
-                ),
-                limit: 3
-            })
+            db.select().from(employees).where(and(
+                eq(employees.organizationId, orgId),
+                gte(employees.createdAt, new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000))
+            ))
+                .limit(3),
+
+            // 5. Persisted Notifications (Inbox)
+            db.select().from(notifications)
+                .where(and(
+                    eq(notifications.organizationId, orgId)
+                    // We should filter by user too, but current route doesn't get authenticated user easily?
+                    // Router.get uses getOrgIdFromRequest. We need getAuthenticatedUser.
+                ))
+                .orderBy(desc(notifications.createdAt))
+                .limit(20)
         ]);
 
         // Format notifications
@@ -135,9 +139,15 @@ router.get("/", async (req, res): Promise<void> => {
  */
 router.patch("/:id/read", async (req, res): Promise<void> => {
     try {
-        // In a real system, we'd have a notifications table with read status
-        // For now, just acknowledge
-        res.json({ message: "Notification marked as read" });
+        const { id } = req.params;
+        const user = await getAuthenticatedUser(req);
+        if (!user) { res.status(401).json({ message: "Unauthorized" }); return; }
+
+        await db.update(notifications)
+            .set({ readAt: new Date() })
+            .where(and(eq(notifications.id, id), eq(notifications.userId, user.id)));
+
+        res.json({ success: true });
     } catch (error) {
         res.status(500).json({ message: "Failed to update notification" });
     }
@@ -148,7 +158,17 @@ router.patch("/:id/read", async (req, res): Promise<void> => {
  */
 router.post("/read-all", async (req, res): Promise<void> => {
     try {
-        res.json({ message: "All notifications marked as read" });
+        const user = await getAuthenticatedUser(req);
+        if (!user) { res.status(401).json({ message: "Unauthorized" }); return; }
+
+        await db.update(notifications)
+            .set({ readAt: new Date() })
+            .where(and(
+                eq(notifications.userId, user.id),
+                sql`read_at IS NULL`
+            ));
+
+        res.json({ success: true });
     } catch (error) {
         res.status(500).json({ message: "Failed to update notifications" });
     }

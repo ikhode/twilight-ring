@@ -1211,6 +1211,39 @@ function CreateSupplierDialog() {
               placeholder="Ej. Distribuidora S.A."
             />
           </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Contacto Principal</Label>
+              <Input
+                value={formData.contact}
+                onChange={(e) =>
+                  setFormData({ ...formData, contact: e.target.value })
+                }
+                placeholder="Nombre del vendedor"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Teléfono</Label>
+              <Input
+                value={formData.phone}
+                onChange={(e) =>
+                  setFormData({ ...formData, phone: e.target.value })
+                }
+                placeholder="55-1234-5678"
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Dirección (Bodega/Recolección)</Label>
+            <Input
+              value={formData.address}
+              onChange={(e) =>
+                setFormData({ ...formData, address: e.target.value })
+              }
+              placeholder="Calle, Número, Colonia, CP"
+            />
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>
@@ -1227,7 +1260,7 @@ function CreateSupplierDialog() {
           </Button>
         </DialogFooter>
       </DialogContent>
-    </Dialog>
+    </Dialog >
   );
 }
 

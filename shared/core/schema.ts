@@ -327,3 +327,39 @@ export type InsertWhatsAppMessage = z.infer<typeof insertWhatsAppMessageSchema>;
 export const insertWhatsAppConversationSchema = createInsertSchema(whatsappConversations);
 export const insertWhatsAppMessageSchema = createInsertSchema(whatsappMessages);
 
+
+// System Events (Unified Logging)
+export const systemEvents = pgTable("system_events", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    type: text("type").notNull(), // 'auth', 'inventory', 'security', 'error', 'transaction', 'system'
+    severity: text("severity").notNull(), // 'info', 'warning', 'error', 'critical'
+    message: text("message").notNull(),
+    metadata: jsonb("metadata").default({}),
+    relatedEntityId: varchar("related_entity_id"),
+    relatedEntityType: text("related_entity_type"), // 'user', 'product', 'order', etc.
+    createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Notifications (User Inbox)
+export const notifications = pgTable("notifications", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    eventId: varchar("event_id").references(() => systemEvents.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    message: text("message").notNull(),
+    priority: text("priority").default("normal"), // 'low', 'normal', 'high', 'urgent'
+    readAt: timestamp("read_at"),
+    clickedAt: timestamp("clicked_at"),
+    data: jsonb("data").default({}), // actionable data
+    createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type SystemEvent = typeof systemEvents.$inferSelect;
+export type InsertSystemEvent = z.infer<typeof insertSystemEventSchema>;
+export type Notification = typeof notifications.$inferSelect;
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+
+export const insertSystemEventSchema = createInsertSchema(systemEvents);
+export const insertNotificationSchema = createInsertSchema(notifications);

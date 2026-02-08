@@ -104,7 +104,22 @@ export const products = pgTable("products", {
     stock: integer("stock").notNull().default(0),
     minStock: integer("min_stock").notNull().default(0),
     isActive: boolean("is_active").notNull().default(true),
+    isActive: boolean("is_active").notNull().default(true),
     isArchived: boolean("is_archived").notNull().default(false),
+
+    // Visual Identity (TensorFlow)
+    visualEmbedding: customType<{ data: number[] }>({
+        dataType() {
+            return "vector(1024)";
+        },
+        toDriver(value: number[]) {
+            return `[${value.join(',')}]`;
+        },
+        fromDriver(value: unknown) {
+            if (typeof value !== 'string') return [];
+            return value.slice(1, -1).split(',').map(Number);
+        }
+    })("visual_embedding"),
 
     // Legacy fields (Deprecated but needed for read access)
     category: text("category"),
@@ -130,6 +145,8 @@ export const inventoryMovements = pgTable("inventory_movements", {
     afterStock: integer("after_stock"),
     date: timestamp("date").defaultNow(),
     notes: text("notes"),
+    // Location context
+    location: text("location"),
 });
 
 // Sales & Purchases
@@ -146,7 +163,14 @@ export const sales = pgTable("sales", {
     deliveryStatus: text("delivery_status").notNull().default("pending"), // "pending", "shipped", "delivered", "returned"
     driverId: varchar("driver_id").references(() => employees.id),
     vehicleId: varchar("vehicle_id").references(() => vehicles.id),
+    driverId: varchar("driver_id").references(() => employees.id),
+    vehicleId: varchar("vehicle_id").references(() => vehicles.id),
     date: timestamp("date").defaultNow(),
+
+    // Explicit Location Data (Snapshot)
+    deliveryAddress: text("delivery_address"),
+    locationLat: customType<{ data: number }>({ dataType() { return "double precision"; } })("location_lat"),
+    locationLng: customType<{ data: number }>({ dataType() { return "double precision"; } })("location_lng"),
 
     // Secure Deletion & Archiving
     isArchived: boolean("is_archived").notNull().default(false),
@@ -176,6 +200,11 @@ export const purchases = pgTable("purchases", {
     receivedAt: timestamp("received_at"),
     paidAt: timestamp("paid_at"),
     notes: text("notes"),
+
+    // Explicit Location Data (Snapshot)
+    pickupAddress: text("pickup_address"),
+    locationLat: customType<{ data: number }>({ dataType() { return "double precision"; } })("location_lat"),
+    locationLng: customType<{ data: number }>({ dataType() { return "double precision"; } })("location_lng"),
 
     // Secure Deletion & Archiving
     isArchived: boolean("is_archived").notNull().default(false),

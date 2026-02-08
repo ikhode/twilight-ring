@@ -16,6 +16,19 @@ export const vehicles = pgTable("vehicles", {
     status: text("status").notNull().default("active"), // "active", "maintenance", "inactive"
     currentMileage: integer("current_mileage").default(0),
     isArchived: boolean("is_archived").notNull().default(false),
+    // Visual Identity (LPR/Recognition)
+    visualEmbedding: customType<{ data: number[] }>({
+        dataType() {
+            return "vector(1024)";
+        },
+        toDriver(value: number[]) {
+            return `[${value.join(',')}]`;
+        },
+        fromDriver(value: unknown) {
+            if (typeof value !== 'string') return [];
+            return value.slice(1, -1).split(',').map(Number);
+        }
+    })("visual_embedding"),
     createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -123,7 +136,9 @@ export type FuelLog = typeof fuelLogs.$inferSelect;
 export type MaintenanceLog = typeof maintenanceLogs.$inferSelect;
 export type Terminal = typeof terminals.$inferSelect;
 
-export const insertVehicleSchema = createInsertSchema(vehicles);
+export const insertVehicleSchema = createInsertSchema(vehicles, {
+    visualEmbedding: z.array(z.number()).optional()
+});
 export const insertRouteSchema = createInsertSchema(routes);
 export const insertRouteStopSchema = createInsertSchema(routeStops);
 export const insertFuelLogSchema = createInsertSchema(fuelLogs);

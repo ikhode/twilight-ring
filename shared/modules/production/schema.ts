@@ -45,6 +45,10 @@ export const processInstances = pgTable("process_instances", {
     aiContext: jsonb("ai_context").default({}), // RCA insights
     sourceBatchId: varchar("source_batch_id"), // Link to Purchase Batch (Traceability)
     organizationId: varchar("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
+
+    // Physical Traceability
+    originLocation: text("origin_location"),
+    targetLocation: text("target_location"),
 });
 
 // Process Events (Traceability logs)

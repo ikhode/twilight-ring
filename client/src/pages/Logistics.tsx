@@ -71,10 +71,11 @@ interface Vehicle {
     lastLocation: { lat: number; lng: number; timestamp: string };
 }
 
-interface Employee {
+export interface Employee {
     id: string;
     name: string;
     role: string;
+    currentStatus?: string; // 'active' | 'break' | 'offline'
 }
 
 // Driver Link Generator
@@ -82,12 +83,6 @@ function DriverLinkDialog() {
     const [isOpen, setIsOpen] = useState(false);
     const { toast } = useToast();
     const { session } = useAuth();
-    // Fetch data for selection
-    // Note: In real app, we might need a dedicated query for available vehicles/drivers
-    // For now, we reuse the queries from the main page if passed, or fetch here. 
-    // To keep it simple, let's fetch here or rely on prop drilling. 
-    // Let's reuse the hooks pattern since it's cleaner.
-
     const [selectedDriver, setSelectedDriver] = useState("");
     const [selectedVehicle, setSelectedVehicle] = useState("");
     const [generatedLink, setGeneratedLink] = useState<string | null>(null);
@@ -153,9 +148,29 @@ function DriverLinkDialog() {
                             <Select onValueChange={setSelectedDriver}>
                                 <SelectTrigger><SelectValue placeholder="Seleccionar Conductor" /></SelectTrigger>
                                 <SelectContent>
-                                    {(drivers || []).filter((d: any) => d.role === 'driver' || true).map((d: any) => (
-                                        <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                                    ))}
+                                    {(drivers || [])
+                                        .filter((d: any) => d.role === 'driver')
+                                        .sort((a: any, b: any) => {
+                                            // Priority 1: Active status
+                                            if (a.currentStatus === 'active' && b.currentStatus !== 'active') return -1;
+                                            if (a.currentStatus !== 'active' && b.currentStatus === 'active') return 1;
+                                            // Priority 2: Name
+                                            return a.name.localeCompare(b.name);
+                                        })
+                                        .map((d: any) => (
+                                            <SelectItem key={d.id} value={d.id}>
+                                                <div className="flex items-center justify-between w-full min-w-[200px]">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className={cn("w-2 h-2 rounded-full",
+                                                            d.currentStatus === 'active' ? "bg-green-500 animate-pulse" :
+                                                                d.currentStatus === 'break' ? "bg-yellow-500" : "bg-slate-500"
+                                                        )} />
+                                                        <span>{d.name}</span>
+                                                    </div>
+                                                    {d.currentStatus === 'active' && <Badge variant="outline" className="text-[10px] ml-2 bg-green-500/10 text-green-500 border-green-500/20">DISPONIBLE</Badge>}
+                                                </div>
+                                            </SelectItem>
+                                        ))}
                                 </SelectContent>
                             </Select>
                         </CognitiveField>
@@ -196,6 +211,117 @@ function DriverLinkDialog() {
                         </Button>
                     </div>
                 )}
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function GenerateRouteDialog() {
+    const [isOpen, setIsOpen] = useState(false);
+    const { toast } = useToast();
+    const { session } = useAuth();
+    const queryClient = useQueryClient();
+    const [selectedDriver, setSelectedDriver] = useState("");
+    const [selectedVehicle, setSelectedVehicle] = useState("");
+
+    const { data: vehicles = [] } = useQuery<Vehicle[]>({
+        queryKey: ["/api/logistics/fleet/vehicles"],
+        queryFn: async () => {
+            const res = await fetch("/api/logistics/fleet/vehicles", { headers: { Authorization: `Bearer ${session?.access_token}` } });
+            return res.json();
+        },
+        enabled: !!session?.access_token
+    });
+
+    const { data: drivers = [] } = useQuery<Employee[]>({
+        queryKey: ["/api/hr/employees"],
+        queryFn: async () => {
+            const res = await fetch("/api/hr/employees", { headers: { Authorization: `Bearer ${session?.access_token}` } });
+            return res.json();
+        },
+        enabled: !!session?.access_token
+    });
+
+    const generateMutation = useMutation({
+        mutationFn: async () => {
+            const res = await fetch("/api/logistics/fleet/routes/generate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+                body: JSON.stringify({ vehicleId: selectedVehicle, driverId: selectedDriver })
+            });
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.message || "Failed");
+            }
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/logistics/fleet/routes/active"] });
+            setIsOpen(false);
+            toast({ title: "Ruta Generada", description: "La ruta ha sido creada y asignada." });
+        },
+        onError: (err) => {
+            toast({ title: "Error", description: err.message, variant: "destructive" });
+        }
+    });
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button size="sm" className="gap-2 bg-primary hover:bg-primary/90">
+                    <Map className="w-4 h-4" /> Generar Ruta
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Generar Ruta Inteligente</DialogTitle>
+                    <DialogDescription>El sistema agrupará las órdenes pendientes y optimizará el recorrido.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                    <CognitiveField label="Vehículo" value={selectedVehicle} semanticType="method">
+                        <Select onValueChange={setSelectedVehicle}>
+                            <SelectTrigger><SelectValue placeholder="Seleccionar Vehículo" /></SelectTrigger>
+                            <SelectContent>
+                                {(vehicles || []).filter((v: any) => v.status === 'active').map((v: any) => (
+                                    <SelectItem key={v.id} value={v.id}>{v.plate} - {v.model}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </CognitiveField>
+
+                    <CognitiveField label="Conductor Prioritario" value={selectedDriver} semanticType="category">
+                        <Select onValueChange={setSelectedDriver}>
+                            <SelectTrigger><SelectValue placeholder="Seleccionar Conductor" /></SelectTrigger>
+                            <SelectContent>
+                                {(drivers || [])
+                                    .filter((d: any) => d.role === 'driver')
+                                    .sort((a: any, b: any) => {
+                                        // Priority: Active > Break > Offline
+                                        const score = (status: string) => status === 'active' ? 3 : status === 'break' ? 2 : 1;
+                                        return score(b.currentStatus || 'offline') - score(a.currentStatus || 'offline');
+                                    })
+                                    .map((d: any) => (
+                                        <SelectItem key={d.id} value={d.id}>
+                                            <div className="flex items-center justify-between w-full min-w-[200px]">
+                                                <span>{d.name}</span>
+                                                {d.currentStatus === 'active' && <Badge variant="outline" className="text-[10px] ml-2 bg-green-500/10 text-green-500 border-green-500/20">DISPONIBLE</Badge>}
+                                                {d.currentStatus === 'break' && <Badge variant="outline" className="text-[10px] ml-2 bg-yellow-500/10 text-yellow-500 border-yellow-500/20">EN PAUSA</Badge>}
+                                            </div>
+                                        </SelectItem>
+                                    ))}
+                            </SelectContent>
+                        </Select>
+                    </CognitiveField>
+
+                    <Button
+                        className="w-full"
+                        onClick={() => generateMutation.mutate()}
+                        disabled={!selectedDriver || !selectedVehicle || generateMutation.isPending}
+                    >
+                        {generateMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Brain className="w-4 h-4 mr-2" />}
+                        {generateMutation.isPending ? "Optimizando..." : "Generar y Asignar"}
+                    </Button>
+                </div>
             </DialogContent>
         </Dialog>
     );
@@ -447,6 +573,7 @@ export default function Logistics() {
     }) : [];
 
     // Realtime subscriptions
+    useSupabaseRealtime({ table: 'employees', queryKey: ["/api/hr/employees"] });
     useSupabaseRealtime({ table: 'vehicles', queryKey: ["/api/logistics/fleet/vehicles"] });
     useSupabaseRealtime({ table: 'fleet_maintenance', queryKey: ["/api/logistics/fleet/maintenance"] });
     useSupabaseRealtime({ table: 'fleet_fuel', queryKey: ["/api/logistics/fleet/fuel"] });
@@ -909,13 +1036,13 @@ export default function Logistics() {
                         <Card className="lg:col-span-2 bg-slate-900/50 border-slate-800 flex flex-col">
                             <CardHeader>
                                 <div className="flex items-center justify-between">
-                                    <div>
-                                        <CardTitle>Rutas Activas</CardTitle>
-                                        <CardDescription>Gestión y monitoreo de entregas en curso.</CardDescription>
                                     </div>
-                                    <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
-                                        {activeRoutes.length} EN CURSO
-                                    </Badge>
+                                    <div className="flex items-center gap-4">
+                                        <Badge variant="secondary" className="bg-primary/20 text-primary border-primary/20">
+                                            {activeRoutes.length} EN CURSO
+                                        </Badge>
+                                        <GenerateRouteDialog />
+                                    </div>
                                 </div>
                             </CardHeader>
                             <CardContent className="p-0">
@@ -1136,6 +1263,6 @@ export default function Logistics() {
                 maintenanceLogs={maintenanceLogs}
                 fuelLogs={fuelLogs}
             />
-        </AppLayout>
+        </AppLayout >
     );
 }

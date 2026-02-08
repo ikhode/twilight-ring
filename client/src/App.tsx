@@ -117,12 +117,24 @@ import { useLocation } from "wouter";
 /**
  * Root Application component layout to handle conditional global elements
  */
+import { initializeEventSubscription } from "@/lib/events";
+import { useEffect } from "react";
+
+function EventSubscriber() {
+  useEffect(() => {
+    const cleanup = initializeEventSubscription();
+    return () => cleanup && cleanup();
+  }, []);
+  return null;
+}
+
 function AppLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const isKiosk = location.startsWith("/kiosk") || location === "/driver" || location === "/driver-pwa" || location.startsWith("/sign/");
 
   return (
     <>
+      <EventSubscriber />
       {!isKiosk && <Copilot />}
       {children}
     </>

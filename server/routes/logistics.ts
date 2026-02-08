@@ -354,9 +354,9 @@ router.post("/fleet/routes/generate", async (req, res): Promise<void> => {
                 stopType: "delivery",
                 sequence: sequence++,
                 status: "pending",
-                address: sale.customer?.address || "Sin dirección",
-                locationLat: sale.customer?.latitude ? parseFloat(sale.customer.latitude) : null,
-                locationLng: sale.customer?.longitude ? parseFloat(sale.customer.longitude) : null
+                address: sale.deliveryAddress || sale.customer?.address || "Sin dirección",
+                locationLat: sale.locationLat || (sale.customer?.latitude ? parseFloat(sale.customer.latitude) : null),
+                locationLng: sale.locationLng || (sale.customer?.longitude ? parseFloat(sale.customer.longitude) : null)
             });
             // Mark sale as 'shipped'
             await db.update(sales).set({ deliveryStatus: "shipped" }).where(eq(sales.id, sale.id));
@@ -370,9 +370,9 @@ router.post("/fleet/routes/generate", async (req, res): Promise<void> => {
                 stopType: "collection",
                 sequence: sequence++,
                 status: "pending",
-                address: purchase.supplier?.address || "Sin dirección de proveedor",
-                locationLat: purchase.supplier?.latitude ? parseFloat(purchase.supplier.latitude) : null,
-                locationLng: purchase.supplier?.longitude ? parseFloat(purchase.supplier.longitude) : null
+                address: purchase.pickupAddress || purchase.supplier?.address || "Sin dirección de proveedor",
+                locationLat: purchase.locationLat || (purchase.supplier?.latitude ? parseFloat(purchase.supplier.latitude) : null),
+                locationLng: purchase.locationLng || (purchase.supplier?.longitude ? parseFloat(purchase.supplier.longitude) : null)
             });
         }
 

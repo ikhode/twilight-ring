@@ -44,6 +44,7 @@ import purchasesRoutes from "./routes/purchases";
 import inventoryRoutes from "./routes/inventory";
 import tensorRoutes from "./routes/tensors";
 import notificationsRoutes from "./routes/notifications";
+import eventsRoutes from "./routes/events";
 import salesWidgetsRoutes from "./routes/sales-widgets";
 import productionBatchesRoutes from "./routes/production-batches";
 import driverTrackingRoutes from "./routes/driver-tracking";
@@ -100,6 +101,7 @@ export async function registerRoutes(
   app.use("/api/search", searchRoutes);
   app.use("/api/whatsapp", whatsappRoutes); // Core Comms
   app.use("/api/notifications", notificationsRoutes); // System notifications
+  app.use("/api/events", eventsRoutes); // System Events
 
 
   // --- PROTECTED MODULES ---

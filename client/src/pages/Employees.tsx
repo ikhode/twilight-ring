@@ -200,6 +200,8 @@ function EditEmployeeDialog({ employee, open, onOpenChange }: { employee: Employ
                 department: formData.get("department") as string,
                 salary: Number(formData.get("salary")) * 100,
                 status: formData.get("status") as any,
+                phone: formData.get("phone") as string,
+                address: formData.get("address") as string,
               });
             }} className="space-y-4 py-4">
               {/* ID Display for Kiosk */}
@@ -228,6 +230,7 @@ function EditEmployeeDialog({ employee, open, onOpenChange }: { employee: Employ
                 <div className="space-y-2">
                   <Label>Puesto</Label>
                   <Input name="role" defaultValue={employee.role} required />
+
                 </div>
                 <div className="space-y-2">
                   <Label>Departamento</Label>
@@ -241,6 +244,17 @@ function EditEmployeeDialog({ employee, open, onOpenChange }: { employee: Employ
                       <SelectItem value="it">Tecnología</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Teléfono</Label>
+                  <Input name="phone" defaultValue={employee.phone || ""} placeholder="55-1234-5678" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Dirección</Label>
+                  <Input name="address" defaultValue={employee.address || ""} placeholder="Dirección completa" />
                 </div>
               </div>
 
@@ -281,8 +295,8 @@ function EditEmployeeDialog({ employee, open, onOpenChange }: { employee: Employ
             />
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </DialogContent >
+    </Dialog >
   );
 }
 
@@ -480,7 +494,9 @@ export default function Employees() {
                         role: formData.get("role") as string,
                         department: formData.get("department") as string,
                         salary: Number(formData.get("salary")) * 100, // store in cents
-                        status: "active"
+                        status: "active",
+                        phone: formData.get("phone") as string,
+                        address: formData.get("address") as string,
                       });
                     }} className="space-y-4 py-4">
 
@@ -514,6 +530,17 @@ export default function Employees() {
                         <div className="space-y-2">
                           <Label htmlFor="role">Cargo / Puesto</Label>
                           <Input id="role" name="role" required placeholder="Ej. Operador Senior" />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="phone">Teléfono</Label>
+                          <Input id="phone" name="phone" placeholder="55-1234-5678" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="address">Dirección</Label>
+                          <Input id="address" name="address" placeholder="Dirección completa" />
                         </div>
                       </div>
 

@@ -108,6 +108,20 @@ router.post("/", async (req, res): Promise<void> => {
         });
         const isAdmin = membership?.role === 'admin';
 
+        // Pre-fetch Supplier Location
+        let pickupAddress = null;
+        let locationLat = null;
+        let locationLng = null;
+
+        if (supplierId) {
+            const [supplier] = await db.select().from(suppliers).where(eq(suppliers.id, supplierId)).limit(1);
+            if (supplier) {
+                pickupAddress = supplier.address;
+                locationLat = supplier.latitude ? parseFloat(supplier.latitude) : null;
+                locationLng = supplier.longitude ? parseFloat(supplier.longitude) : null;
+            }
+        }
+
         const stats = { success: 0, errors: 0 };
         const createdIds = [];
 
@@ -175,7 +189,11 @@ router.post("/", async (req, res): Promise<void> => {
                     date: new Date(),
                     paidAt: status === "paid" ? new Date() : null,
                     receivedAt: status === "received" ? new Date() : null,
-                    notes: item.notes || null
+                    notes: item.notes || null,
+                    // Location Snapshot
+                    pickupAddress,
+                    locationLat,
+                    locationLng
                 }).returning();
 
                 createdIds.push(record.id);

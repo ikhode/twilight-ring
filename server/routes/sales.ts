@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "../storage";
 import {
     sales, products, inventoryMovements, payments, cashRegisters, cashTransactions, bankAccounts,
-    insertSaleSchema
+    customers, insertSaleSchema
 } from "../../shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { getOrgIdFromRequest, getAuthenticatedUser } from "../auth_util";
@@ -57,6 +57,20 @@ router.post("/", async (req, res) => {
             try {
                 const product = productData[item.productId];
 
+                // 1. Snapshot Customer Location (if applicable)
+                let deliveryAddress = null;
+                let locationLat = null;
+                let locationLng = null;
+
+                if (customerId) {
+                    const [customer] = await db.select().from(customers).where(eq(customers.id, customerId)).limit(1);
+                    if (customer) {
+                        deliveryAddress = customer.address;
+                        locationLat = customer.latitude ? parseFloat(customer.latitude) : null;
+                        locationLng = customer.longitude ? parseFloat(customer.longitude) : null;
+                    }
+                }
+
                 // 2. Create Sale Record
                 const [saleRecord] = await db.insert(sales).values({
                     organizationId: orgId,
@@ -70,7 +84,11 @@ router.post("/", async (req, res) => {
                     paymentMethod: paymentMethod || null,
                     bankAccountId: bankAccountId || null,
                     deliveryStatus: "pending",
-                    date: new Date()
+                    date: new Date(),
+                    // Location Snapshot
+                    deliveryAddress,
+                    locationLat,
+                    locationLng
                 }).returning();
 
                 // 3. Update Stock
