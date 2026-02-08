@@ -1,8 +1,9 @@
+import { memo } from 'react';
 import { Handle, Position } from 'reactflow';
 import { cn } from "@/lib/utils";
 import { Play } from "lucide-react";
 
-export const StartNode = ({ data, selected }: any) => {
+export const StartNode = memo(({ data, selected }: any) => {
     return (
         <div className={cn(
             "group relative min-w-[180px] rounded-xl border-2 transition-all duration-300",
@@ -38,4 +39,4 @@ export const StartNode = ({ data, selected }: any) => {
             />
         </div>
     );
-};
+});

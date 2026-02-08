@@ -92,6 +92,7 @@ export default function Production() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isTicketCreateOpen, setIsTicketCreateOpen] = useState(false);
   const [fraudWarning, setFraudWarning] = useState(false);
+  const [selectedSourceProductId, setSelectedSourceProductId] = useState<string | null>(null);
 
   const { data: processes, isLoading } = useQuery({
     queryKey: ["/api/cpe/processes"],
@@ -197,6 +198,11 @@ export default function Production() {
 
   const [editingProcess, setEditingProcess] = useState<any>(null); // Process being edited
   const [isProcessDialogOpen, setIsProcessDialogOpen] = useState(false);
+  // Derived metrics for Catalog view
+  const activeBatches = useMemo(() => summary?.activeInstances || [], [summary]);
+  const avgYield = summary?.efficiency || 0;
+  const qualityAlerts = 0; // Backend doesn't return count yet, keeping at 0
+  const dailyOutput = summary?.completedCount || 0;
 
   // Local state for visual selection in dialog
   const [localOutputIds, setLocalOutputIds] = useState<string[]>([]);
@@ -365,6 +371,8 @@ export default function Production() {
     },
     onSuccess: () => {
       toast({ title: "Ticket Creado" });
+      queryClient.invalidateQueries({ queryKey: ["/api/piecework/tickets"] });
+      setIsTicketCreateOpen(false);
     }
   });
 
@@ -391,6 +399,8 @@ export default function Production() {
   });
 
   useSupabaseRealtime({ table: 'processes', queryKey: ["/api/cpe/processes"] });
+  useSupabaseRealtime({ table: 'inventory', queryKey: ["/api/production/summary"] });
+  useSupabaseRealtime({ table: 'employees', queryKey: ["/api/production/summary"] });
   useSupabaseRealtime({ table: 'piecework_tickets', queryKey: ["/api/piecework/tickets"] });
 
   const { enabledModules } = useConfiguration();
@@ -543,42 +553,71 @@ export default function Production() {
                           notes: fd.get("notes")
                         });
                       }} className="space-y-4">
-                        <div className="space-y-2">
-                          <Label>Proceso a Iniciar</Label>
-                          <Select name="processId" required>
-                            <SelectTrigger className="bg-slate-910"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-                            <SelectContent>
-                              {processes?.filter((p: any) => p.status !== 'archived').map((p: any) => (
-                                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <Label className="text-xs uppercase font-bold text-slate-500">1. Materia Prima / Insumo</Label>
+                            <Select
+                              onValueChange={(v) => setSelectedSourceProductId(v === "none" ? null : v)}
+                              defaultValue="none"
+                            >
+                              <SelectTrigger className="bg-slate-900 border-slate-800">
+                                <SelectValue placeholder="Seleccionar insumo..." />
+                              </SelectTrigger>
+                              <SelectContent className="bg-slate-950 border-slate-800">
+                                <SelectItem value="none">-- Stock General / Sin Insumo --</SelectItem>
+                                {inventory.filter((i: any) => i.isProductionInput).map((i: any) => (
+                                  <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <p className="text-[10px] text-slate-500 italic">Selecciona qué vas a procesar para ver los procesos disponibles.</p>
+                          </div>
 
-                        <div className="space-y-2">
-                          <Label>Lote de Origen (Materia Prima)</Label>
-                          <Select name="sourceBatchId">
-                            <SelectTrigger className="bg-slate-910"><SelectValue placeholder="Seleccionar lote de compra..." /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">-- Ninguno / Stock General --</SelectItem>
-                              {Array.from(new Map(purchases.filter((p: any) => p.batchId).map((p: any) => [p.batchId, p])).values()).map((p: any) => (
-                                <SelectItem key={p.id} value={p.batchId}>
-                                  {p.batchId} - {p.supplier?.name} ({new Date(p.date).toLocaleDateString()})
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <p className="text-[10px] text-slate-500">Opcional: Vincula este lote a una compra específica para análisis de rendimiento.</p>
-                        </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs uppercase font-bold text-slate-500">2. Proceso a Iniciar</Label>
+                            <Select name="processId" required disabled={!selectedSourceProductId}>
+                              <SelectTrigger className="bg-slate-900 border-slate-800">
+                                <SelectValue placeholder={selectedSourceProductId ? "Seleccionar proceso..." : "Primero selecciona un insumo"} />
+                              </SelectTrigger>
+                              <SelectContent className="bg-slate-950 border-slate-800">
+                                {processes?.filter((p: any) =>
+                                  p.status !== 'archived' &&
+                                  (!selectedSourceProductId || p.workflowData?.inputProductId === selectedSourceProductId)
+                                ).map((p: any) => (
+                                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
 
+                          <div className="space-y-2">
+                            <Label className="text-xs uppercase font-bold text-slate-500">3. Lote de Compra (Trazabilidad)</Label>
+                            <Select name="sourceBatchId">
+                              <SelectTrigger className="bg-slate-900 border-slate-800">
+                                <SelectValue placeholder="Seleccionar lote de compra..." />
+                              </SelectTrigger>
+                              <SelectContent className="bg-slate-950 border-slate-800">
+                                <SelectItem value="none">-- Ninguno --</SelectItem>
+                                {purchases
+                                  .filter((p: any) => p.batchId && (!selectedSourceProductId || p.productId === selectedSourceProductId))
+                                  .map((p: any) => (
+                                    <SelectItem key={p.id} value={p.batchId}>
+                                      {p.batchId} - {p.supplier?.name} ({new Date(p.date).toLocaleDateString()})
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
 
-                        <div className="space-y-2">
-                          <Label>Notas Iniciales</Label>
-                          <Textarea name="notes" placeholder="Detalles u observaciones" className="bg-slate-910" />
+                          <div className="space-y-2">
+                            <Label className="text-xs uppercase font-bold text-slate-500">Notas Iniciales</Label>
+                            <Textarea name="notes" placeholder="Detalles u observaciones" className="bg-slate-900 border-slate-800" />
+                          </div>
+
+                          <DialogFooter className="pt-4 border-t border-slate-800">
+                            <Button type="submit" className="bg-emerald-600 hover:bg-emerald-500 w-full md:w-auto">Confirmar Inicio</Button>
+                          </DialogFooter>
                         </div>
-                        <DialogFooter>
-                          <Button type="submit" className="bg-emerald-600 hover:bg-emerald-500">Confirmar Inicio</Button>
-                        </DialogFooter>
                       </form>
                     </DialogContent>
                   </Dialog>
@@ -646,9 +685,77 @@ export default function Production() {
               <TabsContent value="catalog" className="space-y-6">
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-bold font-display">Procesos Definidos</h2>
-                  <Button className="gap-2" onClick={() => { setEditingProcess(null); setIsProcessDialogOpen(true); }}>
-                    <Plus className="w-4 h-4" /> Crear Proceso
-                  </Button>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="cursor-help">
+                            <StatCard
+                              title="Lotes en Marcha"
+                              value={activeBatches?.length || 0}
+                              icon={Play}
+                              variant="primary"
+                            />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-3 max-w-xs">
+                          <p className="font-bold text-primary uppercase tracking-widest text-[9px] mb-1">Carga Operativa Actual</p>
+                          <p>Número de procesos que se encuentran activos. <br /><span className="text-[10px] text-slate-400 italic">Cálculo: Conteo de instancias con estado 'active'.</span></p>
+                        </TooltipContent>
+                      </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="cursor-help">
+                            <StatCard
+                              title="Rendimiento Promedio"
+                              value={`${avgYield}%`}
+                              icon={Zap}
+                              variant={avgYield > 95 ? "success" : avgYield > 85 ? "warning" : "destructive"}
+                            />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-3 max-w-xs">
+                          <p className="font-bold text-emerald-500 uppercase tracking-widest text-[9px] mb-1">Eficiencia de Transformación</p>
+                          <p>Relación entre lotes completados y total iniciados. <br /><span className="text-[10px] text-slate-400 italic">Fórmula: (Completados / Totales) * 100</span></p>
+                        </TooltipContent>
+                      </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="cursor-help">
+                            <StatCard
+                              title="Alertas de Calidad"
+                              value={qualityAlerts}
+                              icon={AlertCircle}
+                              variant={qualityAlerts > 0 ? "destructive" : "default"}
+                            />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-3 max-w-xs">
+                          <p className="font-bold text-red-500 uppercase tracking-widest text-[9px] mb-1">Incidentes Críticos</p>
+                          <p>Reportes de desviación de calidad detectados en las etapas de inspección durante el periodo actual.</p>
+                        </TooltipContent>
+                      </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="cursor-help">
+                            <StatCard
+                              title="Producción del Día"
+                              value={dailyOutput}
+                              icon={CheckCircle2}
+                              variant="success"
+                            />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-3 max-w-xs">
+                          <p className="font-bold text-emerald-500 uppercase tracking-widest text-[9px] mb-1">Meta de Cumplimiento</p>
+                          <p>Total de unidades terminadas hoy. <br /><span className="text-[10px] text-slate-400 italic">Fuente: Conteo de lotes con estado 'completed' hoy.</span></p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
 
                   <CreateProcessDialog
                     open={isProcessDialogOpen}
@@ -816,6 +923,97 @@ export default function Production() {
             isVisionEnabled={isVisionEnabled}
             isLoading={reportMode === 'finish' ? finishBatchMutation.isPending : reportProductionMutation.isPending}
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* NEW: Ticket Creation Dialog */}
+      <Dialog open={isTicketCreateOpen} onOpenChange={setIsTicketCreateOpen}>
+        <DialogContent className="max-w-md bg-slate-950 border-slate-800">
+          <DialogHeader>
+            <DialogTitle className="font-display">Registrar Trabajo por Destajo</DialogTitle>
+            <DialogDescription>Ingrese los detalles de la tarea realizada por el personal.</DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            const formData = new FormData(e.currentTarget);
+            createTicketMutation.mutate({
+              employeeId: formData.get('employeeId'),
+              taskName: formData.get('taskName'),
+              quantity: Number(formData.get('quantity')),
+              unitPrice: Number(formData.get('unitPrice')) * 100,
+              status: 'pending'
+            });
+          }} className="space-y-4 py-4">
+
+            <div className="space-y-2">
+              <Label className="text-xs uppercase font-bold text-slate-500">Empleado</Label>
+              <Select name="employeeId" required>
+                <SelectTrigger className="bg-slate-900 border-slate-800">
+                  <SelectValue placeholder="Seleccione empleado" />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-900 border-slate-800">
+                  {employees?.map((emp: any) => (
+                    <SelectItem key={emp.id} value={emp.id}>
+                      {emp.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs uppercase font-bold text-slate-500">Tarea Realizada</Label>
+              <Select name="taskName" required onValueChange={(val) => {
+                const task = pieceworkTasks.find((t: any) => t.name === val);
+                if (task) {
+                  const priceInput = document.getElementById('ticket-price-input') as HTMLInputElement;
+                  if (priceInput) priceInput.value = (task.unitPrice / 100).toFixed(2);
+                }
+              }}>
+                <SelectTrigger className="bg-slate-900 border-slate-800">
+                  <SelectValue placeholder="Seleccione tarea" />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-900 border-slate-800">
+                  {pieceworkTasks.map((task: any) => (
+                    <SelectItem key={task.id} value={task.name}>{task.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-xs uppercase font-bold text-slate-500">Cantidad</Label>
+                <Input
+                  name="quantity"
+                  type="number"
+                  min="1"
+                  required
+                  defaultValue="1"
+                  className="bg-slate-900 border-slate-800"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs uppercase font-bold text-slate-500">Pago por Unidad ($)</Label>
+                <Input
+                  id="ticket-price-input"
+                  name="unitPrice"
+                  type="number"
+                  step="0.01"
+                  required
+                  className="bg-slate-900 border-slate-800"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="pt-4">
+              <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500" disabled={createTicketMutation.isPending}>
+                <Plus className="w-4 h-4 mr-2" />
+                {createTicketMutation.isPending ? "Registrando..." : "Crear Ticket"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </AppLayout>

@@ -302,6 +302,117 @@ async function recordPurchasePayment(orgId: string, purchase: any) {
         .where(eq(purchases.id, purchase.id));
 }
 
+/**
+ * Approves a purchase batch or individual item.
+ */
+router.patch("/batch/:batchId/approve", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        const user = await getAuthenticatedUser(req);
+        if (!orgId || !user) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        const { batchId } = req.params;
+
+        // Try to approve by batchId first, then by individual id if nothing found (for 'single-ID' case)
+        let result = await db.update(purchases)
+            .set({ isApproved: true, approvedBy: user.id })
+            .where(and(eq(purchases.batchId, batchId), eq(purchases.organizationId, orgId)));
+
+        if (result.rowCount === 0) {
+            // Check if it's a single ID passed as batchId
+            result = await db.update(purchases)
+                .set({ isApproved: true, approvedBy: user.id })
+                .where(and(eq(purchases.id, batchId), eq(purchases.organizationId, orgId)));
+        }
+
+        res.json({ message: "Orden aprobada exitosamente", affectedRows: result.rowCount });
+    } catch (error) {
+        console.error("Approve batch error:", error);
+        res.status(500).json({ message: "Error al aprobar la orden" });
+    }
+});
+
+/**
+ * Marks a single purchase as received.
+ */
+router.patch("/:id/receive", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        const { id } = req.params;
+
+        const purchase = await db.query.purchases.findFirst({
+            where: and(eq(purchases.id, id), eq(purchases.organizationId, orgId))
+        });
+
+        if (!purchase) {
+            res.status(404).json({ message: "Compra no encontrada" });
+            return;
+        }
+
+        if (!purchase.isApproved) {
+            res.status(400).json({ message: "La compra debe ser aprobada antes de recibirse" });
+            return;
+        }
+
+        if (purchase.deliveryStatus === "received") {
+            res.status(400).json({ message: "Esta compra ya ha sido recibida" });
+            return;
+        }
+
+        await receivePurchaseStock(orgId, purchase);
+        res.json({ message: "Insumos recibidos exitosamente" });
+    } catch (error) {
+        console.error("Receive purchase error:", error);
+        res.status(500).json({ message: "Error al recibir los insumos" });
+    }
+});
+
+/**
+ * Marks a batch of purchases as received.
+ */
+router.patch("/batch/:batchId/receive", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        const { batchId } = req.params;
+
+        const pendingItems = await db.query.purchases.findMany({
+            where: and(
+                eq(purchases.batchId, batchId),
+                eq(purchases.organizationId, orgId),
+                eq(purchases.deliveryStatus, "pending"),
+                eq(purchases.isApproved, true)
+            )
+        });
+
+        if (pendingItems.length === 0) {
+            res.status(400).json({ message: "No se encontraron ítems aprobados pendientes en este lote" });
+            return;
+        }
+
+        for (const item of pendingItems) {
+            await receivePurchaseStock(orgId, item);
+        }
+
+        res.json({ message: `${pendingItems.length} ítems recibidos correctamente` });
+    } catch (error) {
+        console.error("Batch receive error:", error);
+        res.status(500).json({ message: "Error al recibir el lote" });
+    }
+});
+
 router.patch("/:id/pay", async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
@@ -586,6 +697,128 @@ router.patch("/batch/:batchId/logistics", async (req, res): Promise<void> => {
         res.json({ message: "Batch logistics updated" });
     } catch (error) {
         res.status(500).json({ message: "Error updating batch logistics" });
+    }
+});
+
+/**
+ * Updates logistics for a batch of purchases.
+ */
+router.patch("/batch/:batchId/logistics", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        const { batchId } = req.params;
+        const { driverId, vehicleId, freightCost, logisticsMethod } = req.body;
+
+        const updateData: any = {};
+        if (driverId !== undefined) updateData.driverId = driverId;
+        if (vehicleId !== undefined) updateData.vehicleId = vehicleId;
+        if (freightCost !== undefined) updateData.freightCost = freightCost;
+        if (logisticsMethod !== undefined) updateData.logisticsMethod = logisticsMethod;
+
+        const result = await db.update(purchases)
+            .set(updateData)
+            .where(and(eq(purchases.batchId, batchId), eq(purchases.organizationId, orgId)));
+
+        res.json({ message: "Batch logistics updated", affectedRows: result.rowCount });
+    } catch (error) {
+        console.error("Batch logistics update error:", error);
+        res.status(500).json({ message: "Error updating batch logistics" });
+    }
+});
+
+/**
+ * Updates logistics for a single purchase item.
+ */
+router.patch("/:id/logistics", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        const { id } = req.params;
+        const { driverId, vehicleId, freightCost, logisticsMethod } = req.body;
+
+        const updateData: any = {};
+        if (driverId !== undefined) updateData.driverId = driverId;
+        if (vehicleId !== undefined) updateData.vehicleId = vehicleId;
+        if (freightCost !== undefined) updateData.freightCost = freightCost;
+        if (logisticsMethod !== undefined) updateData.logisticsMethod = logisticsMethod;
+
+        const [item] = await db.update(purchases)
+            .set(updateData)
+            .where(and(eq(purchases.id, id), eq(purchases.organizationId, orgId)))
+            .returning();
+
+        if (!item) {
+            res.status(404).json({ message: "Item not found" });
+            return;
+        }
+
+        res.json({ message: "Logistics updated", item });
+    } catch (error) {
+        console.error("Single logistics update error:", error);
+        res.status(500).json({ message: "Error updating logistics" });
+    }
+});
+
+/**
+ * Deletes a single purchase item.
+ */
+router.delete("/:id", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        const { id } = req.params;
+
+        const result = await db.delete(purchases)
+            .where(and(eq(purchases.id, id), eq(purchases.organizationId, orgId)));
+
+        res.json({ message: "Purchase deleted", affectedRows: result.rowCount });
+    } catch (error) {
+        console.error("Single purchase delete error:", error);
+        res.status(500).json({ message: "Error deleting purchase" });
+    }
+});
+
+/**
+ * Deletes all items in a purchase batch.
+ */
+router.delete("/batch/:batchId", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        const { batchId } = req.params;
+
+        const result = await db.delete(purchases)
+            .where(and(eq(purchases.batchId, batchId), eq(purchases.organizationId, orgId)));
+
+        // If no rows were deleted by batchId, try deleting by id in case it was a single item
+        if (result.rowCount === 0) {
+            const resultSingle = await db.delete(purchases)
+                .where(and(eq(purchases.id, batchId), eq(purchases.organizationId, orgId)));
+            res.json({ message: "Purchase deleted", affectedRows: resultSingle.rowCount });
+            return;
+        }
+
+        res.json({ message: "Batch deleted", affectedRows: result.rowCount });
+    } catch (error) {
+        console.error("Batch purchase delete error:", error);
+        res.status(500).json({ message: "Error deleting batch" });
     }
 });
 

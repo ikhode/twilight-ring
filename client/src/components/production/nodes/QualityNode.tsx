@@ -1,8 +1,9 @@
+import { memo } from 'react';
 import { Handle, Position } from 'reactflow';
 import { cn } from "@/lib/utils";
 import { ShieldCheck, Search } from "lucide-react";
 
-export const QualityNode = ({ data, selected }: any) => {
+export const QualityNode = memo(({ data, selected }: any) => {
     return (
         <div className={cn(
             "group relative min-w-[200px] rounded-xl border-2 transition-all duration-300",
@@ -57,4 +58,4 @@ export const QualityNode = ({ data, selected }: any) => {
             />
         </div>
     );
-};
+});

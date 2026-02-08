@@ -155,8 +155,7 @@ export function Sidebar({ className, onLinkClick }: SidebarProps) {
 
       {/* User Footer */}
       <div className="p-4 border-t border-sidebar-border">
-        <LevelIndicator />
-        <div className={cn("mt-4 flex items-center gap-3", collapsed ? "justify-center" : "")}>
+        <div className={cn("flex items-center gap-3", collapsed ? "justify-center" : "")}>
           <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-primary to-purple-500 border-2 border-slate-900 flex items-center justify-center text-xs font-black text-white shadow-lg flex-shrink-0">
             {user?.email?.[0].toUpperCase() || "U"}
           </div>

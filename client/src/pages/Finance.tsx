@@ -290,12 +290,24 @@ export default function Finance() {
                 <p className="text-[10px] text-emerald-500/60 mt-1">{summary?.accountsReceivable?.count || 0} facturas pendientes</p>
               </Card>
 
-              <Card className="bg-rose-950/20 border-rose-900/50 p-4 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-3 opacity-20"><ArrowDownRight className="h-10 w-10 text-rose-500" /></div>
-                <p className="text-xs text-rose-400 font-medium mb-1">Por Pagar</p>
-                <h4 className="text-2xl font-bold text-white/90">{formatCurrency(summary?.accountsPayable?.total / 100 || 0)}</h4>
-                <p className="text-[10px] text-rose-500/60 mt-1">{summary?.accountsPayable?.count || 0} facturas pendientes</p>
-              </Card>
+              <UiTooltip>
+                <TooltipTrigger asChild>
+                  <Card className="bg-rose-950/20 border-rose-900/50 p-4 relative overflow-hidden cursor-help group-hover:border-rose-500/50 transition-colors">
+                    <div className="absolute top-0 right-0 p-3 opacity-20"><ArrowDownRight className="h-10 w-10 text-rose-500" /></div>
+                    <p className="text-xs text-rose-400 font-medium mb-1">Por Pagar</p>
+                    <h4 className="text-2xl font-bold text-white/90">{formatCurrency(summary?.accountsPayable?.total / 100 || 0)}</h4>
+                    <p className="text-[10px] text-rose-500/60 mt-1">{summary?.accountsPayable?.count || 0} facturas pendientes</p>
+                  </Card>
+                </TooltipTrigger>
+                <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-slate-300">
+                  <p>Monto neto por pagar (excluye canceladas).</p>
+                  {summary?.accountsPayable?.cancelledTotal > 0 && (
+                    <p className="text-[10px] text-rose-400 mt-1">
+                      Cancelado: {formatCurrency(summary.accountsPayable.cancelledTotal / 100)} ({summary.accountsPayable.cancelledCount})
+                    </p>
+                  )}
+                </TooltipContent>
+              </UiTooltip>
 
               <Card className="bg-blue-950/20 border-blue-900/50 p-4 relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-3 opacity-20"><CreditCard className="h-10 w-10 text-blue-500" /></div>

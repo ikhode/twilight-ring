@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +23,7 @@ import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 
 export function FloorControl() {
+    const { session } = useAuth();
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const [selectedLog, setSelectedLog] = useState<any>(null);
@@ -32,10 +34,13 @@ export function FloorControl() {
     const { data: logs = [] } = useQuery({
         queryKey: ["/api/production/logs/active"],
         queryFn: async () => {
-            const res = await fetch("/api/production/logs/active");
+            const res = await fetch("/api/production/logs/active", {
+                headers: { Authorization: `Bearer ${session?.access_token}` }
+            });
             if (!res.ok) return [];
             return res.json();
         },
+        enabled: !!session?.access_token,
         refetchInterval: 5000 // Poll every 5s for realtime-ish updates
     });
 
@@ -43,7 +48,10 @@ export function FloorControl() {
         mutationFn: async () => {
             const res = await fetch("/api/production/logs/finalize", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${session?.access_token}`
+                },
                 body: JSON.stringify({
                     logId: selectedLog.id,
                     ...finalizeData

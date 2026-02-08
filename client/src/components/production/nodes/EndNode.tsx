@@ -1,8 +1,9 @@
+import { memo } from 'react';
 import { Handle, Position } from 'reactflow';
 import { cn } from "@/lib/utils";
 import { Flag, PackageCheck } from "lucide-react";
 
-export const EndNode = ({ data, selected }: any) => {
+export const EndNode = memo(({ data, selected }: any) => {
     return (
         <div className={cn(
             "group relative min-w-[180px] rounded-xl border-2 transition-all duration-300",
@@ -38,4 +39,4 @@ export const EndNode = ({ data, selected }: any) => {
             />
         </div>
     );
-};
+});

@@ -448,6 +448,8 @@ export default function Logistics() {
 
     // Realtime subscriptions
     useSupabaseRealtime({ table: 'vehicles', queryKey: ["/api/logistics/fleet/vehicles"] });
+    useSupabaseRealtime({ table: 'fleet_maintenance', queryKey: ["/api/logistics/fleet/maintenance"] });
+    useSupabaseRealtime({ table: 'fleet_fuel', queryKey: ["/api/logistics/fleet/fuel"] });
     useSupabaseRealtime({ table: 'sales', queryKey: ["/api/sales"] });
     useSupabaseRealtime({ table: 'purchases', queryKey: ["/api/purchases"] });
     useSupabaseRealtime({ table: 'routes', queryKey: ["/api/logistics/fleet/routes/active"] });

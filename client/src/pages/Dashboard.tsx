@@ -147,6 +147,12 @@ export default function Dashboard() {
     enabled: !!activeProcessId,
   });
 
+  // Comprehensive realtime subscriptions for Dashboard reactivity
+  useSupabaseRealtime({ table: 'sales', queryKey: ["/api/dashboard/stats"] });
+  useSupabaseRealtime({ table: 'inventory', queryKey: ["/api/dashboard/stats"] });
+  useSupabaseRealtime({ table: 'inventory_alerts', queryKey: ["/api/dashboard/stats"] });
+  useSupabaseRealtime({ table: 'notifications', queryKey: ["/api/dashboard/stats"] });
+
   const activeInstanceId = instances?.[0]?.id;
 
   // Zero-State: System Initialization

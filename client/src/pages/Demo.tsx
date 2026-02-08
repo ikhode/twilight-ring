@@ -29,6 +29,20 @@ export default function Demo() {
     const [industry, setIndustry] = useState<"retail" | "manufacturing" | "services">("manufacturing");
     const [step, setStep] = useState(0);
     const [showGuide, setShowGuide] = useState(true);
+    const [selectedNode, setSelectedNode] = useState<number | null>(null);
+    const [confidence, setConfidence] = useState(82.4);
+
+    // AI Confidence Jitter
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setConfidence(prev => {
+                const jitter = (Math.random() - 0.5) * 0.5;
+                const next = prev + jitter;
+                return Math.min(Math.max(next, 81.5), 84.0);
+            });
+        }, 2000);
+        return () => clearInterval(interval);
+    }, []);
 
     const demoSteps = [
         {
@@ -66,7 +80,16 @@ export default function Demo() {
             stat2: "Ventas Proyectadas",
             icon: Package,
             color: "from-blue-500 to-cyan-500",
-            nodes: ["Punto de Venta", "Almacén Central", "Logística de Envío"]
+            nodes: [
+                { id: "pos", name: "Punto de Venta", insight: "IA: Ventas cruzadas sugeridas +12%" },
+                { id: "warehouse", name: "Almacén Central", insight: "IA: Reabastecimiento dinámico activado" },
+                { id: "logistics", name: "Logística de Envío", insight: "IA: Ruta optimizada (ahorro 15min)" }
+            ],
+            anomalies: [
+                "Stockout inminente SKU #501",
+                "Divergencia en arqueo de caja",
+                "Retraso en última milla: +2hrs"
+            ]
         },
         manufacturing: {
             title: "Fábrica Cognitiva",
@@ -74,7 +97,16 @@ export default function Demo() {
             stat2: "Mantenimiento Predictivo",
             icon: Factory,
             color: "from-purple-500 to-pink-500",
-            nodes: ["Materia Prima", "Ensamble A1", "Control de Calidad"]
+            nodes: [
+                { id: "raw", name: "Materia Prima", insight: "IA: Stockout prevenido (48h)" },
+                { id: "assembly", name: "Ensamble A1", insight: "IA: Velocidad nominal superada +5%" },
+                { id: "quality", name: "Control de Calidad", insight: "IA: Precisión visual 99.8%" }
+            ],
+            anomalies: [
+                "Vibración anómala detectada en Ensamble",
+                "Cuello de botella en Control de Calidad",
+                "Desperdicio excedente en fase de entrada"
+            ]
         },
         services: {
             title: "Gestión de Servicios",
@@ -82,7 +114,16 @@ export default function Demo() {
             stat2: "Retención de Clientes",
             icon: Briefcase,
             color: "from-green-500 to-emerald-500",
-            nodes: ["Intake de Clientes", "Asignación de Staff", "Feedback Loop"]
+            nodes: [
+                { id: "intake", name: "Intake de Clientes", insight: "IA: Optimización de turnos +15%" },
+                { id: "staff", name: "Asignación de Staff", insight: "IA: Reducción de tiempos muertos 22%" },
+                { id: "feedback", name: "Feedback Loop", insight: "IA: Mejora en NPS proyectado +8" }
+            ],
+            anomalies: [
+                "Desviación en SLA de respuesta: +15min",
+                "Churn predictivo detectado en Segmento A",
+                "Sobrecarga de tickets en canal Chat"
+            ]
         }
     };
 
@@ -92,7 +133,20 @@ export default function Demo() {
         <div className="min-h-screen bg-[#020617] text-white flex flex-col overflow-hidden relative font-sans">
             {/* Ambient Background */}
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(59,130,246,0.05),transparent_70%)]" />
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary/50 via-purple-500/50 to-primary/50" />
+
+            {/* Global Focus Blur for Guide */}
+            <AnimatePresence>
+                {showGuide && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-[2px] pointer-events-none"
+                    />
+                )}
+            </AnimatePresence>
+
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary/50 via-purple-500/50 to-primary/50 z-50" />
 
             {/* Header / Demo Menu */}
             <header className="relative z-50 p-6 flex justify-between items-center border-b border-white/5 bg-slate-950/50 backdrop-blur-xl">
@@ -149,11 +203,16 @@ export default function Demo() {
                             </CardHeader>
                             <CardContent className="relative z-10">
                                 <div className="flex items-end gap-4 mb-4">
-                                    <span className="text-6xl font-black italic tracking-tighter text-primary">82.4%</span>
+                                    <span className="text-6xl font-black italic tracking-tighter text-primary">
+                                        {confidence.toFixed(1)}%
+                                    </span>
                                     <div className="space-y-1 mb-2">
                                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Confianza de Predicción</p>
                                         <div className="w-24 h-1 bg-slate-800 rounded-full overflow-hidden">
-                                            <motion.div initial={{ width: 0 }} animate={{ width: "82%" }} className="h-full bg-primary" />
+                                            <motion.div
+                                                animate={{ width: `${confidence}%` }}
+                                                className="h-full bg-primary transition-all duration-1000"
+                                            />
                                         </div>
                                     </div>
                                 </div>
@@ -192,7 +251,7 @@ export default function Demo() {
                             </CardHeader>
                             <CardContent className="h-full flex items-center justify-center p-0 relative">
                                 <div className="flex flex-col md:flex-row items-center gap-8 md:gap-16">
-                                    {preset.nodes.map((node, i) => (
+                                    {(preset.nodes as any[]).map((node, i) => (
                                         <motion.div
                                             key={i}
                                             initial={{ opacity: 0, y: 10 }}
@@ -200,32 +259,56 @@ export default function Demo() {
                                             transition={{ delay: i * 0.2 }}
                                             className="relative"
                                         >
-                                            <div className="w-32 h-20 rounded-2xl bg-slate-900 border border-slate-800 flex flex-col items-center justify-center p-4 shadow-2xl relative z-10 hover:border-primary/50 transition-colors group cursor-default">
-                                                <p className="text-[8px] font-black uppercase tracking-tighter text-slate-500 group-hover:text-primary transition-colors">{node}</p>
+                                            <button
+                                                onClick={() => setSelectedNode(selectedNode === i ? null : i)}
+                                                className={`w-34 h-22 rounded-2xl bg-slate-900 border flex flex-col items-center justify-center p-4 shadow-2xl relative z-10 transition-all group cursor-pointer ${selectedNode === i ? 'border-primary ring-2 ring-primary/20 scale-110' : 'border-slate-800 hover:border-primary/50'}`}
+                                            >
+                                                <p className="text-[9px] font-black uppercase tracking-tighter text-slate-500 group-hover:text-primary transition-colors">{node.name}</p>
                                                 <div className="flex items-center gap-1 mt-2">
                                                     <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
                                                     <span className="text-[10px] font-mono text-white">Active</span>
                                                 </div>
-                                            </div>
+
+                                                {/* Tooltip detail on selection */}
+                                                <AnimatePresence>
+                                                    {selectedNode === i && (
+                                                        <motion.div
+                                                            initial={{ opacity: 0, scale: 0.8, y: 10 }}
+                                                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                                                            exit={{ opacity: 0, scale: 0.8 }}
+                                                            className="absolute -top-12 left-1/2 -translate-x-1/2 bg-primary text-[10px] text-white px-3 py-1.5 rounded-lg whitespace-nowrap shadow-xl z-20 font-bold uppercase tracking-widest"
+                                                        >
+                                                            {node.insight}
+                                                            <div className="absolute bottom-[-4px] left-1/2 -translate-x-1/2 w-2 h-2 bg-primary rotate-45" />
+                                                        </motion.div>
+                                                    )}
+                                                </AnimatePresence>
+                                            </button>
                                             {i < preset.nodes.length - 1 && (
                                                 <div className="hidden md:block absolute top-1/2 -right-16 w-16 h-px bg-gradient-to-r from-primary to-transparent" />
                                             )}
                                         </motion.div>
                                     ))}
                                 </div>
-                                {/* Particle effect */}
+                                {/* Particle effect - Enhanced with multiple paths */}
                                 <div className="absolute inset-0 pointer-events-none">
-                                    {[...Array(10)].map((_, i) => (
+                                    {[...Array(15)].map((_, i) => (
                                         <motion.div
                                             key={i}
-                                            className="absolute w-1 h-1 bg-primary rounded-full blur-[1px]"
+                                            className="absolute w-1.5 h-1.5 bg-primary/40 rounded-full blur-[2px]"
                                             initial={{ x: "20%", y: "50%", opacity: 0 }}
                                             animate={{
-                                                x: ["20%", "50%", "80%"],
-                                                y: ["50%", `${40 + Math.random() * 20}%`, "50%"],
-                                                opacity: [0, 1, 0]
+                                                x: ["10%", "50%", "90%"],
+                                                y: ["50%", `${45 + Math.random() * 10}%`, "50%"],
+                                                opacity: [0, 0.8, 0],
+                                                scale: [1, 1.5, 1]
                                             }}
-                                            transition={{ duration: 3, repeat: Infinity, delay: i * 0.5 }}
+                                            transition={{
+                                                duration: 2 + Math.random() * 2,
+                                                repeat: Infinity,
+                                                delay: i * 0.4,
+                                                ease: "linear"
+                                            }}
                                         />
                                     ))}
                                 </div>
@@ -242,18 +325,31 @@ export default function Demo() {
                                 <CardDescription className="text-xs">Predicción de Anomalías</CardDescription>
                             </CardHeader>
                             <CardContent className="flex-1 space-y-4">
-                                <div className="p-4 rounded-xl bg-rose-500/5 border border-rose-500/10 space-y-2">
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-[10px] font-black uppercase text-rose-300">Anomalía Detectada</span>
-                                        <span className="text-[8px] font-mono text-rose-500">hace 2 min</span>
-                                    </div>
-                                    <p className="text-xs text-slate-300">Inconsistencia detectada en el flujo de <span className="font-bold text-rose-200 uppercase">{preset.nodes[1]}</span>. Probabilidad de desperdicio: <span className="text-rose-500 font-black">12.4%</span></p>
-                                </div>
+                                <AnimatePresence mode="wait">
+                                    <motion.div
+                                        key={industry}
+                                        initial={{ opacity: 0, x: 20 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        exit={{ opacity: 0, x: -20 }}
+                                        className="space-y-3"
+                                    >
+                                        {((preset as any).anomalies as string[]).map((anomaly, i) => (
+                                            <div key={i} className="p-3 rounded-xl bg-rose-500/5 border border-rose-500/10 space-y-1">
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-[9px] font-black uppercase text-rose-300">Detección #00{i + 1}</span>
+                                                    <span className="text-[8px] font-mono text-rose-500/70">hace {i * 5 + 2} min</span>
+                                                </div>
+                                                <p className="text-[11px] text-slate-300 leading-tight">{anomaly}</p>
+                                            </div>
+                                        ))}
+                                    </motion.div>
+                                </AnimatePresence>
                                 <div className="p-4 rounded-xl bg-slate-950 border border-white/5 space-y-2 opacity-50">
-                                    <p className="text-[8px] font-black uppercase text-slate-600 tracking-widest">Logs de Seguridad</p>
+                                    <p className="text-[8px] font-black uppercase text-slate-600 tracking-widest">Live Streams</p>
                                     <div className="font-mono text-[9px] text-slate-500 space-y-1">
-                                        <p>{">"} Analizando heartbeat_core...</p>
-                                        <p>{">"} Sincronizando pgvector...</p>
+                                        <p className="animate-pulse">{">"} Analizando core_engine_{industry}...</p>
+                                        <p>{">"} Sincronizando pgvector_embeddings...</p>
+                                        <p>{">"} Heartbeat OK</p>
                                     </div>
                                 </div>
                             </CardContent>

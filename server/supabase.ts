@@ -34,6 +34,7 @@ export function createSupabaseServerClient(req: Request, res: Response) {
             cookies: {
                 get: (name) => req.cookies[name],
                 set: (name, value, options) => {
+                    if (res.headersSent) return;
                     res.cookie(name, value, {
                         ...options,
                         httpOnly: true,
@@ -43,6 +44,7 @@ export function createSupabaseServerClient(req: Request, res: Response) {
                     });
                 },
                 remove: (name) => {
+                    if (res.headersSent) return;
                     res.clearCookie(name, {
                         httpOnly: true,
                         secure: process.env.NODE_ENV === 'production',

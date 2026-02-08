@@ -301,7 +301,7 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
 
     if (isLoading) {
         return (
-            <div className="h-screen w-screen bg-black flex flex-col items-center justify-center gap-4">
+            <div className="h-full w-full bg-black flex flex-col items-center justify-center gap-4">
                 <Loader2 className="w-12 h-12 text-primary animate-spin" />
                 <p className="text-white font-black uppercase tracking-widest text-xs animate-pulse">Optimizando Ruta...</p>
             </div>
@@ -311,7 +311,7 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
     // Route Completed Screen
     if (hasLoadedData && stops.length === 0) {
         return (
-            <div className="h-screen w-screen bg-black flex flex-col items-center justify-center p-8 text-center">
+            <div className="h-full w-full bg-black flex flex-col items-center justify-center p-8 text-center">
                 <motion.div
                     initial={{ scale: 0.8, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
@@ -319,7 +319,7 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
                 >
                     <CheckCircle2 className="w-12 h-12 text-primary" />
                 </motion.div>
-                <h1 className="text-4xl font-black italic uppercase italic tracking-tighter mb-4">Ruta Finalizada</h1>
+                <h1 className="text-4xl font-black uppercase italic tracking-tighter mb-4">Ruta Finalizada</h1>
                 <p className="text-slate-400 font-bold uppercase tracking-widest text-xs mb-12">Todas las paradas han sido completadas</p>
 
                 <div className="w-full max-w-sm grid grid-cols-1 gap-4">
@@ -343,7 +343,7 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
     }
 
     return (
-        <div className="h-screen w-screen bg-[#020202] text-white overflow-hidden relative font-sans">
+        <div className="h-full w-full bg-[#020202] text-white overflow-hidden relative font-sans">
             {/* Map Background */}
             <div className="absolute inset-0 z-0">
                 <MapContainer
@@ -467,7 +467,7 @@ export function DriverTerminalMobile({ employee, terminalId }: DriverTerminalMob
                                         </Badge>
                                         <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{activeStop?.timeWindow || "Sin horario"}</span>
                                     </div>
-                                    <h2 className="text-2xl font-black italic uppercase italic tracking-tight truncate leading-tight">
+                                    <h2 className="text-2xl font-black uppercase italic tracking-tight truncate leading-tight">
                                         {activeStop?.customerName}
                                     </h2>
                                     <div className="flex items-center gap-2 text-slate-400 mt-1">

@@ -188,7 +188,14 @@ export function CreateProcessDialog({ open, onOpenChange, editingProcess, invent
                                         </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="none">-- Sin consumo directo --</SelectItem>
-                                            {inventory.filter((i: any) => i.isProductionInput !== false).map((i: any) => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}
+                                            {inventory
+                                                .filter((i: any) => i.isProductionInput === true)
+                                                .map((i: any) => (
+                                                    <SelectItem key={i.id} value={i.id}>
+                                                        {i.name}
+                                                        {i.category && <span className="text-[10px] opacity-50 ml-2">({i.category?.name || i.category})</span>}
+                                                    </SelectItem>
+                                                ))}
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -204,24 +211,26 @@ export function CreateProcessDialog({ open, onOpenChange, editingProcess, invent
                                     </div>
 
                                     <div className="grid grid-cols-2 gap-3 max-h-[220px] overflow-y-auto pr-1">
-                                        {inventory.filter((i: any) => i.isProductionOutput !== false).map((i: any) => {
-                                            const isSelected = localOutputIds.includes(i.id);
-                                            return (
-                                                <div
-                                                    key={i.id}
-                                                    onClick={() => setLocalOutputIds(prev => prev.includes(i.id) ? prev.filter(x => x !== i.id) : [...prev, i.id])}
-                                                    className={cn(
-                                                        "relative p-3 rounded-xl border cursor-pointer transition-all hover:translate-x-1 flex items-center justify-between group",
-                                                        isSelected
-                                                            ? "bg-emerald-950/20 border-emerald-500/50 shadow-[0_0_15px_-5px_rgba(16,185,129,0.1)]"
-                                                            : "bg-slate-900/50 border-slate-800 hover:border-slate-700 hover:bg-slate-900"
-                                                    )}
-                                                >
-                                                    <span className={cn("text-xs font-medium transition-colors", isSelected ? "text-emerald-300" : "text-slate-400 group-hover:text-slate-200")}>{i.name}</span>
-                                                    {isSelected && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
-                                                </div>
-                                            )
-                                        })}
+                                        {inventory
+                                            .filter((i: any) => i.isProductionOutput === true)
+                                            .map((i: any) => {
+                                                const isSelected = localOutputIds.includes(i.id);
+                                                return (
+                                                    <div
+                                                        key={i.id}
+                                                        onClick={() => setLocalOutputIds(prev => prev.includes(i.id) ? prev.filter(x => x !== i.id) : [...prev, i.id])}
+                                                        className={cn(
+                                                            "relative p-3 rounded-xl border cursor-pointer transition-all hover:translate-x-1 flex items-center justify-between group",
+                                                            isSelected
+                                                                ? "bg-emerald-950/20 border-emerald-500/50 shadow-[0_0_15px_-5px_rgba(16,185,129,0.1)]"
+                                                                : "bg-slate-900/50 border-slate-800 hover:border-slate-700 hover:bg-slate-900"
+                                                        )}
+                                                    >
+                                                        <span className={cn("text-xs font-medium transition-colors", isSelected ? "text-emerald-300" : "text-slate-400 group-hover:text-slate-200")}>{i.name}</span>
+                                                        {isSelected && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+                                                    </div>
+                                                )
+                                            })}
                                     </div>
                                 </div>
                             </TabsContent>

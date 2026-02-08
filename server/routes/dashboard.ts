@@ -17,14 +17,15 @@ router.get("/stats", async (req, res) => {
         });
 
         // 2. Real Production Efficiency (All processes)
-        // Simplified: No need for nested relations, just count instances
+        // Ensure we only count instances belonging to this organization
         const instancesCountResult = await db.select({ count: sql<number>`count(*)` })
             .from(processInstances)
-            .where(sql`1=1`); // No orgId on instances directly, we'll handle differently
+            .where(eq(processInstances.organizationId, organizationId));
 
-        // Get average health score if we have any instances
+        // Get average health score for this organization's instances
         const avgHealthResult = await db.select({ avg: sql<number>`avg(${processInstances.healthScore})` })
-            .from(processInstances);
+            .from(processInstances)
+            .where(eq(processInstances.organizationId, organizationId));
 
         const avgHealth = avgHealthResult[0]?.avg ? Math.round(Number(avgHealthResult[0].avg)) : 100;
 

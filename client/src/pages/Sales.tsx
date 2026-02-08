@@ -443,6 +443,10 @@ function POSView() {
     table: 'customers',
     queryKey: ["/api/crm/customers"],
   });
+  useSupabaseRealtime({
+    table: 'bank_accounts',
+    queryKey: ["/api/finance/accounts"],
+  });
 
   const products = useMemo(() => {
     const list = Array.isArray(dbProducts) ? dbProducts : [];

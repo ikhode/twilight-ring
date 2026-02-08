@@ -145,6 +145,11 @@ export default function Inventory() {
     enabled: !!session?.access_token
   });
 
+  // Realtime subscriptions for Inventory
+  useSupabaseRealtime({ table: 'products', queryKey: ["/api/inventory/products"] });
+  useSupabaseRealtime({ table: 'inventory_alerts', queryKey: ["/api/inventory/alerts"] });
+  useSupabaseRealtime({ table: 'inventory_movements', queryKey: ["/api/inventory/products"] });
+
   const { data: alerts = [], isLoading: isAlertsLoading } = useQuery({
     queryKey: ["/api/inventory/alerts"],
     queryFn: async () => {
@@ -409,13 +414,16 @@ export default function Inventory() {
     setNewProduct({
       name: "",
       sku: "",
+      category: "",
       categoryId: "",
       groupId: "",
+      productType: "both",
       isSellable: true,
       isPurchasable: true,
       isProductionInput: false,
       isProductionOutput: false,
       stock: 0,
+      unit: "pza",
       unitId: "",
       price: 0,
       cost: 0,
@@ -951,24 +959,29 @@ export default function Inventory() {
                                 <SelectContent className="bg-slate-950 border-slate-800 text-white">
                                   <SelectItem value="none">-- Es Producto Maestro --</SelectItem>
                                   {products.filter((p: any) => !p.masterProductId && p.id !== selectedProduct?.id).map((p: any) => (
-                                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                                    <SelectItem key={p.id} value={p.id}>{p.name} ({p.unit})</SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
-                              <p className="text-[9px] text-slate-500">Si este item es una variante (ej. Bulto), selecciona su base (ej. Coco Unidad).</p>
+                              <p className="text-[9px] text-slate-500 italic">Si este item es una presentación alternativa (ej. Bulto), selecciona su unidad base.</p>
                             </div>
 
                             {newProduct.masterProductId && (
                               <div className="space-y-2">
-                                <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Rendimiento Esperado ({products.find(p => p.id === newProduct.masterProductId)?.unit || 'u'})</Label>
-                                <Input
-                                  type="number"
-                                  placeholder="Ej. 50"
-                                  value={newProduct.expectedYield}
-                                  onChange={(e) => setNewProduct({ ...newProduct, expectedYield: parseFloat(e.target.value) || 0 })}
-                                  className="bg-slate-900/50 border-slate-800 focus:border-blue-500/50 transition-all font-mono text-blue-400 font-bold"
-                                />
-                                <p className="text-[9px] text-slate-500">Cantidad estimada de unidades base que rinde este item.</p>
+                                <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Factor de Conversión</Label>
+                                <div className="relative">
+                                  <Input
+                                    type="number"
+                                    placeholder="Ej. 100"
+                                    value={newProduct.expectedYield}
+                                    onChange={(e) => setNewProduct({ ...newProduct, expectedYield: parseFloat(e.target.value) || 0 })}
+                                    className="bg-slate-900/50 border-slate-800 focus:border-blue-500/50 transition-all font-mono text-blue-400 font-bold pr-12"
+                                  />
+                                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-blue-500/60 uppercase">
+                                    {products.find(p => p.id === newProduct.masterProductId)?.unit || 'u'}
+                                  </span>
+                                </div>
+                                <p className="text-[9px] text-slate-500">¿Cuántas unidades base contiene esta presentación?</p>
                               </div>
                             )}
                           </div>
@@ -1081,9 +1094,16 @@ export default function Inventory() {
                   key: "value",
                   header: "Valor Total",
                   render: (item) => (
-                    <span className="font-mono text-muted-foreground">
-                      {formatCurrency(item.stock * item.price)}
-                    </span>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="font-mono text-muted-foreground cursor-help underline decoration-dotted decoration-slate-700">
+                          {formatCurrency(item.stock * item.price)}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-2">
+                        <p>Valor de activos = Existencias × Precio de Venta</p>
+                      </TooltipContent>
+                    </Tooltip>
                   ),
                 },
                 {

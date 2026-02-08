@@ -1,5 +1,11 @@
 import { cn } from "@/lib/utils";
-import { LucideIcon, TrendingDown, TrendingUp } from "lucide-react";
+import { LucideIcon, TrendingDown, TrendingUp, HelpCircle } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface StatCardProps {
   title: string;
@@ -8,6 +14,7 @@ interface StatCardProps {
   trend?: number;
   trendLabel?: string;
   description?: string;
+  helpText?: string;
   variant?: "default" | "primary" | "success" | "warning" | "destructive";
   className?: string;
 }
@@ -19,6 +26,7 @@ export function StatCard({
   trend,
   trendLabel,
   description,
+  helpText,
   variant = "default",
   className,
 }: StatCardProps) {
@@ -49,7 +57,23 @@ export function StatCard({
     >
       <div className="flex items-start justify-between">
         <div className="space-y-2">
-          <p className="text-sm font-medium text-muted-foreground">{title}</p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-medium text-muted-foreground">{title}</p>
+            {helpText && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button className="text-muted-foreground hover:text-foreground transition-colors outline-none focus:ring-0">
+                      <HelpCircle className="w-3.5 h-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs p-3">
+                    <p className="text-xs">{helpText}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
           <div className="text-2xl font-display font-bold tracking-tight">{value}</div>
           {description && (
             <p className="text-xs text-muted-foreground font-medium">{description}</p>

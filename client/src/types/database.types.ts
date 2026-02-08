@@ -1952,6 +1952,79 @@ export type Database = {
           },
         ]
       }
+      production_activity_logs: {
+        Row: {
+          activity_type: string
+          batch_id: string | null
+          created_at: string | null
+          employee_id: string
+          ended_at: string | null
+          id: string
+          metadata: Json | null
+          notes: string | null
+          organization_id: string
+          quantity: number | null
+          started_at: string | null
+          status: string
+          task_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          activity_type: string
+          batch_id?: string | null
+          created_at?: string | null
+          employee_id: string
+          ended_at?: string | null
+          id?: string
+          metadata?: Json | null
+          notes?: string | null
+          organization_id: string
+          quantity?: number | null
+          started_at?: string | null
+          status?: string
+          task_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          activity_type?: string
+          batch_id?: string | null
+          created_at?: string | null
+          employee_id?: string
+          ended_at?: string | null
+          id?: string
+          metadata?: Json | null
+          notes?: string | null
+          organization_id?: string
+          quantity?: number | null
+          started_at?: string | null
+          status?: string
+          task_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_activity_logs_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_activity_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_activity_logs_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "production_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       production_tasks: {
         Row: {
           active: boolean
@@ -2676,6 +2749,7 @@ export type Database = {
           organization_id: string
           provisioning_expires_at: string | null
           provisioning_token: string | null
+          session_persistence: boolean | null
           status: string
           vehicle_id: string | null
         }
@@ -2696,6 +2770,7 @@ export type Database = {
           organization_id: string
           provisioning_expires_at?: string | null
           provisioning_token?: string | null
+          session_persistence?: boolean | null
           status?: string
           vehicle_id?: string | null
         }
@@ -2716,6 +2791,7 @@ export type Database = {
           organization_id?: string
           provisioning_expires_at?: string | null
           provisioning_token?: string | null
+          session_persistence?: boolean | null
           status?: string
           vehicle_id?: string | null
         }

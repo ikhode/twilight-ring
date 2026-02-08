@@ -103,7 +103,7 @@ export default function Landing() {
                         className="space-y-6"
                     >
                         <h1 className="text-8xl md:text-[10rem] font-black tracking-tighter uppercase italic leading-[0.8] mb-10">
-                            <span className="bg-gradient-to-r from-white via-primary to-white bg-clip-text text-transparent">
+                            <span className="bg-gradient-to-r from-white via-primary to-slate-500 bg-clip-text text-transparent">
                                 LA NUEVA ERA
                             </span>
                         </h1>
@@ -111,7 +111,17 @@ export default function Landing() {
                             {text.split("COGNITIVE OS").map((part, i) => (
                                 <span key={i}>
                                     {part}
-                                    {i === 0 && text.includes("COGNITIVE OS") && <span className="text-primary italic">COGNITIVE OS</span>}
+                                    {i === 0 && text.includes("COGNITIVE OS") && (
+                                        <span className="relative inline-block">
+                                            <span className="text-primary italic">COGNITIVE OS</span>
+                                            <motion.span
+                                                className="absolute -bottom-2 left-0 w-full h-1 bg-primary/30"
+                                                initial={{ scaleX: 0 }}
+                                                animate={{ scaleX: 1 }}
+                                                transition={{ duration: 1, delay: 1 }}
+                                            />
+                                        </span>
+                                    )}
                                 </span>
                             ))}
                             <motion.span
@@ -122,7 +132,6 @@ export default function Landing() {
                         </p>
                     </motion.div>
 
-                    {/* Mockup Showcase */}
                     <motion.div
                         initial={{ opacity: 0, scale: 0.9, y: 50 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -133,7 +142,7 @@ export default function Landing() {
                         <div className="relative rounded-[2.5rem] overflow-hidden border border-white/10 shadow-2xl backdrop-blur-3xl bg-black/40 p-4">
                             <div className="absolute top-0 left-0 right-0 h-10 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
                             <img
-                                src="C:/Users/Faker/.gemini/antigravity/brain/41a1ea7f-d36a-4622-b73a-95c10bfa0538/futuristic_erp_dashboard_premium_1769634106621.png"
+                                src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&q=80&w=2000"
                                 alt="Nexus ERP Dashboard"
                                 className="w-full h-auto rounded-[1.5rem] shadow-inner"
                             />
@@ -145,7 +154,7 @@ export default function Landing() {
                             className="absolute -top-10 -right-10 bg-black/60 backdrop-blur-xl border border-white/10 p-4 rounded-2xl shadow-2xl hidden md:block"
                         >
                             <div className="flex items-center gap-3">
-                                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                                <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
                                 <span className="text-[10px] font-black uppercase tracking-widest text-white/50">Core Status: Optimal</span>
                             </div>
                         </motion.div>
@@ -188,7 +197,6 @@ export default function Landing() {
                         </Button>
                     </motion.div>
 
-                    {/* Stats */}
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -306,6 +314,64 @@ export default function Landing() {
                                 </motion.div>
                             );
                         })}
+                    </div>
+                </div>
+            </section>
+
+            {/* How It Works Section */}
+            <section className="relative z-10 py-32 px-8 bg-slate-950">
+                <div className="max-w-7xl mx-auto">
+                    <div className="text-center mb-24">
+                        <h2 className="text-5xl md:text-7xl font-black tracking-tighter uppercase italic mb-6">
+                            EL CICLO DE <span className="text-primary">INTELIGENCIA</span>
+                        </h2>
+                        <p className="text-xl text-slate-400 max-w-3xl mx-auto">
+                            Transformamos datos crudos en ventajas competitivas exponenciales.
+                        </p>
+                    </div>
+
+                    <div className="grid md:grid-cols-3 gap-12">
+                        {[
+                            {
+                                step: "01",
+                                title: "Ingestión Total",
+                                description: "Conectamos con tus cámaras, inventarios y finanzas para absorber cada bit de operación real.",
+                                icon: Globe,
+                                accent: "bg-blue-500"
+                            },
+                            {
+                                step: "02",
+                                title: "Mapeo Cognitivo",
+                                description: "Nuestra red neuronal identifica patrones, ineficiencias y oportunidades de optimización únicas de tu flujo.",
+                                icon: Brain,
+                                accent: "bg-purple-500"
+                            },
+                            {
+                                step: "03",
+                                title: "Ejecución Predictiva",
+                                description: "El sistema automatiza decisiones y alerta sobre riesgos antes de que ocurran.",
+                                icon: Zap,
+                                accent: "bg-amber-500"
+                            }
+                        ].map((item, i) => (
+                            <div key={i} className="relative group">
+                                <div className="absolute -top-10 left-0 text-7xl font-black text-white/5 opacity-20 group-hover:opacity-100 transition-opacity">
+                                    {item.step}
+                                </div>
+                                <div className="space-y-6 relative z-10">
+                                    <div className={`w-20 h-20 rounded-3xl ${item.accent}/20 border border-${item.accent}/30 flex items-center justify-center`}>
+                                        <item.icon className={`w-10 h-10 ${item.accent.replace('bg-', 'text-')}`} />
+                                    </div>
+                                    <h3 className="text-3xl font-black uppercase italic tracking-tighter">{item.title}</h3>
+                                    <p className="text-slate-400 text-lg leading-relaxed">{item.description}</p>
+                                </div>
+                                {i < 2 && (
+                                    <div className="hidden lg:block absolute top-1/2 -right-6 translate-y-[-50%]">
+                                        <ArrowRight className="w-12 h-12 text-slate-800" />
+                                    </div>
+                                )}
+                            </div>
+                        ))}
                     </div>
                 </div>
             </section>
@@ -429,23 +495,29 @@ function NeuralBackground() {
         canvas.height = window.innerHeight;
 
         const nodes: { x: number; y: number; vx: number; vy: number }[] = [];
-        const nodeCount = 50;
+        const nodeCount = 60;
+        let mouse = { x: 0, y: 0 };
 
         // Create nodes
         for (let i = 0; i < nodeCount; i++) {
             nodes.push({
                 x: Math.random() * canvas.width,
                 y: Math.random() * canvas.height,
-                vx: (Math.random() - 0.5) * 0.5,
-                vy: (Math.random() - 0.5) * 0.5,
+                vx: (Math.random() - 0.5) * 0.4,
+                vy: (Math.random() - 0.5) * 0.4,
             });
         }
+
+        const handleMouseMove = (e: MouseEvent) => {
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+        };
+        window.addEventListener("mousemove", handleMouseMove);
 
         function animate() {
             if (!ctx || !canvas) return;
 
-            ctx.fillStyle = "rgba(2, 6, 23, 0.1)";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
 
             // Update and draw nodes
             nodes.forEach((node, i) => {
@@ -455,6 +527,15 @@ function NeuralBackground() {
                 if (node.x < 0 || node.x > canvas.width) node.vx *= -1;
                 if (node.y < 0 || node.y > canvas.height) node.vy *= -1;
 
+                // Mouse interaction
+                const dxm = node.x - mouse.x;
+                const dym = node.y - mouse.y;
+                const distm = Math.sqrt(dxm * dxm + dym * dym);
+                if (distm < 200) {
+                    node.x += dxm * 0.01;
+                    node.y += dym * 0.01;
+                }
+
                 // Draw connections
                 nodes.forEach((otherNode, j) => {
                     if (i === j) return;
@@ -462,9 +543,9 @@ function NeuralBackground() {
                     const dy = node.y - otherNode.y;
                     const distance = Math.sqrt(dx * dx + dy * dy);
 
-                    if (distance < 150) {
-                        ctx.strokeStyle = `rgba(59, 130, 246, ${0.2 * (1 - distance / 150)})`;
-                        ctx.lineWidth = 1;
+                    if (distance < 180) {
+                        ctx.strokeStyle = `rgba(59, 130, 246, ${0.15 * (1 - distance / 180)})`;
+                        ctx.lineWidth = 0.5;
                         ctx.beginPath();
                         ctx.moveTo(node.x, node.y);
                         ctx.lineTo(otherNode.x, otherNode.y);
@@ -473,9 +554,9 @@ function NeuralBackground() {
                 });
 
                 // Draw node
-                ctx.fillStyle = "rgba(59, 130, 246, 0.6)";
+                ctx.fillStyle = "rgba(59, 130, 246, 0.4)";
                 ctx.beginPath();
-                ctx.arc(node.x, node.y, 2, 0, Math.PI * 2);
+                ctx.arc(node.x, node.y, 1.5, 0, Math.PI * 2);
                 ctx.fill();
             });
 
@@ -490,7 +571,10 @@ function NeuralBackground() {
         };
 
         window.addEventListener("resize", handleResize);
-        return () => window.removeEventListener("resize", handleResize);
+        return () => {
+            window.removeEventListener("resize", handleResize);
+            window.removeEventListener("mousemove", handleMouseMove);
+        };
     }, []);
 
     return (

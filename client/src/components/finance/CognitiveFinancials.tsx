@@ -8,11 +8,17 @@ import {
     XAxis,
     YAxis,
     CartesianGrid,
-    Tooltip,
+    Tooltip as RechartsTooltip,
     ReferenceLine
 } from "recharts";
-import { Sparkles, AlertTriangle, ShieldCheck, TrendingUp, Brain } from "lucide-react";
+import { Sparkles, AlertTriangle, ShieldCheck, TrendingUp, Brain, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface CognitiveFinancialsProps {
     projections: any[];
@@ -33,6 +39,16 @@ export function CognitiveFinancials({ projections, anomalies, trustScore = 100 }
                         <CardTitle className="text-xl font-bold flex items-center gap-2 text-white">
                             <Brain className="h-5 w-5 text-cyan-400" />
                             Proyección de Flujo de Caja (IA)
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <HelpCircle className="w-4 h-4 text-slate-500 cursor-help" />
+                                    </TooltipTrigger>
+                                    <TooltipContent className="max-w-xs p-3">
+                                        <p className="text-xs">Calculado mediante regresión lineal sobre el flujo neto diario de los últimos 30 días, integrando datos de ventas confirmadas y compras programadas.</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
                         </CardTitle>
                         <p className="text-xs text-slate-400">Proyección lineal basada en flujo neto promedio de 30 días</p>
                     </div>
@@ -65,7 +81,7 @@ export function CognitiveFinancials({ projections, anomalies, trustScore = 100 }
                                 axisLine={false}
                                 tickFormatter={(value) => `$${value / 1000}k`}
                             />
-                            <Tooltip
+                            <RechartsTooltip
                                 contentStyle={{ backgroundColor: "#0f172a", borderColor: "#1e293b", borderRadius: "8px" }}
                                 itemStyle={{ color: "#e2e8f0" }}
                                 formatter={(value: any) => [`$${Number(value).toLocaleString()}`, "Proyección"]}
@@ -93,7 +109,19 @@ export function CognitiveFinancials({ projections, anomalies, trustScore = 100 }
                 <Card className="border-emerald-500/20 bg-emerald-950/10 backdrop-blur-sm">
                     <CardHeader className="py-3">
                         <CardTitle className="text-sm font-medium text-emerald-400 flex items-center justify-between">
-                            <span>Nivel de Confianza (TrustNet)</span>
+                            <div className="flex items-center gap-2">
+                                <span>Nivel de Confianza (TrustNet)</span>
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <HelpCircle className="w-3.5 h-3.5 text-emerald-500/50 cursor-help" />
+                                        </TooltipTrigger>
+                                        <TooltipContent className="max-w-xs p-3">
+                                            <p className="text-xs">Métrica de integridad basada en la verificación criptográfica de transacciones, consistencia de inventario cruzada y madurez de los datos históricos.</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                            </div>
                             <ShieldCheck className="h-4 w-4" />
                         </CardTitle>
                     </CardHeader>

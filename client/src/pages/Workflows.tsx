@@ -1,5 +1,5 @@
-
 import { useState } from "react";
+import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -35,6 +35,8 @@ export default function Workflows() {
             return Array.isArray(data) ? data : [];
         }
     });
+
+    useSupabaseRealtime({ table: 'processes', queryKey: ["/api/workflows"] });
 
     const getIcon = (type: string) => {
         switch (type) {

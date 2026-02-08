@@ -24,10 +24,32 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
+import { useEffect } from "react";
 
 export default function Auth() {
-    const [, setLocation] = useLocation();
-    const [mode, setMode] = useState<"login" | "signup">("signup");
+    const [location, setLocation] = useLocation();
+    const { user, profile, loading: authLoading } = useAuth();
+
+    // Redirección automática si ya está autenticado
+    useEffect(() => {
+        // Only redirect if we have a user AND a profile, and we're not actually loading
+        if (user && profile && !authLoading) {
+            const userRole = profile.role;
+            const targetPath = userRole === "user" || userRole === "cashier" ? "/kiosk" : "/dashboard";
+
+            // Only set location if we are not already at the target
+            if (location !== targetPath) {
+                console.log(`[Auth] Authenticated as ${userRole}. Redirecting to ${targetPath}`);
+                setLocation(targetPath);
+            }
+        }
+    }, [user, profile, authLoading, location, setLocation]);
+
+    // Determine mode based on path, default to 'signup' if not clearly '/login'
+    const initialMode = location === "/login" ? "login" : "signup";
+    const [mode, setMode] = useState<"login" | "signup">(initialMode);
+
     const [formData, setFormData] = useState({
         email: "",
         password: "",
@@ -129,16 +151,31 @@ export default function Auth() {
                     className="text-center mb-8"
                 >
                     <div className="inline-flex items-center gap-3 mb-4">
-                        <div className="w-12 h-12 rounded-2xl bg-primary/20 border border-primary/30 flex items-center justify-center">
+                        <div className={`w-12 h-12 rounded-2xl bg-primary/20 border border-primary/30 flex items-center justify-center transition-all duration-500 ${mode === 'login' ? 'rotate-0' : 'rotate-[360deg]'}`}>
                             <Brain className="w-6 h-6 text-primary" />
                         </div>
-                        <span className="text-3xl font-black uppercase italic">Cognitive OS</span>
+                        <span className="text-3xl font-black uppercase italic tracking-tighter">
+                            Cognitive <span className="text-primary prose-invert">OS</span>
+                        </span>
                     </div>
-                    <p className="text-slate-400 text-sm">
-                        {mode === "login" ? "Bienvenido de vuelta al futuro" : "Únete a la evolución"}
-                    </p>
-
-
+                    <AnimatePresence mode="wait">
+                        <motion.div
+                            key={mode}
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 1.05 }}
+                            transition={{ duration: 0.2 }}
+                        >
+                            <h2 className="text-xl font-bold text-white mb-1">
+                                {mode === "login" ? "ACCESO AL NÚCLEO" : "EMPIEZA TU EVOLUCIÓN"}
+                            </h2>
+                            <p className="text-slate-400 text-sm">
+                                {mode === "login"
+                                    ? "Introduce tus credenciales para sincronizar"
+                                    : "Configura tu ecosistema operativo en segundos"}
+                            </p>
+                        </motion.div>
+                    </AnimatePresence>
                 </motion.div>
 
                 {/* Auth Card */}
@@ -214,9 +251,9 @@ export default function Auth() {
 
                                     <Button
                                         type="submit"
-                                        className="w-full h-14 bg-primary hover:bg-primary/90 font-black uppercase tracking-wider rounded-xl group"
+                                        className="w-full h-14 bg-primary hover:bg-primary/90 font-black uppercase tracking-wider rounded-xl shadow-[0_0_30px_rgba(59,130,246,0.3)] group"
                                     >
-                                        Acceder al Dashboard
+                                        Sincronizar Datos
                                         <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
                                     </Button>
                                 </motion.form>
@@ -303,10 +340,10 @@ export default function Auth() {
 
                                     <Button
                                         type="submit"
-                                        className="w-full h-12 bg-primary hover:bg-primary/90 font-black uppercase tracking-wider rounded-xl group"
+                                        className="w-full h-12 bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase tracking-wider rounded-xl shadow-[0_0_30px_rgba(16,185,129,0.3)] group"
                                     >
-                                        Crear Cuenta
-                                        <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                        Desplegar Instancia
+                                        <Zap className="ml-2 w-5 h-5 group-hover:scale-110 transition-transform" />
                                     </Button>
                                 </motion.form>
                             )}

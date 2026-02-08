@@ -4,6 +4,7 @@ import { useConfiguration } from "@/context/ConfigurationContext";
 import { useCognitiveEngine } from "./engine";
 import { useTensorBridge } from "./tensor-bridge";
 import { useQuery } from "@tanstack/react-query";
+import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 
 /**
  * CognitiveBridge
@@ -36,6 +37,12 @@ export function CognitiveBridge() {
         enabled: !!session?.access_token && enabledModules.length > 0,
         refetchInterval: 300000, // Refresh every 5 minutes
     });
+
+    // Subscriptions to ensure AI context is always fresh
+    useSupabaseRealtime({ table: 'sales', queryKey: ["/api/analytics/tensors"] });
+    useSupabaseRealtime({ table: 'inventory', queryKey: ["/api/analytics/tensors"] });
+    useSupabaseRealtime({ table: 'purchases', queryKey: ["/api/analytics/tensors"] });
+    useSupabaseRealtime({ table: 'production_events', queryKey: ["/api/analytics/tensors"] });
 
     // 1. Context Sync (Metadata)
     useEffect(() => {

@@ -445,7 +445,7 @@ router.get("/summary", async (req, res): Promise<void> => {
             db.query.payments.findMany({ where: withPeriod(eq(payments.organizationId, orgId), payments.date) }),
             db.query.payrollAdvances.findMany({ where: withPeriod(eq(payrollAdvances.organizationId, orgId), payrollAdvances.date) }),
             db.query.sales.findMany({ where: and(eq(sales.organizationId, orgId), eq(sales.deliveryStatus, 'pending')) }),
-            db.query.purchases.findMany({ where: and(eq(purchases.organizationId, orgId), eq(purchases.paymentStatus, 'pending')) }),
+            db.query.purchases.findMany({ where: eq(purchases.organizationId, orgId) }),
             db.query.cashRegisters.findMany({ where: eq(cashRegisters.organizationId, orgId) }),
             db.query.bankAccounts.findMany({ where: eq(bankAccounts.organizationId, orgId) }),
             db.query.pieceworkTickets.findMany({ where: and(eq(pieceworkTickets.organizationId, orgId), eq(pieceworkTickets.status, 'pending')) }),
@@ -542,7 +542,13 @@ router.get("/summary", async (req, res): Promise<void> => {
         } catch (e) { console.error("Error calculating bankOutflows", e); }
 
         const pieceworkLiability = (pendingTickets || []).reduce((acc, curr) => acc + (Number(curr?.totalAmount) || 0), 0);
-        const payablesSum = (pendingPurchases || []).reduce((acc, curr) => acc + (Number(curr?.totalAmount) || 0), 0);
+
+        const activePurchases = (pendingPurchases || []).filter(p => p.paymentStatus === 'pending' && p.status !== 'cancelled');
+        const cancelledPurchases = (pendingPurchases || []).filter(p => p.status === 'cancelled');
+
+        const payablesSum = activePurchases.reduce((acc, curr) => acc + (Number(curr?.totalAmount) || 0), 0);
+        const cancelledSum = cancelledPurchases.reduce((acc, curr) => acc + (Number(curr?.totalAmount) || 0), 0);
+
         const totalLiabilities = payablesSum + pieceworkLiability;
 
         const logisticsValue = (pendingSales || []).reduce((acc, curr) => acc + (Number(curr?.totalPrice) || 0), 0);
@@ -610,6 +616,7 @@ router.get("/summary", async (req, res): Promise<void> => {
             transferIncome: totalTransferIncome, // Recibido Transferencia
             accountsReceivable: receivablesSum,
             accountsPayable: payablesSum,
+            cancelledPurchases: cancelledSum,
             netCashFlow,
             netTransferFlow,
             totalProfit: weeklyProfit
@@ -710,7 +717,9 @@ router.get("/summary", async (req, res): Promise<void> => {
             },
             accountsPayable: {
                 total: payablesSum,
-                count: pendingPurchases.length
+                count: activePurchases.length,
+                cancelledTotal: cancelledSum,
+                cancelledCount: cancelledPurchases.length
             },
             payroll: {
                 total: payrollSum,

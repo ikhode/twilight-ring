@@ -4,7 +4,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, TrendingUp, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Loader2, TrendingUp, AlertTriangle, CheckCircle2, HelpCircle } from "lucide-react";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export function YieldAnalysis() {
     const { session } = useAuth();
@@ -57,8 +63,36 @@ export function YieldAnalysis() {
                                 <TableHead className="text-[10px] uppercase font-bold text-slate-400">Producto</TableHead>
                                 <TableHead className="text-[10px] uppercase font-bold text-slate-400 text-right">Compra</TableHead>
                                 <TableHead className="text-[10px] uppercase font-bold text-slate-400 text-right">Prod. Real</TableHead>
-                                <TableHead className="text-[10px] uppercase font-bold text-slate-400 text-right">Rendimiento</TableHead>
-                                <TableHead className="text-[10px] uppercase font-bold text-slate-400 text-right">Costo Unit.</TableHead>
+                                <TableHead className="text-[10px] uppercase font-bold text-slate-400 text-right">
+                                    <div className="flex items-center justify-end gap-1">
+                                        Rendimiento
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <HelpCircle className="w-3 h-3 text-slate-500 cursor-help" />
+                                                </TooltipTrigger>
+                                                <TooltipContent className="max-w-xs p-3">
+                                                    <p className="text-xs">Porcentaje de eficiencia del lote. Prod. Real vs Prod. Teórica esperada según la receta vinculada.</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                    </div>
+                                </TableHead>
+                                <TableHead className="text-[10px] uppercase font-bold text-slate-400 text-right">
+                                    <div className="flex items-center justify-end gap-1">
+                                        Costo Unit.
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <HelpCircle className="w-3 h-3 text-slate-500 cursor-help" />
+                                                </TooltipTrigger>
+                                                <TooltipContent className="max-w-xs p-3">
+                                                    <p className="text-xs">Costo real de producción por unidad, calculado dividiendo el costo total de MP entre la producción real lograda.</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                    </div>
+                                </TableHead>
                                 <TableHead className="text-[10px] uppercase font-bold text-slate-400 text-center">Status</TableHead>
                             </TableRow>
                         </TableHeader>
