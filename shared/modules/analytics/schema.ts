@@ -24,3 +24,33 @@ export const analyticsSnapshots = pgTable("analytics_snapshots", {
 
 export const insertCustomReportSchema = createInsertSchema(customReports);
 export const insertAnalyticsSnapshotSchema = createInsertSchema(analyticsSnapshots);
+
+// TrustNet - Organization Participation
+export const trustParticipants = pgTable("trust_participants", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }).unique(),
+    trustScore: integer("trust_score").notNull().default(100),
+    contributionCount: integer("contribution_count").notNull().default(0),
+    multiplier: integer("multiplier").notNull().default(100),
+    status: text("status").notNull().default("observation"), // "observation", "verified", "peer", "guardian"
+    joinedAt: timestamp("joined_at").defaultNow(),
+    lastActiveAt: timestamp("last_active_at").defaultNow(),
+    createdAt: timestamp("created_at").defaultNow(),
+});
+
+// TrustNet - Shared Industry Metics
+export const sharedInsights = pgTable("shared_insights", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    sourceOrgId: varchar("source_org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    industry: text("industry").notNull(),
+    metricKey: text("metric_key").notNull(),
+    value: integer("value").notNull(),
+    anonymizedContext: jsonb("anonymized_context").default({}),
+    verificationScore: integer("verification_score").default(100),
+    createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type TrustParticipant = typeof trustParticipants.$inferSelect;
+export type SharedInsight = typeof sharedInsights.$inferSelect;
+export const insertTrustParticipantSchema = createInsertSchema(trustParticipants);
+export const insertSharedInsightSchema = createInsertSchema(sharedInsights);

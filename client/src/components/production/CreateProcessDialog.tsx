@@ -201,15 +201,16 @@ export function CreateProcessDialog({ open, onOpenChange, editingProcess, invent
                             <TabsContent value="transform" className="space-y-6 animate-in fade-in slide-in-from-right-2 duration-300 focus-visible:ring-0">
                                 <ProcessWorkflowEditor
                                     inventory={inventory}
+                                    tasks={[]}
                                     initialNodes={editingProcess?.workflowData?.nodes || []}
                                     initialEdges={editingProcess?.workflowData?.edges || []}
-                                    onChange={(nodes, edges) => {
+                                    onSave={(nodes, edges) => {
                                         // Auto-detect inputs and outputs from graph
                                         const inputs = nodes.filter((n: any) => n.type === 'start').map((n: any) => n.data.inventoryId).filter(Boolean);
                                         const outputs = nodes.filter((n: any) => n.type === 'end').map((n: any) => n.data.inventoryId).filter(Boolean);
 
-                                        setLocalNodes(nodes);
-                                        setLocalEdges(edges);
+                                        setLocalNodes(nodes as any[]);
+                                        setLocalEdges(edges as any[]);
                                         setLocalInputId(inputs.length > 0 ? (inputs[0] as string) : null);
                                         setLocalOutputIds(outputs as string[]);
                                     }}

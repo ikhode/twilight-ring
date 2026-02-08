@@ -5,7 +5,7 @@ import {
     insertAnalyticsMetricSchema, inventoryMovements, customReports, analyticsSnapshots,
     expenses, sales, payments, payrollAdvances, employees, workHistory,
     pieceworkTickets, processEvents, processInstances, bankAccounts, cashRegisters, products,
-    metricModels, purchases
+    metricModels, purchases, trustParticipants, sharedInsights, customers, suppliers
 } from "../../shared/schema";
 import { eq, desc, and, sql, gte, lte, inArray } from "drizzle-orm";
 
@@ -530,7 +530,7 @@ router.get("/advanced/:type", async (req, res) => {
                 productMovementMap.set(m.productId, current + Math.abs(m.quantity));
             });
 
-            const topMovers = [...productMovementMap.entries()]
+            const topMovers = Array.from(productMovementMap.entries())
                 .sort((a, b) => b[1] - a[1])
                 .slice(0, 5)
                 .map(([id, qty]) => {
@@ -662,14 +662,14 @@ router.get("/yield", async (req, res) => {
             const groups: Record<string, any> = {};
 
             report.forEach(row => {
-                let key = row.productId;
-                let name = row.productName;
+                let key = row.productId as string;
+                let name = row.productName as string;
 
                 if (groupBy === 'category') {
                     key = row.categoryId || 'uncategorized';
                     name = row.categoryName;
                 } else if (groupBy === 'family') {
-                    key = row.groupId || 'ungrouped';
+                    key = (row.groupId || 'ungrouped') as string;
                     name = row.groupName;
                 }
 

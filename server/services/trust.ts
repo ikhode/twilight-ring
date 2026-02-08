@@ -1,5 +1,5 @@
 import { db } from "../storage";
-// import { trustParticipants, sharedInsights, organizations } from "@shared/schema";
+import { trustParticipants, sharedInsights, organizations } from "../../shared/schema";
 import { eq, sql } from "drizzle-orm";
 
 export class TrustNetService {

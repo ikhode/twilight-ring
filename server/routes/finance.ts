@@ -543,8 +543,8 @@ router.get("/summary", async (req, res): Promise<void> => {
 
         const pieceworkLiability = (pendingTickets || []).reduce((acc, curr) => acc + (Number(curr?.totalAmount) || 0), 0);
 
-        const activePurchases = (pendingPurchases || []).filter(p => p.paymentStatus === 'pending' && p.status !== 'cancelled');
-        const cancelledPurchases = (pendingPurchases || []).filter(p => p.status === 'cancelled');
+        const activePurchases = (pendingPurchases || []).filter(p => p.paymentStatus === 'pending' && p.deliveryStatus !== 'cancelled');
+        const cancelledPurchases = (pendingPurchases || []).filter(p => p.deliveryStatus === 'cancelled');
 
         const payablesSum = activePurchases.reduce((acc, curr) => acc + (Number(curr?.totalAmount) || 0), 0);
         const cancelledSum = cancelledPurchases.reduce((acc, curr) => acc + (Number(curr?.totalAmount) || 0), 0);

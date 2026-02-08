@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, Request, Response } from "express";
 import { db } from "../storage";
 import {
     products, inventoryMovements, insertProductSchema, users,
@@ -7,6 +7,7 @@ import {
 } from "../../shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { getOrgIdFromRequest } from "../auth_util";
+import { AuthenticatedRequest } from "../types";
 
 const router = Router();
 
@@ -14,9 +15,9 @@ const router = Router();
  * Obtiene el inventario de productos enriquecido con predicciones cognitivas de agotamiento.
  * @route GET /api/inventory/products
  */
-router.get("/products", async (req, res): Promise<void> => {
+router.get("/products", async (req: Request, res: Response): Promise<void> => {
     try {
-        const orgId = await getOrgIdFromRequest(req);
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         console.log(`[Inv GET] Requesting products for OrgID: ${orgId}`);
         if (!orgId) {
             res.status(401).json({ message: "Unauthorized" });
@@ -37,8 +38,6 @@ router.get("/products", async (req, res): Promise<void> => {
 
         // Enrich with Cognitive Predictions (Mocked logic for now, utilizing real stock)
         const enriched = inv.map(p => {
-            // Mock Usage Rate: Randomly assume 2-10 units sold per day for demo
-            // In real app: await db.select({ count: sql`sum(quantity)` }).from(sales)...
             const dailyUsage = Math.floor(Math.random() * 8) + 2;
             const daysRemaining = p.stock > 0 ? Math.floor(p.stock / dailyUsage) : 0;
 
@@ -47,15 +46,15 @@ router.get("/products", async (req, res): Promise<void> => {
 
             return {
                 ...p,
-                category: p.categoryRef?.name || p.category, // Fallback to legacy text if needed
-                unit: p.unitRef?.name || p.unit, // Fallback to legacy text or abbreviation
+                category: p.categoryRef?.name || p.category,
+                unit: p.unitRef?.name || p.unit,
                 uom: p.unitRef?.abbreviation || p.unit,
                 cognitive: {
                     dailyUsage,
                     daysRemaining,
                     predictedDepletionDate,
-                    shouldRestock: daysRemaining < 7, // Alert if < 7 days left
-                    suggestedOrder: daysRemaining < 7 ? Math.round(dailyUsage * 30) : 0 // Suggest 30 days worth
+                    shouldRestock: daysRemaining < 7,
+                    suggestedOrder: daysRemaining < 7 ? Math.round(dailyUsage * 30) : 0
                 }
             };
         });
@@ -67,12 +66,49 @@ router.get("/products", async (req, res): Promise<void> => {
     }
 });
 
+/**
+ * Obtiene un producto específico por ID.
+ * @route GET /api/inventory/products/:id
+ */
+router.get("/products/:id", async (req: Request, res: Response): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        const productId = req.params.id;
+        const product = await db.query.products.findFirst({
+            where: and(eq(products.id, productId), eq(products.organizationId, orgId)),
+            with: {
+                categoryRef: true,
+                group: true,
+                unitRef: true
+            }
+        });
+
+        if (!product) {
+            res.status(404).json({ message: "Product not found" });
+            return;
+        }
+
+        res.json(product);
+    } catch (error) {
+        console.error("Fetch product error:", error);
+        res.status(500).json({ message: "Error fetching product" });
+    }
+});
+
 // --- Categories & Groups Management ---
 
-router.get("/categories", async (req, res) => {
+router.get("/categories", async (req: Request, res: Response): Promise<void> => {
     try {
-        const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const cats = await db.query.productCategories.findMany({
             where: eq(productCategories.organizationId, orgId)
@@ -83,13 +119,19 @@ router.get("/categories", async (req, res) => {
     }
 });
 
-router.post("/categories", async (req, res) => {
+router.post("/categories", async (req: Request, res: Response): Promise<void> => {
     try {
-        const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const parsed = insertProductCategorySchema.safeParse({ ...req.body, organizationId: orgId });
-        if (!parsed.success) return res.status(400).json(parsed.error);
+        if (!parsed.success) {
+            res.status(400).json(parsed.error);
+            return;
+        }
 
         const [cat] = await db.insert(productCategories).values(parsed.data).returning();
         res.status(201).json(cat);
@@ -98,10 +140,13 @@ router.post("/categories", async (req, res) => {
     }
 });
 
-router.get("/groups", async (req, res) => {
+router.get("/groups", async (req: Request, res: Response): Promise<void> => {
     try {
-        const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const groups = await db.query.productGroups.findMany({
             where: eq(productGroups.organizationId, orgId)
@@ -112,13 +157,19 @@ router.get("/groups", async (req, res) => {
     }
 });
 
-router.post("/groups", async (req, res) => {
+router.post("/groups", async (req: Request, res: Response): Promise<void> => {
     try {
-        const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const parsed = insertProductGroupSchema.safeParse({ ...req.body, organizationId: orgId });
-        if (!parsed.success) return res.status(400).json(parsed.error);
+        if (!parsed.success) {
+            res.status(400).json(parsed.error);
+            return;
+        }
 
         const [group] = await db.insert(productGroups).values(parsed.data).returning();
         res.status(201).json(group);
@@ -127,10 +178,13 @@ router.post("/groups", async (req, res) => {
     }
 });
 
-router.patch("/groups/:id", async (req, res) => {
+router.patch("/groups/:id", async (req: Request, res: Response): Promise<void> => {
     try {
-        const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const { name, description } = req.body;
         const groupId = req.params.id;
@@ -151,10 +205,13 @@ router.patch("/groups/:id", async (req, res) => {
     }
 });
 
-router.get("/units", async (req, res) => {
+router.get("/units", async (req: Request, res: Response): Promise<void> => {
     try {
-        const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const units = await db.query.productUnits.findMany({
             where: eq(productUnits.organizationId, orgId)
@@ -165,13 +222,19 @@ router.get("/units", async (req, res) => {
     }
 });
 
-router.post("/units", async (req, res) => {
+router.post("/units", async (req: Request, res: Response): Promise<void> => {
     try {
-        const orgId = await getOrgIdFromRequest(req);
-        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
 
         const parsed = insertProductUnitSchema.safeParse({ ...req.body, organizationId: orgId });
-        if (!parsed.success) return res.status(400).json(parsed.error);
+        if (!parsed.success) {
+            res.status(400).json(parsed.error);
+            return;
+        }
 
         const [unit] = await db.insert(productUnits).values(parsed.data).returning();
         res.status(201).json(unit);
@@ -184,9 +247,9 @@ router.post("/units", async (req, res) => {
  * Registra un nuevo producto en el inventario de la organización.
  * @route POST /api/inventory/products
  */
-router.post("/products", async (req, res): Promise<void> => {
+router.post("/products", async (req: Request, res: Response): Promise<void> => {
     try {
-        const orgId = await getOrgIdFromRequest(req);
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
             res.status(401).json({ message: "Unauthorized" });
             return;
@@ -195,7 +258,6 @@ router.post("/products", async (req, res): Promise<void> => {
         const parsed = insertProductSchema.safeParse({
             ...req.body,
             organizationId: orgId,
-            // Ensure numbers are numbers, though Zod should handle if coerced, but let's trust body
         });
 
         if (!parsed.success) {
@@ -203,7 +265,10 @@ router.post("/products", async (req, res): Promise<void> => {
             return;
         }
 
-        const [product] = await db.insert(products).values(parsed.data).returning();
+        const [product] = await db.insert(products).values({
+            ...parsed.data,
+            organizationId: orgId
+        } as any).returning();
         res.status(201).json(product);
     } catch (error) {
         console.error("Create product error:", error);
@@ -215,9 +280,9 @@ router.post("/products", async (req, res): Promise<void> => {
  * Obtiene el historial de movimientos de inventario.
  * @route GET /api/inventory/movements
  */
-router.get("/movements", async (req, res): Promise<void> => {
+router.get("/movements", async (req: Request, res: Response): Promise<void> => {
     try {
-        const orgId = await getOrgIdFromRequest(req);
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
             res.status(401).json({ message: "Unauthorized" });
             return;
@@ -243,15 +308,14 @@ router.get("/movements", async (req, res): Promise<void> => {
  * Obtiene alertas de stock bajo.
  * @route GET /api/inventory/alerts
  */
-router.get("/alerts", async (req, res): Promise<void> => {
+router.get("/alerts", async (req: Request, res: Response): Promise<void> => {
     try {
-        const orgId = await getOrgIdFromRequest(req);
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
             res.status(401).json({ message: "Unauthorized" });
             return;
         }
 
-        // Simple Low Stock Alert Logic (Excluding archived)
         const alerts = await db.query.products.findMany({
             where: and(
                 eq(products.organizationId, orgId),
@@ -272,9 +336,9 @@ router.get("/alerts", async (req, res): Promise<void> => {
  * Actualiza un producto (Stock, Precio, Estado).
  * @route PATCH /api/inventory/products/:id
  */
-router.patch("/products/:id", async (req, res): Promise<void> => {
+router.patch("/products/:id", async (req: Request, res: Response): Promise<void> => {
     try {
-        const orgId = await getOrgIdFromRequest(req);
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
             res.status(401).json({ message: "Unauthorized" });
             return;
@@ -286,9 +350,8 @@ router.patch("/products/:id", async (req, res): Promise<void> => {
             name, sku, categoryId, groupId,
             isSellable, isPurchasable, isProductionInput, isProductionOutput,
             unitId, price, cost, stock, isActive, isArchived, reason
-        } = req.body; // Added isArchived to destructuring
+        } = req.body;
 
-        // 1. Get current state
         const product = await db.query.products.findFirst({
             where: and(eq(products.id, productId), eq(products.organizationId, orgId))
         });
@@ -310,18 +373,14 @@ router.patch("/products/:id", async (req, res): Promise<void> => {
         if (unitId !== undefined) updates.unitId = unitId;
         if (typeof price === 'number') updates.price = price;
         if (typeof cost === 'number') updates.cost = cost;
-        if (typeof cost === 'number') updates.cost = cost;
         if (typeof isActive === 'boolean') updates.isActive = isActive;
-        if (typeof isArchived === 'boolean') updates.isArchived = isArchived; // Added isArchived update logic
+        if (typeof isArchived === 'boolean') updates.isArchived = isArchived;
 
-        // 2. Handle Stock Adjustment with Traceability
         if (typeof stock === 'number') {
             const diff = stock - (product.stock || 0);
             if (diff !== 0) {
                 updates.stock = stock;
-
-                // Get userId from session for full traceability
-                const userId = (req as any).user?.id;
+                const userId = req.user?.id;
 
                 await db.insert(inventoryMovements).values({
                     organizationId: orgId,
@@ -337,7 +396,6 @@ router.patch("/products/:id", async (req, res): Promise<void> => {
             }
         }
 
-        // 3. Apply Updates
         if (Object.keys(updates).length > 0) {
             await db.update(products)
                 .set(updates)
@@ -355,9 +413,9 @@ router.patch("/products/:id", async (req, res): Promise<void> => {
  * Obtiene el historial de movimientos de un producto específico con trazabilidad completa.
  * @route GET /api/inventory/products/:id/history
  */
-router.get("/products/:id/history", async (req, res): Promise<void> => {
+router.get("/products/:id/history", async (req: Request, res: Response): Promise<void> => {
     try {
-        const orgId = await getOrgIdFromRequest(req);
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
             res.status(401).json({ message: "Unauthorized" });
             return;
@@ -365,7 +423,6 @@ router.get("/products/:id/history", async (req, res): Promise<void> => {
 
         const productId = req.params.id;
 
-        // Verify product belongs to organization
         const product = await db.query.products.findFirst({
             where: and(eq(products.id, productId), eq(products.organizationId, orgId))
         });
@@ -375,7 +432,6 @@ router.get("/products/:id/history", async (req, res): Promise<void> => {
             return;
         }
 
-        // Fetch movements with user information for full traceability
         const movements = await db
             .select({
                 id: inventoryMovements.id,
@@ -390,7 +446,7 @@ router.get("/products/:id/history", async (req, res): Promise<void> => {
                 userName: sql<string>`COALESCE(users.email, 'Sistema')`.as('user_name')
             })
             .from(inventoryMovements)
-            .leftJoin(sql`users`, eq(inventoryMovements.userId, sql`users.id`))
+            .leftJoin(users, eq(inventoryMovements.userId, users.id))
             .where(and(
                 eq(inventoryMovements.organizationId, orgId),
                 eq(inventoryMovements.productId, productId)
@@ -410,9 +466,9 @@ router.get("/products/:id/history", async (req, res): Promise<void> => {
  * Mantiene la integridad histórica ocultando el item de todas las listas activas.
  * @route DELETE /api/inventory/products/:id
  */
-router.delete("/products/:id", async (req, res): Promise<void> => {
+router.delete("/products/:id", async (req: Request, res: Response): Promise<void> => {
     try {
-        const orgId = await getOrgIdFromRequest(req);
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
             res.status(401).json({ message: "Unauthorized" });
             return;
@@ -420,7 +476,6 @@ router.delete("/products/:id", async (req, res): Promise<void> => {
 
         const productId = req.params.id;
 
-        // 1. Verify existence
         const product = await db.query.products.findFirst({
             where: and(eq(products.id, productId), eq(products.organizationId, orgId))
         });
@@ -430,21 +485,16 @@ router.delete("/products/:id", async (req, res): Promise<void> => {
             return;
         }
 
-        // 2. Perform Soft Delete
-        // We set deletedAt AND isArchived/isActive to ensure it's hidden from all existing queries
         await db.update(products)
             .set({
                 deletedAt: new Date(),
                 isArchived: true,
                 isActive: false,
-                // userId could be tracked if we had the field in schema for 'deletedBy', 
-                // schema says 'deletedBy', let's try to set it if we have user info
-                deletedBy: (req as any).user?.id || null
+                deletedBy: req.user?.id || null
             })
             .where(eq(products.id, productId));
 
         res.json({ success: true, message: "Item deleted safely" });
-
     } catch (error) {
         console.error("Delete product error:", error);
         res.status(500).json({ message: "Failed to delete product" });

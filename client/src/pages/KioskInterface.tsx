@@ -579,7 +579,7 @@ export default function KioskInterface(): React.JSX.Element {
           {(activeView === "production" || activeView === "worker-activity") && (
             authenticatedEmployee ? (
               <ProductionTerminal
-                sessionContext={{ terminal: kioskInfo as Terminal, driver: authenticatedEmployee }}
+                sessionContext={{ terminal: kioskInfo as Terminal, driver: authenticatedEmployee as any }}
                 onLogout={() => { setAuthenticatedEmployee(null); setActiveView(kioskInfo.capabilities.length === 1 ? 'login' : 'launcher'); }}
               />
             ) : <KioskLoginView terminal={kioskInfo!} onAuthenticated={(emp) => { setAuthenticatedEmployee(emp); }} />
@@ -588,7 +588,7 @@ export default function KioskInterface(): React.JSX.Element {
           {activeView === "sales" && (
             authenticatedEmployee ? (
               <CashierTerminal
-                sessionContext={{ terminal: kioskInfo as Terminal, driver: authenticatedEmployee }}
+                sessionContext={{ terminal: kioskInfo as Terminal, driver: authenticatedEmployee as any }}
                 onLogout={() => { setAuthenticatedEmployee(null); setActiveView(kioskInfo.capabilities.length === 1 ? 'login' : 'launcher'); }}
               />
             ) : <KioskLoginView terminal={kioskInfo!} onAuthenticated={(emp) => { setAuthenticatedEmployee(emp); }} />
@@ -597,7 +597,7 @@ export default function KioskInterface(): React.JSX.Element {
           {activeView === "attendance" && (
             authenticatedEmployee ? (
               <AttendanceTerminal
-                sessionContext={{ terminal: kioskInfo as Terminal, driver: authenticatedEmployee }}
+                sessionContext={{ terminal: kioskInfo as Terminal, driver: authenticatedEmployee as any }}
                 onLogout={() => { setAuthenticatedEmployee(null); setActiveView(kioskInfo.capabilities.length === 1 ? 'login' : 'launcher'); }}
               />
             ) : <KioskLoginView terminal={kioskInfo!} onAuthenticated={(emp) => { setAuthenticatedEmployee(emp); }} />

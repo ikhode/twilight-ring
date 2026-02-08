@@ -22,6 +22,13 @@ export const industryEnum = pgEnum("industry", [
 export const roleEnum = pgEnum("role", ["admin", "manager", "user", "viewer", "cashier"]);
 
 export const subscriptionTierEnum = pgEnum("subscription_tier", ["trial", "starter", "professional", "enterprise"]);
+export const taxRegimeEnum = pgEnum("tax_regime", [
+    "601", // General de Ley Personas Morales
+    "603", // Personas Morales con Fines no Lucrativos
+    "605", // Sueldos y Salarios
+    "612", // Personas Físicas con Actividades Empresariales
+    "626"  // RESICO
+]);
 
 // Organizations
 export const organizations = pgTable("organizations", {
@@ -43,6 +50,10 @@ export const organizations = pgTable("organizations", {
     headquartersAddress: text("headquarters_address"),
     headquartersLatitude: text("headquarters_latitude"),
     headquartersLongitude: text("headquarters_longitude"),
+    // SAT Compliance
+    rfc: text("rfc"),
+    legalName: text("legal_name"),
+    taxRegime: taxRegimeEnum("tax_regime"),
 });
 
 // Users

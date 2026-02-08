@@ -38,6 +38,10 @@ export const employees = pgTable("employees", {
     longitude: text("longitude"),
     isArchived: boolean("is_archived").notNull().default(false),
     attributes: jsonb("attributes").default({}), // Universal Extensibility
+    // Mexican Regulatory Fields
+    rfc: text("rfc"),
+    curp: text("curp"),
+    nss: text("nss"), // Social Security Number
     createdAt: timestamp("created_at").defaultNow(),
 });
 

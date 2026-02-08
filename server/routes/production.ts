@@ -1,9 +1,11 @@
+import { Router, Request, Response } from "express";
 import { db } from "../storage";
-import { processInstances, processEvents, inventoryMovements, products, pieceworkTickets, processes, productionActivityLogs } from "../../shared/schema";
-import { eq, sql, and } from "drizzle-orm";
+import { processInstances, processEvents, inventoryMovements, products, pieceworkTickets, processes, productionActivityLogs, rcaReports, aiInsights } from "../../shared/schema";
+import { eq, sql, and, desc } from "drizzle-orm";
 import { getOrgIdFromRequest } from "../auth_util";
-import { Router } from "express";
 import { CognitiveEngine } from "../lib/cognitive-engine";
+import { AuthenticatedRequest } from "../types";
+import { User, insertPieceworkTicketSchema, insertProductionTaskSchema, insertProductionActivityLogSchema } from "../../shared/schema";
 
 const router = Router();
 
@@ -13,9 +15,37 @@ const router = Router();
 /**
  * Lista procesos definidos para la organización.
  */
-router.get("/processes", async (req, res): Promise<void> => {
+router.post("/production/activity", async (req: Request, res: Response): Promise<void> => {
     try {
-        const orgId = await getOrgIdFromRequest(req);
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+        const parsed = insertProductionActivityLogSchema.safeParse(req.body);
+        if (!parsed.success) {
+            res.status(400).json({ error: "Invalid data", details: parsed.error });
+            return;
+        }
+
+        const [product] = await db.insert(productionActivityLogs).values({
+            ...parsed.data,
+            organizationId: orgId,
+            creatorId: (req as AuthenticatedRequest).user?.id, // Autenticación del creador
+        }).returning();
+        res.status(201).json(product);
+    } catch (error) {
+        console.error("Error creating production activity:", error);
+        res.status(500).json({ message: "Failed to create production activity" });
+    }
+});
+
+/**
+ * Lista procesos definidos para la organización.
+ */
+router.get("/processes", async (req: Request, res: Response): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
             res.status(401).json({ message: "Unauthorized" });
             return;
@@ -31,9 +61,9 @@ router.get("/processes", async (req, res): Promise<void> => {
 /**
  * Lista instancias activas (Lotes actuales).
  */
-router.get("/instances", async (req, res): Promise<void> => {
+router.get("/instances", async (req: Request, res: Response): Promise<void> => {
     try {
-        const orgId = await getOrgIdFromRequest(req);
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
             res.status(401).json({ message: "Unauthorized" });
             return;
@@ -60,9 +90,93 @@ router.get("/instances", async (req, res): Promise<void> => {
 });
 
 /**
+ * Get all production batches (active and completed) for traceability.
+ */
+router.get("/instances/all", async (req: Request, res: Response): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        const list = await db.select({
+            id: processInstances.id,
+            processId: processInstances.processId,
+            status: processInstances.status,
+            startedAt: processInstances.startedAt,
+            completedAt: processInstances.completedAt,
+            processName: processes.name,
+            aiContext: processInstances.aiContext
+        })
+            .from(processInstances)
+            .leftJoin(processes, eq(processInstances.processId, processes.id))
+            .where(eq(processes.organizationId, orgId))
+            .orderBy(sql`${processInstances.startedAt} DESC`);
+
+        res.json(list);
+    } catch (error) {
+        console.error("Error fetching all instances:", error);
+        res.status(500).json({ message: "Failed to fetch all batches" });
+    }
+});
+
+/**
+ * Get full traceability data for a specific instance.
+ */
+router.get("/instances/:id/traceability", async (req: Request, res: Response): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        const instanceId = req.params.id;
+
+        // 1. Fetch Events
+        const eventsList = await db.select()
+            .from(processEvents)
+            .where(eq(processEvents.instanceId, instanceId))
+            .orderBy(sql`${processEvents.timestamp} ASC`);
+
+        // 2. Fetch RCA Reports
+        const reportsList = await db.select()
+            .from(rcaReports)
+            .where(eq(rcaReports.instanceId, instanceId));
+
+        // 3. Fetch Insights (filtered by instanceId in data jsonb)
+        const insightsList = await db.select()
+            .from(aiInsights)
+            .where(and(
+                eq(aiInsights.organizationId, orgId),
+                sql`${aiInsights.data}->>'instanceId' = ${instanceId}`
+            ));
+
+        // 4. Fetch related Piecework Tickets
+        const ticketsList = await db.select()
+            .from(pieceworkTickets)
+            .where(and(
+                eq(pieceworkTickets.batchId, instanceId),
+                eq(pieceworkTickets.organizationId, orgId)
+            ));
+
+        res.json({
+            events: eventsList,
+            reports: reportsList,
+            insights: insightsList,
+            tickets: ticketsList
+        });
+    } catch (error) {
+        console.error("Error fetching traceability:", error);
+        res.status(500).json({ message: "Failed to fetch traceability data" });
+    }
+});
+
+/**
  * Crea una nueva instancia de proceso (Lote de producción).
  */
-router.post("/instances", async (req, res): Promise<void> => {
+router.post("/instances", async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -89,7 +203,7 @@ router.post("/instances", async (req, res): Promise<void> => {
 /**
  * Registra un evento de proceso (Trazabilidad y Merma).
  */
-router.post("/events", async (req, res): Promise<void> => {
+router.post("/events", async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -141,7 +255,7 @@ router.post("/events", async (req, res): Promise<void> => {
 /**
  * Reporta producción de destajo (Genera Ticket).
  */
-router.post("/report", async (req, res): Promise<void> => {
+router.post("/report", async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -232,7 +346,7 @@ router.post("/report", async (req, res): Promise<void> => {
             organizationId: orgId,
             batchId: instanceId,
             employeeId: employeeId,
-            creatorId: (req as any).user?.id, // Autenticación del creador
+            creatorId: req.user?.id, // Autenticación del creador
             taskName: process.name,
             quantity: Number(quantity),
             unitPrice: rate,
@@ -252,7 +366,7 @@ router.post("/report", async (req, res): Promise<void> => {
 /**
  * Obtiene el resumen de producción (OEE y Eficiencia).
  */
-router.get("/summary", async (req, res): Promise<void> => {
+router.get("/summary", async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -356,7 +470,7 @@ async function getProcess(processId: string, orgId: string) {
     });
 }
 
-router.post("/instances/:id/finish", async (req, res): Promise<void> => {
+router.post("/instances/:id/finish", async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -577,7 +691,7 @@ router.post("/instances/:id/finish", async (req, res): Promise<void> => {
 /**
  * FLOOR CONTROL: Get active activity logs for supervision.
  */
-router.get("/logs/active", async (req, res): Promise<void> => {
+router.get("/logs/active", async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -616,7 +730,7 @@ router.get("/logs/active", async (req, res): Promise<void> => {
  * FLOOR CONTROL: Finalize a log (Supervisor Verification).
  * Creates a piecework ticket if it was a production task.
  */
-router.post("/logs/finalize", async (req, res): Promise<void> => {
+router.post("/logs/finalize", async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -661,13 +775,13 @@ router.post("/logs/finalize", async (req, res): Promise<void> => {
             await db.insert(pieceworkTickets).values({
                 organizationId: orgId,
                 employeeId: log.employeeId,
-                creatorId: (req as any).user?.id,
+                creatorId: req.user?.id,
                 taskName: "Producción Kiosko", // Or fetch Name
                 quantity: Number(quantity),
                 unitPrice: 0, // Placeholder
                 totalAmount: 0,
                 status: "approved",
-                approvedBy: (req as any).user?.id,
+                approvedBy: req.user?.id,
                 notes: `Generated from Activity Log ${logId}`,
                 createdAt: new Date()
             });

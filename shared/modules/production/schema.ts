@@ -139,6 +139,7 @@ export const productionActivityLogs = pgTable("production_activity_logs", {
     // Link to context (only for production type)
     taskId: varchar("task_id").references(() => productionTasks.id),
     batchId: varchar("batch_id"), // Optional: if they are working on a specific batch
+    creatorId: varchar("creator_id").references(() => users.id), // Link to supervisor/creator
 
     // Timeline
     startedAt: timestamp("started_at").defaultNow(),

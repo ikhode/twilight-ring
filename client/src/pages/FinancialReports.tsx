@@ -105,7 +105,7 @@ export default function FinancialReports() {
                 )}>
                     {formatCurrency((value || 0) / 100)}
                 </span>
-                {onDetail && <Button size="xs" variant="ghost"><ArrowRight className="w-3 h-3" /></Button>}
+                {onDetail && <Button size="sm" variant="ghost"><ArrowRight className="w-3 h-3" /></Button>}
             </div>
         </div>
     );

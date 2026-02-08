@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { db, storage } from "../storage";
 import { getOrgIdFromRequest, getAuthenticatedUser } from "../auth_util";
+import { AuthenticatedRequest } from "../types";
 import { insertPieceworkTicketSchema, insertProductionTaskSchema } from "../../shared/schema";
 import {
     pieceworkTickets,
@@ -21,7 +22,7 @@ import { logAudit } from "../lib/audit";
 const router = Router();
 
 // Helper to get performer ID safe for Cashier
-async function getPerformerId(req: Request, orgId: string): Promise<string> {
+async function getPerformerId(req: Request | AuthenticatedRequest, orgId: string): Promise<string> {
     const user = await getAuthenticatedUser(req);
     if (user) return user.id;
 
@@ -42,7 +43,7 @@ async function getPerformerId(req: Request, orgId: string): Promise<string> {
  */
 router.get("/tickets", async (req: Request, res: Response): Promise<void> => {
     try {
-        const orgId = await getOrgIdFromRequest(req);
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
             res.status(401).json({ message: "Unauthorized" });
             return;
@@ -96,7 +97,7 @@ router.get("/tickets", async (req: Request, res: Response): Promise<void> => {
  */
 router.get("/tickets/:id", async (req: Request, res: Response): Promise<void> => {
     try {
-        const orgId = await getOrgIdFromRequest(req);
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
             res.status(401).json({ message: "Unauthorized" });
             return;
@@ -130,7 +131,7 @@ router.get("/tickets/:id", async (req: Request, res: Response): Promise<void> =>
  */
 router.get("/tasks", async (req: Request, res: Response): Promise<void> => {
     try {
-        const orgId = await getOrgIdFromRequest(req);
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
             res.status(401).json({ message: "Unauthorized" });
             return;
@@ -153,7 +154,7 @@ router.get("/tasks", async (req: Request, res: Response): Promise<void> => {
 // NEW: Rate Management (Create Task)
 router.post("/tasks", async (req: Request, res: Response): Promise<void> => {
     try {
-        const orgId = await getOrgIdFromRequest(req);
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
             res.status(401).json({ message: "Unauthorized" });
             return;
@@ -180,7 +181,7 @@ router.post("/tasks", async (req: Request, res: Response): Promise<void> => {
 // Update Task
 router.put("/tasks/:id", async (req: Request, res: Response): Promise<void> => {
     try {
-        const orgId = await getOrgIdFromRequest(req);
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
             res.status(401).json({ message: "Unauthorized" });
             return;
@@ -214,7 +215,7 @@ router.put("/tasks/:id", async (req: Request, res: Response): Promise<void> => {
 
 router.delete("/tasks/:id", async (req: Request, res: Response): Promise<void> => {
     try {
-        const orgId = await getOrgIdFromRequest(req);
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
             res.status(401).json({ message: "Unauthorized" });
             return;
@@ -243,7 +244,7 @@ router.delete("/tasks/:id", async (req: Request, res: Response): Promise<void> =
  */
 router.get("/advances", async (req: Request, res: Response): Promise<void> => {
     try {
-        const orgId = await getOrgIdFromRequest(req);
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
             res.status(401).json({ message: "Unauthorized" });
             return;
@@ -280,7 +281,7 @@ router.get("/advances", async (req: Request, res: Response): Promise<void> => {
  */
 router.post("/tickets", async (req: Request, res: Response): Promise<void> => {
     try {
-        const orgId = await getOrgIdFromRequest(req);
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
             res.status(401).json({ message: "Unauthorized" });
             return;
@@ -310,8 +311,12 @@ router.post("/tickets", async (req: Request, res: Response): Promise<void> => {
 
         if (taskDef) {
             const user = await getAuthenticatedUser(req);
+            if (!user) {
+                res.status(401).json({ message: "User not found" });
+                return;
+            }
             const membership = await db.query.userOrganizations.findFirst({
-                where: and(eq(userOrganizations.userId, user!.id), eq(userOrganizations.organizationId, orgId))
+                where: and(eq(userOrganizations.userId, user.id), eq(userOrganizations.organizationId, orgId))
             });
             const isAdmin = membership?.role === 'admin';
 
@@ -422,7 +427,7 @@ router.post("/tickets", async (req: Request, res: Response): Promise<void> => {
 // NEW: Approve Ticket
 router.post("/tickets/:id/approve", async (req: Request, res: Response): Promise<void> => {
     try {
-        const orgId = await getOrgIdFromRequest(req);
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
             res.status(401).json({ message: "Unauthorized" });
             return;
@@ -442,7 +447,7 @@ router.post("/tickets/:id/approve", async (req: Request, res: Response): Promise
         }
 
         await db.update(pieceworkTickets)
-            .set({ status: 'approved', approvedBy: (req as any).user?.id || 'admin', updatedAt: new Date() })
+            .set({ status: 'approved', approvedBy: req.user?.id || 'admin', updatedAt: new Date() })
             .where(eq(pieceworkTickets.id, ticketId));
 
         res.json({ success: true });
@@ -455,7 +460,7 @@ router.post("/tickets/:id/approve", async (req: Request, res: Response): Promise
 // NEW: Pay Single Ticket (Quick Action)
 router.post("/tickets/:id/pay", async (req: Request, res: Response): Promise<void> => {
     try {
-        const orgId = await getOrgIdFromRequest(req);
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
             res.status(401).json({ message: "Unauthorized" });
             return;
@@ -520,7 +525,7 @@ router.post("/tickets/:id/pay", async (req: Request, res: Response): Promise<voi
  */
 router.post("/advances", async (req: Request, res: Response): Promise<void> => {
     try {
-        const orgId = await getOrgIdFromRequest(req);
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
             res.status(401).json({ message: "Unauthorized" });
             return;
@@ -591,7 +596,7 @@ router.post("/advances", async (req: Request, res: Response): Promise<void> => {
  */
 router.post("/payout", async (req: Request, res: Response): Promise<void> => {
     try {
-        const orgId = await getOrgIdFromRequest(req);
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
             res.status(401).json({ message: "Unauthorized" });
             return;
@@ -693,7 +698,7 @@ router.post("/payout", async (req: Request, res: Response): Promise<void> => {
 // NEW: Productivity Reports
 router.get("/reports/productivity", async (req: Request, res: Response): Promise<void> => {
     try {
-        const orgId = await getOrgIdFromRequest(req);
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
             res.status(401).json({ message: "Unauthorized" });
             return;

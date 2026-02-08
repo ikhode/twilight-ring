@@ -5,8 +5,8 @@ export interface KioskSession {
     driver?: {
         id: string;
         name: string;
-        role?: string;
-        status?: string;
-        currentStatus?: string;
+        role?: string | null;
+        status?: string | null;
+        currentStatus?: string | null;
     };
 }

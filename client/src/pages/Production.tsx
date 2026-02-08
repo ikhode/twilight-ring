@@ -40,7 +40,11 @@ import {
   Package,
   Layers,
   ArrowRight,
-  X
+  X,
+  TrendingUp,
+  Database,
+  History,
+  Brain
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -61,6 +65,8 @@ import { TaskSelector } from "@/components/production/TaskSelector";
 import { useConfiguration } from "@/context/ConfigurationContext";
 import { CognitiveInput, CognitiveField } from "@/components/cognitive";
 import { FloorControl } from "@/components/production/FloorControl";
+import { TraceabilityLedger } from "@/components/production/TraceabilityLedger";
+import { CognitiveEventThread } from "@/components/production/CognitiveEventThread";
 
 interface Ticket {
   id: number;
@@ -95,6 +101,7 @@ export default function Production() {
   const [fraudWarning, setFraudWarning] = useState(false);
   const [selectedSourceProductId, setSelectedSourceProductId] = useState<string | null>(null);
   const [useMasterProduct, setUseMasterProduct] = useState(false);
+  const [selectedBatchIdForTraceability, setSelectedBatchIdForTraceability] = useState<string | null>(null);
 
   // Derived available products for input selection
 
@@ -749,12 +756,24 @@ export default function Production() {
               </TabsContent>
 
               <TabsContent value="traceability">
-                <div className="rounded-md border border-slate-800">
-                  <div className="p-12 text-center text-slate-500">
-                    <Search className="w-12 h-12 mx-auto mb-4 opacity-20" />
-                    <h3 className="text-lg font-bold">Trazabilidad Completa</h3>
-                    <p className="max-w-md mx-auto mt-2 text-sm">Visualiza el historial completo de cada lote, desde la materia prima hasta el producto terminado.</p>
-                    <Button variant="outline" className="mt-6">Consultar Historial</Button>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                  <div className="lg:col-span-2">
+                    <TraceabilityLedger onSelectBatch={setSelectedBatchIdForTraceability} selectedBatchId={selectedBatchIdForTraceability} />
+                  </div>
+                  <div className="bg-[#030712] border border-slate-800 rounded-3xl p-6 shadow-2xl h-fit sticky top-24">
+                    {selectedBatchIdForTraceability ? (
+                      <CognitiveEventThread instanceId={selectedBatchIdForTraceability} />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
+                        <div className="p-4 bg-slate-900 rounded-full text-slate-700">
+                          <Brain className="w-10 h-10" />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Análisis Cognitivo</p>
+                          <p className="text-[10px] text-slate-600 uppercase font-bold max-w-[200px]">Selecciona un lote del historial para ver su hilo de eventos y análisis de causa raíz.</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </TabsContent>
@@ -990,7 +1009,13 @@ export default function Production() {
             tickets={tickets}
             onConfirm={(data) => {
               if (reportMode === 'finish') {
-                finishBatchMutation.mutate({ instanceId: selectedBatchForReport.id, yields: data.yields, notes: 'Finished via dialog' });
+                finishBatchMutation.mutate({
+                  instanceId: selectedBatchForReport.id,
+                  yields: data.yields,
+                  estimatedInput: data.estimatedInput,
+                  coProducts: data.coProducts,
+                  notes: 'Finished via dialog'
+                });
                 setIsReportDialogOpen(false);
               } else {
                 console.log("Reporting data:", data);

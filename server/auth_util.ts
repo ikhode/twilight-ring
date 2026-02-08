@@ -1,13 +1,14 @@
 import { Request, Response, NextFunction } from "express";
 import { db } from "./storage";
-import { userOrganizations, terminals, users, employees } from "../shared/schema";
+import { userOrganizations, terminals, users, employees, User } from "../shared/schema";
 import { eq, and } from "drizzle-orm";
 import { supabaseAdmin } from "./supabase";
+import { AuthenticatedRequest } from "./types";
 
 /**
  * Gets the organization ID from either Supabase Auth or Terminal Auth.
  */
-export async function getOrgIdFromRequest(req: Request): Promise<string | null> {
+export async function getOrgIdFromRequest(req: Request | AuthenticatedRequest): Promise<string | null> {
     // 1. Try Terminal Auth (Kiosk Bridge) - Priority for kiosks
     const deviceAuth = req.headers["x-device-auth"] as string;
     if (deviceAuth) {
@@ -159,6 +160,6 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     }
 
     // Attach user to request for downstream use
-    (req as any).user = user;
+    (req as unknown as AuthenticatedRequest).user = user as User;
     next();
 }

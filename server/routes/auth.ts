@@ -128,6 +128,10 @@ export function registerAuthRoutes(app: Express) {
                 return res.status(401).json({ message: error.message });
             }
 
+            if (!data.user) {
+                res.status(401).json({ message: "User session not found" });
+                return;
+            }
             res.json({
                 message: "Session established",
                 user: { id: data.user.id, email: data.user.email }
