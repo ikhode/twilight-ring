@@ -1036,6 +1036,9 @@ export default function Logistics() {
                         <Card className="lg:col-span-2 bg-slate-900/50 border-slate-800 flex flex-col">
                             <CardHeader>
                                 <div className="flex items-center justify-between">
+                                    <div>
+                                        <CardTitle>Rutas Activas</CardTitle>
+                                        <CardDescription>Gestión y monitoreo de entregas en curso.</CardDescription>
                                     </div>
                                     <div className="flex items-center gap-4">
                                         <Badge variant="secondary" className="bg-primary/20 text-primary border-primary/20">

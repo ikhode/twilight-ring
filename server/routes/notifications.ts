@@ -66,11 +66,11 @@ router.get("/", async (req, res): Promise<void> => {
         ]);
 
         // Format notifications
-        const notifications: any[] = [];
+        const alerts: any[] = [];
 
         // Anomalies (Critical)
         anomalies.forEach(anomaly => {
-            notifications.push({
+            alerts.push({
                 id: `anomaly-${anomaly.id}`,
                 type: 'critical',
                 title: 'Anomalía Detectada',
@@ -84,7 +84,7 @@ router.get("/", async (req, res): Promise<void> => {
         // Low Stock (Warning) - Filter in memory
         const actualLowStock = lowStockItems.filter(item => item.stock < item.minStock).slice(0, 5);
         actualLowStock.forEach(item => {
-            notifications.push({
+            alerts.push({
                 id: `stock-${item.id}`,
                 type: 'warning',
                 title: 'Stock Bajo',
@@ -98,7 +98,7 @@ router.get("/", async (req, res): Promise<void> => {
         // Pending Payments (Info)
         if (pendingOrders.length > 0) {
             const totalPending = pendingOrders.reduce((sum, order) => sum + order.totalPrice, 0);
-            notifications.push({
+            alerts.push({
                 id: 'pending-payments',
                 type: 'info',
                 title: 'Pagos Pendientes',
@@ -111,7 +111,7 @@ router.get("/", async (req, res): Promise<void> => {
 
         // New Employees (Success)
         if (newEmployees.length > 0) {
-            notifications.push({
+            alerts.push({
                 id: 'new-employees',
                 type: 'success',
                 title: 'Nuevos Colaboradores',
