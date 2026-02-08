@@ -4,14 +4,23 @@ import ReactFlow, {
     Background,
     Controls,
     BackgroundVariant,
-    Edge
+    Edge,
+    MarkerType
 } from 'reactflow';
-import 'reactflow/dist/style.css';
-import { Badge } from "@/components/ui/badge";
+import { useState, useEffect, useCallback } from "react";
 import {
     Layers,
-    Search
+    Search,
+    Play,
+    Pause,
+    RefreshCw,
+    Box,
+    ArrowRight
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import 'reactflow/dist/style.css';
+import { Badge } from "@/components/ui/badge";
 import { ProcessNode } from "./nodes/ProcessNode";
 import { StartNode } from "./nodes/StartNode";
 import { EndNode } from "./nodes/EndNode";
@@ -32,72 +41,152 @@ interface ProductionLineFlowProps {
 }
 
 export function ProductionLineFlow({ processes = [], inventory = [], onSelect, onDelete }: ProductionLineFlowProps) {
-    const nodes = useMemo(() => {
-        // 1. Sort processes by orderIndex (Client-side safety)
-        const sortedProcesses = [...processes].sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
+    const [isSimulating, setIsSimulating] = useState(false);
+    const [simStep, setSimStep] = useState(-1);
 
-        return sortedProcesses.map((p, idx) => {
+    const toggleSimulation = () => {
+        if (isSimulating) {
+            setIsSimulating(false);
+            setSimStep(-1);
+        } else {
+            setIsSimulating(true);
+            setSimStep(0);
+        }
+    };
+
+    useEffect(() => {
+        let interval: NodeJS.Timeout;
+        if (isSimulating) {
+            interval = setInterval(() => {
+                setSimStep((prev) => (prev + 1) % (activeNodes.length + 1));
+            }, 2000);
+        }
+        return () => clearInterval(interval);
+    }, [isSimulating, activeNodes.length]);
+
+    const activeNodes = useMemo(() => {
+        const sorted = [...processes].sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
+
+        return sorted.map((p, idx) => {
             const inputItem = inventory?.find(i => i.id === p.workflowData?.inputProductId);
+            const outputItems = p.workflowData?.outputProductIds?.map((id: string) =>
+                inventory?.find(i => i.id === id)
+            ).filter(Boolean) || [];
 
             let nodeType = 'process';
             if (idx === 0) nodeType = 'start';
-            else if (idx === sortedProcesses.length - 1) nodeType = 'end';
+            else if (idx === sorted.length - 1) nodeType = 'end';
             else if (p.name.toLowerCase().includes('calidad') || p.name.toLowerCase().includes('inspecc')) nodeType = 'quality';
+
+            const active = isSimulating && simStep === idx;
+            const completed = isSimulating && simStep > idx;
 
             return {
                 id: p.id,
                 type: nodeType,
-                position: { x: idx * 300, y: 100 },
+                position: { x: idx * 350, y: 100 },
                 data: {
                     label: p.name,
                     description: p.description,
                     orderIndex: p.orderIndex,
                     input: p.workflowData?.inputProductId,
                     inputName: inputItem?.name,
-                    quantity: p.workflowData?.meta?.quantity, // For Start/End nodes to show output hints
+                    outputs: outputItems,
+                    quantity: p.workflowData?.meta?.quantity,
                     pieceworkEnabled: p.workflowData?.piecework?.enabled,
                     rate: p.workflowData?.piecework?.rate || 0,
                     unit: p.workflowData?.piecework?.unit || 'u',
+                    // Simulation Props
+                    isSimulating,
+                    simActive: active,
+                    simCompleted: completed,
+                    origin: p.workflowData?.meta?.origin_location,
+                    destination: p.workflowData?.meta?.target_location,
                     onClick: () => onSelect && onSelect(p),
                     onDelete: () => onDelete && onDelete(p.id)
                 }
             };
         });
-    }, [processes, inventory, onSelect, onDelete]);
+    }, [processes, inventory, onSelect, onDelete, isSimulating, simStep]);
 
     const edges = useMemo(() => {
         const e: Edge[] = [];
-        const sortedNodes = [...nodes].sort((a, b) => (a.data.orderIndex || 0) - (b.data.orderIndex || 0));
+        const sortedNodes = [...activeNodes].sort((a, b) => (a.data.orderIndex || 0) - (b.data.orderIndex || 0));
         for (let i = 0; i < sortedNodes.length - 1; i++) {
+            const isActiveEdge = isSimulating && simStep === i;
+
             e.push({
                 id: `e-${sortedNodes[i].id}-${sortedNodes[i + 1].id}`,
                 source: sortedNodes[i].id,
                 target: sortedNodes[i + 1].id,
                 type: 'smoothstep',
-                animated: true,
-                style: { stroke: '#3b82f6', strokeWidth: 2 },
+                animated: isSimulating && (simStep >= i),
+                label: isSimulating && simStep === i ? "Trasladando..." : undefined,
+                labelStyle: { fill: '#3b82f6', fontWeight: 700, fontSize: 10 },
+                style: {
+                    stroke: isSimulating && simStep >= i ? '#10b981' : '#3b82f6',
+                    strokeWidth: isSimulating && simStep === i ? 4 : 2,
+                    opacity: isSimulating && simStep < i ? 0.2 : 1,
+                    transition: 'all 0.5s ease'
+                },
+                markerEnd: {
+                    type: MarkerType.ArrowClosed,
+                    color: isSimulating && simStep >= i ? '#10b981' : '#3b82f6',
+                },
             });
         }
         return e;
-    }, [nodes]);
+    }, [activeNodes, isSimulating, simStep]);
 
     return (
         <div className="h-[500px] w-full bg-[#030712] rounded-3xl border border-slate-800/50 shadow-2xl relative overflow-hidden group/flow">
             <ReactFlow
-                nodes={nodes}
+                nodes={activeNodes}
                 edges={edges}
                 nodeTypes={nodeTypes}
                 fitView
                 fitViewOptions={{ padding: 0.3 }}
                 draggable={false}
-                panOnDrag={true}
+                panOnDrag={!isSimulating}
                 zoomOnScroll={true}
                 nodesDraggable={false}
-                className="cursor-grab active:cursor-grabbing"
+                className={cn("transition-all duration-500", isSimulating ? "bg-slate-950/80" : "bg-transparent")}
             >
                 <Background color="#1e293b" gap={25} size={1} variant={BackgroundVariant.Dots} />
                 <Controls className="bg-slate-900 border-slate-800" />
             </ReactFlow>
+
+            {/* Simulation Controls */}
+            <div className="absolute top-6 right-6 flex items-center gap-2 z-20">
+                <Button
+                    onClick={toggleSimulation}
+                    variant={isSimulating ? "destructive" : "default"}
+                    className={cn(
+                        "h-10 px-4 rounded-xl font-black uppercase tracking-widest text-[10px] gap-2 transition-all active:scale-95 shadow-xl",
+                        !isSimulating && "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-500/20"
+                    )}
+                >
+                    {isSimulating ? (
+                        <>
+                            <Pause className="w-4 h-4 fill-current" /> Detener Simulación
+                        </>
+                    ) : (
+                        <>
+                            <Play className="w-4 h-4 fill-current" /> Simular Flujo
+                        </>
+                    )}
+                </Button>
+                {isSimulating && (
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-10 w-10 rounded-xl bg-slate-900 border-slate-800"
+                        onClick={() => setSimStep(0)}
+                    >
+                        <RefreshCw className="w-4 h-4" />
+                    </Button>
+                )}
+            </div>
 
             <div className="absolute top-6 left-6 flex flex-col gap-2 z-10">
                 <div className="flex items-center gap-3 bg-slate-900/80 backdrop-blur-xl border border-white/5 py-1.5 pl-2 pr-4 rounded-2xl">

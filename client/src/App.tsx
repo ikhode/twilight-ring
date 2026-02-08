@@ -129,7 +129,10 @@ function AppLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
+import { useResolutionScaler } from "@/hooks/use-resolution-scaler";
+
 function App() {
+  useResolutionScaler();
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>

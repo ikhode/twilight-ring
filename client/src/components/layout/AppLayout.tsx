@@ -38,7 +38,8 @@ export function AppLayout({ children, title, subtitle }: AppLayoutProps) {
         {/* Desktop Sidebar */}
         <Sidebar className="hidden md:flex" />
 
-        <div className="md:pl-[260px] pl-0 transition-all duration-300 min-h-screen relative">
+        <div className="md:pl-[var(--sidebar-width,260px)] pl-0 transition-all duration-300 min-h-screen relative"
+          style={{ "--sidebar-width": `calc(260px * var(--app-scale, 1))` } as React.CSSProperties}>
           <Header title={title} subtitle={subtitle}>
             {/* Mobile Trigger */}
             <SheetTrigger asChild>

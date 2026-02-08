@@ -80,7 +80,7 @@ function CreateCustomerDialog() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
-  const [formData, setFormData] = useState({ name: "", email: "", phone: "" });
+  const [formData, setFormData] = useState({ name: "", email: "", phone: "", address: "" });
 
   const labels: Record<string, any> = {
     services: { title: "Nuevo Cliente", nameLabel: "Empresa / Razón Social", namePlaceholder: "Ej. Acme Corp", emailLabel: "Email de Contacto" },
@@ -107,7 +107,7 @@ function CreateCustomerDialog() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/crm/customers"] });
       setOpen(false);
-      setFormData({ name: "", email: "", phone: "" });
+      setFormData({ name: "", email: "", phone: "", address: "" });
       toast({ title: "Registro Exitoso", description: "Se ha guardado correctamente." });
     },
     onError: () => {
@@ -139,6 +139,11 @@ function CreateCustomerDialog() {
             <Label>Teléfono</Label>
             <Input value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} placeholder="5512345678" />
           </div>
+
+          <div className="space-y-2">
+            <Label>Dirección / Ubicación</Label>
+            <Input value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} placeholder="Dirección completa para entregas" />
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
@@ -148,7 +153,7 @@ function CreateCustomerDialog() {
           </Button>
         </DialogFooter>
       </DialogContent>
-    </Dialog>
+    </Dialog >
   );
 }
 

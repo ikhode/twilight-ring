@@ -196,38 +196,77 @@ export default function Finance() {
               </TooltipContent>
             </UiTooltip>
 
-            <StatCard
-              title="Valor Inventario"
-              value={isLoading ? "..." : formatCurrency((summary?.inventoryValue || 0) / 100)}
-              description="Costo Stock"
-              icon={PiggyBank}
-              className="bg-slate-900/50 backdrop-blur border-slate-800 hidden md:block"
-            />
-            <StatCard
-              title="Saldo Global Bancos"
-              value={isLoading ? "..." : formatCurrency((summary?.bankBalance || 0) / 100)}
-              icon={Building2}
-              className="bg-slate-900/50 backdrop-blur border-slate-800"
-            />
+            <UiTooltip>
+              <TooltipTrigger asChild>
+                <div className="group cursor-help">
+                  <StatCard
+                    title="Valor Inventario"
+                    value={isLoading ? "..." : formatCurrency((summary?.inventoryValue || 0) / 100)}
+                    description="Costo Stock"
+                    icon={PiggyBank}
+                    className="bg-slate-900/50 backdrop-blur border-slate-800 hidden md:block group-hover:border-blue-500/50 transition-colors"
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-slate-300">
+                <p>Valor total del inventario al costo promedio.</p>
+                <p className="text-[10px] text-slate-500 mt-1">Cálculo: Suma de (Costo * Stock) de todos los productos.</p>
+              </TooltipContent>
+            </UiTooltip>
+            <UiTooltip>
+              <TooltipTrigger asChild>
+                <div className="group cursor-help">
+                  <StatCard
+                    title="Saldo Global Bancos"
+                    value={isLoading ? "..." : formatCurrency((summary?.bankBalance || 0) / 100)}
+                    icon={Building2}
+                    className="bg-slate-900/50 backdrop-blur border-slate-800 group-hover:border-indigo-500/50 transition-colors"
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-slate-300">
+                <p>Suma de saldos de todas las cuentas bancarias registradas.</p>
+              </TooltipContent>
+            </UiTooltip>
             {/* ... Tooltip wrapper needs to be preserved by user if I don't replace it all, but I am replacing the StatCard. Actually I need to be careful with the Tooltip wrapper around the first card. ERROR: The previous view showed StatCard inside TooltipTrigger. */}
 
             {/* Let's try to match exactly the 'Salidas Bancos' block as it's separate */}
-            <StatCard
-              title="Pasivos (Destajo)"
-              value={isLoading ? "..." : formatCurrency((summary?.liabilities || 0) / 100)}
-              description="Deuda prod."
-              icon={DollarSign}
-              variant="destructive"
-              className="bg-slate-900/50 backdrop-blur border-slate-800"
-            />
-            <StatCard
-              title="Logística Activa"
-              value={isLoading ? "..." : `${(summary?.pendingSalesCount || 0) + (summary?.pendingPurchasesCount || 0)}`}
-              description="En tránsito"
-              icon={Zap}
-              variant="warning"
-              className="bg-slate-900/50 backdrop-blur border-slate-800 hidden lg:block"
-            />
+            <UiTooltip>
+              <TooltipTrigger asChild>
+                <div className="group cursor-help">
+                  <StatCard
+                    title="Pasivos (Destajo)"
+                    value={isLoading ? "..." : formatCurrency((summary?.liabilities || 0) / 100)}
+                    description="Deuda prod."
+                    icon={DollarSign}
+                    variant="destructive"
+                    className="bg-slate-900/50 backdrop-blur border-slate-800 group-hover:border-red-500/50 transition-colors"
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-slate-300">
+                <p>Deuda acumulada por tickets de destajo pendientes de pago.</p>
+                <p className="text-[10px] text-slate-500 mt-1">Incluye todos los tickets 'pending' de empleados.</p>
+              </TooltipContent>
+            </UiTooltip>
+            <UiTooltip>
+              <TooltipTrigger asChild>
+                <div className="group cursor-help">
+                  <StatCard
+                    title="Logística Activa"
+                    value={isLoading ? "..." : `${(summary?.pendingSalesCount || 0) + (summary?.pendingPurchasesCount || 0)}`}
+                    description="En tránsito"
+                    icon={Zap}
+                    variant="warning"
+                    className="bg-slate-900/50 backdrop-blur border-slate-800 hidden lg:block group-hover:border-amber-500/50 transition-colors"
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-slate-300">
+                <p>Total de operaciones con entrega/recolección pendiente.</p>
+                <p className="text-[10px] text-slate-500 mt-1">Ventas por entregar + Compras por recibir.</p>
+              </TooltipContent>
+            </UiTooltip>
           </div>
         </TooltipProvider>
 
@@ -283,12 +322,19 @@ export default function Finance() {
 
             {/* KPI GRID */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card className="bg-emerald-950/20 border-emerald-900/50 p-4 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-3 opacity-20"><ArrowUpRight className="h-10 w-10 text-emerald-500" /></div>
-                <p className="text-xs text-emerald-400 font-medium mb-1">Por Cobrar</p>
-                <h4 className="text-2xl font-bold text-white/90">{formatCurrency(summary?.accountsReceivable?.total / 100 || 0)}</h4>
-                <p className="text-[10px] text-emerald-500/60 mt-1">{summary?.accountsReceivable?.count || 0} facturas pendientes</p>
-              </Card>
+              <UiTooltip>
+                <TooltipTrigger asChild>
+                  <Card className="bg-emerald-950/20 border-emerald-900/50 p-4 relative overflow-hidden group cursor-help hover:border-emerald-500/50 transition-colors">
+                    <div className="absolute top-0 right-0 p-3 opacity-20"><ArrowUpRight className="h-10 w-10 text-emerald-500" /></div>
+                    <p className="text-xs text-emerald-400 font-medium mb-1">Por Cobrar</p>
+                    <h4 className="text-2xl font-bold text-white/90">{formatCurrency(summary?.accountsReceivable?.total / 100 || 0)}</h4>
+                    <p className="text-[10px] text-emerald-500/60 mt-1">{summary?.accountsReceivable?.count || 0} facturas pendientes</p>
+                  </Card>
+                </TooltipTrigger>
+                <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-slate-300">
+                  <p>Monto total de ventas con pago pendiente.</p>
+                </TooltipContent>
+              </UiTooltip>
 
               <UiTooltip>
                 <TooltipTrigger asChild>
@@ -309,12 +355,19 @@ export default function Finance() {
                 </TooltipContent>
               </UiTooltip>
 
-              <Card className="bg-blue-950/20 border-blue-900/50 p-4 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-3 opacity-20"><CreditCard className="h-10 w-10 text-blue-500" /></div>
-                <p className="text-xs text-blue-400 font-medium mb-1">Adelantos de Nómina</p>
-                <h4 className="text-2xl font-bold text-white/90">{formatCurrency(summary?.payroll?.total / 100 || 0)}</h4>
-                <p className="text-[10px] text-blue-500/60 mt-1">{summary?.payroll?.count || 0} empleados</p>
-              </Card>
+              <UiTooltip>
+                <TooltipTrigger asChild>
+                  <Card className="bg-blue-950/20 border-blue-900/50 p-4 relative overflow-hidden group cursor-help hover:border-blue-500/50 transition-colors">
+                    <div className="absolute top-0 right-0 p-3 opacity-20"><CreditCard className="h-10 w-10 text-blue-500" /></div>
+                    <p className="text-xs text-blue-400 font-medium mb-1">Adelantos de Nómina</p>
+                    <h4 className="text-2xl font-bold text-white/90">{formatCurrency(summary?.payroll?.total / 100 || 0)}</h4>
+                    <p className="text-[10px] text-blue-500/60 mt-1">{summary?.payroll?.count || 0} empleados</p>
+                  </Card>
+                </TooltipTrigger>
+                <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-slate-300">
+                  <p>Adelantos de sueldo otorgados en el periodo actual.</p>
+                </TooltipContent>
+              </UiTooltip>
             </div>
 
             <Button className="w-full bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/20 h-10 font-semibold tracking-wide">

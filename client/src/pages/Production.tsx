@@ -93,6 +93,10 @@ export default function Production() {
   const [isTicketCreateOpen, setIsTicketCreateOpen] = useState(false);
   const [fraudWarning, setFraudWarning] = useState(false);
   const [selectedSourceProductId, setSelectedSourceProductId] = useState<string | null>(null);
+  const [useMasterProduct, setUseMasterProduct] = useState(false);
+
+  // Derived available products for input selection
+
 
   const { data: processes, isLoading } = useQuery({
     queryKey: ["/api/cpe/processes"],
@@ -441,6 +445,16 @@ export default function Production() {
     enabled: !!session?.access_token
   });
 
+  // Derived available products for input selection
+  const selectableInputs = useMemo(() => {
+    if (!inventory) return [];
+    if (useMasterProduct) {
+      // Find all products that have children (are masters) OR have isProductionInput
+      return inventory.filter((i: any) => i.isProductionInput && !i.masterProductId);
+    }
+    return inventory.filter((i: any) => i.isProductionInput);
+  }, [inventory, useMasterProduct]);
+
   const [isRecipeMode, setIsRecipeMode] = useState(false);
   const [inputList, setInputList] = useState([0]);
 
@@ -550,27 +564,47 @@ export default function Production() {
                         createInstanceMutation.mutate({
                           processId: fd.get("processId"),
                           sourceBatchId: fd.get("sourceBatchId")?.toString() || null,
-                          notes: fd.get("notes")
+                          notes: fd.get("notes"),
+                          meta: {
+                            origin_location: fd.get("origin_location"),
+                            target_location: fd.get("target_location")
+                          }
                         });
                       }} className="space-y-4">
                         <div className="space-y-4">
-                          <div className="space-y-2">
+                          <div className="flex items-center justify-between mb-2">
                             <Label className="text-xs uppercase font-bold text-slate-500">1. Materia Prima / Insumo</Label>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-slate-500 font-bold uppercase">Maestro</span>
+                              <Switch
+                                checked={useMasterProduct}
+                                onCheckedChange={setUseMasterProduct}
+                                className="scale-75 data-[state=checked]:bg-primary"
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-2">
                             <Select
                               onValueChange={(v) => setSelectedSourceProductId(v === "none" ? null : v)}
                               defaultValue="none"
                             >
                               <SelectTrigger className="bg-slate-900 border-slate-800">
-                                <SelectValue placeholder="Seleccionar insumo..." />
+                                <SelectValue placeholder={useMasterProduct ? "Seleccionar Producto Maestro..." : "Seleccionar SKU Insumo..."} />
                               </SelectTrigger>
                               <SelectContent className="bg-slate-950 border-slate-800">
                                 <SelectItem value="none">-- Stock General / Sin Insumo --</SelectItem>
-                                {inventory.filter((i: any) => i.isProductionInput).map((i: any) => (
-                                  <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>
+                                {selectableInputs.map((i: any) => (
+                                  <SelectItem key={i.id} value={i.id}>
+                                    {i.name} {useMasterProduct && <span className="opacity-50 text-[10px] ml-2">(Maestro)</span>}
+                                  </SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
-                            <p className="text-[10px] text-slate-500 italic">Selecciona qué vas a procesar para ver los procesos disponibles.</p>
+                            <p className="text-[10px] text-slate-500 italic">
+                              {useMasterProduct
+                                ? "Selecciona la base para encontrar procesos genéricos asociados."
+                                : "Selecciona el SKU específico para ver procesos detallados."}
+                            </p>
                           </div>
 
                           <div className="space-y-2">
@@ -580,14 +614,42 @@ export default function Production() {
                                 <SelectValue placeholder={selectedSourceProductId ? "Seleccionar proceso..." : "Primero selecciona un insumo"} />
                               </SelectTrigger>
                               <SelectContent className="bg-slate-950 border-slate-800">
-                                {processes?.filter((p: any) =>
-                                  p.status !== 'archived' &&
-                                  (!selectedSourceProductId || p.workflowData?.inputProductId === selectedSourceProductId)
-                                ).map((p: any) => (
+                                {processes?.filter((p: any) => {
+                                  if (p.status === 'archived') return false;
+                                  if (!selectedSourceProductId) return false;
+
+                                  const inputId = p.workflowData?.inputProductId;
+
+                                  // Matches direct SKU
+                                  if (inputId === selectedSourceProductId) return true;
+
+                                  // If using master product, check if the process input SKU belongs to that master
+                                  if (useMasterProduct) {
+                                    const prod = inventory.find((i: any) => i.id === inputId);
+                                    return prod?.masterProductId === selectedSourceProductId;
+                                  }
+
+                                  return false;
+                                }).map((p: any) => (
                                   <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label className="text-xs uppercase font-bold text-slate-500 flex items-center gap-2">
+                                <Layers className="w-3 h-3" /> Origen (Patio)
+                              </Label>
+                              <Input name="origin_location" placeholder="Ej: Patio 1" className="bg-slate-900 border-slate-800 h-9 text-xs" />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-xs uppercase font-bold text-slate-500 flex items-center gap-2">
+                                <Package className="w-3 h-3" /> Destino (Cestas)
+                              </Label>
+                              <Input name="target_location" placeholder="Ej: Cesta A" className="bg-slate-900 border-slate-800 h-9 text-xs" />
+                            </div>
                           </div>
 
                           <div className="space-y-2">
@@ -599,7 +661,21 @@ export default function Production() {
                               <SelectContent className="bg-slate-950 border-slate-800">
                                 <SelectItem value="none">-- Ninguno --</SelectItem>
                                 {purchases
-                                  .filter((p: any) => p.batchId && (!selectedSourceProductId || p.productId === selectedSourceProductId))
+                                  .filter((p: any) => {
+                                    if (!p.batchId) return false;
+                                    if (!selectedSourceProductId) return true;
+
+                                    // Direct match
+                                    if (p.productId === selectedSourceProductId) return true;
+
+                                    // Master match
+                                    if (useMasterProduct) {
+                                      const prod = inventory.find((i: any) => i.id === p.productId);
+                                      return prod?.masterProductId === selectedSourceProductId;
+                                    }
+
+                                    return false;
+                                  })
                                   .map((p: any) => (
                                     <SelectItem key={p.id} value={p.batchId}>
                                       {p.batchId} - {p.supplier?.name} ({new Date(p.date).toLocaleDateString()})

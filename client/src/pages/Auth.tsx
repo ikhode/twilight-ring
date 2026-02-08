@@ -143,7 +143,7 @@ export default function Auth() {
                 ))}
             </div>
 
-            <div className="relative z-10 w-full max-w-md">
+            <div className="relative z-10 w-full max-w-md transform transition-transform duration-500" style={{ transform: `scale(var(--app-scale, 1))` }}>
                 {/* Logo */}
                 <motion.div
                     initial={{ opacity: 0, y: -20 }}

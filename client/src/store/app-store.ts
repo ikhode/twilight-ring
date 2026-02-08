@@ -17,6 +17,7 @@ interface AppState {
     // Universal Config (Product Categories, etc.)
     productCategories: string[];
     defaultUnits: string[];
+    numberFormat: string; // e.g. "2.55" or "2,55"
     cedisAddress?: string;
     cedisLat?: number;
     cedisLng?: number;
@@ -32,6 +33,7 @@ interface AppState {
     setUniversalConfig: (config: {
         productCategories?: string[],
         defaultUnits?: string[],
+        numberFormat?: string,
         industryName?: string,
         cedisAddress?: string,
         cedisLat?: number,
@@ -52,6 +54,7 @@ export const useAppStore = create<AppState>()(
             themeColor: "#3b82f6",
             productCategories: [],
             defaultUnits: ["pza"],
+            numberFormat: "2.55", // Default
             cedisAddress: "",
             cedisLat: undefined,
             cedisLng: undefined,
@@ -64,6 +67,7 @@ export const useAppStore = create<AppState>()(
             setUniversalConfig: (config) => set((state) => ({
                 productCategories: config.productCategories ?? state.productCategories,
                 defaultUnits: config.defaultUnits ?? state.defaultUnits,
+                numberFormat: config.numberFormat ?? state.numberFormat,
                 industryName: config.industryName ?? state.industryName,
                 cedisAddress: config.cedisAddress ?? state.cedisAddress,
                 cedisLat: config.cedisLat ?? state.cedisLat,

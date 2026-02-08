@@ -47,11 +47,16 @@ export function Sidebar({ className, onLinkClick }: SidebarProps) {
     <div
       className={cn(
         "bg-sidebar/95 backdrop-blur-xl border-r border-sidebar-border flex flex-col z-40 transition-all duration-300",
-        collapsed ? "w-[72px]" : "w-[260px]",
+        collapsed ? "w-[var(--sidebar-collapsed-width,72px)]" : "w-[var(--sidebar-width,260px)]",
         // Default fixed unless overridden
         !className?.includes("relative") && "fixed left-0 top-0 h-screen",
         className
       )}
+      style={{
+        // Proportional adjustments for sidebar width
+        "--sidebar-width": `calc(260px * var(--app-scale, 1))`,
+        "--sidebar-collapsed-width": `calc(72px * var(--app-scale, 1))`
+      } as React.CSSProperties}
     >
       {/* Header / Org Switcher */}
       <div className={cn("px-4 pt-4 pb-2 transition-all", collapsed ? "flex justify-center px-0" : "")}>

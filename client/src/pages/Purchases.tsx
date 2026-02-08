@@ -1144,6 +1144,7 @@ function CreateSupplierDialog() {
     name: "",
     contact: "",
     phone: "",
+    address: "",
   });
 
   const createMutation = useMutation({
@@ -1156,7 +1157,8 @@ function CreateSupplierDialog() {
         },
         body: JSON.stringify({
           name: data.name,
-          contactInfo: { contact: data.contact },
+          contactInfo: { contact: data.contact, phone: data.phone },
+          address: data.address,
         }),
       });
       if (!res.ok) throw new Error("Failed to create supplier");
@@ -1167,7 +1169,7 @@ function CreateSupplierDialog() {
         queryKey: ["/api/operations/suppliers"],
       });
       setOpen(false);
-      setFormData({ name: "", contact: "", phone: "" });
+      setFormData({ name: "", contact: "", phone: "", address: "" });
       toast({
         title: "Proveedor creado",
         description: "El proveedor se ha registrado exitosamente.",
@@ -1404,7 +1406,7 @@ function CreatePurchaseDialog({ purchases = [] }: { purchases: any[] }) {
 
         // Add all of them
         const newItems = groupProducts.map((p: any) => ({
-          uniqueId: `${p.id}-${Date.now()}-${Math.random()}`,
+          uniqueId: `${p.id}-${crypto.randomUUID()}`,
           productId: p.id,
           name: p.name,
           cost: (p.cost || 0) / 100, // Cost is stored in cents
@@ -1420,7 +1422,7 @@ function CreatePurchaseDialog({ purchases = [] }: { purchases: any[] }) {
         return [
           ...prev,
           {
-            uniqueId: `${item.id}-${Date.now()}`,
+            uniqueId: `${item.id}-${crypto.randomUUID()}`,
             productId: item.id,
             name: item.name,
             cost: (item.cost || 0) / 100,

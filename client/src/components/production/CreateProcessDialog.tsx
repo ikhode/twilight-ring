@@ -43,6 +43,10 @@ export function CreateProcessDialog({ open, onOpenChange, editingProcess, invent
     const [pieceworkUnit, setPieceworkUnit] = useState("pza");
     const [paymentBasis, setPaymentBasis] = useState<"input" | "output">("output");
 
+    // Location State
+    const [originLocation, setOriginLocation] = useState("");
+    const [targetLocation, setTargetLocation] = useState("");
+
     useEffect(() => {
         if (open) {
             if (editingProcess) {
@@ -58,6 +62,8 @@ export function CreateProcessDialog({ open, onOpenChange, editingProcess, invent
                 setPieceworkRate(editingProcess.workflowData?.piecework?.rate ? (editingProcess.workflowData.piecework.rate / 100).toString() : "0");
                 setPieceworkUnit(editingProcess.workflowData?.piecework?.unit || "pza");
                 setPaymentBasis(editingProcess.workflowData?.piecework?.basis || "output");
+                setOriginLocation(editingProcess.workflowData?.meta?.origin_location || "");
+                setTargetLocation(editingProcess.workflowData?.meta?.target_location || "");
             } else {
                 // Reset for new
                 setName("");
@@ -70,6 +76,8 @@ export function CreateProcessDialog({ open, onOpenChange, editingProcess, invent
                 setPieceworkRate("0");
                 setPieceworkUnit("pza");
                 setPaymentBasis("output");
+                setOriginLocation("");
+                setTargetLocation("");
             }
         }
     }, [open, editingProcess]);
@@ -93,6 +101,11 @@ export function CreateProcessDialog({ open, onOpenChange, editingProcess, invent
                     rate: Math.round(Number(pieceworkRate || 0) * 100), // Convert back to cents
                     unit: pieceworkUnit,
                     basis: paymentBasis
+                },
+                meta: {
+                    ...(editingProcess?.workflowData?.meta || {}),
+                    origin_location: originLocation,
+                    target_location: targetLocation
                 }
             }
         };
@@ -231,6 +244,32 @@ export function CreateProcessDialog({ open, onOpenChange, editingProcess, invent
                                                     </div>
                                                 )
                                             })}
+                                    </div>
+                                </div>
+
+                                {/* LOCATIONS */}
+                                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-800/50">
+                                    <div className="space-y-2">
+                                        <Label className="text-[10px] uppercase font-bold text-slate-500 flex items-center gap-2">
+                                            <Layers className="w-3 h-3 text-blue-500" /> Ubicación Origen (Sugerida)
+                                        </Label>
+                                        <Input
+                                            value={originLocation}
+                                            onChange={(e) => setOriginLocation(e.target.value)}
+                                            placeholder="Ej: Patio de Recepción"
+                                            className="bg-slate-950 border-slate-800 h-10 text-xs"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label className="text-[10px] uppercase font-bold text-slate-500 flex items-center gap-2">
+                                            <Package className="w-3 h-3 text-emerald-500" /> Ubicación Destino (Sugerida)
+                                        </Label>
+                                        <Input
+                                            value={targetLocation}
+                                            onChange={(e) => setTargetLocation(e.target.value)}
+                                            placeholder="Ej: Cestas de Producción"
+                                            className="bg-slate-950 border-slate-800 h-10 text-xs"
+                                        />
                                     </div>
                                 </div>
                             </TabsContent>
