@@ -50,6 +50,15 @@ export async function getOrgIdFromRequest(req: Request | AuthenticatedRequest): 
 }
 
 /**
+ * Gets the user ID from the authenticated user.
+ * Used for audit logging and consent tracking.
+ */
+export async function getUserIdFromRequest(req: Request | AuthenticatedRequest): Promise<string | null> {
+    const user = await getAuthenticatedUser(req);
+    return user?.id ?? null;
+}
+
+/**
  * Enhanced authentication bridge that supports both Supabase standard auth
  * and Terminal-based biometric auth for kiosk operations.
  */

@@ -8,3 +8,4 @@ export * from "./modules/commerce/schema";
 export * from "./modules/production/schema";
 export * from "./modules/finance/schema";
 export * from "./modules/analytics/schema";
+export * from "./modules/trustnet/schema";
