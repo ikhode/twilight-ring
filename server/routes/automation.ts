@@ -1,190 +1,168 @@
-import { Express, Request, Response } from "express";
+import { Router, Request, Response } from "express";
 import { db } from "../storage";
-import { processes } from "../../shared/schema";
-import { eq, and } from "drizzle-orm";
+import {
+    flowDefinitions,
+    flowNodes,
+    flowEdges,
+    flowExecutions,
+    insertFlowDefinitionSchema,
+    insertFlowNodeSchema,
+    insertFlowEdgeSchema
+} from "../../shared/modules/automation/schema";
+import { eq, and, desc } from "drizzle-orm";
 import { getOrgIdFromRequest } from "../auth_util";
+import { AuthenticatedRequest } from "../types";
+import { FlowEngineService } from "../services/flow-engine";
+import { Express } from "express";
+
+const router = Router();
 
 /**
- * Registra todas las rutas relacionadas con el motor de automatización y flujos de trabajo.
- * 
- * @param {import("express").Express} app - Instancia de la aplicación Express
+ * List all flows for the organization
  */
-export function registerAutomationRoutes(app: Express): void {
+router.get("/flows", async (req: Request, res: Response) => {
+    try {
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
 
-    /**
-     * Provee el catálogo de disparadores (triggers), acciones y condiciones disponibles para el motor de automatización.
-     * 
-     * @param {import("express").Request} req - Solicitud de Express
-     * @param {import("express").Response} res - Respuesta de Express
-     * @returns {Promise<void>}
-     */
-    app.get("/api/automation/catalog", async (req: Request, res: Response): Promise<void> => {
-        res.json({
-            triggers: [
-                { id: 'manual', name: 'Activación Manual', description: 'Se inicia cuando un usuario presiona un botón', icon: 'zap', category: 'utility' },
-                { id: 'inventory_low', name: 'Inventario Bajo', description: 'Cuando un producto baja del stock mínimo', icon: 'package', category: 'products' },
-                { id: 'fraud_warning', name: 'Alerta de Fraude', description: 'Detectado por AI Guardian en Radar', icon: 'shield-alert', category: 'ai' },
-                { id: 'new_lead', name: 'Nuevo Prospecto CRM', description: 'Cuando se registra un cliente potencial', icon: 'users', category: 'customers' },
-                { id: 'logistics_delay', name: 'Retraso en Entrega', description: 'Detectado por GPS de la unidad', icon: 'truck', category: 'logistics' },
-            ],
-            actions: [
-                { id: 'send_email', name: 'Enviar Correo', description: 'Manda un email al equipo responsable', icon: 'mail', category: 'communication' },
-                { id: 'create_refund', name: 'Generar Reembolso', description: 'Procesa la devolución automáticamente', icon: 'banknote', category: 'transactions' },
-                { id: 'discord_notify', name: 'Notificar Operaciones', description: 'Envía un mensaje al canal de Discord', icon: 'message-square', category: 'communication' },
-                { id: 'update_crm', name: 'Actualizar CRM', description: 'Cambia el estado del contacto', icon: 'user-plus', category: 'customers' },
-                { id: 'restock_order', name: 'Orden de Compra', description: 'Genera pedido a proveedor', icon: 'shopping-cart', category: 'products' },
-            ],
-            conditions: [
-                { id: 'amount_check', name: 'Validar Monto', description: 'Si el total es > o < a X', icon: 'filter', category: 'transactions' },
-                { id: 'status_check', name: 'Validar Estado', description: 'Si el estado coincide con X', icon: 'check-circle', category: 'utility' },
-                { id: 'risk_check', name: 'Nivel de Riesgo', description: 'Evaluar riesgo de operación', icon: 'shield', category: 'ai' },
-            ]
+        const flows = await db.query.flowDefinitions.findMany({
+            where: eq(flowDefinitions.organizationId, orgId),
+            orderBy: [desc(flowDefinitions.updatedAt)]
         });
-    });
 
-    /**
-     * Obtiene el listado de todos los flujos de automatización configurados para la organización.
-     * 
-     * @param {import("express").Request} req - Solicitud de Express
-     * @param {import("express").Response} res - Respuesta de Express
-     * @returns {Promise<void>}
-     */
-    app.get("/api/automations", async (req: Request, res: Response): Promise<void> => {
-        try {
-            const orgId = await getOrgIdFromRequest(req);
-            if (!orgId) {
-                res.status(401).json({ message: "No autorizado" });
-                return;
+        res.json(flows);
+    } catch (error) {
+        res.status(500).json({ message: "Error fetching flows", error: String(error) });
+    }
+});
+
+/**
+ * Get a specific flow with its nodes and edges
+ */
+router.get("/flows/:id", async (req: Request, res: Response) => {
+    try {
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const flow = await db.query.flowDefinitions.findFirst({
+            where: and(eq(flowDefinitions.id, req.params.id), eq(flowDefinitions.organizationId, orgId)),
+            with: {
+                nodes: true,
+                edges: true
             }
+        });
 
-            const automations = await db.query.processes.findMany({
-                where: and(
-                    eq(processes.organizationId, orgId),
-                    eq(processes.type, 'automation')
-                )
-            });
-            res.json(automations);
-        } catch (error) {
-            const err = error as Error;
-            res.status(500).json({ message: err.message });
-        }
-    });
+        if (!flow) return res.status(404).json({ message: "Flow not found" });
 
-    /**
-     * Sugiere flujos de automatización inteligentes basados en la actividad y configuraciones de la organización.
-     * 
-     * @param {import("express").Request} req - Solicitud de Express
-     * @param {import("express").Response} res - Respuesta de Express
-     * @returns {Promise<void>}
-     */
-    app.get("/api/automation/suggestions", async (req: Request, res: Response): Promise<void> => {
-        try {
-            // In a real scenario, we'd query metrics (sales, anomalies) from DB
-            const suggestions = [
-                {
-                    id: 'suggest-fraud',
-                    name: 'Detección de Fraude B2B',
-                    description: 'Basado en picos de ventas inusuales detectados por Radar.',
-                    workflow: {
-                        nodes: [
-                            { id: 't-1', type: 'trigger', position: { x: 0, y: 0 }, data: { id: 'fraud_warning', name: 'Venta de Alto Valor', icon: 'shield-alert', description: 'Detectado por AI Guardian' } },
-                            { id: 'c-1', type: 'condition', position: { x: 0, y: 0 }, data: { id: 'risk_check', name: '¿Cliente nuevo?', description: 'Validar historial de cliente' } },
-                            { id: 'a-1', type: 'action', position: { x: 0, y: 0 }, data: { id: 'discord_notify', name: 'Alertar a Gerencia' } }
-                        ],
-                        edges: [
-                            { id: 'e1', source: 't-1', target: 'c-1', animated: true },
-                            { id: 'e2', source: 'c-1', target: 'a-1', sourceHandle: 'yes', label: 'SÍ', animated: true }
-                        ]
-                    }
-                },
-                {
-                    id: 'suggest-stock',
-                    name: 'Reabastecimiento Predictivo',
-                    description: 'Tus niveles de inventario están bajando más rápido de lo esperado.',
-                    workflow: {
-                        nodes: [
-                            { id: 't-2', type: 'trigger', position: { x: 0, y: 0 }, data: { id: 'inventory_low', name: 'Stock Bajo Crítico', icon: 'package', description: 'Stock < 10%' } },
-                            { id: 'a-2', type: 'action', position: { x: 0, y: 0 }, data: { id: 'restock_order', name: 'Generar Orden de Compra' } }
-                        ],
-                        edges: [
-                            { id: 'e3', source: 't-2', target: 'a-2', animated: true }
-                        ]
-                    }
-                }
-            ];
+        res.json(flow);
+    } catch (error) {
+        res.status(500).json({ message: "Error fetching flow", error: String(error) });
+    }
+});
 
-            res.json(suggestions);
-        } catch (error) {
-            const err = error as Error;
-            res.status(500).json({ message: err.message });
-        }
-    });
+/**
+ * Create or Update a flow (save diagram)
+ */
+router.post("/flows/save", async (req: Request, res: Response) => {
+    try {
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
 
-    /**
-     * Guarda o actualiza un flujo de trabajo de automatización.
-     * 
-     * @param {import("express").Request} req - Solicitud de Express
-     * @param {import("express").Response} res - Respuesta de Express
-     * @returns {Promise<void>}
-     */
-    app.post("/api/automations/save", async (req: Request, res: Response): Promise<void> => {
-        try {
-            const orgId = await getOrgIdFromRequest(req);
-            if (!orgId) {
-                res.status(401).json({ message: "No autorizado" });
-                return;
-            }
+        const { id, name, description, nodes, edges } = req.body;
 
-            const { id, name, description, workflowData } = req.body;
+        let flowId = id;
 
-            if (id) {
-                // Update
-                const [updated] = await db.update(processes)
-                    .set({ name, description, workflowData, updatedAt: new Date() })
-                    .where(and(eq(processes.id, id), eq(processes.organizationId, orgId)))
-                    .returning();
-                res.json(updated);
+        await db.transaction(async (tx) => {
+            // 1. Create or Update Definition
+            if (flowId) {
+                await tx.update(flowDefinitions)
+                    .set({ name, description, updatedAt: new Date() })
+                    .where(and(eq(flowDefinitions.id, flowId), eq(flowDefinitions.organizationId, orgId)));
             } else {
-                // Create
-                const [created] = await db.insert(processes)
-                    .values({
-                        organizationId: orgId,
-                        name,
-                        description,
-                        type: 'automation',
-                        workflowData,
-                    })
-                    .returning();
-                res.json(created);
-            }
-        } catch (error) {
-            const err = error as Error;
-            res.status(500).json({ message: err.message });
-        }
-    });
-
-    /**
-     * Elimina un flujo de automatización específico.
-     * 
-     * @param {import("express").Request} req - Solicitud de Express
-     * @param {import("express").Response} res - Respuesta de Express
-     * @returns {Promise<void>}
-     */
-    app.delete("/api/automations/:id", async (req: Request, res: Response): Promise<void> => {
-        try {
-            const orgId = await getOrgIdFromRequest(req);
-            if (!orgId) {
-                res.status(401).json({ message: "No autorizado" });
-                return;
+                const [newFlow] = await tx.insert(flowDefinitions).values({
+                    organizationId: orgId,
+                    name,
+                    description,
+                    status: 'draft'
+                }).returning();
+                flowId = newFlow.id;
             }
 
-            await db.delete(processes)
-                .where(and(eq(processes.id, req.params.id), eq(processes.organizationId, orgId)));
+            // 2. Clear old nodes/edges
+            await tx.delete(flowNodes).where(eq(flowNodes.flowId, flowId));
+            await tx.delete(flowEdges).where(eq(flowEdges.flowId, flowId));
 
-            res.json({ success: true });
-        } catch (error) {
-            const err = error as Error;
-            res.status(500).json({ message: err.message });
-        }
-    });
+            // 3. Insert new nodes
+            if (nodes && nodes.length > 0) {
+                await tx.insert(flowNodes).values(nodes.map((n: any) => ({
+                    id: n.id,
+                    flowId,
+                    type: n.type,
+                    config: n.data || {},
+                    position: n.position || { x: 0, y: 0 },
+                    metadata: n.metadata || {}
+                })));
+            }
+
+            // 4. Insert new edges
+            if (edges && edges.length > 0) {
+                await tx.insert(flowEdges).values(edges.map((e: any) => ({
+                    id: e.id,
+                    flowId,
+                    sourceNodeId: e.source,
+                    targetNodeId: e.target,
+                    conditionLabel: e.label || null
+                })));
+            }
+        });
+
+        res.json({ success: true, flowId });
+    } catch (error) {
+        console.error("Save flow error:", error);
+        res.status(500).json({ message: "Error saving flow", error: String(error) });
+    }
+});
+
+/**
+ * Execute a flow
+ */
+router.post("/flows/:id/execute", async (req: Request, res: Response) => {
+    try {
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const { payload, isSimulated } = req.body;
+
+        // Execute background task
+        FlowEngineService.executeFlow(req.params.id, orgId, payload || {}, !!isSimulated)
+            .catch(err => console.error(`Async execution error for flow ${req.params.id}:`, err));
+
+        res.json({ message: "Execution started", status: "running" });
+    } catch (error) {
+        res.status(500).json({ message: "Error starting execution", error: String(error) });
+    }
+});
+
+/**
+ * Get execution history
+ */
+router.get("/flows/:id/executions", async (req: Request, res: Response) => {
+    try {
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const history = await db.query.flowExecutions.findMany({
+            where: and(eq(flowExecutions.flowId, req.params.id), eq(flowExecutions.organizationId, orgId)),
+            orderBy: [desc(flowExecutions.startedAt)],
+            limit: 20
+        });
+
+        res.json(history);
+    } catch (error) {
+        res.status(500).json({ message: "Error fetching executions", error: String(error) });
+    }
+});
+
+export function registerAutomationRoutes(app: Express) {
+    app.use("/api/automation", router);
 }

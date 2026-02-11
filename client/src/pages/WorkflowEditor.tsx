@@ -306,56 +306,33 @@ function WorkflowEditor() {
     });
     const [activePlaceholderId, setActivePlaceholderId] = useState<string | null>(null);
 
-    // Load Existing Process
-    const { data: existingProcess } = useQuery<ProcessData | null>({
-        queryKey: [`/api/cpe/processes/${processId}`],
+    // Load Existing Process (Automation Flow)
+    const { data: existingFlow } = useQuery<any>({
+        queryKey: [`/api/automation/flows/${processId}`],
         queryFn: async () => {
             if (!processId) return null;
-            const res = await fetch(`/api/cpe/processes/${processId}`, {
+            const res = await fetch(`/api/automation/flows/${processId}`, {
                 headers: {
                     Authorization: `Bearer ${session?.access_token}`
                 }
             });
-            if (!res.ok) throw new Error("Failed to load process");
-            return res.json() as Promise<ProcessData>;
+            if (!res.ok) throw new Error("Failed to load flow");
+            return res.json();
         },
         enabled: !!processId && !!session?.access_token
     });
 
-    // Hydrate State from Process
+    // Hydrate State from Flow
     useEffect(() => {
-        if (existingProcess) {
-            setProcessName(existingProcess.name);
-            setDescription(existingProcess.description || "");
-            if (existingProcess.workflowData) {
-                setNodes(existingProcess.workflowData.nodes || []);
-                setEdges(existingProcess.workflowData.edges || []);
-
-                const wd = existingProcess.workflowData;
-                if (Array.isArray(wd.outputProductIds)) {
-                    setSelectedOutputProductIds(wd.outputProductIds);
-                } else if (wd.outputProductId) {
-                    setSelectedOutputProductIds([wd.outputProductId]);
-                } else {
-                    setSelectedOutputProductIds([]);
-                }
-
-                setSelectedInputProductId(wd.inputProductId || null);
-
-                // Hydrate Piecework Config
-                if (wd.piecework) {
-                    setPieceworkConfig({
-                        enabled: wd.piecework.enabled || false,
-                        rate: (wd.piecework.rate || 0) / 100, // Convert from cents
-                        unit: wd.piecework.unit || 'pza',
-                        basis: wd.piecework.basis || 'output'
-                    });
-                }
-            }
+        if (existingFlow) {
+            setProcessName(existingFlow.name);
+            setDescription(existingFlow.description || "");
+            setNodes(existingFlow.nodes || []);
+            setEdges(existingFlow.edges || []);
         } else if (!processId) {
             resetEditor();
         }
-    }, [existingProcess, processId]);
+    }, [existingFlow, processId]);
 
     const resetEditor = () => {
         setProcessName("");
@@ -658,30 +635,15 @@ function WorkflowEditor() {
     const saveMutation = useMutation({
         mutationFn: async () => {
             const payload = {
-                name: processName || existingProcess?.name || "Nuevo Flujo",
-                description: description || "Sin descripción",
-                workflowData: {
-                    nodes,
-                    edges,
-                    // Generic data
-                    piecework: pieceworkConfig.enabled ? {
-                        enabled: pieceworkConfig.enabled,
-                        rate: Math.round(pieceworkConfig.rate * 100), // Store in cents
-                        unit: pieceworkConfig.unit,
-                        basis: pieceworkConfig.basis
-                    } : undefined
-                },
-                type: "automation"
+                id: processId,
+                name: processName || "Sin Nombre",
+                description: description || "",
+                nodes,
+                edges
             };
 
-            const url = processId
-                ? `/api/cpe/processes/${processId}`
-                : "/api/cpe/processes";
-
-            const method = processId ? "PUT" : "POST";
-
-            const res = await fetch(url, {
-                method,
+            const res = await fetch("/api/automation/flows/save", {
+                method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                     Authorization: `Bearer ${session?.access_token}`
@@ -697,12 +659,45 @@ function WorkflowEditor() {
             return res.json();
         },
         onSuccess: (data) => {
-            toast({ title: "Flujo Guardado", description: "Los cambios se han sincronizado." });
-            refetchWorkflows();
-            if (!processId && data.id) {
-                setLocation(`/workflows?processId=${data.id}`);
+            toast({ title: "Nexus Architect", description: "Flujo orquestador guardado correctamente." });
+            if (!processId && data.flowId) {
+                setLocation(`/workflow-editor?processId=${data.flowId}`);
             }
         }
+    });
+
+    const executeMutation = useMutation({
+        mutationFn: async (isSimulated: boolean = false) => {
+            if (!processId) {
+                toast({ title: "Error", description: "Guarda el flujo antes de ejecutarlo." });
+                return;
+            }
+            const res = await fetch(`/api/automation/flows/${processId}/execute`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${session?.access_token}`
+                },
+                body: JSON.stringify({ isSimulated })
+            });
+            return res.json();
+        },
+        onSuccess: () => {
+            toast({ title: "Motor Iniciado", description: "La orquestación se está ejecutando en el backend." });
+        }
+    });
+
+    const { data: executions = [], refetch: refetchExecutions } = useQuery({
+        queryKey: ["/api/automation/flows", processId, "executions"],
+        queryFn: async () => {
+            if (!processId) return [];
+            const res = await fetch(`/api/automation/flows/${processId}/executions`, {
+                headers: { Authorization: `Bearer ${session?.access_token}` }
+            });
+            return res.json();
+        },
+        enabled: !!processId,
+        refetchInterval: 5000 // Poll logs every 5s while in editor
     });
 
     const filteredActions = catalog?.actions?.filter((a) =>
@@ -742,36 +737,22 @@ function WorkflowEditor() {
                                 <Plus className="w-3.5 h-3.5 mr-2" /> Nuevo
                             </Button>
                             <div className="w-[1px] h-4 bg-white/10 mx-1" />
-                            <Button variant="outline" className="h-8 border-white/10 text-[10px] uppercase font-black">
-                                <Play className="w-3.5 h-3.5 mr-2" /> Simular
-                            </Button>
-                            <div className="w-[1px] h-4 bg-white/10 mx-1" />
                             <Button
                                 variant="outline"
-                                className="h-8 border-white/10 text-[10px] uppercase font-black"
-                                onClick={() => onLayout('TB')}
+                                className="h-8 border-orange-500/20 text-orange-400 hover:bg-orange-500/10 text-[10px] uppercase font-black"
+                                onClick={() => executeMutation.mutate(true)}
+                                disabled={executeMutation.isPending}
                             >
-                                <LayoutGrid className="w-3.5 h-3.5 mr-2" /> Layout
+                                <PlayCircle className="w-3.5 h-3.5 mr-2" /> Simular
                             </Button>
+
                             <Button
                                 variant="outline"
-                                className="h-8 border-white/10 text-[10px] uppercase font-black"
-                                onClick={() => { setIsSettingsOpen(true); }}
+                                className="h-8 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/10 text-[10px] uppercase font-black"
+                                onClick={() => executeMutation.mutate(false)}
+                                disabled={executeMutation.isPending}
                             >
-                                <Settings2 className="w-3.5 h-3.5 mr-2" /> Config
-                            </Button>
-                            <Button variant="outline" className="gap-2 border-orange-500/20 text-orange-400 hover:bg-orange-500/10 hover:text-orange-300 transition-all font-mono uppercase text-xs tracking-wider" onClick={runSimulation} disabled={isSimulating}>
-                                {isSimulating ? (
-                                    <>
-                                        <Bot className="w-4 h-4 animate-pulse" />
-                                        Simulando...
-                                    </>
-                                ) : (
-                                    <>
-                                        <PlayCircle className="w-4 h-4" />
-                                        Simular
-                                    </>
-                                )}
+                                <Play className="w-3.5 h-3.5 mr-2" /> Ejecutar Real
                             </Button>
 
                             <Button
@@ -813,8 +794,8 @@ function WorkflowEditor() {
                                 markerEnd: { type: MarkerType.ArrowClosed }
                             }}
                         >
-                            <Background color="#cbd5e1" gap={20} size={1} variant={BackgroundVariant.Dots} className="opacity-20" />
-                            <Controls className="bg-slate-900 border-white/10" />
+                            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#1e293b" />
+                            <Controls className="bg-slate-900 border-slate-800 fill-white" />
                             <MiniMap
                                 className="bg-slate-900/50 border border-white/5 rounded-2xl overflow-hidden"
                                 maskColor="rgba(0, 0, 0, 0.4)"

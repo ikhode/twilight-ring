@@ -28,15 +28,15 @@ export default function Workflows() {
     const [_location, setLocation] = useLocation();
 
     const { data: workflows = [], isLoading } = useQuery({
-        queryKey: ["/api/workflows"],
+        queryKey: ["/api/automation/flows"],
         queryFn: async () => {
-            const res = await apiRequest("GET", "/api/workflows");
+            const res = await apiRequest("GET", "/api/automation/flows");
             const data = await res.json();
             return Array.isArray(data) ? data : [];
         }
     });
 
-    useSupabaseRealtime({ table: 'processes', queryKey: ["/api/workflows"] });
+    useSupabaseRealtime({ table: 'flow_definitions', queryKey: ["/api/automation/flows"] });
 
     const getIcon = (type: string) => {
         switch (type) {
