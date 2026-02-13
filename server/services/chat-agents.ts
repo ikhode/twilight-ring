@@ -168,7 +168,11 @@ export class ChatAgentService {
         userId: string,
         role: string
     ): Promise<{ userMsg: ChatMessage; aiMsg: ChatMessage }> {
-        // 1. Save user message
+        // 1. Get conversation to get organizationId
+        const conversation = await this.getConversation(conversationId, userId);
+        if (!conversation) throw new Error("Conversation not found");
+
+        // 2. Save user message
         const [userMsg] = await db.insert(chatMessages).values({
             conversationId,
             role: "user",
@@ -176,18 +180,20 @@ export class ChatAgentService {
             metadata: {}
         }).returning();
 
-        // 2. Get conversation history
+        // 3. Get conversation history
         const history = await this.getConversationMessages(conversationId);
 
-        // 3. Generate AI response using RAG
+        // 4. Generate AI response using RAG + Cognitive Reasoning
         const ragResponse = await ragEngine.generateResponse({
             query: userMessage,
             role,
             conversationHistory: history,
-            maxResults: 5
+            maxResults: 5,
+            organizationId: conversation.organizationId,
+            userId: userId
         });
 
-        // 4. Save AI response
+        // 5. Save AI response with reasoning metadata
         const [aiMsg] = await db.insert(chatMessages).values({
             conversationId,
             role: "assistant",
@@ -195,20 +201,22 @@ export class ChatAgentService {
             metadata: {
                 sources: ragResponse.sources,
                 confidence: ragResponse.confidence,
-                tokensUsed: ragResponse.tokensUsed
+                tokensUsed: ragResponse.tokensUsed,
+                reasoning: ragResponse.reasoning // Pass reasoning data to frontend
             }
         }).returning();
 
-        // 5. Update conversation last message time
+        // 6. Update conversation last message time
         await db.update(chatConversations)
             .set({
                 lastMessageAt: new Date(),
-                title: history.length === 0 ? userMessage.substring(0, 50) : undefined
+                title: history.length === 1 ? userMessage.substring(0, 50) : undefined // Only rename if it's the first real msg
             })
             .where(eq(chatConversations.id, conversationId));
 
         return { userMsg, aiMsg };
     }
+
 
     /**
      * Archive a conversation

@@ -8,6 +8,7 @@ import {
 } from "../../shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { getOrgIdFromRequest, getAuthenticatedUser } from "../auth_util";
+import { logAudit } from "../lib/audit";
 
 const router = Router();
 
@@ -67,6 +68,16 @@ router.post("/fleet/vehicles", async (req, res): Promise<void> => {
         }
 
         const [vehicle] = await db.insert(vehicles).values(parsed.data).returning();
+
+        // Log action
+        await logAudit(
+            orgId,
+            (req.user as any)?.id || "system",
+            "CREATE_VEHICLE",
+            vehicle.id,
+            { plate: vehicle.plate, model: vehicle.model }
+        );
+
         res.status(201).json(vehicle);
     } catch (error) {
         console.error("Create vehicle error:", error);
@@ -135,6 +146,15 @@ router.post("/fleet/vehicles/:id/maintenance", async (req, res): Promise<void> =
             // provider: data.provider, // Removed as not in schema
             organizationId: orgId
         }).returning();
+
+        // Log action
+        await logAudit(
+            orgId,
+            (await getPerformerId(req, orgId)),
+            "LOG_MAINTENANCE",
+            vehicleId,
+            { logId: log.id, type: log.type, cost: log.cost }
+        );
 
         // INTEGRATION: Finance
         if (data.cost > 0) {
@@ -250,6 +270,15 @@ router.post("/fleet/vehicles/:id/fuel", async (req, res): Promise<void> => {
             cost: data.cost,
             mileage: data.mileage
         }).returning();
+
+        // Log action
+        await logAudit(
+            orgId,
+            (await getPerformerId(req, orgId)),
+            "LOG_FUEL",
+            vehicleId,
+            { logId: log.id, liters: log.liters, cost: log.cost }
+        );
 
         // INTEGRATION: Finance
         if (data.cost > 0) {
@@ -377,6 +406,15 @@ router.post("/fleet/routes/generate", async (req, res): Promise<void> => {
         }
 
         res.status(201).json(newRoute);
+
+        // Log action
+        await logAudit(
+            orgId,
+            (req.user as any)?.id || "system",
+            "GENERATE_ROUTE",
+            newRoute.id,
+            { vehicleId, driverId, stopsCount: sequence - 1 }
+        );
     } catch (error) {
         console.error("Generate route error:", error);
         res.status(500).json({ message: "Error generating route" });
@@ -448,19 +486,75 @@ router.post("/fleet/routes/stops/:id/complete", async (req, res): Promise<void> 
             return;
         }
 
-        // --- NEW INTERCONNECTION: Update associated Order/Purchase status ---
+        // --- NEW INTERCONNECTION: Update associated Order/Purchase status and Inventory ---
         if (stop.stopType === 'delivery' && stop.orderId) {
-            await db.update(sales)
-                .set({ deliveryStatus: 'delivered' })
-                .where(eq(sales.id, stop.orderId));
+            const sale = await db.query.sales.findFirst({
+                where: eq(sales.id, stop.orderId)
+            });
 
-            console.log(`[LOGISTICS-CONNECTION] Sale ${stop.orderId} marked as DELIVERED`);
+            if (sale) {
+                await db.update(sales)
+                    .set({ deliveryStatus: 'delivered' })
+                    .where(eq(sales.id, stop.orderId));
+
+                // Record Inventory Movement (Subtraction)
+                const product = await db.query.products.findFirst({
+                    where: eq(products.id, sale.productId)
+                });
+
+                if (product) {
+                    const newStock = (product.stock || 0) - (sale.quantity || 0);
+                    await db.insert(inventoryMovements).values({
+                        organizationId: orgId,
+                        productId: sale.productId,
+                        quantity: -(sale.quantity || 0),
+                        type: "sale",
+                        referenceId: sale.id,
+                        beforeStock: product.stock,
+                        afterStock: newStock,
+                        notes: `Entega en Ruta: ${stop.address || stop.id.slice(0, 8)}`,
+                        date: now
+                    });
+
+                    await db.update(products).set({ stock: newStock }).where(eq(products.id, product.id));
+                }
+
+                console.log(`[LOGISTICS-CONNECTION] Sale ${stop.orderId} marked as DELIVERED and stock updated`);
+            }
         } else if (stop.stopType === 'collection' && stop.purchaseId) {
-            await db.update(purchases)
-                .set({ deliveryStatus: 'received', receivedAt: now })
-                .where(eq(purchases.id, stop.purchaseId));
+            const purchase = await db.query.purchases.findFirst({
+                where: eq(purchases.id, stop.purchaseId)
+            });
 
-            console.log(`[LOGISTICS-CONNECTION] Purchase ${stop.purchaseId} marked as RECEIVED via Pickup`);
+            if (purchase) {
+                await db.update(purchases)
+                    .set({ deliveryStatus: 'received', receivedAt: now })
+                    .where(eq(purchases.id, stop.purchaseId));
+
+                // Record Inventory Movement (Addition)
+                const product = await db.query.products.findFirst({
+                    where: eq(products.id, purchase.productId)
+                });
+
+                if (product) {
+                    const newStock = (product.stock || 0) + (purchase.quantity || 0);
+                    await db.insert(inventoryMovements).values({
+                        organizationId: orgId,
+                        productId: purchase.productId,
+                        quantity: purchase.quantity || 0,
+                        type: "purchase",
+                        referenceId: purchase.id,
+                        beforeStock: product.stock,
+                        afterStock: newStock,
+                        notes: `Recolección en Ruta: ${stop.address || stop.id.slice(0, 8)}`,
+                        date: now
+                    });
+
+                    await db.update(products).set({ stock: newStock }).where(eq(products.id, product.id));
+                }
+
+                console.log(`[LOGISTICS-CONNECTION] Purchase ${stop.purchaseId} marked as RECEIVED and stock updated`);
+            }
         }
 
         // INTEGRATION: Finance (Cash Collection on Delivery)

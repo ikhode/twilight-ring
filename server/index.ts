@@ -4,9 +4,17 @@ import cookieParser from "cookie-parser";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import { rateLimit } from "./middleware/security";
+import { healthCheck, errorMiddleware } from "./lib/observability";
 
 const app = express();
 const httpServer = createServer(app);
+
+// Apply global rate limiting: 1000 requests per 15 minutes
+app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 1000 }));
+
+// Health check endpoint
+app.get("/health", healthCheck);
 
 declare module "http" {
   interface IncomingMessage {
@@ -71,13 +79,8 @@ import { guardian } from "./services/guardian";
   // Start the Cognitive Guardian
   guardian.start();
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    res.status(status).json({ message });
-    throw err;
-  });
+  // Unified production error tracking
+  app.use(errorMiddleware);
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route

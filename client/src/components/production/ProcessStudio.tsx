@@ -30,6 +30,7 @@ export function ProcessStudio() {
             const res = await fetch("/api/cpe/processes", {
                 headers: { Authorization: `Bearer ${session?.access_token}` }
             });
+            if (!res.ok) return [];
             return res.json();
         },
         enabled: !!session?.access_token
@@ -41,6 +42,7 @@ export function ProcessStudio() {
             const res = await fetch("/api/inventory/products", {
                 headers: { Authorization: `Bearer ${session?.access_token}` }
             });
+            if (!res.ok) return [];
             return res.json();
         },
         enabled: !!session?.access_token
@@ -52,6 +54,7 @@ export function ProcessStudio() {
             const res = await fetch("/api/cpe/tasks", {
                 headers: { Authorization: `Bearer ${session?.access_token}` }
             });
+            if (!res.ok) return [];
             return res.json();
         },
         enabled: !!session?.access_token

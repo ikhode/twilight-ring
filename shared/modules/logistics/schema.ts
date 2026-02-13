@@ -15,6 +15,10 @@ export const vehicles = pgTable("vehicles", {
     year: integer("year"),
     status: text("status").notNull().default("active"), // "active", "maintenance", "inactive"
     currentMileage: integer("current_mileage").default(0),
+    capacityKg: integer("capacity_kg").default(0),
+    capacityM3: customType<{ data: number }>({ dataType() { return "real"; } })("capacity_m3"),
+    currentLoadKg: integer("current_load_kg").default(0),
+    lastMaintenanceDate: timestamp("last_maintenance_date"),
     isArchived: boolean("is_archived").notNull().default(false),
     // Visual Identity (LPR/Recognition)
     visualEmbedding: customType<{ data: number[] }>({

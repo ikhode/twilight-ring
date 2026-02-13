@@ -3,11 +3,13 @@ import { db } from "../storage";
 import {
     products, inventoryMovements, insertProductSchema, users,
     productCategories, productGroups, productUnits,
-    insertProductCategorySchema, insertProductGroupSchema, insertProductUnitSchema
+    insertProductCategorySchema, insertProductGroupSchema, insertProductUnitSchema,
+    productionTasks
 } from "../../shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { getOrgIdFromRequest } from "../auth_util";
 import { AuthenticatedRequest } from "../types";
+import { logAudit } from "../lib/audit";
 
 const router = Router();
 
@@ -36,13 +38,50 @@ router.get("/products", async (req: Request, res: Response): Promise<void> => {
             }
         });
 
-        // Enrich with Cognitive Predictions (Mocked logic for now, utilizing real stock)
+        // 1. Fetch real consumption data (30 days)
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        const consumptionData = await db
+            .select({
+                productId: inventoryMovements.productId,
+                totalConsumed: sql<number>`SUM(ABS(${inventoryMovements.quantity}))`
+            })
+            .from(inventoryMovements)
+            .where(and(
+                eq(inventoryMovements.organizationId, orgId),
+                sql`${inventoryMovements.type} IN ('sale', 'production_input')`,
+                sql`${inventoryMovements.date} >= ${thirtyDaysAgo.toISOString()}`
+            ))
+            .groupBy(inventoryMovements.productId);
+
+        const consumptionMap = new Map(consumptionData.map(c => [c.productId, Number(c.totalConsumed) || 0]));
+
+        // Enrich with REAL Cognitive Predictions
         const enriched = inv.map(p => {
-            const dailyUsage = Math.floor(Math.random() * 8) + 2;
-            const daysRemaining = p.stock > 0 ? Math.floor(p.stock / dailyUsage) : 0;
+            const totalConsumed30d = consumptionMap.get(p.id) || 0;
+            const dailyUsage = totalConsumed30d / 30; // Simple average
+
+            // Avoid division by zero
+            const effectiveDailyUsage = dailyUsage === 0 ? 0.1 : dailyUsage; // Fallback to 0.1 to avoid infinite days
+
+            const daysRemaining = p.stock > 0 ? Math.floor(p.stock / effectiveDailyUsage) : 0;
 
             const predictedDepletionDate = new Date();
             predictedDepletionDate.setDate(predictedDepletionDate.getDate() + daysRemaining);
+
+            const reorderPoint = p.reorderPointDays || 7;
+            const isCritical = p.criticalityLevel === 'critical' || p.criticalityLevel === 'high';
+
+            // Logic: If critical, we want more buffer (e.g. 1.5x reorder point)
+            const safetyFactor = isCritical ? 1.5 : 1.0;
+            const alertThresholdDays = Math.ceil(reorderPoint * safetyFactor);
+
+            const shouldRestock = daysRemaining < alertThresholdDays;
+
+            // Suggest order to cover 30 days + safety stock
+            const targetStockDays = 30;
+            const suggestedOrder = Math.max(0, Math.ceil((targetStockDays * effectiveDailyUsage) - p.stock));
 
             return {
                 ...p,
@@ -50,11 +89,20 @@ router.get("/products", async (req: Request, res: Response): Promise<void> => {
                 unit: p.unitRef?.name || p.unit,
                 uom: p.unitRef?.abbreviation || p.unit,
                 cognitive: {
-                    dailyUsage,
+                    dailyUsage: parseFloat(effectiveDailyUsage.toFixed(2)),
                     daysRemaining,
                     predictedDepletionDate,
-                    shouldRestock: daysRemaining < 7,
-                    suggestedOrder: daysRemaining < 7 ? Math.round(dailyUsage * 30) : 0
+                    shouldRestock,
+                    suggestedOrder,
+                    demandVariability: p.demandVariability || 'stable',
+                    criticalityLevel: p.criticalityLevel || 'medium',
+                    reorderPointDays: reorderPoint,
+                    riskFactor: isCritical ? 'High' : 'Normal',
+                    reasoning: {
+                        demandTrend: dailyUsage > 0 ? "Active Consumption" : "No recent movement",
+                        stockStatus: daysRemaining < 3 ? "Critical Low" : daysRemaining < 7 ? "Low" : "Healthy",
+                        recommendation: shouldRestock ? `Restock immediately (+${suggestedOrder})` : "Monitor"
+                    }
                 }
             };
         });
@@ -325,6 +373,20 @@ router.post("/products", async (req: Request, res: Response): Promise<void> => {
             ...parsed.data,
             organizationId: orgId
         } as any).returning();
+
+        // Log action
+        await logAudit(
+            orgId,
+            (req.user as any)?.id || "system",
+            "CREATE_PRODUCT",
+            product.id,
+            {
+                message: `Nuevo producto registrado: ${product.name} (SKU: ${product.sku || 'N/A'})`,
+                name: product.name,
+                sku: product.sku
+            }
+        );
+
         res.status(201).json(product);
     } catch (error) {
         console.error("Create product error:", error);
@@ -456,6 +518,18 @@ router.patch("/products/:id", async (req: Request, res: Response): Promise<void>
             await db.update(products)
                 .set(updates)
                 .where(eq(products.id, productId));
+
+            // Log action
+            await logAudit(
+                orgId,
+                (req.user as any)?.id || "system",
+                "UPDATE_PRODUCT",
+                productId,
+                {
+                    message: `Actualización de parámetros del producto ${productId}`,
+                    changes: updates
+                }
+            );
         }
 
         res.json({ success: true, message: "Product updated" });
@@ -550,10 +624,125 @@ router.delete("/products/:id", async (req: Request, res: Response): Promise<void
             })
             .where(eq(products.id, productId));
 
+        // Log action
+        await logAudit(
+            orgId,
+            req.user?.id || "system",
+            "DELETE_PRODUCT",
+            productId,
+            {
+                message: `Producto eliminado/archivado: ${product.name}`,
+                name: product.name
+            }
+        );
+
         res.json({ success: true, message: "Item deleted safely" });
     } catch (error) {
         console.error("Delete product error:", error);
         res.status(500).json({ message: "Failed to delete product" });
+    }
+});
+
+/**
+ * Analiza el impacto de un producto en la cadena de producción.
+ * @route GET /api/inventory/products/:id/production-impact
+ */
+router.get("/products/:id/production-impact", async (req: Request, res: Response): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        const productId = req.params.id;
+
+        // 1. Get the product itself to verify existence
+        const product = await db.query.products.findFirst({
+            where: and(eq(products.id, productId), eq(products.organizationId, orgId))
+        });
+
+        if (!product) {
+            res.status(404).json({ message: "Product not found" });
+            return;
+        }
+
+        // 2. Find all recipes/tasks that use this product as an input
+        // Since recipeData is JSONB, we'll fetch all recipes and filter in memory for flexibility/simplicity in this iteration
+        const allRecipes = await db.select().from(productionTasks).where(and(
+            eq(productionTasks.organizationId, orgId),
+            eq(productionTasks.isRecipe, true),
+            eq(productionTasks.active, true)
+        ));
+
+        const impactedRecipes = allRecipes.filter(recipe => {
+            const data = recipe.recipeData as { inputs?: Array<{ itemId: string, quantity: number }> } | null;
+            return data?.inputs?.some(input => input.itemId === productId);
+        });
+
+        if (impactedRecipes.length === 0) {
+            res.json({
+                productId,
+                productName: product.name,
+                impactedRecipes: [],
+                totalPotentialLoss: 0,
+                message: "No active production recipes depend on this product."
+            });
+            return;
+        }
+
+        // 3. For each impacted recipe, identify the OUTPUT product and calculate value
+        const impactDetails = await Promise.all(impactedRecipes.map(async (recipe) => {
+            const data = recipe.recipeData as {
+                inputs?: Array<{ itemId: string, quantity: number }>,
+                outputs?: Array<{ itemId: string, quantity: number }>
+            };
+
+            const inputConfig = data.inputs?.find(i => i.itemId === productId);
+            const outputConfig = data.outputs?.[0]; // Assuming single main output for simplicity
+
+            if (!outputConfig) return null;
+
+            // Fetch output product details
+            const outputProduct = await db.query.products.findFirst({
+                where: eq(products.id, outputConfig.itemId)
+            });
+
+            if (!outputProduct) return null;
+
+            // Calculate "Value at Risk"
+            // If we have 0 input, we can produce 0 output.
+            // But let's frame it as: "Per batch, this input is critical for generating $X value"
+            const potentialValuePerBatch = (outputProduct.price || 0) * outputConfig.quantity;
+
+            return {
+                recipeId: recipe.id,
+                recipeName: recipe.name,
+                inputRequiredPerBatch: inputConfig?.quantity || 0,
+                outputProduct: {
+                    id: outputProduct.id,
+                    name: outputProduct.name,
+                    price: outputProduct.price
+                },
+                potentialValuePerBatch: potentialValuePerBatch / 100 // Convert cents to main currency unit
+            };
+        }));
+
+        const validImpacts = impactDetails.filter(i => i !== null);
+        const totalPotentialValuePerBatch = validImpacts.reduce((sum, item) => sum + (item?.potentialValuePerBatch || 0), 0);
+
+        res.json({
+            productId,
+            productName: product.name,
+            impactedRecipes: validImpacts,
+            totalPotentialValuePerBatch,
+            currency: "MXN",
+            message: `Stopping supply of ${product.name} halts ${validImpacts.length} production processes.`
+        });
+
+    } catch (error) {
+        console.error("Impact Analysis Error:", error);
+        res.status(500).json({ message: "Failed to analyze impact" });
     }
 });
 

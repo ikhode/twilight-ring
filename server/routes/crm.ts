@@ -2,6 +2,7 @@ import { Router } from "express";
 import { storage } from "../storage";
 import { getOrgIdFromRequest } from "../auth_util";
 import { insertCustomerSchema, insertSupplierSchema } from "../../shared/schema";
+import { logAudit } from "../lib/audit";
 
 const router = Router();
 
@@ -51,6 +52,16 @@ router.post("/customers", async (req, res): Promise<void> => {
         }
 
         const data = await storage.createCustomer(parsed.data);
+
+        // Log action
+        await logAudit(
+            orgId,
+            (req.user as any)?.id || "system",
+            "CREATE_CUSTOMER",
+            data.id,
+            { name: data.name }
+        );
+
         res.json(data);
     } catch (error) {
         console.error("Create customer error:", error);
@@ -102,6 +113,16 @@ router.post("/suppliers", async (req, res): Promise<void> => {
         }
 
         const data = await storage.createSupplier(parsed.data);
+
+        // Log action
+        await logAudit(
+            orgId,
+            (req.user as any)?.id || "system",
+            "CREATE_SUPPLIER",
+            data.id,
+            { name: data.name }
+        );
+
         res.json(data);
     } catch (error) {
         console.error("Create supplier error:", error);

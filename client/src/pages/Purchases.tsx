@@ -54,6 +54,7 @@ import {
 } from "@/components/ui/select";
 import { DataTable } from "@/components/shared/DataTable";
 import { CognitiveInput, CognitiveField } from "@/components/cognitive";
+import { DossierView } from "@/components/shared/DossierView";
 
 export default function Purchases() {
   const { session } = useAuth();
@@ -533,6 +534,11 @@ function PurchasesTable({ data, onView }: { data: any[], onView: (batch: any) =>
           >
             <Eye className="w-3.5 h-3.5" />
           </Button>
+          <DossierView
+            entityType="transaction"
+            entityId={it.batchId || it.id}
+            entityName={it.supplier?.name || "Compra"}
+          />
 
           {it.deliveryStatus === "pending" && it.isApproved && (
             <Button
@@ -1145,11 +1151,12 @@ function CreateSupplierDialog() {
     contact: "",
     phone: "",
     address: "",
+    allowedPaymentMethods: ["transfer", "cash"],
   });
 
   const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      const res = await fetch("/api/operations/suppliers", {
+      const res = await fetch("/api/purchases/suppliers", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1159,6 +1166,7 @@ function CreateSupplierDialog() {
           name: data.name,
           contactInfo: { contact: data.contact, phone: data.phone },
           address: data.address,
+          attributes: { allowedPaymentMethods: data.allowedPaymentMethods }
         }),
       });
       if (!res.ok) throw new Error("Failed to create supplier");
@@ -1166,10 +1174,10 @@ function CreateSupplierDialog() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["/api/operations/suppliers"],
+        queryKey: ["/api/purchases/suppliers"],
       });
       setOpen(false);
-      setFormData({ name: "", contact: "", phone: "", address: "" });
+      setFormData({ name: "", contact: "", phone: "", address: "", allowedPaymentMethods: ["transfer", "cash"] });
       toast({
         title: "Proveedor creado",
         description: "El proveedor se ha registrado exitosamente.",
@@ -1244,6 +1252,40 @@ function CreateSupplierDialog() {
               placeholder="Calle, Número, Colonia, CP"
             />
           </div>
+
+          <div className="space-y-2">
+            <Label>Métodos de Pago Aceptados</Label>
+            <div className="flex gap-4 pt-2">
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.allowedPaymentMethods.includes("transfer")}
+                  onChange={(e) => {
+                    const methods = e.target.checked
+                      ? [...formData.allowedPaymentMethods, "transfer"]
+                      : formData.allowedPaymentMethods.filter(m => m !== "transfer");
+                    setFormData({ ...formData, allowedPaymentMethods: methods });
+                  }}
+                  className="rounded border-slate-800 bg-slate-900 text-primary"
+                />
+                Transferencia
+              </label>
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.allowedPaymentMethods.includes("cash")}
+                  onChange={(e) => {
+                    const methods = e.target.checked
+                      ? [...formData.allowedPaymentMethods, "cash"]
+                      : formData.allowedPaymentMethods.filter(m => m !== "cash");
+                    setFormData({ ...formData, allowedPaymentMethods: methods });
+                  }}
+                  className="rounded border-slate-800 bg-slate-900 text-primary"
+                />
+                Efectivo
+              </label>
+            </div>
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>
@@ -1317,9 +1359,9 @@ function CreatePurchaseDialog({ purchases = [] }: { purchases: any[] }) {
   });
 
   const { data: suppliers = [] } = useQuery({
-    queryKey: ["/api/operations/suppliers"],
+    queryKey: ["/api/purchases/suppliers"],
     queryFn: async () => {
-      const res = await fetch("/api/operations/suppliers", {
+      const res = await fetch("/api/purchases/suppliers", {
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
       if (!res.ok) return [];
@@ -1529,9 +1571,15 @@ function CreatePurchaseDialog({ purchases = [] }: { purchases: any[] }) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="transfer">Transferencia</SelectItem>
-                    <SelectItem value="cash">Efectivo</SelectItem>
-                    <SelectItem value="credit">Crédito</SelectItem>
+                    {(suppliers.find((s: any) => s.id === selectedSupplier)?.attributes?.allowedPaymentMethods || ["transfer", "cash", "credit"]).includes("transfer") && (
+                      <SelectItem value="transfer">Transferencia</SelectItem>
+                    )}
+                    {(suppliers.find((s: any) => s.id === selectedSupplier)?.attributes?.allowedPaymentMethods || ["transfer", "cash", "credit"]).includes("cash") && (
+                      <SelectItem value="cash">Efectivo</SelectItem>
+                    )}
+                    {(suppliers.find((s: any) => s.id === selectedSupplier)?.attributes?.allowedPaymentMethods || ["transfer", "cash", "credit"]).includes("credit") && (
+                      <SelectItem value="credit">Crédito</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </CognitiveField>
@@ -2107,6 +2155,14 @@ function PurchasePaymentDialog({ purchase }: { purchase: any }) {
     enabled: open,
   });
 
+  const allowedMethods = purchase.supplier?.attributes?.allowedPaymentMethods || ["transfer", "cash"];
+
+  useEffect(() => {
+    if (!allowedMethods.includes(method)) {
+      setMethod(allowedMethods[0] || "transfer");
+    }
+  }, [allowedMethods]);
+
   const payMutation = useMutation({
     mutationFn: async () => {
       const url = purchase.isBatch
@@ -2178,8 +2234,12 @@ function PurchasePaymentDialog({ purchase }: { purchase: any }) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="transfer">Transferencia / Depósito</SelectItem>
-                <SelectItem value="cash">Efectivo</SelectItem>
+                {allowedMethods.includes("transfer") && (
+                  <SelectItem value="transfer">Transferencia / Depósito</SelectItem>
+                )}
+                {allowedMethods.includes("cash") && (
+                  <SelectItem value="cash">Efectivo</SelectItem>
+                )}
               </SelectContent>
             </Select>
           </div>

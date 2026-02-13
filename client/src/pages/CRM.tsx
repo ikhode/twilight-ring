@@ -22,15 +22,17 @@ import {
   Brain,
   MessageSquare,
   AlertTriangle,
-  Activity
+  Activity,
+  Edit
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { Customer, Supplier } from "../../../shared/schema";
 import { useAuth } from "@/hooks/use-auth";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { EntityDossier } from "@/components/documents/EntityDossier";
 import { useConfiguration } from "@/context/ConfigurationContext";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
@@ -42,6 +44,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { DossierView } from "@/components/shared/DossierView";
 
 function CreateCustomerDialog() {
   const { session } = useAuth();
@@ -103,37 +106,65 @@ function CreateCustomerDialog() {
           <Plus className="w-4 h-4" /> {currentLabels.title}
         </CognitiveButton>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{currentLabels.title}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label>{currentLabels.nameLabel}</Label>
-            <CognitiveInput
-              value={formData.name}
-              onChange={e => setFormData({ ...formData, name: e.target.value })}
-              placeholder={currentLabels.namePlaceholder}
-              semanticType="name"
-            />
+        <div className="grid grid-cols-2 gap-4 py-4">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>{currentLabels.nameLabel}</Label>
+              <CognitiveInput
+                value={formData.name}
+                onChange={e => setFormData({ ...formData, name: e.target.value })}
+                placeholder={currentLabels.namePlaceholder}
+                semanticType="name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>{currentLabels.emailLabel}</Label>
+              <CognitiveInput
+                value={formData.email}
+                onChange={e => setFormData({ ...formData, email: e.target.value })}
+                placeholder="contacto@ejemplo.com"
+                semanticType="email"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Teléfono</Label>
+              <CognitiveInput
+                value={formData.phone}
+                onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                placeholder="+52 55..."
+                semanticType="phone"
+              />
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label>{currentLabels.emailLabel}</Label>
-            <CognitiveInput
-              value={formData.email}
-              onChange={e => setFormData({ ...formData, email: e.target.value })}
-              placeholder="contacto@ejemplo.com"
-              semanticType="email"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Teléfono</Label>
-            <CognitiveInput
-              value={formData.phone}
-              onChange={e => setFormData({ ...formData, phone: e.target.value })}
-              placeholder="+52 55..."
-              semanticType="phone"
-            />
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Límite de Crédito (MXN)</Label>
+              <div className="relative">
+                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  type="number"
+                  className="pl-9"
+                  placeholder="0.00"
+                  onChange={e => setFormData({ ...formData, creditLimit: Number(e.target.value) * 100 } as any)}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Método de Pago Preferido</Label>
+              <Select onValueChange={v => setFormData({ ...formData, preferredPaymentMethod: v } as any)}>
+                <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="transfer">Transferencia</SelectItem>
+                  <SelectItem value="cash">Efectivo</SelectItem>
+                  <SelectItem value="card">Tarjeta</SelectItem>
+                  <SelectItem value="check">Cheque</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
         <DialogFooter>
@@ -143,6 +174,185 @@ function CreateCustomerDialog() {
             Guardar Registro
           </Button>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+function EditCustomerDialog({ customer, open, onOpenChange }: { customer: Customer | null, open: boolean, onOpenChange: (open: boolean) => void }) {
+  const { session } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: Partial<Customer>) => {
+      const res = await fetch(`/api/crm/customers/${customer?.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify(data)
+      });
+      if (!res.ok) throw new Error("Failed to update");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/crm/customers"] });
+      onOpenChange(false);
+      toast({ title: "Datos Actualizados", description: "La información del cliente se ha guardado correctamente." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  });
+
+  if (!customer) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle>Expediente de {customer.name}</DialogTitle>
+          <DialogDescription>Gestión 360° del cliente.</DialogDescription>
+        </DialogHeader>
+
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 min-h-0">
+          <div className="overflow-y-auto pr-2">
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              updateMutation.mutate({
+                name: formData.get("name") as string,
+                email: formData.get("email") as string,
+                phone: formData.get("phone") as string,
+                address: formData.get("address") as string,
+                billingAddress: formData.get("billing_address") as string,
+                creditLimit: Number(formData.get("credit_limit")) * 100,
+                preferredPaymentMethod: formData.get("preferred_payment_method") as string,
+                birthDate: formData.get("birth_date") as string,
+                notes: formData.get("notes") as string,
+                status: formData.get("status") as any,
+              });
+            }} className="space-y-4 py-4">
+              <Tabs defaultValue="general" className="w-full">
+                <TabsList className="grid w-full grid-cols-2 mb-4">
+                  <TabsTrigger value="general">Información General</TabsTrigger>
+                  <TabsTrigger value="billing">Cobranza y Crédito</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="general" className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Nombre / Razón Social</Label>
+                      <Input name="name" defaultValue={customer.name} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Email</Label>
+                      <Input name="email" defaultValue={customer.email || ""} />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Teléfono</Label>
+                      <Input name="phone" defaultValue={customer.phone || ""} placeholder="+52 55..." />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Cumpleaños / Aniversario</Label>
+                      <Input name="birthDate" type="date" defaultValue={customer.birthDate || ""} />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Dirección Física</Label>
+                    <Input name="address" defaultValue={customer.address || ""} placeholder="Calle, Número, Col..." />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Estado de la Cuenta</Label>
+                    <Select name="status" defaultValue={customer.status || "active"}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">Activo</SelectItem>
+                        <SelectItem value="lead">Prospecto</SelectItem>
+                        <SelectItem value="inactive">Inactivo</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="billing" className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Límite de Crédito (MXN)</Label>
+                      <div className="relative">
+                        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input name="creditLimit" type="number" step="0.01" className="pl-9" defaultValue={customer.creditLimit ? (customer.creditLimit / 100).toString() : ""} placeholder="0.00" />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Método de Pago Preferido</Label>
+                      <Select name="preferredPaymentMethod" defaultValue={customer.preferredPaymentMethod || ""}>
+                        <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="transfer">Transferencia</SelectItem>
+                          <SelectItem value="cash">Efectivo</SelectItem>
+                          <SelectItem value="card">Tarjeta</SelectItem>
+                          <SelectItem value="check">Cheque</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Dirección de Facturación (RFC/Datos)</Label>
+                    <textarea
+                      name="billingAddress"
+                      defaultValue={customer.billingAddress || ""}
+                      className="flex min-h-[80px] w-full rounded-md border border-slate-800 bg-slate-950 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      placeholder="Nombre, RFC, Régimen, CP..."
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Notas de Cartera</Label>
+                    <textarea
+                      name="notes"
+                      defaultValue={customer.notes || ""}
+                      className="flex min-h-[80px] w-full rounded-md border border-slate-800 bg-slate-950 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      placeholder="Acuerdos especiales, condiciones de crédito..."
+                    />
+                  </div>
+                </TabsContent>
+              </Tabs>
+
+              <DialogFooter className="mt-6">
+                <Button type="submit" disabled={updateMutation.isPending}>
+                  {updateMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Guardar Cambios
+                </Button>
+              </DialogFooter>
+            </form>
+          </div>
+
+          <div className="h-full min-h-[400px]">
+            <EntityDossier
+              entityId={customer.id}
+              entityType="customer"
+              label="Expediente del Cliente"
+              className="border-slate-800 bg-slate-900/50"
+            />
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -166,6 +376,7 @@ function CreateSupplierDialog() {
         body: JSON.stringify({
           name: data.name,
           contactInfo: { contact: data.contact },
+          phone: data.phone
         })
       });
       if (!res.ok) throw new Error("Failed to create supplier");
@@ -210,6 +421,14 @@ function CreateSupplierDialog() {
               placeholder="Juan Pérez"
             />
           </div>
+          <div className="space-y-2">
+            <Label>Teléfono</Label>
+            <Input
+              value={formData.phone}
+              onChange={e => setFormData({ ...formData, phone: e.target.value })}
+              placeholder="+52 55..."
+            />
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
@@ -218,6 +437,170 @@ function CreateSupplierDialog() {
             Registrar
           </Button>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditSupplierDialog({ supplier, open, onOpenChange }: { supplier: Supplier | null, open: boolean, onOpenChange: (open: boolean) => void }) {
+  const { session } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: Partial<Supplier>) => {
+      const res = await fetch(`/api/crm/suppliers/${supplier?.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify(data)
+      });
+      if (!res.ok) throw new Error("Failed to update");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/crm/suppliers"] });
+      onOpenChange(false);
+      toast({ title: "Proveedor Actualizado", description: "La información del proveedor se ha guardado correctamente." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  });
+
+  if (!supplier) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle>Expediente de {supplier.name}</DialogTitle>
+          <DialogDescription>Gestión de alianza comercial.</DialogDescription>
+        </DialogHeader>
+
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 min-h-0">
+          <div className="overflow-y-auto pr-2">
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              updateMutation.mutate({
+                name: formData.get("name") as string,
+                category: formData.get("category") as string,
+                address: formData.get("address") as string,
+                contactPerson: formData.get("contact_person") as string,
+                taxRegimeId: formData.get("tax_regime_id") as string,
+                paymentTermsDays: Number(formData.get("payment_terms_days")),
+                creditLimit: Number(formData.get("credit_limit")) * 100,
+                bankName: formData.get("bank_name") as string,
+                bankAccountNumber: formData.get("bank_account_number") as string,
+                bankClabe: formData.get("bank_clabe") as string,
+                status: formData.get("status") as any,
+              });
+            }} className="space-y-4 py-4">
+              <Tabs defaultValue="general" className="w-full">
+                <TabsList className="grid w-full grid-cols-2 mb-4">
+                  <TabsTrigger value="general">Operativo</TabsTrigger>
+                  <TabsTrigger value="financial">Financiero / Fiscal</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="general" className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Razón Social</Label>
+                      <Input name="name" defaultValue={supplier.name} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Categoría</Label>
+                      <Input name="category" defaultValue={supplier.category || ""} placeholder="Ej. Insumos, Servicios" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Persona de Contacto</Label>
+                      <Input name="contactPerson" defaultValue={supplier.contactPerson || ""} placeholder="Nombre completo" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Status</Label>
+                      <Select name="status" defaultValue={supplier.status || "active"}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="active">Activo</SelectItem>
+                          <SelectItem value="on_hold">En Espera</SelectItem>
+                          <SelectItem value="inactive">Inactivo</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Dirección Fiscal / Oficina</Label>
+                    <Input name="address" defaultValue={supplier.address || ""} placeholder="Calle, Número, Col..." />
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="financial" className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Días de Crédito</Label>
+                      <Input name="paymentTermsDays" type="number" defaultValue={supplier.paymentTermsDays || 0} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Límite de Crédito (MXN)</Label>
+                      <div className="relative">
+                        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input name="creditLimit" type="number" step="0.01" className="pl-9" defaultValue={supplier.creditLimit ? (supplier.creditLimit / 100).toString() : ""} placeholder="0.00" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Régimen Fiscal (RFC/ID)</Label>
+                    <Input name="taxRegimeId" defaultValue={supplier.taxRegimeId || ""} placeholder="RFC o ID Fiscal" />
+                  </div>
+
+                  <div className="space-y-4 pt-2 border-t border-slate-800">
+                    <h4 className="text-sm font-semibold text-primary/80">Datos Bancarios para Pago</h4>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Banco</Label>
+                        <Input name="bankName" defaultValue={supplier.bankName || ""} placeholder="Nombre del Banco" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Cuenta</Label>
+                          <Input name="bankAccountNumber" defaultValue={supplier.bankAccountNumber || ""} placeholder="No. de Cuenta" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>CLABE</Label>
+                          <Input name="bankClabe" defaultValue={supplier.bankClabe || ""} placeholder="18 dígitos" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+              </Tabs>
+
+              <DialogFooter className="mt-6">
+                <Button type="submit" disabled={updateMutation.isPending}>
+                  {updateMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Guardar Expediente
+                </Button>
+              </DialogFooter>
+            </form>
+          </div>
+
+          <div className="h-full min-h-[400px]">
+            <EntityDossier
+              entityId={supplier.id}
+              entityType="supplier"
+              label="Expediente del Proveedor"
+              className="border-slate-800 bg-slate-900/50"
+            />
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -362,9 +745,23 @@ export default function CRM() {
     (c.email && c.email.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
+
   return (
     <AppLayout title="Socios de Negocio" subtitle="Administración de relaciones y cartera">
       <div className="space-y-6">
+        <EditCustomerDialog
+          customer={editingCustomer}
+          open={!!editingCustomer}
+          onOpenChange={(open) => !open && setEditingCustomer(null)}
+        />
+        <EditSupplierDialog
+          supplier={editingSupplier}
+          open={!!editingSupplier}
+          onOpenChange={(open) => !open && setEditingSupplier(null)}
+        />
+
         <Tabs defaultValue="clients" className="space-y-6">
           <TabsList className="bg-slate-900/50 border border-slate-800 p-1">
             <TabsTrigger value="clients" className="data-[state=active]:bg-primary data-[state=active]:text-white">
@@ -564,9 +961,19 @@ export default function CRM() {
                         key: "actions",
                         header: "",
                         render: (item) => (
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                            <RefreshCcw className="w-3 h-3" />
-                          </Button>
+                          <div className="flex items-center gap-2">
+                            <DossierView
+                              entityType="customer"
+                              entityId={item.id}
+                              entityName={item.name}
+                            />
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setEditingCustomer(item)}>
+                              <Edit className="w-3 h-3" />
+                            </Button>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                              <RefreshCcw className="w-3 h-3" />
+                            </Button>
+                          </div>
                         ),
                       },
                     ]}
@@ -616,6 +1023,22 @@ export default function CRM() {
                           <Badge variant="outline" className="border-slate-700 text-slate-400">
                             {item.category || "General"}
                           </Badge>
+                        ),
+                      },
+                      {
+                        key: "actions",
+                        header: "",
+                        render: (item) => (
+                          <div className="flex items-center gap-2">
+                            <DossierView
+                              entityType="supplier"
+                              entityId={item.id}
+                              entityName={item.name}
+                            />
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setEditingSupplier(item)}>
+                              <Edit className="w-3 h-3" />
+                            </Button>
+                          </div>
                         ),
                       },
                     ]}

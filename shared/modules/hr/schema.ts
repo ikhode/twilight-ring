@@ -42,6 +42,17 @@ export const employees = pgTable("employees", {
     rfc: text("rfc"),
     curp: text("curp"),
     nss: text("nss"), // Social Security Number
+    // ERP Enhancement Fields
+    birthDate: text("birth_date"),
+    gender: text("gender"),
+    maritalStatus: text("marital_status"),
+    emergencyContactName: text("emergency_contact_name"),
+    emergencyContactPhone: text("emergency_contact_phone"),
+    bankName: text("bank_name"),
+    bankAccountNumber: text("bank_account_number"),
+    bankClabe: text("bank_clabe"),
+    personalEmail: text("personal_email"),
+    notes: text("notes"),
     createdAt: timestamp("created_at").defaultNow(),
 });
 

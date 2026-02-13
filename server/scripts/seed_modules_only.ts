@@ -1,4 +1,5 @@
 
+import "dotenv/config";
 import { seedModules } from "../seed";
 import { db } from "../storage";
 

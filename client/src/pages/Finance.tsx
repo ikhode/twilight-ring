@@ -30,6 +30,7 @@ import { CashControl } from "@/components/finance/CashControl";
 import { useConfiguration } from "@/context/ConfigurationContext";
 import { ReportViewerDialog } from "@/components/finance/ReportViewerDialog";
 import { CognitiveFinancials } from "@/components/finance/CognitiveFinancials";
+import { DossierView } from "@/components/shared/DossierView";
 import {
   Tooltip as UiTooltip,
   TooltipContent,
@@ -150,29 +151,36 @@ export default function Finance() {
       )
     },
     {
-      key: "link",
+      key: "actions",
       header: "",
-      render: (t: any) => {
-        if (t.category === 'supplier' && t.referenceId) {
-          return (
+      render: (t: any) => (
+        <div className="flex items-center gap-1">
+          {t.category === 'supplier' && t.referenceId && (
             <Link href={`/purchases?openBatchId=${t.referenceId}`}>
               <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-slate-400 hover:text-white">
                 <ArrowUpRight className="w-3 h-3" />
               </Button>
             </Link>
-          );
-        }
-        if (t.category === 'sales' && t.referenceId) {
-          return (
+          )}
+          {t.category === 'sales' && t.referenceId && (
             <Link href={`/sales?openSaleId=${t.referenceId}`}>
               <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-slate-400 hover:text-white">
                 <ArrowUpRight className="w-3 h-3" />
               </Button>
             </Link>
-          );
-        }
-        return null;
-      }
+          )}
+          <DossierView
+            entityType="transaction"
+            entityId={t.id.split('_')[1] || t.id}
+            entityName={t.description || "Transacción"}
+            trigger={
+              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-slate-500 hover:text-primary">
+                <History className="h-3 w-3" />
+              </Button>
+            }
+          />
+        </div>
+      )
     }
   ];
 

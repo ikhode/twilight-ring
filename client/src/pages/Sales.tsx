@@ -71,6 +71,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { CognitiveInput, CognitiveField, CognitiveProvider, GuardianDiagnostic, GuardianSafeStatus } from "@/components/cognitive";
+import { DossierView } from "@/components/shared/DossierView";
 
 // --- Dialogs & Types ---
 
@@ -966,6 +967,11 @@ function SalesHistory({ openSaleId }: { openSaleId?: string | null }) {
           <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => { setActiveSale(it); setDetailsOpen(true); }}>
             <Eye className="w-3.5 h-3.5" />
           </Button>
+          <DossierView
+            entityType="transaction"
+            entityId={it.id}
+            entityName={it.product?.name || "Venta"}
+          />
 
           {it.paymentStatus !== "paid" && <PaySaleDialog sale={it} />}
           {it.deliveryStatus !== "delivered" && (

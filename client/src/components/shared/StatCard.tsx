@@ -49,16 +49,26 @@ export function StatCard({
   return (
     <div
       className={cn(
-        "relative p-5 rounded-xl border transition-all duration-200 hover:shadow-lg group animate-in",
+        "relative p-6 rounded-2xl border transition-all duration-300 group overflow-hidden glass-card",
         variantStyles[variant],
         className
       )}
       data-testid={`stat-card-${title.toLowerCase().replace(/\s+/g, "-")}`}
     >
-      <div className="flex items-start justify-between">
-        <div className="space-y-2">
-          <div className="flex items-center gap-1.5">
-            <p className="text-sm font-medium text-muted-foreground">{title}</p>
+      {/* Background glow effect */}
+      <div className={cn(
+        "absolute -right-4 -top-4 w-24 h-24 rounded-full blur-3xl opacity-20 transition-opacity group-hover:opacity-40",
+        variant === 'primary' && "bg-primary",
+        variant === 'success' && "bg-success",
+        variant === 'warning' && "bg-warning",
+        variant === 'destructive' && "bg-destructive",
+        variant === 'default' && "bg-slate-400"
+      )} />
+
+      <div className="flex items-start justify-between relative z-10">
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/80">{title}</p>
             {helpText && (
               <TooltipProvider>
                 <Tooltip>
@@ -67,45 +77,56 @@ export function StatCard({
                       <HelpCircle className="w-3.5 h-3.5" />
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent className="max-w-xs p-3">
-                    <p className="text-xs">{helpText}</p>
+                  <TooltipContent className="bg-slate-950 border-slate-800 text-white max-w-xs p-3">
+                    <p className="text-xs font-medium">{helpText}</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             )}
           </div>
-          <div className="text-2xl font-display font-bold tracking-tight">{value}</div>
-          {description && (
-            <p className="text-xs text-muted-foreground font-medium">{description}</p>
-          )}
-          {trend !== undefined && (
-            <div className="flex items-center gap-1.5">
-              {trend >= 0 ? (
-                <TrendingUp className="w-4 h-4 text-success" />
-              ) : (
-                <TrendingDown className="w-4 h-4 text-destructive" />
+
+          <div className="flex items-baseline gap-2">
+            <div className="text-3xl font-display font-extrabold tracking-tight text-white drop-shadow-sm">
+              {value}
+            </div>
+          </div>
+
+          {(description || trend !== undefined) && (
+            <div className="flex flex-col gap-1.5 mt-1">
+              {trend !== undefined && (
+                <div className="flex items-center gap-1.5 bg-background/40 backdrop-blur-sm self-start px-2 py-0.5 rounded-full border border-white/5">
+                  {trend >= 0 ? (
+                    <TrendingUp className="w-3 h-3 text-success" />
+                  ) : (
+                    <TrendingDown className="w-3 h-3 text-destructive" />
+                  )}
+                  <span
+                    className={cn(
+                      "text-xs font-bold font-mono",
+                      trend >= 0 ? "text-success" : "text-destructive"
+                    )}
+                  >
+                    {trend > 0 ? "+" : ""}{trend}%
+                  </span>
+                  {trendLabel && (
+                    <span className="text-[10px] text-muted-foreground uppercase font-medium">{trendLabel}</span>
+                  )}
+                </div>
               )}
-              <span
-                className={cn(
-                  "text-sm font-medium",
-                  trend >= 0 ? "text-success" : "text-destructive"
-                )}
-              >
-                {trend > 0 ? "+" : ""}{trend}%
-              </span>
-              {trendLabel && (
-                <span className="text-xs text-muted-foreground">{trendLabel}</span>
+              {description && (
+                <p className="text-[11px] text-muted-foreground font-medium leading-relaxed italic opacity-80">{description}</p>
               )}
             </div>
           )}
         </div>
         <div
           className={cn(
-            "w-11 h-11 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110",
-            iconStyles[variant]
+            "w-12 h-12 rounded-xl flex items-center justify-center border transition-all duration-300 group-hover:rotate-6 group-hover:scale-110 shadow-inner",
+            iconStyles[variant],
+            variant === 'default' ? "border-slate-700" : `border-${variant}/30`
           )}
         >
-          <Icon className="w-5 h-5" />
+          <Icon className="w-6 h-6 drop-shadow-[0_0_8px_rgba(var(--primary),0.5)]" />
         </div>
       </div>
     </div>

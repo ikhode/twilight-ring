@@ -18,10 +18,13 @@ import {
     Search,
     TrendingUp,
     Users,
-    BookOpen
+    BookOpen,
+    ListTodo
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
+import { ImplementationChecklist } from "./ImplementationChecklist";
+import { useAuth } from "@/hooks/use-auth";
 
 interface Agent {
     id: string;
@@ -59,6 +62,7 @@ export function AdminPanel() {
     const [isEditing, setIsEditing] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const { toast } = useToast();
+    const { session } = useAuth();
 
     useEffect(() => {
         loadAgents();
@@ -70,7 +74,7 @@ export function AdminPanel() {
         try {
             const response = await fetch("/api/admin/agents", {
                 headers: {
-                    Authorization: `Bearer ${localStorage.getItem("token")}`
+                    Authorization: `Bearer ${session?.access_token}`
                 }
             });
             if (response.ok) {
@@ -86,7 +90,7 @@ export function AdminPanel() {
         try {
             const response = await fetch("/api/documentation", {
                 headers: {
-                    Authorization: `Bearer ${localStorage.getItem("token")}`
+                    Authorization: `Bearer ${session?.access_token}`
                 }
             });
             if (response.ok) {
@@ -102,7 +106,7 @@ export function AdminPanel() {
         try {
             const response = await fetch("/api/admin/chat-stats", {
                 headers: {
-                    Authorization: `Bearer ${localStorage.getItem("token")}`
+                    Authorization: `Bearer ${session?.access_token}`
                 }
             });
             if (response.ok) {
@@ -123,7 +127,7 @@ export function AdminPanel() {
                 method,
                 headers: {
                     "Content-Type": "application/json",
-                    Authorization: `Bearer ${localStorage.getItem("token")}`
+                    Authorization: `Bearer ${session?.access_token}`
                 },
                 body: JSON.stringify(doc)
             });
@@ -153,7 +157,7 @@ export function AdminPanel() {
             const response = await fetch(`/api/documentation/${id}`, {
                 method: "DELETE",
                 headers: {
-                    Authorization: `Bearer ${localStorage.getItem("token")}`
+                    Authorization: `Bearer ${session?.access_token}`
                 }
             });
 
@@ -254,6 +258,10 @@ export function AdminPanel() {
                         <TrendingUp className="h-4 w-4 mr-2" />
                         Analytics
                     </TabsTrigger>
+                    <TabsTrigger value="checklist">
+                        <ListTodo className="h-4 w-4 mr-2" />
+                        Checklist Implementación
+                    </TabsTrigger>
                 </TabsList>
 
                 {/* Agents Tab */}
@@ -348,8 +356,8 @@ export function AdminPanel() {
                                                     setIsEditing(false);
                                                 }}
                                                 className={`p-3 rounded-lg border cursor-pointer transition-colors ${selectedDoc?.id === doc.id
-                                                        ? "border-primary bg-primary/5"
-                                                        : "border-border hover:border-primary/50"
+                                                    ? "border-primary bg-primary/5"
+                                                    : "border-border hover:border-primary/50"
                                                     }`}
                                             >
                                                 <div className="flex items-start justify-between">
@@ -545,6 +553,11 @@ export function AdminPanel() {
                             </div>
                         </CardContent>
                     </Card>
+                </TabsContent>
+
+                {/* Checklist Tab */}
+                <TabsContent value="checklist" className="space-y-4">
+                    <ImplementationChecklist />
                 </TabsContent>
             </Tabs>
         </div>

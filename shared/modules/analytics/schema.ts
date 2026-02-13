@@ -35,7 +35,6 @@ export const trustParticipants = pgTable("trust_participants", {
     status: text("status").notNull().default("observation"), // "observation", "verified", "peer", "guardian"
     joinedAt: timestamp("joined_at").defaultNow(),
     lastActiveAt: timestamp("last_active_at").defaultNow(),
-    createdAt: timestamp("created_at").defaultNow(),
 });
 
 // TrustNet - Shared Industry Metics

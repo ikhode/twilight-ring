@@ -6,6 +6,7 @@ import {
 } from "../../shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { getOrgIdFromRequest, getAuthenticatedUser } from "../auth_util";
+import { logAudit } from "../lib/audit";
 
 import { requireModule } from "../middleware/moduleGuard";
 
@@ -111,6 +112,15 @@ router.post("/", async (req, res) => {
 
                 stats.success++;
                 successfulItems.push(item);
+
+                // Log individual sale action
+                await logAudit(
+                    orgId,
+                    user.id,
+                    "CREATE_SALE",
+                    saleRecord.id,
+                    { productId: item.productId, quantity: item.quantity, total: saleRecord.totalPrice }
+                );
 
             } catch (err) {
                 console.error("Sale item error:", err);
@@ -325,6 +335,15 @@ router.patch("/:id/pay", async (req, res) => {
             referenceId: `PAY-SALE-${sale.id}`,
             date: new Date()
         });
+
+        // Log payment action
+        await logAudit(
+            orgId,
+            user.id,
+            "PAY_SALE",
+            sale.id,
+            { amount: sale.totalPrice, method: paymentMethod }
+        );
 
         res.json({ success: true });
     } catch (error) {

@@ -17,7 +17,7 @@ export const INDUSTRY_TEMPLATES: Record<string, IndustryTemplate> = {
         name: "Tienda de Ropa / Retail",
         categories: ["Vestidos", "Pantalones", "Calzado", "Accesorios", "Liquidación"],
         units: ["pza", "par", "set"],
-        modules: ["inventory", "sales", "purchases", "crm", "finance", "employees", "cpe", "logistics", "documents"],
+        modules: ["inventory", "sales", "purchases", "crm", "finance", "employees", "cpe", "logistics", "documents", "shieldline"],
         suggestedProducts: [
             { name: "Vestido Rosa Mango Larga", category: "Vestidos", price: 850, cost: 320 },
             { name: "Jeans Azul Clásico", category: "Pantalones", price: 650, cost: 240 }
@@ -27,7 +27,7 @@ export const INDUSTRY_TEMPLATES: Record<string, IndustryTemplate> = {
         name: "Restaurante / Abarrotes",
         categories: ["Bebidas", "Perecederos", "Abarrotes", "Limpieza", "Congelados"],
         units: ["pza", "kg", "lt", "caja"],
-        modules: ["inventory", "sales", "purchases", "crm", "finance", "employees", "cpe", "logistics", "documents"],
+        modules: ["inventory", "sales", "purchases", "crm", "finance", "employees", "cpe", "logistics", "documents", "shieldline"],
         suggestedProducts: [
             { name: "Aceite Vegetal 1L", category: "Abarrotes", price: 45, cost: 32 },
             { name: "Caja de Refrescos (12pza)", category: "Bebidas", price: 280, cost: 210 }
@@ -47,7 +47,7 @@ export const INDUSTRY_TEMPLATES: Record<string, IndustryTemplate> = {
         name: "Servicios Profesionales",
         categories: ["Consultoría", "Mantenimiento", "Licencias", "Paquetes", "Suscripciones"],
         units: ["hr", "mes", "pza", "licencia"],
-        modules: ["inventory", "sales", "purchases", "crm", "finance", "employees", "cpe", "logistics", "documents"],
+        modules: ["inventory", "sales", "purchases", "crm", "finance", "employees", "cpe", "logistics", "documents", "shieldline"],
         suggestedProducts: [
             { name: "Consultoría Estratégica", category: "Consultoría", price: 1500, cost: 0 },
             { name: "Suscripción Anual Soporte", category: "Suscripciones", price: 12000, cost: 2000 }
@@ -57,7 +57,7 @@ export const INDUSTRY_TEMPLATES: Record<string, IndustryTemplate> = {
         name: "Tecnología / Electrónica",
         categories: ["Hardware", "Software", "Periféricos", "Componentes", "Redes"],
         units: ["pza", "licencia", "m"],
-        modules: ["inventory", "sales", "purchases", "crm", "finance", "employees", "cpe", "logistics", "documents"],
+        modules: ["inventory", "sales", "purchases", "crm", "finance", "employees", "cpe", "logistics", "documents", "shieldline"],
         suggestedProducts: [
             { name: "Monitor 24' Pro", category: "Hardware", price: 3200, cost: 2100 },
             { name: "Licencia Antivirus Enterprise", category: "Software", price: 850, cost: 400 }
@@ -67,7 +67,7 @@ export const INDUSTRY_TEMPLATES: Record<string, IndustryTemplate> = {
         name: "Otro / General",
         categories: ["General", "Insumos", "Especiales", "Varios"],
         units: ["pza", "kg", "serv"],
-        modules: ["inventory", "sales", "purchases", "crm", "finance", "employees", "cpe", "logistics", "documents"],
+        modules: ["inventory", "sales", "purchases", "crm", "finance", "employees", "cpe", "logistics", "documents", "shieldline"],
         suggestedProducts: [
             { name: "Producto de Ejemplo", category: "General", price: 100, cost: 50 }
         ]

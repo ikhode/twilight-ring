@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { ReactNode } from "react";
+import { Package } from "lucide-react";
 
 interface Column<T> {
   key: keyof T | string;
@@ -36,14 +37,17 @@ export function DataTable<T extends { id: string | number }>({
   className,
 }: DataTableProps<T>) {
   return (
-    <div className={cn("rounded-lg border bg-card overflow-x-auto", className)}>
+    <div
+      className={cn("rounded-2xl border border-white/5 bg-slate-900/30 backdrop-blur-md overflow-x-auto shadow-xl transition-all scrollbar-thin", className)}
+      style={{ scrollbarGutter: "stable" }}
+    >
       <Table>
         <TableHeader>
-          <TableRow className="bg-muted/50 hover:bg-muted/50">
+          <TableRow className="bg-slate-800/40 hover:bg-slate-800/40 border-b border-white/5">
             {columns.map((column, index) => (
               <TableHead
                 key={String(column.key)}
-                className={cn("font-semibold text-foreground", column.className)}
+                className={cn("h-12 px-4 text-[10px] font-bold uppercase tracking-widest text-slate-400", column.className)}
               >
                 {column.header}
               </TableHead>
@@ -55,9 +59,12 @@ export function DataTable<T extends { id: string | number }>({
             <TableRow>
               <TableCell
                 colSpan={columns.length}
-                className="h-24 text-center text-muted-foreground"
+                className="h-32 text-center"
               >
-                {!Array.isArray(data) ? "Error al cargar datos" : emptyMessage}
+                <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                  <Package className="w-8 h-8 opacity-20" />
+                  <p className="text-sm font-medium">{!Array.isArray(data) ? "Error al cargar datos" : emptyMessage}</p>
+                </div>
               </TableCell>
             </TableRow>
           ) : (
@@ -67,15 +74,15 @@ export function DataTable<T extends { id: string | number }>({
                 onClick={() => onRowClick?.(item)}
                 onDoubleClick={() => onRowDoubleClick?.(item)}
                 className={cn(
-                  "transition-colors",
-                  onRowClick && "cursor-pointer hover:bg-muted/50"
+                  "group transition-all duration-200 border-b border-white/5",
+                  onRowClick && "cursor-pointer hover:bg-white/[0.03] active:scale-[0.995]"
                 )}
                 data-testid={`table-row-${item.id}`}
               >
                 {columns.map((column) => (
                   <TableCell
                     key={String(column.key)}
-                    className={column.className}
+                    className={cn("py-4 px-4 text-sm transition-all", column.className)}
                     onDoubleClick={(e) => {
                       e.stopPropagation();
                       onCellDoubleClick?.(item, column.key as keyof T, item[column.key as keyof T]);
@@ -83,7 +90,7 @@ export function DataTable<T extends { id: string | number }>({
                   >
                     {column.render
                       ? column.render(item)
-                      : String(item[column.key as keyof T] ?? "-")}
+                      : <span className="text-slate-300">{String(item[column.key as keyof T] ?? "-")}</span>}
                   </TableCell>
                 ))}
               </TableRow>

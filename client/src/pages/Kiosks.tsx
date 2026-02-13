@@ -169,6 +169,41 @@ export default function Kiosks() {
     }
   });
 
+  const deleteKioskMutation = useMutation({
+    mutationFn: async (kioskId: string) => {
+      const res = await fetch(`/api/kiosks/${kioskId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${session?.access_token}` }
+      });
+
+      if (!res.ok) {
+        let errorMsg = "Error al eliminar la terminal";
+        try {
+          const err = await res.json();
+          errorMsg = err.message || errorMsg;
+        } catch (e) { }
+        throw new Error(errorMsg);
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/kiosks"] });
+      setIsSettingsOpen(false);
+      setSelectedKiosk(null);
+      toast({
+        title: "Terminal eliminada",
+        description: "El dispositivo ha sido removido correctamente.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  });
+
   const handleLinkDevice = (kiosk: Terminal, e: React.MouseEvent) => {
     e.stopPropagation();
     setSelectedKiosk(kiosk);
@@ -586,8 +621,18 @@ export default function Kiosks() {
                   <p className="text-xs text-red-400/70 mb-4">
                     Eliminar esta terminal revocará el acceso inmediatamente. Esta acción no se puede deshacer.
                   </p>
-                  <Button variant="destructive" size="sm" className="w-full">
-                    Eliminar Terminal
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => {
+                      if (confirm(`¿Estás seguro de eliminar la terminal "${selectedKiosk.name}"? Esta acción no se puede deshacer.`)) {
+                        deleteKioskMutation.mutate(selectedKiosk.id);
+                      }
+                    }}
+                    disabled={deleteKioskMutation.isPending}
+                  >
+                    {deleteKioskMutation.isPending ? "Eliminando..." : "Eliminar Terminal"}
                   </Button>
                 </div>
               </div>

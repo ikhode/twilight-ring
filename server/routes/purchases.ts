@@ -199,6 +199,15 @@ router.post("/", async (req, res): Promise<void> => {
                 createdIds.push(record.id);
                 stats.success++;
 
+                // Log individual purchase action
+                await logAudit(
+                    orgId,
+                    user!.id,
+                    "CREATE_PURCHASE",
+                    record.id,
+                    { productId: item.productId, quantity: item.quantity, total: record.totalAmount }
+                );
+
                 // If created as 'received' and approved, process stock
                 if (status === "received" && record.isApproved) {
                     await receivePurchaseStock(orgId, record);
@@ -345,6 +354,15 @@ router.patch("/batch/:batchId/approve", async (req, res): Promise<void> => {
                 .set({ isApproved: true, approvedBy: user.id })
                 .where(and(eq(purchases.id, batchId), eq(purchases.organizationId, orgId)));
         }
+
+        // Log approval action
+        await logAudit(
+            orgId,
+            user.id,
+            "APPROVE_PURCHASE",
+            batchId, // Can be batchId or single ID
+            { approvedRows: result.rowCount }
+        );
 
         res.json({ message: "Orden aprobada exitosamente", affectedRows: result.rowCount });
     } catch (error) {
@@ -508,6 +526,16 @@ router.patch("/:id/pay", async (req, res): Promise<void> => {
         purchase.bankAccountId = bankAccountId || purchase.bankAccountId;
 
         await recordPurchasePayment(orgId, purchase);
+
+        // Log payment action
+        await logAudit(
+            orgId,
+            (await getAuthenticatedUser(req))?.id || "system",
+            "PAY_PURCHASE",
+            purchase.id,
+            { amount: purchase.totalAmount, method: effectiveMethod }
+        );
+
         res.json({ message: "Payment registered and funds deducted successfully." });
     } catch (error) {
         console.error("Pay purchase error:", error);
@@ -680,6 +708,15 @@ router.delete("/batch/:batchId", async (req, res): Promise<void> => {
                 deletedBy: user.id
             })
             .where(and(eq(purchases.batchId, batchId), eq(purchases.organizationId, orgId)));
+
+        // Log deletion action
+        await logAudit(
+            orgId,
+            user.id,
+            "DELETE_PURCHASE",
+            batchId,
+            { permanent: permanent === 'true' }
+        );
 
         res.json({ message: "Batch archived successfully" });
     } catch (error) {

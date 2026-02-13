@@ -173,22 +173,34 @@ export class ConsentManager {
     }
 
     /**
-     * Get the current consent status for all types
+     * Get the current consent status for all types (array format for frontend)
      */
-    async getConsentStatus(orgId: string): Promise<{
-        shareMetrics: boolean;
-        publicProfile: boolean;
-        marketplaceParticipation: boolean;
-        industryBenchmarks: boolean;
-    }> {
-        const statuses = await this.checkConsents(orgId, [...CONSENT_TYPES]);
+    async getConsentStatus(orgId: string): Promise<Array<{
+        consentType: ConsentType;
+        isActive: boolean;
+        grantedAt: string | null;
+        revokedAt: string | null;
+    }>> {
+        const consents = await db.select()
+            .from(marketplaceConsents)
+            .where(eq(marketplaceConsents.organizationId, orgId));
 
-        return {
-            shareMetrics: statuses.share_metrics ?? false,
-            publicProfile: statuses.public_profile ?? false,
-            marketplaceParticipation: statuses.marketplace_participation ?? false,
-            industryBenchmarks: statuses.industry_benchmarks ?? false,
-        };
+        // Create a map of existing consents
+        const consentMap = new Map<ConsentType, typeof consents[0]>();
+        for (const consent of consents) {
+            consentMap.set(consent.consentType as ConsentType, consent);
+        }
+
+        // Return status for all consent types
+        return CONSENT_TYPES.map(type => {
+            const consent = consentMap.get(type);
+            return {
+                consentType: type,
+                isActive: consent ? !consent.revokedAt : false,
+                grantedAt: consent?.grantedAt?.toISOString() ?? null,
+                revokedAt: consent?.revokedAt?.toISOString() ?? null,
+            };
+        });
     }
 
     /**

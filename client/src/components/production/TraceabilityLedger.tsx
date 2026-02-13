@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { DossierView } from "@/components/shared/DossierView";
 
 interface TraceabilityLedgerProps {
     onSelectBatch?: (id: string) => void;
@@ -143,12 +144,24 @@ export function TraceabilityLedger({ onSelectBatch, selectedBatchId }: Traceabil
                                                         </div>
                                                     )}
 
-                                                    <Button variant="ghost" size="icon" className={cn(
-                                                        "text-slate-600 group-hover:text-white",
-                                                        selectedBatchId === item.id ? "text-primary hover:text-primary" : ""
-                                                    )}>
-                                                        <ArrowRight className="w-5 h-5 translate-x-0 group-hover:translate-x-1 transition-transform" />
-                                                    </Button>
+                                                    <div className="flex items-center gap-2">
+                                                        <DossierView
+                                                            entityType="transaction"
+                                                            entityId={item.id}
+                                                            entityName={item.processName || "Lote"}
+                                                            trigger={
+                                                                <Button variant="ghost" size="icon" className="text-slate-500 hover:text-primary">
+                                                                    <History className="w-4 h-4" />
+                                                                </Button>
+                                                            }
+                                                        />
+                                                        <Button variant="ghost" size="icon" className={cn(
+                                                            "text-slate-600 group-hover:text-white",
+                                                            selectedBatchId === item.id ? "text-primary hover:text-primary" : ""
+                                                        )}>
+                                                            <ArrowRight className="w-5 h-5 translate-x-0 group-hover:translate-x-1 transition-transform" />
+                                                        </Button>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </CardContent>

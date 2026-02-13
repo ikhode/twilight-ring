@@ -1,8 +1,9 @@
-import { pgTable, text, varchar, timestamp, boolean, integer, jsonb } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
+import { pgTable, text, varchar, timestamp, boolean, integer, jsonb, numeric } from "drizzle-orm/pg-core";
+import { sql, relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { organizations, users } from "../../core/schema";
+import { products } from "../commerce/schema";
 import { employees } from "../hr/schema"; // Import HR for piecework
 
 // Processes (Definitions)
@@ -117,15 +118,162 @@ export const pieceworkTickets = pgTable("piecework_tickets", {
     updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Schemas
-export const insertProcessEventSchema = createInsertSchema(processEvents);
-export const insertProcessSchema = createInsertSchema(processes);
-export const insertRcaReportSchema = createInsertSchema(rcaReports);
-export const insertPieceworkTicketSchema = createInsertSchema(pieceworkTickets);
-export const insertProductionTaskSchema = createInsertSchema(productionTasks).extend({
-    minRate: z.number().optional(),
-    maxRate: z.number().optional()
+
+// --- Manufacturing Complexity Extension ---
+
+// 1. Work Centers (Physical locations/machines)
+export const workCenters = pgTable("work_centers", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    description: text("description"),
+    type: text("type").notNull(), // 'machine', 'manual', 'assembly_line'
+    capacityPerHour: integer("capacity_per_hour"), // In units per hour
+    status: text("status").default("active"), // 'active', 'maintenance', 'inactive'
+    attributes: jsonb("attributes").default({}),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+// 2. Bill of Materials (BOM) Header
+export const billOfMaterials = pgTable("bill_of_materials", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    productId: varchar("product_id").notNull().references(() => products.id),
+    name: text("name").notNull(),
+    description: text("description"),
+    version: varchar("version").default("1.0.0"),
+    isActive: boolean("is_active").default(true),
+    isDefault: boolean("is_default").default(false),
+    attributes: jsonb("attributes").default({}),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// 3. BOM Items (Components)
+export const bomItems = pgTable("bom_items", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    bomId: varchar("bom_id").notNull().references(() => billOfMaterials.id, { onDelete: "cascade" }),
+    itemId: varchar("item_id").notNull().references(() => products.id), // Raw material or sub-assembly
+    quantity: numeric("quantity").notNull(), // Quantity needed for 1 unit of output
+    scrapFactor: numeric("scrap_factor").default("0"), // Factor for expected waste (e.g. 0.05 for 5%)
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow(),
+});
+
+// 4. Manufacturing Routings (Process Steps)
+export const manufacturingRoutings = pgTable("manufacturing_routings", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    bomId: varchar("bom_id").notNull().references(() => billOfMaterials.id, { onDelete: "cascade" }),
+    stepName: text("step_name").notNull(),
+    workCenterId: varchar("work_center_id").references(() => workCenters.id),
+    orderIndex: integer("order_index").notNull(),
+    estimatedDurationMinutes: integer("estimated_duration_minutes"), // Expected time in center
+    instructions: text("instructions"),
+    requiredSkills: jsonb("required_skills").default([]),
+    createdAt: timestamp("created_at").defaultNow(),
+});
+
+// 5. Production Orders
+export const productionOrders = pgTable("production_orders", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    bomId: varchar("bom_id").notNull().references(() => billOfMaterials.id),
+    productId: varchar("product_id").notNull().references(() => products.id), // Resulting product
+    quantityRequested: integer("quantity_requested").notNull(),
+    quantityProduced: integer("quantity_produced").default(0),
+    status: text("status").default("draft"), // 'draft', 'scheduled', 'in_progress', 'qc_pending', 'completed', 'cancelled'
+    priority: text("priority").default("medium"), // 'low', 'medium', 'high', 'urgent'
+    startDate: timestamp("start_date"),
+    endDate: timestamp("end_date"),
+    totalCost: integer("total_cost").default(0), // Accumulated cost in cents
+    metadata: jsonb("metadata").default({}),
+    salesOrderId: varchar("sales_order_id"), // Optional link to Sales
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// 6. Production Order Logs (Execution steps)
+export const productionOrderLogs = pgTable("production_order_logs", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    orderId: varchar("order_id").notNull().references(() => productionOrders.id, { onDelete: "cascade" }),
+    routingStepId: varchar("routing_step_id").references(() => manufacturingRoutings.id),
+    operatorId: varchar("operator_id").references(() => employees.id),
+    workCenterId: varchar("work_center_id").references(() => workCenters.id),
+    status: text("status").notNull(), // 'started', 'completed', 'paused', 'failed'
+    quantityCompleted: integer("quantity_completed").default(0),
+    startedAt: timestamp("started_at").defaultNow(),
+    endedAt: timestamp("ended_at"),
+    notes: text("notes"),
+    metadata: jsonb("metadata").default({}),
+});
+
+// 7. Quality Inspections
+export const qualityInspections = pgTable("quality_inspections", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    orderId: varchar("order_id").notNull().references(() => productionOrders.id, { onDelete: "cascade" }),
+    logId: varchar("log_id").references(() => productionOrderLogs.id),
+    inspectorId: varchar("inspector_id").references(() => users.id),
+    status: text("status").notNull(), // 'passed', 'failed', 'rework'
+    findings: jsonb("findings").default([]),
+    notes: text("notes"),
+    inspectedAt: timestamp("inspected_at").defaultNow(),
+});
+
+// 8. MRP Recommendations (Material Requirements Planning)
+export const mrpRecommendations = pgTable("mrp_recommendations", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    productId: varchar("product_id").notNull().references(() => products.id),
+    orderId: varchar("order_id").references(() => productionOrders.id),
+    requiredQuantity: numeric("required_quantity").notNull(),
+    currentStock: numeric("current_stock").notNull(),
+    suggestedPurchaseQuantity: numeric("suggested_purchase_quantity").notNull(),
+    status: text("status").default("pending"), // 'pending', 'converted_to_po', 'dismissed'
+    linkedPoId: varchar("linked_po_id"),
+    createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Relations
+export const billOfMaterialsRelations = relations(billOfMaterials, ({ many, one }) => ({
+    items: many(bomItems),
+    routings: many(manufacturingRoutings),
+    product: one(products, {
+        fields: [billOfMaterials.productId],
+        references: [products.id],
+    }),
+}));
+
+export const productionOrdersRelations = relations(productionOrders, ({ many, one }) => ({
+    logs: many(productionOrderLogs),
+    qc: many(qualityInspections),
+    bom: one(billOfMaterials, {
+        fields: [productionOrders.bomId],
+        references: [billOfMaterials.id],
+    }),
+    product: one(products, {
+        fields: [productionOrders.productId],
+        references: [products.id],
+    }),
+}));
+
+export const insertProcessSchema = createInsertSchema(processes);
+export const insertProcessStepSchema = createInsertSchema(processSteps);
+export const insertProcessInstanceSchema = createInsertSchema(processInstances);
+export const insertProcessEventSchema = createInsertSchema(processEvents);
+export const insertRcaReportSchema = createInsertSchema(rcaReports);
+export const insertProductionTaskSchema = createInsertSchema(productionTasks);
+export const insertPieceworkTicketSchema = createInsertSchema(pieceworkTickets);
+export const insertWorkCenterSchema = createInsertSchema(workCenters);
+export const insertBOMSchema = createInsertSchema(billOfMaterials);
+export const insertBOMItemSchema = createInsertSchema(bomItems);
+export const insertRoutingSchema = createInsertSchema(manufacturingRoutings);
+export const insertProductionOrderSchema = createInsertSchema(productionOrders);
+export const insertProductionOrderLogSchema = createInsertSchema(productionOrderLogs);
+export const insertQualityInspectionSchema = createInsertSchema(qualityInspections);
+export const insertMrpRecommendationSchema = createInsertSchema(mrpRecommendations);
 
 // Logs for Kiosk Activity (Granular Tracking)
 export const productionActivityLogs = pgTable("production_activity_logs", {

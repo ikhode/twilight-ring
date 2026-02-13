@@ -213,6 +213,27 @@ export class SchemaContextBuilder {
                 { name: "metric_key", type: "text", description: "Clave de la métrica" },
                 { name: "value", type: "integer", description: "Valor de la métrica" },
                 { name: "date", type: "timestamp" }
+            ],
+            suppliers: [
+                { name: "id", type: "varchar" },
+                { name: "organization_id", type: "varchar" },
+                { name: "name", type: "text", description: "Nombre del proveedor" },
+                { name: "contact_name", type: "text" },
+                { name: "email", type: "text" },
+                { name: "performance_score", type: "integer", description: "Calificación 0-100" },
+                { name: "on_time_rate", type: "integer", description: "Tasa de entrega a tiempo %" },
+                { name: "quality_incidents", type: "integer", description: "Número de incidencias de calidad" }
+            ],
+            purchases: [
+                { name: "id", type: "varchar" },
+                { name: "organization_id", type: "varchar" },
+                { name: "supplier_id", type: "varchar" },
+                { name: "product_id", type: "varchar" },
+                { name: "quantity", type: "integer" },
+                { name: "unit_price", type: "integer" },
+                { name: "total_price", type: "integer" },
+                { name: "status", type: "text" },
+                { name: "delivery_date", type: "timestamp" }
             ]
         };
 

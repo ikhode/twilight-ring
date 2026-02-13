@@ -6,9 +6,15 @@ import * as relations from "../shared/relations";
 
 const { Pool } = pg;
 
-// Database connection
+// Database connection with Pooler optimization and SSL
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || "postgresql://127.0.0.1:5432/cognitive_erp",
+  connectionString: process.env.DATABASE_URL?.replace(':5432', ':6543') || "postgresql://127.0.0.1:5432/cognitive_erp",
+  ssl: {
+    rejectUnauthorized: false // Necessary for many cloud providers if they don't provide the cert
+  },
+  max: 10, // Limit connections for background stability
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
 });
 
 // Drizzle instance with schema and relations

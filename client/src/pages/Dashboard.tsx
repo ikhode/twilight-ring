@@ -34,8 +34,12 @@ import { CognitiveKPI } from "@/components/dashboard/CognitiveKPI";
 import { ScenarioSimulator } from "@/components/dashboard/ScenarioSimulator";
 import { TrustTimeline } from "@/components/dashboard/TrustTimeline";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
+import { DemandForecastingWidget } from "@/components/dashboard/DemandForecastingWidget";
+import { FraudAlertWidget } from "@/components/dashboard/FraudAlertWidget";
 import {
   Tooltip,
+
+
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
@@ -58,8 +62,6 @@ import { YieldAnalysis } from "@/components/analytics/YieldAnalysis";
  */
 export default function Dashboard() {
   const { role, setRole, industry, enabledModules } = useConfiguration();
-  const [predictions, setPredictions] = useState<number[]>([]);
-  const [isCalculating, setIsCalculating] = useState(true);
   const [config, setConfig] = useState<DashboardConfig>(dashboardEngine.getDashboardConfig(role, industry));
 
   const { session } = useAuth();
@@ -84,21 +86,6 @@ export default function Dashboard() {
   useEffect(() => {
     setConfig(dashboardEngine.getDashboardConfig(role, industry));
   }, [role, industry]);
-
-  useEffect(() => {
-    const runPredictions = async () => {
-      setIsCalculating(true);
-      await aiEngine.initialize();
-      const forecast = await aiEngine.predictSales(salesHistory.length > 0 ? salesHistory : [0], 7);
-      setPredictions(forecast);
-      setIsCalculating(false);
-    };
-    if (stats && stats.hasEnoughData) runPredictions();
-    else if (stats) {
-      setPredictions([]);
-      setIsCalculating(false);
-    }
-  }, [salesHistory, stats]);
 
 
 
@@ -149,8 +136,7 @@ export default function Dashboard() {
 
   // Comprehensive realtime subscriptions for Dashboard reactivity
   useSupabaseRealtime({ table: 'sales', queryKey: ["/api/dashboard/stats"] });
-  useSupabaseRealtime({ table: 'inventory', queryKey: ["/api/dashboard/stats"] });
-  useSupabaseRealtime({ table: 'inventory_alerts', queryKey: ["/api/dashboard/stats"] });
+  useSupabaseRealtime({ table: 'products', queryKey: ["/api/dashboard/stats"] });
   useSupabaseRealtime({ table: 'notifications', queryKey: ["/api/dashboard/stats"] });
 
   const activeInstanceId = instances?.[0]?.id;
@@ -346,7 +332,7 @@ export default function Dashboard() {
             insight={stats?.hasEnoughData
               ? `El modelo detecta un aumento inusual en ventas ${stats?.industry === 'manufacturing' ? 'B2B' : 'directas'}.`
               : "Esperando registros de ventas para análisis de tendencia."}
-            explanation="Suma total de órdenes pagadas y facturadas en el periodo actual, filtrado por las reglas de validación de TrustNet."
+            explanation="Representa la suma total de órdenes pagadas y facturadas en el periodo actual. Fórmula: SUM(sales_orders.total) WHERE status = 'paid'. Fuente: Ledger de Ventas / TrustNet."
             icon={DollarSign}
           />
           <CognitiveKPI
@@ -357,7 +343,7 @@ export default function Dashboard() {
             insight={stats?.hasEnoughData
               ? "Calculada en tiempo real basada en las instancias de procesos activas."
               : "Analizando flujos de procesos iniciales."}
-            explanation="Relación entre el tiempo teórico de producción y el tiempo real reportado mediante Kioskos T-CAC."
+            explanation="Indica la relación porcentual entre el tiempo teórico estimado y el tiempo real reportado. Fórmula: (Tiempo_Teórico / Tiempo_Real) * 100. Fuente: Kioskos T-CAC / Motor CPE."
             icon={Factory}
           />
           <CognitiveKPI
@@ -366,7 +352,7 @@ export default function Dashboard() {
             change={stats?.anomalies > 0 ? 100 : 0}
             trend={stats?.anomalies > 0 ? "down" : "neutral"}
             insight={stats?.anomalies > 0 ? `Se han detectado ${stats.anomalies} anomalías críticas hoy.` : "No se detectan amenazas activas en el sistema."}
-            explanation="Detecciones automáticas de inconsistencias en inventario, accesos no autorizados o desviaciones en costos operativos."
+            explanation="Detecciones automáticas de discrepancias en inventario, accesos no autorizados o desviaciones de costos. Fórmula: COUNT(anomalies) WHERE severity >= 'high'. Fuente: AI Guardian / Edge Events."
             icon={Truck}
           />
           <CognitiveKPI
@@ -375,7 +361,7 @@ export default function Dashboard() {
             change={0}
             trend="neutral"
             insight="Asistencia verificada por el módulo de Control de Tiempo."
-            explanation="Número total de colaboradores activos detectados mediante FaceID y registros de entrada/salida."
+            explanation="Número total de colaboradores con sesión activa o entrada registrada hoy. Fórmula: COUNT(employees) WHERE status = 'present'. Fuente: Control Asistencia / FaceID."
             icon={Users}
           />
         </motion.div>
@@ -409,66 +395,10 @@ export default function Dashboard() {
                 {/* 2. Forecasting Section w/ Scenario Simulator */}
                 {(role === 'admin' || role === 'sales') && (
                   <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                    <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-xl">
-                      <CardHeader>
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <Badge className="bg-primary/10 text-primary border-primary/20 mb-2 font-black uppercase text-[10px]">
-                              <Sparkles className="w-3 h-3 mr-1" />
-                              TensorFlow.js Core
-                            </Badge>
-                            <CardTitle className="text-2xl font-black italic uppercase tracking-tighter text-white">Predicción de Ventas (7D)</CardTitle>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-[10px] text-slate-500 font-black uppercase mb-1">Cierre Estimado</p>
-                            <p className="text-3xl font-black text-primary">{stats?.hasEnoughData ? stats?.revenue : "---"}</p>
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="h-[200px] w-full flex items-end gap-1.5 p-4 bg-slate-950/50 rounded-2xl border border-white/5 relative overflow-hidden">
-                          {isCalculating || !stats ? (
-                            <div className="absolute inset-0 flex items-center justify-center bg-slate-950/20 backdrop-blur-sm z-10">
-                              <div className="flex gap-2">
-                                <div className="w-2 h-2 rounded-full bg-primary animate-bounce shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
-                                <div className="w-2 h-2 rounded-full bg-primary animate-bounce [animation-delay:-0.15s] shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
-                                <div className="w-2 h-2 rounded-full bg-primary animate-bounce [animation-delay:-0.3s] shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
-                              </div>
-                            </div>
-                          ) : !stats.hasEnoughData ? (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6">
-                              <Brain className="w-12 h-12 text-slate-800 mb-4 opacity-20" />
-                              <p className="text-xs font-black uppercase tracking-widest text-slate-500 italic">Datos Insuficientes</p>
-                              <p className="text-[10px] text-slate-600 mt-2 max-w-[200px] font-bold">La IA necesita al menos 5 registros de venta para generar proyecciones confiables.</p>
-                            </div>
-                          ) : (
-                            <>
-                              {salesHistory.map((val: number, i: number) => (
-                                <div key={`h-${i}`} className="flex-1 flex flex-col items-center gap-2 group relative">
-                                  <motion.div
-                                    initial={{ height: 0 }}
-                                    animate={{ height: `${(val / Math.max(...salesHistory, 1)) * 100}%` }}
-                                    className="w-full bg-slate-800 rounded-t-sm hover:bg-slate-700 transition-colors"
-                                  />
-                                </div>
-                              ))}
-                              {predictions.map((val: number, i: number) => (
-                                <div key={`p-${i}`} className="flex-1 flex flex-col items-center gap-2 group relative">
-                                  <motion.div
-                                    initial={{ height: 0 }}
-                                    animate={{ height: `${(val / Math.max(...salesHistory, 1)) * 100}%` }}
-                                    className="w-full bg-primary/40 rounded-t-sm border-t-2 border-primary hover:bg-primary/60 transition-colors"
-                                  />
-                                </div>
-                              ))}
-                              <div className="absolute left-[58%] top-4 bottom-4 w-px border-r border-dashed border-primary/30 flex items-center justify-center">
-                                <span className="bg-slate-900 border border-primary/30 text-primary text-[8px] font-black px-1 uppercase whitespace-nowrap rotate-90 tracking-widest">Hoy</span>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
+                    <DemandForecastingWidget
+                      historicalData={salesHistory}
+                      title="Predicción de Ingresos (7D)"
+                    />
 
                     {/* Simulator */}
                     <ScenarioSimulator baseRevenue={parseFloat(stats?.revenue?.replace(/[^0-9.]/g, '') || "1240000")} />
@@ -548,6 +478,7 @@ export default function Dashboard() {
           {/* Sidebar / Alert Panel */}
           <div className="space-y-6">
             <TrustTimeline />
+            <FraudAlertWidget transactions={stats?.recentTransactions || []} />
             <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-xl">
               <CardHeader className="p-4 border-b border-white/5">
                 <div className="flex items-center gap-2">

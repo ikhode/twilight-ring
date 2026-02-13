@@ -18,11 +18,15 @@ export async function logAudit(
     details: any = {}
 ) {
     try {
+        // Validate userId: must be a UUID or null. 
+        // If it's 'system' or invalid, we store it as null in the DB (system action)
+        const validUserId = (userId && userId.length > 20) ? userId : null;
+
         await db.insert(auditLogs).values({
             organizationId: orgId,
-            userId: userId,
+            userId: validUserId,
             action: action,
-            resourceId: resourceId,
+            resourceId: resourceId?.toString(), // Ensure it's a string
             details: details
         });
     } catch (error) {

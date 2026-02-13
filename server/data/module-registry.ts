@@ -434,6 +434,26 @@ export const MODULE_REGISTRY: ModuleMetadata[] = [
         tags: ["colaboración", "red", "confianza"]
     },
     {
+        id: "marketplace",
+        name: "Marketplace B2B",
+        description: "Comercio entre empresas verificadas",
+        longDescription: "Marketplace B2B auto-organizado con sincronización automática de inventario, sistema de ratings, chat integrado, negociación de precios y órdenes recurrentes. Solo para organizaciones con Trust Score verificado.",
+        icon: "Store",
+        category: "sales",
+        route: "/marketplace",
+        features: [
+            "Sincronización automática de inventario",
+            "Sistema de ratings y reviews",
+            "Chat integrado comprador-vendedor",
+            "Negociación de precios",
+            "Órdenes recurrentes"
+        ],
+        pricing: "premium",
+        dependencies: ["trust", "inventory", "sales"],
+        requiredRole: "admin",
+        tags: ["marketplace", "b2b", "ventas", "comercio"]
+    },
+    {
         id: "documents",
         name: "Documentos",
         description: "Gestión documental",
@@ -512,6 +532,46 @@ export const MODULE_REGISTRY: ModuleMetadata[] = [
         dependencies: ["operations"],
         requiredRole: "user",
         tags: ["visión", "ia", "operaciones", "cámara"]
+    },
+    {
+        id: "shieldline",
+        name: "ShieldLine Cloud",
+        description: "Infraestructura de identidad telefónica blindada",
+        longDescription: "Sistema avanzado de comunicación empresarial que permite cumplir regulaciones, proteger la identidad personal y operar bajo una red privada WebRTC segura con firewall inteligente.",
+        icon: "ShieldCheck",
+        category: "communication",
+        route: "/shieldline",
+        features: [
+            "Número Empresarial Público (DID México)",
+            "Red Privada Corporativa (WebRTC)",
+            "Firewall Telefónico Inteligente",
+            "Logs Auditables y Grabación Cifrada",
+            "Zero Trust Access"
+        ],
+        pricing: "premium",
+        dependencies: ["operations"],
+        requiredRole: "admin",
+        tags: ["telefonía", "seguridad", "blindaje", "comunicación"]
+    },
+    {
+        id: "lending",
+        name: "Lending",
+        description: "Gestión de préstamos y crédito",
+        longDescription: "Módulo avanzado para la gestión de préstamos, cálculo de riesgo con IA y seguimiento de solicitudes de crédito.",
+        icon: "Banknote",
+        category: "finance",
+        route: "/lending",
+        features: [
+            "Solicitudes de crédito",
+            "Cálculo de riesgo con IA",
+            "Gestión de cartera activa",
+            "Seguimiento de pagos",
+            "Auditoría de colaterales"
+        ],
+        pricing: "premium",
+        dependencies: ["finance"],
+        requiredRole: "manager",
+        tags: ["lending", "préstamos", "crédito", "riesgo"]
     },
     {
         id: "admin",

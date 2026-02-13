@@ -42,6 +42,9 @@ import Operations from "@/pages/Operations";
 import Kiosk from "@/pages/Kiosk";
 import Signature from "@/pages/Signature";
 import TerminalManager from "@/pages/admin/TerminalManager";
+import ShieldLine from "@/pages/ShieldLine";
+import Lending from "@/pages/Lending";
+import Manufacturing from "@/pages/Manufacturing";
 
 import { AuthProvider } from "@/hooks/use-auth";
 import { RealtimeProvider } from "@/lib/realtime";
@@ -100,6 +103,9 @@ function Router() {
       <ProtectedRoute path="/subscription-success" component={SubscriptionSuccess} />
       <ProtectedRoute path="/workflows" component={Workflows} />
       <ProtectedRoute path="/workflow-editor" component={WorkflowEditor} />
+      <ProtectedRoute path="/shieldline" component={ShieldLine} />
+      <ProtectedRoute path="/lending" component={Lending} />
+      <ProtectedRoute path="/manufacturing" component={Manufacturing} />
 
       <Route component={NotFound} />
     </Switch>
@@ -143,11 +149,14 @@ function AppLayout({ children }: { children: React.ReactNode }) {
 
 import { useResolutionScaler } from "@/hooks/use-resolution-scaler";
 
+import { MLInitialization } from "@/components/ai/MLInitialization";
+
 function App() {
   useResolutionScaler();
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
+        <MLInitialization />
         <ConfigurationProvider>
           <RealtimeProvider>
             <TooltipProvider>

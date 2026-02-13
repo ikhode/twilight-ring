@@ -50,13 +50,16 @@ import {
   Settings,
   Settings2,
   Loader2,
-  Pencil
+  Pencil,
+  BrainCircuit,
+  Sparkles
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { Switch } from "@/components/ui/switch";
 import { apiRequest } from "@/lib/queryClient";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -64,6 +67,9 @@ import { CognitiveButton, AliveValue, CognitiveInput, CognitiveField, CognitiveP
 import { useConfiguration } from "@/context/ConfigurationContext";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 import { useAppStore } from "@/store/app-store";
+import { ProductionImpactDialog } from "@/components/inventory/ProductionImpactDialog";
+import { ReasoningChatDialog } from "@/components/inventory/ReasoningChatDialog";
+import { DossierView } from "@/components/shared/DossierView";
 
 
 
@@ -74,11 +80,16 @@ export default function Inventory() {
   const { universalConfig, industry } = useConfiguration();
   const { productTypeLabels } = useAppStore();
   const [searchQuery, setSearchQuery] = useState("");
+  const [decisionMode, setDecisionMode] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
+  const [isImpactDialogOpen, setIsImpactDialogOpen] = useState(false);
   const [isAdjustDialogOpen, setIsAdjustDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [selectedProductForHistory, setSelectedProductForHistory] = useState<any>(null);
+  const [selectedImpactProductId, setSelectedImpactProductId] = useState<string | null>(null);
+  const [isReasoningChatOpen, setIsReasoningChatOpen] = useState(false);
+  const [selectedReasoningProduct, setSelectedReasoningProduct] = useState<any>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
 
@@ -394,7 +405,10 @@ export default function Inventory() {
     maxPurchasePrice: 0,
     // Master/Variant Logic
     masterProductId: "",
-    expectedYield: 0
+    expectedYield: 0,
+    demandVariability: "stable",
+    reorderPointDays: 7,
+    criticalityLevel: "medium"
   });
 
   // Auto-generate SKU
@@ -503,7 +517,10 @@ export default function Inventory() {
       minPurchasePrice: 0,
       maxPurchasePrice: 0,
       masterProductId: "",
-      expectedYield: 0
+      expectedYield: 0,
+      demandVariability: "stable",
+      reorderPointDays: 7,
+      criticalityLevel: "medium"
     });
     setIsEditing(false);
     setSelectedProduct(null);
@@ -576,7 +593,10 @@ export default function Inventory() {
         expectedYield: item.expectedYield || 0,
         unitId: item.unitId || item.unitRef?.id || "",
         minPurchasePrice: item.minPurchasePrice || 0,
-        maxPurchasePrice: item.maxPurchasePrice || 0
+        maxPurchasePrice: item.maxPurchasePrice || 0,
+        demandVariability: item.demandVariability || "stable",
+        reorderPointDays: item.reorderPointDays || 7,
+        criticalityLevel: item.criticalityLevel || "medium"
       });
     }
     setIsAddDialogOpen(true);
@@ -595,7 +615,10 @@ export default function Inventory() {
       masterProductId: payload.masterProductId || null,
       expectedYield: payload.expectedYield || 0,
       minPurchasePrice: payload.minPurchasePrice || 0,
-      maxPurchasePrice: payload.maxPurchasePrice || 0
+      maxPurchasePrice: payload.maxPurchasePrice || 0,
+      demandVariability: payload.demandVariability || "stable",
+      reorderPointDays: parseInt(String(payload.reorderPointDays)) || 7,
+      criticalityLevel: payload.criticalityLevel || "medium"
     };
 
     if (isEditing) {
@@ -618,7 +641,7 @@ export default function Inventory() {
     }).format(amount);
 
   return (
-    <AppLayout title="Inventario Inteligente" subtitle="Gestión predictiva de materia prima y producto terminado">
+    <AppLayout title="Inventario Inteligente" subtitle="Este inventario toma decisiones contigo">
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <TooltipProvider>
@@ -750,6 +773,13 @@ export default function Inventory() {
                     <p>Filtrar productos</p>
                   </TooltipContent>
                 </Tooltip>
+
+                <div className="flex items-center space-x-2 bg-slate-900/50 p-2 rounded-lg border border-slate-800">
+                  <Switch id="decision-mode" checked={decisionMode} onCheckedChange={setDecisionMode} />
+                  <Label htmlFor="decision-mode" className={cn("text-xs font-bold cursor-pointer transition-colors", decisionMode ? "text-purple-400" : "text-slate-500")}>
+                    Modo Decisión (IA)
+                  </Label>
+                </div>
 
                 <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                   <DialogTrigger asChild>
@@ -1135,7 +1165,7 @@ export default function Inventory() {
                               </SelectTrigger>
                               <SelectContent className="bg-slate-950 border-slate-800 text-white">
                                 {unitsList.map((u: any) => (
-                                  <SelectItem key={u.id} value={u.id}>{u.name} ({u.symbol})</SelectItem>
+                                  <SelectItem key={u.id} value={u.id}>{u.name} ({u.abbreviation})</SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
@@ -1200,7 +1230,7 @@ export default function Inventory() {
                                     size="icon"
                                     onClick={() => {
                                       const unit = unitsList.find((u: any) => u.id === newProduct.unitId);
-                                      if (unit) setEditingUnit({ id: unit.id, name: unit.name, abbreviation: unit.symbol || unit.abbreviation || "" });
+                                      if (unit) setEditingUnit({ id: unit.id, name: unit.name, abbreviation: unit.abbreviation || "" });
                                     }}
                                   >
                                     <Pencil className="w-4 h-4" />
@@ -1329,6 +1359,50 @@ export default function Inventory() {
                             )}
                           </div>
                         </div>
+
+                        {/* AI / Expected Behavior Config */}
+                        <div className="rounded-xl border border-purple-500/20 bg-purple-500/5 p-4 space-y-4">
+                          <div className="flex items-center gap-2 border-b border-purple-500/20 pb-2 mb-2">
+                            <BrainCircuit className="w-4 h-4 text-purple-400" />
+                            <Label className="text-xs font-bold uppercase text-purple-400">Comportamiento Esperado (IA)</Label>
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-4">
+                            <div className="space-y-2">
+                              <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Variabilidad Demanda</Label>
+                              <Select value={newProduct.demandVariability} onValueChange={(v) => setNewProduct({ ...newProduct, demandVariability: v })}>
+                                <SelectTrigger className="bg-slate-900/50 border-slate-800 focus:border-purple-500/50">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                                  <SelectItem value="stable">Estable</SelectItem>
+                                  <SelectItem value="variable">Variable</SelectItem>
+                                  <SelectItem value="seasonal">Estacional</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Días Reorden</Label>
+                              <Input type="number" value={newProduct.reorderPointDays} onChange={(e) => setNewProduct({ ...newProduct, reorderPointDays: parseInt(e.target.value) || 0 })} className="bg-slate-900/50 border-slate-800 focus:border-purple-500/50" />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Criticidad</Label>
+                              <Select value={newProduct.criticalityLevel} onValueChange={(v) => setNewProduct({ ...newProduct, criticalityLevel: v })}>
+                                <SelectTrigger className="bg-slate-900/50 border-slate-800 focus:border-red-500/50">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                                  <SelectItem value="low">Baja</SelectItem>
+                                  <SelectItem value="medium">Media</SelectItem>
+                                  <SelectItem value="high">Alta</SelectItem>
+                                  <SelectItem value="critical">Crítica</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        </div>
                       </div>
 
                       <DialogFooter className="pt-6 border-t border-white/5" data-tour="product-save-footer">
@@ -1373,34 +1447,119 @@ export default function Inventory() {
                 },
                 {
                   key: "cognitive",
-                  header: "IA Insight",
-                  render: (item: any) => (
+                  header: (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="flex items-center gap-1 cursor-help">
+                          {decisionMode ? "Análisis Neuronal" : "IA Insight"}
+                          <Sparkles className="w-3 h-3 text-purple-400" />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-2 max-w-xs">
+                        {decisionMode
+                          ? "Razonamiento detallado sobre por qué se recomienda esta acción."
+                          : "Predicción basada en patrones históricos de demanda y stock actual."}
+                      </TooltipContent>
+                    </Tooltip>
+                  ) as any,
+                  render: (item: any) => decisionMode ? (
+                    <div className="flex flex-col gap-2 min-w-[220px]">
+                      <div className="flex items-center gap-2">
+                        {item.cognitive?.riskFactor === 'High' ? (
+                          <motion.div
+                            animate={{ opacity: [0.7, 1, 0.7] }}
+                            transition={{ duration: 2, repeat: Infinity }}
+                          >
+                            <Badge variant="destructive" className="text-[10px] uppercase font-bold tracking-tighter bg-red-500/10 border-red-500/30 text-red-400">
+                              <AlertTriangle className="w-3 h-3 mr-1" />
+                              Riesgo Crítico
+                            </Badge>
+                          </motion.div>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px] uppercase font-bold tracking-tighter border-emerald-500/20 text-emerald-400 bg-emerald-500/5">
+                            <CheckCircle2 className="w-3 h-3 mr-1" />
+                            Estable
+                          </Badge>
+                        )}
+                        <span className="text-[10px] uppercase font-black text-slate-500/50 tracking-widest">
+                          {item.cognitive?.demandVariability === 'seasonal' ? 'Estacional' : item.cognitive?.demandVariability === 'variable' ? 'Variable' : 'Estable'}
+                        </span>
+                      </div>
+                      <div className="text-xs pt-2 border-t border-white/5">
+                        <p className="text-[11px] text-slate-300 leading-relaxed font-medium">
+                          <span className="text-purple-400/80 font-bold uppercase tracking-tighter mr-1">Recomendación:</span>
+                          {item.cognitive?.reasoning?.recommendation || "Analizando patrones..."}
+                        </p>
+                        <Button
+                          variant="ghost"
+                          className="h-7 w-full mt-2 justify-between text-[10px] font-bold text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 border border-purple-500/10 rounded-lg group"
+                          onClick={() => {
+                            setSelectedReasoningProduct(item);
+                            setIsReasoningChatOpen(true);
+                          }}
+                        >
+                          <span>ABRIR RAZONAMIENTO</span>
+                          <BrainCircuit className="w-3.5 h-3.5 transition-transform group-hover:scale-125" />
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
                     item.cognitive?.shouldRestock ? (
-                      <div className="flex flex-col items-start gap-1">
-                        <Badge variant="outline" className="border-warning text-warning bg-warning/5 text-[10px] uppercase font-bold tracking-wider">
-                          <AlertTriangle className="w-3 h-3 mr-1" />
-                          Agota en {item.cognitive?.daysRemaining ?? "..."} días
-                        </Badge>
-                        <span className="text-[10px] text-muted-foreground">Sugerido: +{item.cognitive?.suggestedOrder ?? 0} {item.unit?.symbol || "units"}</span>
+                      <div className="flex flex-col items-start gap-1.5">
+                        <motion.div
+                          animate={{ x: [0, 2, 0] }}
+                          transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 3 }}
+                        >
+                          <Badge variant="outline" className="border-amber-500/30 text-amber-500 bg-amber-500/5 text-[10px] uppercase font-black tracking-widest px-2 py-0.5">
+                            <RefreshCw className="w-3 h-3 mr-1 animate-spin-slow" />
+                            Agota en {item.cognitive?.daysRemaining ?? "..."}d
+                          </Badge>
+                        </motion.div>
+                        <span className="text-[10px] font-bold text-slate-500/80 bg-slate-800/50 px-2 py-0.5 rounded border border-white/5">
+                          SUGERIDO: <span className="text-white">+{item.cognitive?.suggestedOrder ?? 0}</span> {item.unit || "uds"}
+                        </span>
                       </div>
                     ) : (
-                      <span className="text-[10px] text-muted-foreground opacity-50 flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3 text-success" />
-                        {item.cognitive ? `Stock Saludable (${item.cognitive.daysRemaining}d)` : "Calculando..."}
-                      </span>
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-500/80 uppercase tracking-wider">
+                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          Saludable
+                        </div>
+                        <span className="text-[10px] text-slate-500 font-medium">
+                          Autonomía: {item.cognitive?.daysRemaining || "30+"} días
+                        </span>
+                      </div>
                     )
                   ),
                 },
                 {
                   key: "category",
-                  header: "Categoría",
+                  header: (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="cursor-help">Categoría</span>
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-2">
+                        Clasificación organizativa del producto.
+                      </TooltipContent>
+                    </Tooltip>
+                  ) as any,
                   render: (item) => (
-                    <Badge variant="secondary">{item.category || "Sin Categoría"}</Badge>
+                    <Badge variant="secondary" className="bg-slate-800 text-slate-300 border-slate-700">{item.category || "Sin Categoría"}</Badge>
                   ),
                 },
                 {
                   key: "stock",
-                  header: "Stock",
+                  header: (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="cursor-help">Existencias</span>
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-2">
+                        Cantidad física disponible en almacén.
+                      </TooltipContent>
+                    </Tooltip>
+                  ) as any,
                   render: (item) => {
                     const maxStock = 20000;
                     const percentage = Math.min((item.stock / maxStock) * 100, 100);
@@ -1408,7 +1567,7 @@ export default function Inventory() {
                       <div className="space-y-1.5 min-w-32">
                         <div className="flex items-center justify-between">
                           <span className="font-semibold font-mono">
-                            {item.stock.toLocaleString()} {item.unit?.symbol || "units"}
+                            {item.stock.toLocaleString()} {item.unit || "units"}
                           </span>
                           <StatusBadge status={item.status} />
                         </div>
@@ -1426,25 +1585,43 @@ export default function Inventory() {
                 },
                 {
                   key: "price",
-                  header: "Precio",
+                  header: (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="cursor-help">Precio Público</span>
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-2">
+                        Precio de venta actual para el cliente final.
+                      </TooltipContent>
+                    </Tooltip>
+                  ) as any,
                   render: (item) => (
-                    <span className="font-mono font-semibold">
+                    <span className="font-mono font-bold text-white">
                       {formatCurrency(item.price)}
                     </span>
                   ),
                 },
                 {
                   key: "value",
-                  header: "Valor Total",
+                  header: (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="cursor-help">Valor Activo</span>
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-2">
+                        Valor bursátil de las existencias (Stock x Precio).
+                      </TooltipContent>
+                    </Tooltip>
+                  ) as any,
                   render: (item) => (
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <span className="font-mono text-muted-foreground cursor-help underline decoration-dotted decoration-slate-700">
+                        <span className="font-mono text-emerald-400 capitalize cursor-help underline decoration-dotted decoration-emerald-500/30">
                           {formatCurrency(item.stock * item.price)}
                         </span>
                       </TooltipTrigger>
                       <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-2">
-                        <p>Valor de activos = Existencias × Precio de Venta</p>
+                        <p>Capital inmovilizado en este producto.</p>
                       </TooltipContent>
                     </Tooltip>
                   ),
@@ -1462,6 +1639,30 @@ export default function Inventory() {
                         <Plus className="w-4 h-4 mr-1 rotate-45" />
                         Editar
                       </Button>
+                      <DossierView
+                        entityType="transaction"
+                        entityId={item.id}
+                        entityName={item.name}
+                      />
+                      {item.isProductionInput && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-amber-500 hover:text-amber-400 hover:bg-amber-500/10"
+                              onClick={() => {
+                                setSelectedImpactProductId(item.id);
+                                setIsImpactDialogOpen(true);
+                              }}
+                            >
+                              <Activity className="w-4 h-4 mr-1" />
+                              Impacto
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent><p>Analizar impacto en cadena de producción</p></TooltipContent>
+                        </Tooltip>
+                      )}
                       {!item.isGroup && (
                         <Button
                           variant="outline"
@@ -1519,7 +1720,7 @@ export default function Inventory() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            data-testid={`button-history-${item.id}`}
+                            className="text-slate-400 hover:text-white hover:bg-white/10"
                             onClick={() => {
                               setSelectedProductForHistory(item);
                               setIsHistoryDialogOpen(true);
@@ -1532,6 +1733,11 @@ export default function Inventory() {
                           <p>Historial de movimientos</p>
                         </TooltipContent>
                       </Tooltip>
+                      <DossierView
+                        entityType="product"
+                        entityId={item.id}
+                        entityName={item.name}
+                      />
                     </div>
                   ),
                   className: "text-right",
@@ -1557,6 +1763,18 @@ export default function Inventory() {
           isOpen={isHistoryDialogOpen}
           onOpenChange={setIsHistoryDialogOpen}
           product={selectedProductForHistory}
+        />
+
+        <ProductionImpactDialog
+          isOpen={isImpactDialogOpen}
+          onOpenChange={setIsImpactDialogOpen}
+          productId={selectedImpactProductId}
+        />
+
+        <ReasoningChatDialog
+          isOpen={isReasoningChatOpen}
+          onOpenChange={setIsReasoningChatOpen}
+          product={selectedReasoningProduct}
         />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

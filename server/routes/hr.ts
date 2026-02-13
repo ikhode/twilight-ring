@@ -12,6 +12,7 @@ import {
     workHistory
 } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
+import { logAudit } from "../lib/audit";
 
 const router = Router();
 
@@ -45,6 +46,16 @@ router.post("/employees", async (req, res) => {
     if (!parsed.success) return res.status(400).json({ error: parsed.error });
 
     const employee = await storage.createEmployee(parsed.data);
+
+    // Log action
+    await logAudit(
+        orgId,
+        (req.user as any)?.id || "system",
+        "CREATE_EMPLOYEE",
+        employee.id,
+        { name: employee.name }
+    );
+
     res.status(201).json(employee);
 });
 
@@ -79,6 +90,16 @@ router.patch("/employees/:id", async (req, res) => {
     }
 
     const updated = await storage.updateEmployee(id, req.body);
+
+    // Log action
+    await logAudit(
+        orgId,
+        (req.user as any)?.id || "system",
+        "UPDATE_EMPLOYEE",
+        id,
+        { changes: req.body }
+    );
+
     res.json(updated);
 });
 
@@ -96,6 +117,16 @@ router.delete("/employees/:id", async (req, res) => {
     }
 
     await storage.deleteEmployee(id);
+
+    // Log action
+    await logAudit(
+        orgId,
+        (req.user as any)?.id || "system",
+        "DELETE_EMPLOYEE",
+        id,
+        { name: employee.name }
+    );
+
     res.status(204).end();
 });
 

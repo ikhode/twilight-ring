@@ -298,18 +298,19 @@ export function Copilot() {
 
                                     <div className="space-y-2">
                                         <div className={cn(
-                                            "p-4 rounded-3xl text-[13px] font-medium leading-relaxed shadow-2xl",
+                                            "p-5 rounded-3xl text-[14px] leading-relaxed shadow-lg max-w-full overflow-hidden",
                                             msg.role === 'user'
-                                                ? "bg-purple-600 text-white rounded-tr-none"
-                                                : "bg-gradient-to-br from-slate-900 to-slate-950 text-slate-200 rounded-tl-none border border-white/5"
+                                                ? "bg-purple-600 text-white rounded-tr-none font-medium"
+                                                : "bg-slate-900/80 backdrop-blur-md text-slate-200 rounded-tl-none border border-white/10"
                                         )}>
-                                            {msg.content}
+                                            <MarkdownRenderer content={msg.content} />
                                         </div>
 
                                         {msg.metadata?.sources && (
                                             <div className="flex flex-wrap gap-2 pt-1">
                                                 {msg.metadata.sources.map(s => (
-                                                    <div key={s.id} className="px-2 py-0.5 rounded-full bg-slate-900 border border-white/5 text-[9px] text-slate-500 font-bold uppercase tracking-tighter">
+                                                    <div key={s.id} className="px-2 py-1 rounded-md bg-slate-900 border border-white/5 text-[10px] text-purple-400/80 font-medium uppercase tracking-wide flex items-center gap-1">
+                                                        <span className="w-1 h-1 rounded-full bg-purple-500" />
                                                         {s.title}
                                                     </div>
                                                 ))}
@@ -392,4 +393,84 @@ export function Copilot() {
             </AnimatePresence>
         </>
     );
+}
+
+// -- Markdown Renderer Utilities --
+
+function MarkdownRenderer({ content }: { content: string }) {
+    if (!content) return null;
+
+    // Normalize newlines
+    const sections = content.split('\n');
+
+    return (
+        <div className="space-y-1.5 text-sm">
+            {sections.map((line, idx) => {
+                const trimmed = line.trim();
+
+                // Headers
+                if (trimmed.startsWith('## ')) {
+                    return (
+                        <h3 key={idx} className="text-purple-300 font-bold text-base mt-4 mb-2 first:mt-0">
+                            {line.replace('## ', '')}
+                        </h3>
+                    );
+                }
+
+                // Bullet Points
+                if (trimmed.startsWith('* ') || trimmed.startsWith('- ')) {
+                    const text = line.replace(/^[\*\-]\s+/, '');
+                    return (
+                        <div key={idx} className="flex gap-2.5 items-start pl-1 group">
+                            <span className="w-1.5 h-1.5 rounded-full bg-purple-400/60 mt-2 shrink-0 group-hover:bg-purple-400 transition-colors" />
+                            <span className="flex-1 leading-relaxed text-slate-300 group-hover:text-slate-200 transition-colors">
+                                {parseInlineStyles(text)}
+                            </span>
+                        </div>
+                    );
+                }
+
+                // Empty Lines (Paragraph break)
+                if (trimmed === '') {
+                    return <div key={idx} className="h-2" />;
+                }
+
+                // Regular Paragraph
+                return (
+                    <p key={idx} className="leading-relaxed text-slate-200/90">
+                        {parseInlineStyles(line)}
+                    </p>
+                );
+            })}
+        </div>
+    );
+}
+
+function parseInlineStyles(text: string) {
+    // 1. Split for Bold (**text**)
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+
+    return parts.map((part, i) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+            return (
+                <strong key={i} className="text-white font-bold bg-white/5 px-0.5 rounded">
+                    {part.slice(2, -2)}
+                </strong>
+            );
+        }
+
+        // 2. Split remainder for Code (`code`)
+        const codeParts = part.split(/(`.*?`)/g);
+
+        return codeParts.map((sub, j) => {
+            if (sub.startsWith('`') && sub.endsWith('`')) {
+                return (
+                    <code key={`${i}-${j}`} className="bg-slate-950 px-1.5 py-0.5 rounded border border-white/10 font-mono text-xs text-emerald-400 tracking-tight">
+                        {sub.slice(1, -1)}
+                    </code>
+                );
+            }
+            return sub;
+        });
+    });
 }

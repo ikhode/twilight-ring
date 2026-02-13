@@ -29,6 +29,7 @@ import {
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 import { useConfiguration } from "@/context/ConfigurationContext";
 import { CognitiveInput, CognitiveField } from "@/components/cognitive";
+import { DossierView } from "@/components/shared/DossierView";
 import { MapContainer, TileLayer, Marker, Popup, useMap, Tooltip as LeafletTooltip } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -799,7 +800,14 @@ export default function Logistics() {
                                                             <p className="font-bold text-xs text-slate-800 leading-tight my-1">
                                                                 {stop.stopType === 'delivery' ? stop.order?.customer?.name : stop.purchase?.supplier?.name}
                                                             </p>
-                                                            <Badge className="text-[9px] h-4 px-1">{stop.status}</Badge>
+                                                            <p className="text-[9px] text-slate-500 mb-1">
+                                                                {stop.stopType === 'delivery' ? stop.order?.product?.name : stop.purchase?.product?.name}
+                                                                {stop.stopType === 'delivery' ? ` (${stop.order?.quantity} pzas)` : ` (${stop.purchase?.quantity} pzas)`}
+                                                            </p>
+                                                            <div className="flex items-center justify-between gap-4">
+                                                                <Badge className="text-[9px] h-4 px-1">{stop.status}</Badge>
+                                                                {stop.isPaid && <span className="text-[9px] font-bold text-green-600">$ Pagado</span>}
+                                                            </div>
                                                         </div>
                                                     </Popup>
                                                 </Marker>
@@ -825,7 +833,19 @@ export default function Logistics() {
                                                             <p className="text-[10px] text-slate-500">Hace {Math.floor((new Date().getTime() - new Date(driver.timestamp).getTime()) / 60000)} min</p>
                                                         </div>
                                                     </div>
-                                                    <Badge className="w-full justify-center bg-green-500 hover:bg-green-600">EN RUTA</Badge>
+                                                    <div className="space-y-1">
+                                                        <Badge className="w-full justify-center bg-green-500 hover:bg-green-600">EN RUTA</Badge>
+                                                        <div className="p-1.5 rounded bg-slate-50 border border-slate-100 mt-2">
+                                                            <p className="text-[9px] font-bold text-slate-400 uppercase">Carga Actual</p>
+                                                            <div className="flex items-center justify-between text-[10px] mb-1">
+                                                                <span className="font-mono">{activeRoutes.find((r: any) => r.driverId === driver.employeeId)?.vehicle?.currentLoadKg || 0} kg</span>
+                                                                <span className="text-slate-400">/ {activeRoutes.find((r: any) => r.driverId === driver.employeeId)?.vehicle?.capacityKg || 0} kg</span>
+                                                            </div>
+                                                            <div className="h-1 w-full bg-slate-200 rounded-full overflow-hidden">
+                                                                <div className="h-full bg-primary" style={{ width: `${Math.min(100, ((activeRoutes.find((r: any) => r.driverId === driver.employeeId)?.vehicle?.currentLoadKg || 0) / (activeRoutes.find((r: any) => r.driverId === driver.employeeId)?.vehicle?.capacityKg || 1)) * 100)}%` }} />
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </Popup>
                                             <LeafletTooltip direction="bottom" offset={[0, 10]} opacity={0.8}>
@@ -938,6 +958,8 @@ export default function Logistics() {
                                                     model: formData.get("model"),
                                                     year: parseInt(formData.get("year") as string),
                                                     currentMileage: parseInt(formData.get("mileage") as string),
+                                                    capacityKg: parseInt(formData.get("capacityKg") as string) || 0,
+                                                    capacityM3: parseFloat(formData.get("capacityM3") as string) || 0,
                                                     status: "active"
                                                 });
                                             }} className="space-y-4 py-4">
@@ -957,8 +979,18 @@ export default function Logistics() {
                                                         <Input name="year" type="number" required defaultValue={new Date().getFullYear().toString()} />
                                                     </div>
                                                     <div className="space-y-2">
-                                                        <Label>Kilometraje Actual</Label>
-                                                        <Input name="mileage" type="number" step="0.01" required defaultValue="" placeholder="0.00" />
+                                                        <Label>Kilometraje Inicial</Label>
+                                                        <Input name="mileage" type="number" step="1" required defaultValue="0" />
+                                                    </div>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div className="space-y-2">
+                                                        <Label>Capacidad (kg)</Label>
+                                                        <Input name="capacityKg" type="number" step="1" placeholder="3500" />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label>Capacidad (m³)</Label>
+                                                        <Input name="capacityM3" type="number" step="0.1" placeholder="12.5" />
                                                     </div>
                                                 </div>
                                                 <DialogFooter>
@@ -987,16 +1019,29 @@ export default function Logistics() {
                                                         <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20">
                                                             <Truck className="w-6 h-6 text-primary" />
                                                         </div>
-                                                        <div>
+                                                        <div className="flex flex-col">
                                                             <p className="font-bold text-white uppercase">{v.plate} - {v.model}</p>
-                                                            <p className="text-xs text-slate-500">{v.year} • {v.currentMileage.toLocaleString()} km</p>
+                                                            <p className="text-[10px] text-slate-500">{v.year} • {v.currentMileage.toLocaleString()} km</p>
+                                                            <div className="flex items-center gap-2 mt-1">
+                                                                <Badge variant="outline" className="text-[9px] border-slate-700 bg-slate-800/50">CAP: {v.capacityKg?.toLocaleString()} kg</Badge>
+                                                                <div className="flex-1 w-20 h-1 bg-slate-800 rounded-full overflow-hidden">
+                                                                    <div className="h-full bg-primary" style={{ width: `${Math.min(100, (v.currentLoadKg / (v.capacityKg || 1)) * 100)}%` }} />
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                     <div className="flex items-center gap-4">
                                                         <Badge className={v.status === 'active' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}>
                                                             {v.status}
                                                         </Badge>
-                                                        <Button variant="ghost" size="icon" onClick={() => setVehicleDetails(v)}><Settings2 className="w-4 h-4" /></Button>
+                                                        <div className="flex items-center gap-2">
+                                                            <DossierView
+                                                                entityType="vehicle"
+                                                                entityId={v.id}
+                                                                entityName={v.plate}
+                                                            />
+                                                            <Button variant="ghost" size="icon" onClick={() => setVehicleDetails(v)}><Settings2 className="w-4 h-4" /></Button>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             ))
@@ -1074,9 +1119,16 @@ export default function Logistics() {
                                                             <p className="text-xs text-slate-500">{route.driver?.name}</p>
                                                         </div>
                                                     </div>
-                                                    <Badge className={route.status === 'active' ? "bg-green-500/20 text-green-500" : "bg-slate-500/20"}>
-                                                        {route.status.toUpperCase()}
-                                                    </Badge>
+                                                    <div className="flex items-center gap-2">
+                                                        <DossierView
+                                                            entityType="transaction"
+                                                            entityId={route.id}
+                                                            entityName={`Ruta ${route.vehicle?.plate}`}
+                                                        />
+                                                        <Badge className={route.status === 'active' ? "bg-green-500/20 text-green-500" : "bg-slate-500/20"}>
+                                                            {route.status.toUpperCase()}
+                                                        </Badge>
+                                                    </div>
                                                 </div>
 
                                                 <div className="mb-4 space-y-2">

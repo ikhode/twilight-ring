@@ -57,6 +57,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 import { printThermalTicket } from "@/lib/printer";
+import { DossierView } from "@/components/shared/DossierView";
 
 import { ProductionLineFlow } from "@/components/production/ProductionLineFlow";
 import { FinalizeBatchDialog } from "@/components/production/FinalizeBatchDialog";
@@ -112,6 +113,7 @@ export default function Production() {
       const res = await fetch("/api/cpe/processes", {
         headers: { Authorization: `Bearer ${session?.access_token}` }
       });
+      if (!res.ok) return [];
       return res.json();
     },
     enabled: !!session?.access_token
@@ -121,6 +123,7 @@ export default function Production() {
     queryKey: ["/api/hr/employees"],
     queryFn: async () => {
       const res = await fetch("/api/hr/employees", { headers: { Authorization: `Bearer ${session?.access_token}` } });
+      if (!res.ok) return [];
       return res.json();
     },
     enabled: !!session?.access_token
@@ -144,6 +147,7 @@ export default function Production() {
       const res = await fetch("/api/production/summary", {
         headers: { Authorization: `Bearer ${session?.access_token}` }
       });
+      if (!res.ok) return null;
       return res.json();
     },
     enabled: !!session?.access_token
@@ -411,7 +415,7 @@ export default function Production() {
   });
 
   useSupabaseRealtime({ table: 'processes', queryKey: ["/api/cpe/processes"] });
-  useSupabaseRealtime({ table: 'inventory', queryKey: ["/api/production/summary"] });
+  useSupabaseRealtime({ table: 'products', queryKey: ["/api/production/summary"] });
   useSupabaseRealtime({ table: 'employees', queryKey: ["/api/production/summary"] });
   useSupabaseRealtime({ table: 'piecework_tickets', queryKey: ["/api/piecework/tickets"] });
 
@@ -983,6 +987,17 @@ export default function Production() {
                     </Badge>
                   )
                 },
+                {
+                  key: "actions",
+                  header: "",
+                  render: (item) => (
+                    <DossierView
+                      entityType="transaction"
+                      entityId={item.id}
+                      entityName={item.taskName || "Ticket"}
+                    />
+                  )
+                }
               ]}
             />
           </TabsContent>

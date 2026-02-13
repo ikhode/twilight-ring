@@ -8,6 +8,7 @@ import {
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { getAuthenticatedUser, getOrgIdFromRequest } from "../auth_util";
 import { requireModule } from "../middleware/moduleGuard";
+import { logAudit } from "../lib/audit";
 
 const router = Router();
 
@@ -117,6 +118,19 @@ router.post("/cash/open", async (req: Request, res: Response) => {
             })
             .where(eq(cashRegisters.id, register.id));
 
+        // Log action
+        await logAudit(
+            orgId,
+            user.id,
+            "OPEN_CASH_SESSION",
+            session.id,
+            {
+                message: `Sesión de caja abierta con fondo de ${formatCurrency(startAmount / 100)}`,
+                registerId: register.id,
+                startAmount
+            }
+        );
+
         res.json({ success: true, session });
 
     } catch (error) {
@@ -179,6 +193,19 @@ router.post("/cash/close", async (req: Request, res: Response) => {
             })
             .where(eq(cashRegisters.id, register.id));
 
+        // Log action
+        await logAudit(
+            orgId,
+            user.id,
+            "CLOSE_CASH_SESSION",
+            register.currentSessionId,
+            {
+                message: `Sesión de caja cerrada. Diferencia: ${formatCurrency(difference / 100)}. Justificación: ${justification || 'N/A'}`,
+                declaredAmount,
+                difference
+            }
+        );
+
         // --- NEW: Emit to Cognitive Engine if shortage ---
         if (difference < 0) {
             const { CognitiveEngine } = await import("../lib/cognitive-engine");
@@ -227,7 +254,7 @@ router.post("/cash/transaction", async (req: Request, res: Response) => {
         }
 
         // 1. Record Transaction
-        await db.insert(cashTransactions).values({
+        const [cashTx] = await db.insert(cashTransactions).values({
             organizationId: register.organizationId,
             registerId: register.id,
             sessionId: register.currentSessionId,
@@ -236,13 +263,29 @@ router.post("/cash/transaction", async (req: Request, res: Response) => {
             category,
             description,
             performedBy: user.id
-        });
+        }).returning();
 
         // 2. Update Balance
         const newBalance = type === 'in' ? register.balance + amount : register.balance - amount;
         await db.update(cashRegisters)
             .set({ balance: newBalance })
+            .set({ balance: newBalance })
             .where(eq(cashRegisters.id, register.id));
+
+        // Log action
+        await logAudit(
+            orgId,
+            user.id,
+            "CREATE_CASH_TRANSACTION",
+            cashTx.id,
+            {
+                message: `${type === 'in' ? 'Entrada' : 'Salida'} de caja por ${formatCurrency(amount / 100)}: ${description}`,
+                type,
+                amount,
+                category,
+                description
+            }
+        );
 
         res.json({ success: true, newBalance });
 
@@ -345,7 +388,17 @@ router.post("/payout/confirm", async (req, res) => {
         // 4. Update Balance
         await db.update(cashRegisters)
             .set({ balance: sql`${cashRegisters.balance} - ${data.amount}` })
+            .set({ balance: sql`${cashRegisters.balance} - ${data.amount}` })
             .where(eq(cashRegisters.id, register.id));
+
+        // Log action
+        await logAudit(
+            data.orgId,
+            (req as any).user?.id || 'system',
+            "CONFIRM_PAYOUT",
+            data.employeeId,
+            { amount: data.amount, ticketCount: data.ticketIds?.length || 1 }
+        );
 
         res.json({ success: true, message: "Desembolso registrado correctamente" });
 
@@ -399,7 +452,17 @@ router.post("/driver-settlements/:saleId/receive", async (req, res) => {
         // Update Balance
         await db.update(cashRegisters)
             .set({ balance: sql`${cashRegisters.balance} + ${sale.totalPrice}` })
+            .set({ balance: sql`${cashRegisters.balance} + ${sale.totalPrice}` })
             .where(eq(cashRegisters.id, register.id));
+
+        // Log action
+        await logAudit(
+            orgId!,
+            user.id,
+            "RECEIVE_DRIVER_SETTLEMENT",
+            saleId,
+            { amount: sale.totalPrice }
+        );
 
         res.json({ success: true, message: "Efectivo recibido correctamente" });
     } catch (error) {
@@ -758,7 +821,7 @@ router.get("/summary", async (req, res): Promise<void> => {
 // POST /api/finance/transaction
 router.post("/transaction", async (req, res): Promise<void> => {
     try {
-        const { orgId } = await getContext(req);
+        const { user, orgId } = await getContext(req);
         if (!orgId) {
             res.status(401).json({ message: "Unauthorized" });
             return;
@@ -784,6 +847,20 @@ router.post("/transaction", async (req, res): Promise<void> => {
                 description: description || "Gasto Manual",
                 date: new Date()
             }).returning();
+
+            // Log action
+            await logAudit(
+                orgId,
+                user.id,
+                "CREATE_EXPENSE",
+                rec.id,
+                {
+                    message: `Gasto registrado por ${formatCurrency(rec.amount / 100)} en categoría ${category}`,
+                    amount: rec.amount,
+                    category: rec.category
+                }
+            );
+
             res.json(rec);
         } else {
             const [rec] = await db.insert(payments).values({
@@ -794,6 +871,20 @@ router.post("/transaction", async (req, res): Promise<void> => {
                 date: new Date(),
                 referenceId: description
             }).returning();
+
+            // Log action
+            await logAudit(
+                orgId,
+                user.id,
+                "CREATE_INCOME",
+                rec.id,
+                {
+                    message: `Ingreso registrado por ${formatCurrency(rec.amount / 100)} (Método: ${method || 'cash'})`,
+                    amount: rec.amount,
+                    method: rec.method
+                }
+            );
+
             res.json(rec);
         }
     } catch (error) {
@@ -874,6 +965,24 @@ router.post("/reconcile", async (req, res): Promise<void> => {
  * --- BANK ACCOUNTS CRUD ---
  */
 
+router.get("/bank-accounts", async (req, res): Promise<void> => {
+    try {
+        const { orgId } = await getContext(req);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        const accs = await db.query.bankAccounts.findMany({
+            where: eq(bankAccounts.organizationId, orgId),
+            orderBy: [desc(bankAccounts.createdAt)]
+        });
+        res.json(accs);
+    } catch (error) {
+        res.status(500).json({ message: "Failed to fetch bank accounts" });
+    }
+});
+
 router.get("/accounts", async (req, res): Promise<void> => {
     try {
         const { orgId } = await getContext(req);
@@ -908,6 +1017,84 @@ router.post("/accounts", async (req, res): Promise<void> => {
         res.status(201).json(acc);
     } catch (error) {
         res.status(500).json({ message: "Failed to create bank account" });
+    }
+});
+
+
+// GET /api/finance/all-transactions - Comprehensive list for detailed reports
+router.get("/all-transactions", async (req, res): Promise<void> => {
+    try {
+        const { orgId } = await getContext(req);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        const { startDate, endDate } = req.query;
+        const start = startDate ? new Date(startDate as string) : null;
+        const end = endDate ? new Date(endDate as string) : null;
+
+        const withPeriod = (condition: any, tableDateField: any) => {
+            const filters = [condition];
+            if (start) filters.push(sql`${tableDateField} >= ${start}`);
+            if (end) filters.push(sql`${tableDateField} <= ${end}`);
+            return and(...filters);
+        };
+
+        const [txExpenses, txPayments, txCash] = await Promise.all([
+            db.query.expenses.findMany({
+                where: withPeriod(eq(expenses.organizationId, orgId), expenses.date),
+                with: { supplier: true },
+                orderBy: [desc(expenses.date)]
+            }),
+            db.query.payments.findMany({
+                where: withPeriod(eq(payments.organizationId, orgId), payments.date),
+                orderBy: [desc(payments.date)]
+            }),
+            db.query.cashTransactions.findMany({
+                where: withPeriod(eq(cashTransactions.organizationId, orgId), cashTransactions.timestamp),
+                orderBy: [desc(cashTransactions.timestamp)]
+            })
+        ]);
+
+        const all = [
+            ...txExpenses.map(e => ({
+                id: `exp_${e.id}`,
+                origin: 'expense_table',
+                description: e.description || e.category,
+                amount: -(e.amount),
+                date: e.date,
+                type: 'expense',
+                method: e.method || 'cash',
+                category: e.category,
+                details: e.supplier?.name
+            })),
+            ...txPayments.map(p => ({
+                id: `pay_${p.id}`,
+                origin: 'payments_table',
+                description: p.referenceId || (p.type === 'income' ? 'Ingreso General' : 'Egreso General'),
+                amount: p.type === 'income' ? p.amount : -(p.amount),
+                date: p.date,
+                type: p.type === 'income' ? 'income' : 'expense',
+                method: p.method,
+                category: p.category
+            })),
+            ...txCash.map(c => ({
+                id: `cash_${c.id}`,
+                origin: 'cash_transactions_table',
+                description: c.description || 'Movimiento Caja',
+                amount: c.type === 'in' ? c.amount : -(c.amount),
+                date: c.timestamp,
+                type: c.type === 'in' ? 'income' : 'expense',
+                method: 'cash',
+                category: c.category
+            }))
+        ].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+        res.json(all);
+    } catch (error) {
+        console.error("All transactions error:", error);
+        res.status(500).json({ message: "Failed to fetch detailed transactions" });
     }
 });
 

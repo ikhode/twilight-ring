@@ -11,6 +11,11 @@ export const suppliers = pgTable("suppliers", {
     id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
     organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
+    legalName: text("legal_name"), // Razon Social
+    rfc: text("rfc"),
+    website: text("website"),
+    phone: text("phone"),
+    email: text("email"),
     contactInfo: jsonb("contact_info").default({}),
     category: text("category"), // e.g. "fuel", "parts", "raw_materials"
     status: text("status").notNull().default("active"),
@@ -19,6 +24,14 @@ export const suppliers = pgTable("suppliers", {
     address: text("address"),
     latitude: text("latitude"),
     longitude: text("longitude"),
+    contactPerson: text("contact_person"),
+    taxRegimeId: text("tax_regime_id"),
+    paymentTermsDays: integer("payment_terms_days").default(0),
+    creditLimit: integer("credit_limit").default(0), // in cents
+    bankName: text("bank_name"),
+    bankAccountNumber: text("bank_account_number"),
+    bankClabe: text("bank_clabe"),
+    notes: text("notes"),
     attributes: jsonb("attributes").default({}), // Universal Extensibility
     createdAt: timestamp("created_at").defaultNow(),
 });
@@ -28,6 +41,9 @@ export const customers = pgTable("customers", {
     id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
     organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
+    legalName: text("legal_name"), // Razon Social
+    rfc: text("rfc"),
+    taxRegime: text("tax_regime"), // 601, 612 etc
     email: text("email"),
     phone: text("phone"),
     status: text("status").notNull().default("active"), // "active", "inactive", "lead"
@@ -37,8 +53,13 @@ export const customers = pgTable("customers", {
     lastContact: timestamp("last_contact"),
     // Location fields for POI
     address: text("address"),
+    billingAddress: text("billing_address"),
+    birthDate: text("birth_date"),
     latitude: text("latitude"),
     longitude: text("longitude"),
+    creditLimit: integer("credit_limit").default(0), // in cents
+    preferredPaymentMethod: text("preferred_payment_method"), // "cash", "transfer", "card", "check"
+    notes: text("notes"),
     attributes: jsonb("attributes").default({}), // Universal Extensibility
     createdAt: timestamp("created_at").defaultNow(),
 });
@@ -100,6 +121,11 @@ export const products = pgTable("products", {
     attributes: jsonb("attributes").default({}), // Universal Extensibility
     minPurchasePrice: integer("min_purchase_price"), // in cents
     maxPurchasePrice: integer("max_purchase_price"), // in cents
+
+    // AI / Inventory Intelligence
+    demandVariability: text("demand_variability").default("stable"),
+    reorderPointDays: integer("reorder_point_days").default(7),
+    criticalityLevel: text("criticality_level").default("medium"),
 
     stock: integer("stock").notNull().default(0),
     minStock: integer("min_stock").notNull().default(0),
@@ -240,7 +266,10 @@ export const insertProductSchema = createInsertSchema(products).extend({
     isProductionInput: z.boolean().optional(),
     isProductionOutput: z.boolean().optional(),
     masterProductId: z.string().optional(),
-    expectedYield: z.number().optional()
+    expectedYield: z.number().optional(),
+    demandVariability: z.enum(["stable", "variable", "seasonal"]).optional(),
+    reorderPointDays: z.number().optional(),
+    criticalityLevel: z.enum(["low", "medium", "high", "critical"]).optional()
 });
 export const insertInventoryMovementSchema = createInsertSchema(inventoryMovements);
 export const insertSaleSchema = createInsertSchema(sales);

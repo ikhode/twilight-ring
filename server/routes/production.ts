@@ -6,6 +6,7 @@ import { getOrgIdFromRequest } from "../auth_util";
 import { CognitiveEngine } from "../lib/cognitive-engine";
 import { AuthenticatedRequest } from "../types";
 import { User, insertPieceworkTicketSchema, insertProductionTaskSchema, insertProductionActivityLogSchema } from "../../shared/schema";
+import { logAudit } from "../lib/audit";
 
 const router = Router();
 
@@ -33,6 +34,15 @@ router.post("/production/activity", async (req: Request, res: Response): Promise
             organizationId: orgId,
             creatorId: (req as AuthenticatedRequest).user?.id, // Autenticación del creador
         }).returning();
+
+        // Audit
+        await logAudit(
+            orgId,
+            (req as AuthenticatedRequest).user?.id || 'system',
+            "CREATE_PRODUCTION_ACTIVITY",
+            product.id,
+            { type: product.activityType, taskId: product.taskId }
+        );
         res.status(201).json(product);
     } catch (error) {
         console.error("Error creating production activity:", error);
@@ -194,6 +204,15 @@ router.post("/instances", async (req: Request, res: Response): Promise<void> => 
             aiContext: metadata || {}
         }).returning();
 
+        // Audit
+        await logAudit(
+            orgId,
+            (req as AuthenticatedRequest).user?.id || 'system',
+            "CREATE_PROCESS_INSTANCE",
+            instance.id,
+            { processId, sourceBatchId }
+        );
+
         res.status(201).json(instance);
     } catch (error) {
         res.status(500).json({ message: "Failed to create instance" });
@@ -222,6 +241,15 @@ router.post("/events", async (req: Request, res: Response): Promise<void> => {
             userId,
             timestamp: new Date()
         }).returning();
+
+        // Audit
+        await logAudit(
+            orgId,
+            userId || (req as AuthenticatedRequest).user?.id || 'system',
+            "LOG_PROCESS_EVENT",
+            instanceId,
+            { eventType, stepId }
+        );
 
         // 2. Automatic Inventory Adjustment for Waste (Merma)
         if (eventType === "anomaly" && data?.mermaType) {
@@ -354,6 +382,15 @@ router.post("/report", async (req: Request, res: Response): Promise<void> => {
             status: "pending",
             createdAt: new Date()
         }).returning();
+
+        // Audit
+        await logAudit(
+            orgId,
+            (req as AuthenticatedRequest).user?.id || 'system',
+            "REPORT_PRODUCTION",
+            ticket.id,
+            { instanceId, quantity, amount }
+        );
 
         res.status(201).json(ticket);
 
@@ -493,6 +530,15 @@ router.post("/instances/:id/finish", async (req: Request, res: Response): Promis
                 )`
             })
             .where(eq(processInstances.id, instanceId));
+
+        // Audit
+        await logAudit(
+            orgId,
+            (req as AuthenticatedRequest).user?.id || 'system',
+            "FINISH_PROCESS_INSTANCE",
+            instanceId,
+            { yields, estimatedInput }
+        );
 
         // 2. Perform Smart Inventory Adjustment (Consumption)
         // Ideally we would find the input product ID from the Process definition (Recipe).

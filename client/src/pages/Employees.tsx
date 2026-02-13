@@ -56,6 +56,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
@@ -63,6 +69,7 @@ import { Employee } from "../../../shared/schema";
 import { supabase } from "@/lib/supabase";
 import { useCognitiveEngine } from "@/lib/cognitive/engine";
 import { FaceEnrollmentDialog } from "@/components/hr/FaceEnrollmentDialog";
+import { DossierView } from "@/components/shared/DossierView";
 
 
 function InviteDialog() {
@@ -194,14 +201,16 @@ function EditEmployeeDialog({ employee, open, onOpenChange }: { employee: Employ
               e.preventDefault();
               const formData = new FormData(e.currentTarget);
               updateMutation.mutate({
-                name: formData.get("name") as string,
-                email: formData.get("email") as string,
-                role: formData.get("role") as string,
-                department: formData.get("department") as string,
-                salary: Number(formData.get("salary")) * 100,
-                status: formData.get("status") as any,
-                phone: formData.get("phone") as string,
-                address: formData.get("address") as string,
+                birthDate: formData.get("birthDate") as string,
+                gender: formData.get("gender") as string,
+                maritalStatus: formData.get("maritalStatus") as string,
+                personalEmail: formData.get("personalEmail") as string,
+                bankName: formData.get("bankName") as string,
+                bankAccountNumber: formData.get("bankAccountNumber") as string,
+                bankClabe: formData.get("bankClabe") as string,
+                emergencyContactName: formData.get("emergencyContactName") as string,
+                emergencyContactPhone: formData.get("emergencyContactPhone") as string,
+                notes: formData.get("notes") as string,
               });
             }} className="space-y-4 py-4">
               {/* ID Display for Kiosk */}
@@ -215,71 +224,169 @@ function EditEmployeeDialog({ employee, open, onOpenChange }: { employee: Employ
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Nombre</Label>
-                  <Input name="name" defaultValue={employee.name} required />
-                </div>
-                <div className="space-y-2">
-                  <Label>Email</Label>
-                  <Input name="email" defaultValue={employee.email || ""} />
-                </div>
-              </div>
+              <Tabs defaultValue="general" className="w-full">
+                <TabsList className="grid w-full grid-cols-3 mb-4">
+                  <TabsTrigger value="general">General</TabsTrigger>
+                  <TabsTrigger value="financial">Financiero</TabsTrigger>
+                  <TabsTrigger value="emergency">Emergencia</TabsTrigger>
+                </TabsList>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Puesto</Label>
-                  <Input name="role" defaultValue={employee.role} required />
+                <TabsContent value="general" className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Nombre Completo</Label>
+                      <Input name="name" defaultValue={employee.name} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Email Corporativo</Label>
+                      <Input name="email" defaultValue={employee.email || ""} />
+                    </div>
+                  </div>
 
-                </div>
-                <div className="space-y-2">
-                  <Label>Departamento</Label>
-                  <Select name="department" defaultValue={employee.department || "operations"}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="admin">Administración</SelectItem>
-                      <SelectItem value="operations">Operaciones</SelectItem>
-                      <SelectItem value="sales">Comercial</SelectItem>
-                      <SelectItem value="logistics">Logística</SelectItem>
-                      <SelectItem value="it">Tecnología</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Puesto</Label>
+                      <Input name="role" defaultValue={employee.role} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Departamento</Label>
+                      <Select name="department" defaultValue={employee.department || "operations"}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="admin">Administración</SelectItem>
+                          <SelectItem value="operations">Operaciones</SelectItem>
+                          <SelectItem value="sales">Comercial</SelectItem>
+                          <SelectItem value="logistics">Logística</SelectItem>
+                          <SelectItem value="it">Tecnología</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Teléfono</Label>
-                  <Input name="phone" defaultValue={employee.phone || ""} placeholder="55-1234-5678" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Dirección</Label>
-                  <Input name="address" defaultValue={employee.address || ""} placeholder="Dirección completa" />
-                </div>
-              </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Teléfono</Label>
+                      <Input name="phone" defaultValue={employee.phone || ""} placeholder="55-1234-5678" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Email Personal</Label>
+                      <Input name="personalEmail" defaultValue={employee.personalEmail || ""} placeholder="personal@example.com" />
+                    </div>
+                  </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Salario (Mensual)</Label>
-                  <Input name="salary" type="number" step="0.01" defaultValue={employee.salary ? (employee.salary / 100).toString() : ""} placeholder="0.00" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Estado</Label>
-                  <Select name="status" defaultValue={employee.status || "active"}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="active">Activo</SelectItem>
-                      <SelectItem value="on_leave">En Permiso</SelectItem>
-                      <SelectItem value="inactive">Inactivo</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Fecha de Nacimiento</Label>
+                      <Input name="birthDate" type="date" defaultValue={employee.birthDate || ""} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Género</Label>
+                      <Select name="gender" defaultValue={employee.gender || ""}>
+                        <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="male">Masculino</SelectItem>
+                          <SelectItem value="female">Femenino</SelectItem>
+                          <SelectItem value="other">Otro</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
 
-              <DialogFooter>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Estado Civil</Label>
+                      <Select name="maritalStatus" defaultValue={employee.maritalStatus || ""}>
+                        <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="single">Soltero(a)</SelectItem>
+                          <SelectItem value="married">Casado(a)</SelectItem>
+                          <SelectItem value="divorced">Divorciado(a)</SelectItem>
+                          <SelectItem value="widowed">Viudo(a)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Estado Laboral</Label>
+                      <Select name="status" defaultValue={employee.status || "active"}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="active">Activo</SelectItem>
+                          <SelectItem value="on_leave">En Permiso</SelectItem>
+                          <SelectItem value="inactive">Inactivo</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Dirección</Label>
+                    <Input name="address" defaultValue={employee.address || ""} placeholder="Dirección completa" />
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="financial" className="space-y-4">
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="space-y-2">
+                      <Label>Salario Mensual (MXN)</Label>
+                      <div className="relative">
+                        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input name="salary" type="number" step="0.01" className="pl-9" defaultValue={employee.salary ? (employee.salary / 100).toString() : ""} placeholder="0.00" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 pt-2">
+                    <h4 className="text-sm font-semibold text-primary/80">Información Bancaria</h4>
+                    <div className="grid grid-cols-1 gap-4">
+                      <div className="space-y-2">
+                        <Label>Banco</Label>
+                        <Input name="bankName" defaultValue={employee.bankName || ""} placeholder="Ej. BBVA, Santander" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Número de Cuenta</Label>
+                          <Input name="bankAccountNumber" defaultValue={employee.bankAccountNumber || ""} placeholder="10 dígitos" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>CLABE Interbancaria</Label>
+                          <Input name="bankClabe" defaultValue={employee.bankClabe || ""} placeholder="18 dígitos" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="emergency" className="space-y-4">
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-semibold text-primary/80">Contacto de Emergencia</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Nombre de Contacto</Label>
+                        <Input name="emergencyContactName" defaultValue={employee.emergencyContactName || ""} placeholder="Nombre completo" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Teléfono de Emergencia</Label>
+                        <Input name="emergencyContactPhone" defaultValue={employee.emergencyContactPhone || ""} placeholder="55-1234-5678" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 pt-2">
+                    <Label>Notas y Observaciones</Label>
+                    <textarea
+                      name="notes"
+                      defaultValue={employee.notes || ""}
+                      className="flex min-h-[120px] w-full rounded-md border border-slate-800 bg-slate-950 px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      placeholder="Información adicional relevante del colaborador..."
+                    />
+                  </div>
+                </TabsContent>
+              </Tabs>
+
+              <DialogFooter className="mt-6">
                 <Button type="submit" disabled={updateMutation.isPending}>
                   {updateMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  Guardar Cambios
+                  Guardar Expediente
                 </Button>
               </DialogFooter>
             </form>
@@ -630,6 +737,14 @@ export default function Employees() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                              <DossierView
+                                entityType="employee"
+                                entityId={item.id}
+                                entityName={item.name}
+                                trigger={<div className="flex items-center w-full cursor-pointer"><Search className="w-4 h-4 mr-2" /> Ver Expediente</div>}
+                              />
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => setEditingEmployee(item)}>
                               <Edit className="w-4 h-4 mr-2" />
                               Editar

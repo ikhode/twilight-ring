@@ -90,12 +90,17 @@ export function ConfigurationProvider({ children }: { children: React.ReactNode 
     const mutation = useMutation({
         mutationFn: async (payload: any) => {
             if (!session?.access_token) return;
+            console.log('[ConfigContext] Saving config:', payload);
             await apiRequest("PATCH", "/api/config", payload, {
                 Authorization: `Bearer ${session.access_token}`
             });
         },
         onSuccess: () => {
+            console.log('[ConfigContext] Config saved successfully');
             queryClient.invalidateQueries({ queryKey: ["/api/config"] });
+        },
+        onError: (error: any) => {
+            console.error('[ConfigContext] Failed to save config:', error);
         }
     });
 
@@ -125,7 +130,11 @@ export function ConfigurationProvider({ children }: { children: React.ReactNode 
         const next = store.enabledModules.includes(moduleId)
             ? store.enabledModules.filter(id => id !== moduleId)
             : [...store.enabledModules, moduleId];
+
+        // Optimistic update
         store.setModules(next);
+
+        // Save to backend
         mutation.mutate({ enabledModules: next });
     };
 

@@ -39,6 +39,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [loading, setLoading] = useState(true);
+    const [isSessionChecking, setIsSessionChecking] = useState(true);
     const [organization, setOrganization] = useState<Organization | null>(null);
     const [allOrganizations, setAllOrganizations] = useState<Organization[]>([]);
     const [, setLocation] = useLocation();
@@ -81,6 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
             setSession(currentSession);
             setUser(currentSession?.user ?? null);
+            setIsSessionChecking(false);
             if (!currentSession) setLoading(false);
         });
 
@@ -90,8 +92,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setSession(currentSession);
             setUser(currentSession?.user ?? null);
 
-            // Sync session to backend cookies on sign in
-            if (event === 'SIGNED_IN' && currentSession) {
+            // Sync session to backend cookies on sign in OR token refresh
+            if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && currentSession) {
                 await syncSessionToCookies();
             }
 
@@ -108,10 +110,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     useEffect(() => {
+        if (isSessionChecking) return;
+
         if (!isProfileLoading && (profileData || !user || profileError)) {
             setLoading(false);
         }
-    }, [isProfileLoading, profileData, user, profileError]);
+    }, [isProfileLoading, profileData, user, profileError, isSessionChecking]);
 
     const switchOrganization = async (orgId: string) => {
         const target = allOrganizations.find(o => o.id === orgId);

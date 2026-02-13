@@ -116,7 +116,7 @@ export const aiConfigurations = pgTable("ai_configurations", {
 export const auditLogs = pgTable("audit_logs", {
     id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
     organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-    userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "set null" }),
+    userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }),
     action: text("action").notNull(), // e.g., 'UPDATE_PRICE', 'APPROVE_TICKET'
     resourceId: text("resource_id"), // ID of the object being modified
     details: jsonb("details").default({}), // Metadata, previous values, etc.

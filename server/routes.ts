@@ -11,6 +11,7 @@ import { seedAuth } from "./seed_auth";
 import { seedOperations } from "./seed_operations";
 import { seedDocumentation } from "./scripts/seed-documentation";
 import { seedCashierData } from "./seed-cashier";
+import { seedShieldLine } from "./seed_shieldline";
 import { onboardingRoutes } from "./routes/onboarding";
 import dashboardRoutes from "./routes/dashboard";
 import operationsRoutes from "./routes/operations";
@@ -50,6 +51,10 @@ import salesWidgetsRoutes from "./routes/sales-widgets";
 import productionBatchesRoutes from "./routes/production-batches";
 import driverTrackingRoutes from "./routes/driver-tracking";
 import driverRoutesRoutes from "./routes/driver-routes";
+import dossierRoutes from "./routes/dossier";
+import shieldlineRouter from "./routes/shieldline";
+import lendingRoutes from "./routes/lending";
+import manufacturingRoutes from "./routes/manufacturing";
 import { requireModule } from "./middleware/moduleGuard";
 
 
@@ -72,6 +77,7 @@ export async function registerRoutes(
     await seedCPE();
     await seedOperations();
     await seedCashierData();
+    await seedShieldLine();
     console.log("✅ Demo data seeded.");
   } else {
     console.log("ℹ️ Skipping demo data seed. set SEED=true to enable.");
@@ -165,6 +171,18 @@ export async function registerRoutes(
 
   // Module Marketplace
   registerModuleMarketplaceRoutes(app);
+
+  // Dossier (360 view)
+  app.use("/api/dossier", dossierRoutes);
+
+  // ShieldLine Cloud
+  app.use("/api/shieldline", requireModule("/shieldline"), shieldlineRouter);
+
+  // Lending (Prestamistas)
+  app.use("/api/lending", requireModule("/lending"), lendingRoutes);
+
+  // Manufacturing (Advanced)
+  app.use("/api/manufacturing", requireModule("/production"), manufacturingRoutes);
 
 
   return httpServer;
