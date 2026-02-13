@@ -14,13 +14,19 @@ import {
     Activity,
     AlertTriangle,
     CheckCircle2,
-    Settings2
+    Settings2,
+    Clock,
+    ClipboardCheck,
+    Target
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { BOMBuilder } from "@/components/manufacturing/BOMBuilder";
 import { ProductionScheduler } from "@/components/manufacturing/ProductionScheduler";
 import { MRPView } from "@/components/manufacturing/MRPView";
+import { ManufacturingAnalytics } from "@/components/manufacturing/ManufacturingAnalytics";
+import { WorkstationKiosk } from "@/components/manufacturing/WorkstationKiosk";
+import { QualityControlPortal } from "@/components/manufacturing/QualityControlPortal";
 import { DataTable } from "@/components/shared/DataTable";
 import { Badge } from "@/components/ui/badge";
 
@@ -62,6 +68,15 @@ export default function Manufacturing() {
                         </TabsTrigger>
                         <TabsTrigger value="scheduler" className="gap-2">
                             <Workflow className="w-4 h-4" /> Planificador
+                        </TabsTrigger>
+                        <TabsTrigger value="kiosk" className="gap-2">
+                            <Clock className="w-4 h-4" /> Kiosco Estación
+                        </TabsTrigger>
+                        <TabsTrigger value="qc" className="gap-2">
+                            <ClipboardCheck className="w-4 h-4" /> Control Calidad
+                        </TabsTrigger>
+                        <TabsTrigger value="analytics" className="gap-2">
+                            <Target className="w-4 h-4" /> Analíticas
                         </TabsTrigger>
                         <TabsTrigger value="bom" className="gap-2">
                             <Layers className="w-4 h-4" /> Estructura (BOM)
@@ -144,6 +159,18 @@ export default function Manufacturing() {
 
                     <TabsContent value="scheduler">
                         <ProductionScheduler />
+                    </TabsContent>
+
+                    <TabsContent value="kiosk">
+                        <WorkstationKiosk />
+                    </TabsContent>
+
+                    <TabsContent value="qc">
+                        <QualityControlPortal />
+                    </TabsContent>
+
+                    <TabsContent value="analytics">
+                        <ManufacturingAnalytics />
                     </TabsContent>
 
                     <TabsContent value="bom">

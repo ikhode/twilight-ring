@@ -120,6 +120,7 @@ export class ManufacturingService {
 
         if (!order || !order.bom) return 0;
 
+        // 1. Material Cost
         let materialCost = 0;
         for (const item of order.bom.items) {
             const product = await db.query.products.findFirst({
@@ -131,9 +132,76 @@ export class ManufacturingService {
             }
         }
 
-        // Labor cost from piecework tickets or logs could be added here
-        // For now, return material cost + overhead if any
-        return Math.round(materialCost);
+        // 2. Labor Cost (from piecework tickets linked to this order/batch)
+        const tickets = await db.query.pieceworkTickets.findMany({
+            where: eq(pieceworkTickets.batchId, order.id) // Assuming batchId is used for orderId link
+        });
+        const laborCost = tickets.reduce((sum, t) => sum + (t.totalAmount || 0), 0);
+
+        return Math.round(materialCost + laborCost);
+    }
+
+    /**
+     * Converts an MRP recommendation into a Purchase Order.
+     */
+    static async convertToPurchaseOrder(mrpId: string, organizationId: string) {
+        const rec = await db.query.mrpRecommendations.findFirst({
+            where: and(eq(mrpRecommendations.id, mrpId), eq(mrpRecommendations.organizationId, organizationId))
+        });
+
+        if (!rec || rec.status !== 'pending') throw new Error("Recommendation not found or already processed");
+
+        // Create Purchase
+        const [purchase] = await db.insert(purchases).values({
+            organizationId,
+            productId: rec.productId,
+            quantity: Math.ceil(Number(rec.suggestedPurchaseQuantity)),
+            totalAmount: 0, // Should be updated based on supplier price
+            paymentStatus: 'pending',
+            deliveryStatus: 'pending',
+            notes: `Generada automáticamente por MRP para Orden ${rec.orderId}`
+        }).returning();
+
+        // Update Recommendation
+        await db.update(mrpRecommendations)
+            .set({
+                status: 'converted_to_po',
+                linkedPoId: purchase.id
+            })
+            .where(eq(mrpRecommendations.id, rec.id));
+
+        return purchase;
+    }
+
+    /**
+     * Logs activity at a workstation (clock in/out).
+     */
+    static async logStationActivity(payload: {
+        orderId: string;
+        routingStepId?: string;
+        operatorId: string;
+        workCenterId?: string;
+        status: 'started' | 'completed' | 'paused' | 'failed';
+        quantityCompleted?: number;
+        notes?: string;
+    }) {
+        const [log] = await db.insert(productionOrderLogs).values({
+            ...payload,
+            startedAt: payload.status === 'started' ? new Date() : undefined,
+            endedAt: payload.status === 'completed' ? new Date() : undefined
+        }).returning();
+
+        // If completed, check if we need to update the order status
+        if (payload.status === 'completed' && payload.quantityCompleted) {
+            await db.update(productionOrders)
+                .set({
+                    quantityProduced: sql`${productionOrders.quantityProduced} + ${payload.quantityCompleted}`,
+                    status: 'in_progress' // Ensure it's marked as in progress
+                })
+                .where(eq(productionOrders.id, payload.orderId));
+        }
+
+        return log;
     }
 
     /**

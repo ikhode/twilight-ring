@@ -19,11 +19,11 @@ export function MRPView() {
 
     const convertToPOMutation = useMutation({
         mutationFn: async (recId: string) => {
-            // Simplified logic: In a real system, this would create a Purchase Order in commerce
             const res = await fetch(`/api/manufacturing/mrp/recommendations/${recId}/convert`, {
                 method: "POST",
                 headers: { Authorization: `Bearer ${session?.access_token}` }
             });
+            if (!res.ok) throw new Error("Error converting recommendation");
             return res.json();
         },
         onSuccess: () => {

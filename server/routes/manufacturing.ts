@@ -158,4 +158,28 @@ router.get("/mrp/recommendations", async (req: Request, res: Response) => {
     }
 });
 
+router.post("/mrp/recommendations/:id/convert", async (req: Request, res: Response) => {
+    try {
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
+        const purchase = await ManufacturingService.convertToPurchaseOrder(req.params.id, orgId);
+        res.status(201).json(purchase);
+    } catch (error) {
+        res.status(500).json({ message: error instanceof Error ? error.message : "Error converting recommendation" });
+    }
+});
+
+// --- Station Activity ---
+router.post("/orders/:id/log", async (req: Request, res: Response) => {
+    try {
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
+        const log = await ManufacturingService.logStationActivity({
+            ...req.body,
+            orderId: req.params.id
+        });
+        res.status(201).json(log);
+    } catch (error) {
+        res.status(500).json({ message: "Error logging station activity" });
+    }
+});
+
 export default router;

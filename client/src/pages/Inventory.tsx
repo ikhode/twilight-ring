@@ -178,7 +178,7 @@ export default function Inventory() {
 
   // Realtime subscriptions for Inventory
   useSupabaseRealtime({ table: 'products', queryKey: ["/api/inventory/products"] });
-  useSupabaseRealtime({ table: 'inventory_alerts', queryKey: ["/api/inventory/alerts"] });
+  useSupabaseRealtime({ table: 'notifications', queryKey: ["/api/inventory/alerts"] });
   useSupabaseRealtime({ table: 'inventory_movements', queryKey: ["/api/inventory/products"] });
   // Realtime for metadata tables
   useSupabaseRealtime({ table: 'product_categories', queryKey: ["/api/inventory/categories"] });
@@ -798,6 +798,7 @@ export default function Inventory() {
                     </CognitiveButton>
                   </DialogTrigger>
                   <DialogContent className="max-w-2xl bg-slate-950/95 backdrop-blur-xl border-slate-800 shadow-[0_0_50px_rgba(0,0,0,0.5)] border-t-primary/20 overflow-y-auto max-h-[90vh]" data-tour="add-product-modal">
+                    <DialogTitle className="sr-only">Añadir Nuevo Producto</DialogTitle>
                     <CognitiveProvider>
                       <DialogHeader className="pb-4 border-b border-white/5">
                         <div className="flex items-center gap-3">
@@ -1884,6 +1885,7 @@ function StockAdjustmentDialog({ isOpen, onOpenChange, product, onAdjust, isPend
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
+        <DialogTitle>Detalles del Movimiento</DialogTitle>
         <DialogHeader>
           <DialogTitle>Ajustar Inventario: {product?.name}</DialogTitle>
           <DialogDescription>
@@ -1984,6 +1986,7 @@ function MovementHistoryDialog({ isOpen, onOpenChange, product }: { isOpen: bool
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl border-primary/20 bg-slate-950">
+        <DialogTitle>Análisis de Optimización de Stock por IA</DialogTitle>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 font-display text-xl">
             <HistoryIcon className="w-5 h-5 text-primary animate-pulse" />

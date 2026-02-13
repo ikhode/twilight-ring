@@ -149,4 +149,11 @@ export class TrustEngine {
 
         return Math.round(riskValue * 100);
     }
+
+    /**
+     * Returns the base weights used for calculation
+     */
+    static getWeights() {
+        return TRUST_SCORE_WEIGHTS;
+    }
 }

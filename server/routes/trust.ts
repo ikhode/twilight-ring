@@ -132,10 +132,10 @@ router.get("/consent", async (req, res) => {
 
         res.json({
             status: settings.map(s => ({
-                consentType: s.settingName,
-                isActive: s.isEnabled,
-                grantedAt: s.updatedAt,
-                revokedAt: !s.isEnabled ? s.updatedAt : null
+                consentType: s.permissionType,
+                isActive: s.isActive,
+                grantedAt: s.grantedAt,
+                revokedAt: !s.isActive ? s.grantedAt : null
             })),
             history: { active: [], revoked: [] } // Placeholder for actual history log
         });
@@ -154,11 +154,11 @@ router.post("/consent/grant", async (req, res) => {
 
         await db.insert(trustPrivacySettings).values({
             organizationId: orgId,
-            settingName: consentType,
-            isEnabled: true,
+            permissionType: consentType,
+            isActive: true,
         }).onConflictDoUpdate({
-            target: [trustPrivacySettings.organizationId, trustPrivacySettings.settingName],
-            set: { isEnabled: true, updatedAt: new Date() }
+            target: [trustPrivacySettings.organizationId, trustPrivacySettings.permissionType],
+            set: { isActive: true, grantedAt: new Date() }
         });
 
         res.json({ success: true });
@@ -176,10 +176,10 @@ router.post("/consent/revoke", async (req, res) => {
         const { consentType } = req.body;
 
         await db.update(trustPrivacySettings)
-            .set({ isEnabled: false, updatedAt: new Date() })
+            .set({ isActive: false })
             .where(and(
                 eq(trustPrivacySettings.organizationId, orgId),
-                eq(trustPrivacySettings.settingName, consentType)
+                eq(trustPrivacySettings.permissionType, consentType)
             ));
 
         res.json({ success: true });
@@ -197,7 +197,7 @@ router.get("/benchmarks", async (req, res) => {
     try {
         const benchmarks = await db.select()
             .from(benchmarkData)
-            .orderBy(desc(benchmarkData.period));
+            .orderBy(desc(benchmarkData.calculationDate));
         res.json(benchmarks);
     } catch (error) {
         console.error("Error fetching benchmarks:", error);

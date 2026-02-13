@@ -82,25 +82,25 @@ const METRIC_INFO: Record<string, {
         description: "Consistencia y magnitud de la facturación mensual",
         formula: "Log(Ventas Totales) normalizado a 100"
     },
-    client_retention: {
+    customer_retention: {
         label: "Retención de Clientes",
         description: "Estabilidad en la cartera de clientes recurrentes",
         formula: "(Clientes recurrentes / Total clientes) * 100"
     },
-    debt_ratio: {
-        label: "Ratio de Endeudamiento",
-        description: "Proporción de deuda comercial vs activos",
+    inventory_turnover: {
+        label: "Rotación de Inventario",
+        description: "Velocidad con la que el inventario se vende y repone",
+        formula: "(Costo de Ventas / Inventario Promedio)"
+    },
+    order_fulfillment: {
+        label: "Cumplimiento de Órdenes",
+        description: "Porcentaje de pedidos entregados a tiempo y completos",
+        formula: "(Entregas Perfectas / Total Órdenes) * 100"
+    },
+    credit_compliance: {
+        label: "Cumplimiento Crediticio",
+        description: "Uso responsable de límites de crédito",
         formula: "100 - (Deuda Pendiente / Limite Crédito) * 100"
-    },
-    dispute_resolution: {
-        label: "Resolución de Disputas",
-        description: "Capacidad de resolver conflictos con proveedores",
-        formula: "100 - (Tasa de disputas no resueltas * 100)"
-    },
-    order_consistency: {
-        label: "Consistencia de Órdenes",
-        description: "Frecuencia y estabilidad en el flujo de pedidos",
-        formula: "(Semanas con pedidos / Total semanas) * 100"
     }
 };
 

@@ -14,10 +14,10 @@ export class MLDataProvider {
 
         const { data, error } = await supabase
             .from('sales')
-            .select('total_amount, created_at')
+            .select('total_price, date')
             .eq('organization_id', organizationId)
-            .gte('created_at', dateLimit.toISOString())
-            .order('created_at', { ascending: true });
+            .gte('date', dateLimit.toISOString())
+            .order('date', { ascending: true });
 
         if (error) throw error;
         return data;
@@ -49,7 +49,7 @@ export class MLDataProvider {
         const buckets: Record<string, number> = {};
 
         data.forEach(item => {
-            const dateStr = item.created_at || item.date || new Date().toISOString();
+            const dateStr = item.date || item.created_at || new Date().toISOString();
             const dateKey = dateStr.split('T')[0];
             const val = item.amount || item.quantity || 0;
             buckets[dateKey] = (buckets[dateKey] || 0) + val;
@@ -66,9 +66,9 @@ export class MLDataProvider {
     static async getTransactionHistory(organizationId: string, limit = 1000) {
         const { data, error } = await supabase
             .from('sales')
-            .select('id, total_amount, created_at, customer_id')
+            .select('id, total_price, date, customer_id')
             .eq('organization_id', organizationId)
-            .order('created_at', { ascending: false })
+            .order('date', { ascending: false })
             .limit(limit);
 
         if (error) throw error;
@@ -79,11 +79,11 @@ export class MLDataProvider {
      * Fetches trust metrics for credit risk calculation.
      */
     static async getTrustMetrics(organizationId: string) {
-        const { data, error } = await supabase
-            .from('trustMetrics')
+        const { data, error } = await (supabase as any)
+            .from('trust_metrics')
             .select('*')
             .eq('organization_id', organizationId)
-            .order('created_at', { ascending: false })
+            .order('timestamp', { ascending: false })
             .limit(10);
 
         if (error) throw error;
@@ -96,7 +96,7 @@ export class MLDataProvider {
     static async getProductPricingData(organizationId: string) {
         const { data, error } = await supabase
             .from('products')
-            .select('id, name, base_price, category')
+            .select('id, name, price, category')
             .eq('organization_id', organizationId);
 
         if (error) throw error;
@@ -109,7 +109,7 @@ export class MLDataProvider {
     static async getCustomerBehavior(organizationId: string) {
         const { data, error } = await supabase
             .from('sales')
-            .select('customer_id, total_amount, created_at')
+            .select('customer_id, total_price, date')
             .eq('organization_id', organizationId)
             .not('customer_id', 'is', null);
 

@@ -40,9 +40,9 @@ export function CognitiveBridge() {
 
     // Subscriptions to ensure AI context is always fresh
     useSupabaseRealtime({ table: 'sales', queryKey: ["/api/analytics/tensors"] });
-    useSupabaseRealtime({ table: 'inventory', queryKey: ["/api/analytics/tensors"] });
+    useSupabaseRealtime({ table: 'products', queryKey: ["/api/analytics/tensors"] });
     useSupabaseRealtime({ table: 'purchases', queryKey: ["/api/analytics/tensors"] });
-    useSupabaseRealtime({ table: 'production_events', queryKey: ["/api/analytics/tensors"] });
+    useSupabaseRealtime({ table: 'process_events', queryKey: ["/api/analytics/tensors"] });
 
     // 1. Context Sync (Metadata)
     useEffect(() => {

@@ -83,8 +83,9 @@ class MLCore {
                 await this.finalizeModelCreation(organizationId, modelType, model, { mean, std });
             }
             else if (modelType === 'fraud_detection') {
-                const txs = await MLDataProvider.getTransactionHistory(organizationId);
-                const amounts = txs.map(t => t.total_amount);
+                const sales = await MLDataProvider.getTransactionHistory(organizationId);
+                const amounts = sales.map((s: { total_price: number }) => s.total_price);
+                // For autoencoder, we need to standardize the input data
                 const { standard, mean, std } = aiService.standardize(amounts);
 
                 // Autoencoder for Anomaly Detection
@@ -102,7 +103,7 @@ class MLCore {
             else if (modelType === 'credit_risk') {
                 const metrics = await MLDataProvider.getTrustMetrics(organizationId);
                 // Simplified features: [score, reliability, consistency]
-                const features = metrics.map(m => [m.score || 0, m.reliability || 0, m.consistency || 0]);
+                const features = metrics.map((m: { score: number, reliability: number, consistency: number }) => [m.score || 0, m.reliability || 0, m.consistency || 0]);
                 const tensor = tf.tensor2d(features);
 
                 const model = tf.sequential();
@@ -115,8 +116,8 @@ class MLCore {
             }
             else if (modelType === 'price_recommendation') {
                 const products = await MLDataProvider.getProductPricingData(organizationId);
-                const features = products.map(p => [p.base_price || 0, Math.random()]); // base price + dummy demand
-                const labels = products.map(p => (p.base_price || 0) * 1.15); // Target price
+                const features = products.map((p: { price: number }) => [p.price || 0, Math.random()]); // base price + dummy demand
+                const labels = products.map((p: { price: number }) => (p.price || 0) * (1 + (Math.random() * 0.2 - 0.1))); // Target price
 
                 const model = tf.sequential();
                 model.add(tf.layers.dense({ units: 10, activation: 'relu', inputShape: [2] }));
@@ -129,9 +130,10 @@ class MLCore {
                 await this.finalizeModelCreation(organizationId, modelType, model, {});
             }
             else if (modelType === 'customer_segmentation') {
-                const behavior = await MLDataProvider.getCustomerBehavior(organizationId);
-                const features = behavior.map(b => [b.total_amount || 0]);
-                const tensor = tf.tensor2d(features);
+                const sales = await MLDataProvider.getHistoricalSales(organizationId);
+                const values = sales.map((s: any) => s.total_price || 0);
+
+                const tensor = tf.tensor2d(values.map(v => [v]));
 
                 // Simplified K-Means logic identifying 3 centroids
                 const model = tf.sequential();
