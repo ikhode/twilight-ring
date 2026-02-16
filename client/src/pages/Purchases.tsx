@@ -21,6 +21,7 @@ import {
   ShieldAlert,
   CheckCircle2,
   PackageCheck,
+  Package,
   FolderPlus,
   AlertTriangle,
   History,
@@ -1559,6 +1560,129 @@ function CreatePurchaseDialog({ purchases = [] }: { purchases: any[] }) {
                 </SelectContent>
               </Select>
             </CognitiveField>
+
+            {/* Autofill Buttons */}
+            {selectedSupplier && (
+              <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                <Label className="text-xs text-muted-foreground">Autorrelleno rápido</Label>
+                <div className="flex gap-2">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 text-xs"
+                          onClick={async () => {
+                            try {
+                              const res = await fetch(`/api/purchases/supplier/${selectedSupplier}/products`, {
+                                headers: { Authorization: `Bearer ${session?.access_token}` },
+                              });
+                              if (!res.ok) throw new Error("Failed");
+                              const products = await res.json();
+
+                              const newItems = products.map((p: any) => ({
+                                uniqueId: `${p.id}-${crypto.randomUUID()}`,
+                                productId: p.id,
+                                name: p.name,
+                                cost: (p.lastPurchasePrice || 0) / 100,
+                                quantity: 1,
+                                note: "",
+                              }));
+
+                              setCart((prev) => [...prev, ...newItems]);
+                              toast({
+                                title: "Productos agregados",
+                                description: `Se agregaron ${newItems.length} productos del proveedor.`,
+                              });
+                            } catch (error) {
+                              toast({
+                                variant: "destructive",
+                                title: "Error",
+                                description: "No se pudieron cargar los productos.",
+                              });
+                            }
+                          }}
+                        >
+                          <Package className="w-3 h-3 mr-1" />
+                          Todos los artículos
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p className="font-semibold">Todos los artículos del proveedor</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Agrega todos los productos que has comprado históricamente a este proveedor,
+                          con el último precio de compra registrado.
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 text-xs border-amber-500/30 hover:bg-amber-500/10"
+                          onClick={async () => {
+                            try {
+                              const res = await fetch(`/api/purchases/supplier/${selectedSupplier}/low-stock`, {
+                                headers: { Authorization: `Bearer ${session?.access_token}` },
+                              });
+                              if (!res.ok) throw new Error("Failed");
+                              const products = await res.json();
+
+                              if (products.length === 0) {
+                                toast({
+                                  title: "Sin productos con stock bajo",
+                                  description: "No hay productos de este proveedor con stock bajo.",
+                                });
+                                return;
+                              }
+
+                              const newItems = products.map((p: any) => ({
+                                uniqueId: `${p.id}-${crypto.randomUUID()}`,
+                                productId: p.id,
+                                name: p.name,
+                                cost: (p.lastPurchasePrice || 0) / 100,
+                                quantity: p.suggestedQuantity || 1,
+                                note: `Stock: ${p.currentStock}/${p.minStock}`,
+                              }));
+
+                              setCart((prev) => [...prev, ...newItems]);
+                              toast({
+                                title: "Productos con stock bajo agregados",
+                                description: `Se agregaron ${newItems.length} productos que necesitan reabastecimiento.`,
+                              });
+                            } catch (error) {
+                              toast({
+                                variant: "destructive",
+                                title: "Error",
+                                description: "No se pudieron cargar los productos.",
+                              });
+                            }
+                          }}
+                        >
+                          <AlertTriangle className="w-3 h-3 mr-1" />
+                          Stock bajo
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p className="font-semibold">Artículos con stock bajo</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Agrega automáticamente productos de este proveedor cuyo stock actual
+                          está por debajo del mínimo configurado. La cantidad sugerida se calcula
+                          para alcanzar el stock mínimo.
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <CognitiveField

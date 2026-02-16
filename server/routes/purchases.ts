@@ -12,6 +12,116 @@ import { requirePermission } from "../middleware/permission_check";
 const router = Router();
 
 /**
+ * Get all products historically purchased from a specific supplier.
+ */
+router.get("/supplier/:supplierId/products", requirePermission("purchases.read"), async (req: Request, res: Response): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        const { supplierId } = req.params;
+
+        // Verify supplier belongs to organization
+        const [supplier] = await db.select().from(suppliers).where(
+            and(eq(suppliers.id, supplierId), eq(suppliers.organizationId, orgId))
+        ).limit(1);
+
+        if (!supplier) {
+            res.status(404).json({ message: "Proveedor no encontrado" });
+            return;
+        }
+
+        // Get unique products purchased from this supplier with stats
+        const productStats = await db
+            .select({
+                id: products.id,
+                name: products.name,
+                sku: products.sku,
+                unit: products.unit,
+                currentStock: products.stock,
+                minStock: products.minStock,
+                lastPurchasePrice: sql<number>`MAX(${purchases.totalAmount} / ${purchases.quantity})`,
+                lastPurchaseDate: sql<Date>`MAX(${purchases.date})`,
+                averagePrice: sql<number>`AVG(${purchases.totalAmount} / ${purchases.quantity})::integer`,
+                totalPurchases: sql<number>`COUNT(${purchases.id})::integer`,
+            })
+            .from(purchases)
+            .innerJoin(products, eq(purchases.productId, products.id))
+            .where(
+                and(
+                    eq(purchases.organizationId, orgId),
+                    eq(purchases.supplierId, supplierId)
+                )
+            )
+            .groupBy(products.id, products.name, products.sku, products.unit, products.stock, products.minStock);
+
+        res.json(productStats);
+    } catch (error) {
+        console.error("Supplier products error:", error);
+        res.status(500).json({ message: "Error fetching supplier products" });
+    }
+});
+
+/**
+ * Get low-stock products from a specific supplier.
+ */
+router.get("/supplier/:supplierId/low-stock", requirePermission("purchases.read"), async (req: Request, res: Response): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        const { supplierId } = req.params;
+
+        // Verify supplier belongs to organization
+        const [supplier] = await db.select().from(suppliers).where(
+            and(eq(suppliers.id, supplierId), eq(suppliers.organizationId, orgId))
+        ).limit(1);
+
+        if (!supplier) {
+            res.status(404).json({ message: "Proveedor no encontrado" });
+            return;
+        }
+
+        // Get products with stock < minStock that have been purchased from this supplier
+        const lowStockProducts = await db
+            .select({
+                id: products.id,
+                name: products.name,
+                sku: products.sku,
+                unit: products.unit,
+                currentStock: products.stock,
+                minStock: products.minStock,
+                suggestedQuantity: sql<number>`GREATEST(${products.minStock} - ${products.stock}, 0)`,
+                lastPurchasePrice: sql<number>`MAX(${purchases.totalAmount} / ${purchases.quantity})`,
+                lastPurchaseDate: sql<Date>`MAX(${purchases.date})`,
+                averagePrice: sql<number>`AVG(${purchases.totalAmount} / ${purchases.quantity})::integer`,
+                totalPurchases: sql<number>`COUNT(${purchases.id})::integer`,
+            })
+            .from(products)
+            .innerJoin(purchases, eq(purchases.productId, products.id))
+            .where(
+                and(
+                    eq(products.organizationId, orgId),
+                    eq(purchases.supplierId, supplierId),
+                    sql`${products.stock} < ${products.minStock}`
+                )
+            )
+            .groupBy(products.id, products.name, products.sku, products.unit, products.stock, products.minStock);
+
+        res.json(lowStockProducts);
+    } catch (error) {
+        console.error("Low stock products error:", error);
+        res.status(500).json({ message: "Error fetching low stock products" });
+    }
+});
+
+/**
  * Lists all purchases for the organization.
  */
 router.get("/", requirePermission("purchases.read"), async (req: Request, res: Response): Promise<void> => {

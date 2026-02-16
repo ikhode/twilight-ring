@@ -88,7 +88,7 @@ export default function Inventory() {
   const { session, profile } = useAuth();
   const isAdmin = profile?.role === 'admin' || profile?.role === 'manager';
   const { toast } = useToast();
-  const { universalConfig, industry } = useConfiguration();
+  const { universalConfig, industry, enabledModules } = useConfiguration();
   const { productTypeLabels } = useAppStore();
   const [searchQuery, setSearchQuery] = useState("");
   const [decisionMode, setDecisionMode] = useState(false);

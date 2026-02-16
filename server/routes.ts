@@ -57,6 +57,8 @@ import shieldlineRouter from "./routes/shieldline";
 import lendingRoutes from "./routes/lending";
 import manufacturingRoutes from "./routes/manufacturing";
 import integrationsRoutes from "./routes/integrations";
+import logsRoutes from "./routes/logs";
+import metricsRoutes from "./routes/metrics";
 import { requireModule } from "./middleware/moduleGuard";
 
 
@@ -115,6 +117,8 @@ export async function registerRoutes(
   app.use("/api/whatsapp", whatsappRoutes); // Core Comms
   app.use("/api/notifications", notificationsRoutes); // System notifications
   app.use("/api/events", eventsRoutes); // System Events
+  app.use("/api/logs", logsRoutes); // Observability: Logs
+  app.use("/api/metrics", metricsRoutes); // Observability: Metrics
 
 
   // --- PROTECTED MODULES ---

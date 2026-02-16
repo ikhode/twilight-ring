@@ -69,6 +69,47 @@ export function POSView({ defaultDriverId, customHeaders, isKioskMode = false }:
     // Use provided headers or fallback to session auth
     const getHeaders = () => customHeaders || { Authorization: `Bearer ${session?.access_token}` };
 
+    // Queries - MUST be declared before useEffect hooks that use them
+    const { data: dbProducts } = useQuery({
+        queryKey: ["/api/inventory/products"],
+        queryFn: async () => {
+            const res = await fetch("/api/inventory/products", { headers: getHeaders() });
+            return res.json();
+        }
+    });
+
+    const { data: drivers = [] } = useQuery({
+        queryKey: ["/api/hr/employees"],
+        queryFn: async () => {
+            const res = await fetch("/api/hr/employees", { headers: getHeaders() });
+            return (await res.json()).filter((e: any) => e.role.toLowerCase().includes("driver") || e.role.toLowerCase().includes("conductor"));
+        }
+    });
+
+    const { data: vehicles = [] } = useQuery({
+        queryKey: ["/api/logistics/fleet/vehicles"],
+        queryFn: async () => {
+            const res = await fetch("/api/logistics/fleet/vehicles", { headers: getHeaders() });
+            return res.json();
+        }
+    });
+
+    const { data: customers = [] } = useQuery({
+        queryKey: ["/api/crm/customers"],
+        queryFn: async () => {
+            const res = await fetch("/api/crm/customers", { headers: getHeaders() });
+            return res.json();
+        }
+    });
+
+    const { data: bankAccounts = [] } = useQuery({
+        queryKey: ["/api/finance/accounts"],
+        queryFn: async () => {
+            const res = await fetch("/api/finance/accounts", { headers: getHeaders() });
+            return res.json();
+        }
+    });
+
     useEffect(() => {
         if (defaultDriverId) setSelectedDriver(defaultDriverId);
     }, [defaultDriverId]);
@@ -261,47 +302,7 @@ export function POSView({ defaultDriverId, customHeaders, isKioskMode = false }:
         }
     };
 
-    // Queries
-    const { data: dbProducts } = useQuery({
-        queryKey: ["/api/inventory/products"],
-        queryFn: async () => {
-            const res = await fetch("/api/inventory/products", { headers: getHeaders() });
-            return res.json();
-        }
-    });
-
-    const { data: drivers = [] } = useQuery({
-        queryKey: ["/api/hr/employees"],
-        queryFn: async () => {
-            const res = await fetch("/api/hr/employees", { headers: getHeaders() });
-            return (await res.json()).filter((e: any) => e.role.toLowerCase().includes("driver") || e.role.toLowerCase().includes("conductor"));
-        }
-    });
-
-    const { data: vehicles = [] } = useQuery({
-        queryKey: ["/api/logistics/fleet/vehicles"],
-        queryFn: async () => {
-            const res = await fetch("/api/logistics/fleet/vehicles", { headers: getHeaders() });
-            return res.json();
-        }
-    });
-
-    const { data: customers = [] } = useQuery({
-        queryKey: ["/api/crm/customers"],
-        queryFn: async () => {
-            const res = await fetch("/api/crm/customers", { headers: getHeaders() });
-            return res.json();
-        }
-    });
-
-    const { data: bankAccounts = [] } = useQuery({
-        queryKey: ["/api/finance/accounts"],
-        queryFn: async () => {
-            const res = await fetch("/api/finance/accounts", { headers: getHeaders() });
-            return res.json();
-        }
-    });
-
+    // Realtime subscriptions
     useSupabaseRealtime({ table: 'products', queryKey: ["/api/inventory/products"] });
     useSupabaseRealtime({ table: 'sales', queryKey: ["/api/sales/orders", "/api/sales/stats", "/api/finance/summary"] });
     useSupabaseRealtime({ table: 'customers', queryKey: ["/api/crm/customers"] });

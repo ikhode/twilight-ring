@@ -45,31 +45,44 @@ export function log(message: string, source = "express") {
   console.log(`${formattedTime} [${source}] ${message}`);
 }
 
-app.use((req, res, next) => {
-  const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
+import { logger, generateTraceId } from "./lib/logger";
+import { performanceMiddleware } from "./middleware/performance";
 
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      log(logLine);
+// Extend Express Request type to include logger
+declare global {
+  namespace Express {
+    interface Request {
+      logger: typeof logger;
     }
+  }
+}
+
+// Request logging middleware with trace IDs
+app.use((req, res, next) => {
+  const traceId = (req.headers['x-trace-id'] as string) || generateTraceId();
+
+  // Attach logger to request with trace context
+  req.logger = logger.child({
+    traceId,
+    service: 'api'
+  });
+
+  // Set trace ID in response headers for debugging
+  res.setHeader('X-Trace-ID', traceId);
+
+  // Log incoming request
+  req.logger.info('http_request', {
+    method: req.method,
+    path: req.path,
+    ip: req.ip,
+    userAgent: req.headers['user-agent']
   });
 
   next();
 });
+
+// Performance monitoring middleware
+app.use(performanceMiddleware);
 
 import { guardian } from "./services/guardian";
 
