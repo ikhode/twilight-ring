@@ -113,7 +113,7 @@ router.post("/", requirePermission("sales.pos"), async (req, res) => {
                     }
                 }
 
-                await logAudit(orgId, user.id, "CREATE_SALE", saleRecord.id, { total: saleRecord.totalPrice });
+                await logAudit(req, orgId, user.id, "CREATE_SALE", saleRecord.id, { total: saleRecord.totalPrice });
 
             } catch (err) {
                 console.error("Sale item error:", err);

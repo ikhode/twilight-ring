@@ -99,7 +99,7 @@ router.post("/transfers", requirePermission("inventory.write"), async (req: Requ
 
     const [transfer] = await db.insert(transferOrders).values(parsed.data).returning();
 
-    await logAudit(orgId, user.id, "CREATE_TRANSFER", transfer.id, {
+    await logAudit(req, orgId, user.id, "CREATE_TRANSFER", transfer.id, {
         from: transfer.sourceLocationId,
         to: transfer.destinationLocationId
     });
@@ -250,7 +250,7 @@ router.post("/import/json", requirePermission("inventory.write"), async (req: Re
         }
     }
 
-    await logAudit(orgId, user?.id || "system", "IMPORT_PRODUCTS", "BULK", { count: successCount });
+    await logAudit(req, orgId, user?.id || "system", "IMPORT_PRODUCTS", "BULK", { count: successCount });
 
     res.json({
         message: "Import processing complete",

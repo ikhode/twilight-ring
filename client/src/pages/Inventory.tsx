@@ -1114,30 +1114,31 @@ export default function Inventory() {
                               </div>
                             </div>
 
-                            <div className="col-span-2 space-y-3 bg-slate-900/30 p-4 rounded-lg border border-slate-800/50">
-                              <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Lógica de Operación</Label>
-                              <div className="grid grid-cols-2 gap-4">
-                                <div className="flex items-center space-x-2">
-                                  <Checkbox id="sell" checked={newProduct.isSellable} onCheckedChange={(c) => setNewProduct({ ...newProduct, isSellable: c as boolean })} />
-                                  <label htmlFor="sell" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-slate-300">Se Vende</label>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                  <Checkbox id="buy" checked={newProduct.isPurchasable} onCheckedChange={(c) => setNewProduct({ ...newProduct, isPurchasable: c as boolean })} />
-                                  <label htmlFor="buy" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-slate-300">Se Compra</label>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                  <Checkbox id="input" checked={newProduct.isProductionInput} onCheckedChange={(c) => setNewProduct({ ...newProduct, isProductionInput: c as boolean })} />
-                                  <label htmlFor="input" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-slate-300">Insumo Prod.</label>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                  <Checkbox id="output" checked={newProduct.isProductionOutput} onCheckedChange={(c) => setNewProduct({ ...newProduct, isProductionOutput: c as boolean })} />
-                                  <label htmlFor="output" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-slate-300">Producto Final</label>
+
+                            {/* Operation Logic - Manufacturing Only */}
+                            {enabledModules.includes("production") && (
+                              <div className="col-span-2 space-y-3 bg-slate-900/30 p-4 rounded-lg border border-slate-800/50">
+                                <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Lógica de Operación</Label>
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div className="flex items-center space-x-2">
+                                    <Checkbox id="sell" checked={newProduct.isSellable} onCheckedChange={(c) => setNewProduct({ ...newProduct, isSellable: c as boolean })} />
+                                    <label htmlFor="sell" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-slate-300">Se Vende</label>
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                    <Checkbox id="buy" checked={newProduct.isPurchasable} onCheckedChange={(c) => setNewProduct({ ...newProduct, isPurchasable: c as boolean })} />
+                                    <label htmlFor="buy" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-slate-300">Se Compra</label>
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                    <Checkbox id="input" checked={newProduct.isProductionInput} onCheckedChange={(c) => setNewProduct({ ...newProduct, isProductionInput: c as boolean })} />
+                                    <label htmlFor="input" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-slate-300">Insumo Prod.</label>
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                    <Checkbox id="output" checked={newProduct.isProductionOutput} onCheckedChange={(c) => setNewProduct({ ...newProduct, isProductionOutput: c as boolean })} />
+                                    <label htmlFor="output" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-slate-300">Producto Final</label>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-
-
-
+                            )}
 
                             {/* Financials */}
                             {newProduct.isSellable && (
@@ -1327,74 +1328,76 @@ export default function Inventory() {
                               <Input id="stock" type="number" value={newProduct.stock} onChange={(e) => setNewProduct({ ...newProduct, stock: parseInt(e.target.value) || 0 })} className="bg-slate-900/50 border-slate-800 focus:border-primary/50 transition-all" />
                             </div>
 
-                            {/* Master/Variant Yield Config */}
-                            <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-4 space-y-4">
-                              <div className="flex items-center gap-2 border-b border-blue-500/20 pb-2 mb-2">
-                                <Settings2 className="w-4 h-4 text-blue-400" />
-                                <Label className="text-xs font-bold uppercase text-blue-400">Equivalencia y Rendimiento</Label>
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Info className="w-3 h-3 text-blue-400 cursor-help" />
-                                    </TooltipTrigger>
-                                    <TooltipContent className="max-w-sm bg-slate-900 border-slate-700 text-white">
-                                      <p className="font-bold text-xs mb-1 text-blue-400">Control de Inventario Unificado</p>
-                                      <p className="text-xs">
-                                        Esta sección conecta productos que son lo mismo pero en diferentes presentaciones.
-                                        <br /><br />
-                                        <strong>Ejemplo Clave:</strong>
-                                        <br />
-                                        Si compras por "Camión" o "Bulto", pero vendes o procesas por "Pieza":
-                                        <ul className="list-disc pl-4 mt-1 space-y-1">
-                                          <li>Crea "Coco (Pieza)" como producto base.</li>
-                                          <li>Crea "Bulto de Coco" y selecciona a "Coco (Pieza)" como Maestro.</li>
-                                          <li>Define que 1 Bulto = 50 Piezas.</li>
-                                        </ul>
-                                        <br />
-                                        Al comprar 1 Bulto, el sistema sumará automáticamente 50 Piezas a tu inventario.
-                                      </p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              </div>
-
-                              <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Producto Maestro (Base)</Label>
-                                  <Select value={newProduct.masterProductId} onValueChange={(v) => setNewProduct({ ...newProduct, masterProductId: v === "none" ? "" : v })}>
-                                    <SelectTrigger className="bg-slate-900/50 border-slate-800 focus:border-blue-500/50 transition-all">
-                                      <SelectValue placeholder="Seleccionar Base..." />
-                                    </SelectTrigger>
-                                    <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                                      <SelectItem value="none">-- Es Producto Maestro --</SelectItem>
-                                      {products.filter((p: any) => !p.masterProductId && p.id !== selectedProduct?.id).map((p: any) => (
-                                        <SelectItem key={p.id} value={p.id}>{p.name} ({p.unit})</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                  <p className="text-[9px] text-slate-500 italic">Si este item es una presentación alternativa (ej. Bulto), selecciona su unidad base.</p>
+                            {/* Master/Variant Yield Config - Manufacturing Only */}
+                            {enabledModules.includes("production") && (
+                              <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-4 space-y-4">
+                                <div className="flex items-center gap-2 border-b border-blue-500/20 pb-2 mb-2">
+                                  <Settings2 className="w-4 h-4 text-blue-400" />
+                                  <Label className="text-xs font-bold uppercase text-blue-400">Equivalencia y Rendimiento</Label>
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Info className="w-3 h-3 text-blue-400 cursor-help" />
+                                      </TooltipTrigger>
+                                      <TooltipContent className="max-w-sm bg-slate-900 border-slate-700 text-white">
+                                        <p className="font-bold text-xs mb-1 text-blue-400">Control de Inventario Unificado</p>
+                                        <p className="text-xs">
+                                          Esta sección conecta productos que son lo mismo pero en diferentes presentaciones.
+                                          <br /><br />
+                                          <strong>Ejemplo Clave:</strong>
+                                          <br />
+                                          Si compras por "Camión" o "Bulto", pero vendes o procesas por "Pieza":
+                                          <ul className="list-disc pl-4 mt-1 space-y-1">
+                                            <li>Crea "Coco (Pieza)" como producto base.</li>
+                                            <li>Crea "Bulto de Coco" y selecciona a "Coco (Pieza)" como Maestro.</li>
+                                            <li>Define que 1 Bulto = 50 Piezas.</li>
+                                          </ul>
+                                          <br />
+                                          Al comprar 1 Bulto, el sistema sumará automáticamente 50 Piezas a tu inventario.
+                                        </p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
                                 </div>
 
-                                {newProduct.masterProductId && (
+                                <div className="grid grid-cols-2 gap-4">
                                   <div className="space-y-2">
-                                    <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Factor de Conversión</Label>
-                                    <div className="relative">
-                                      <Input
-                                        type="number"
-                                        placeholder="Ej. 100"
-                                        value={newProduct.expectedYield}
-                                        onChange={(e) => setNewProduct({ ...newProduct, expectedYield: parseFloat(e.target.value) || 0 })}
-                                        className="bg-slate-900/50 border-slate-800 focus:border-blue-500/50 transition-all font-mono text-blue-400 font-bold pr-12"
-                                      />
-                                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-blue-500/60 uppercase">
-                                        {products.find(p => p.id === newProduct.masterProductId)?.unit || 'u'}
-                                      </span>
-                                    </div>
-                                    <p className="text-[9px] text-slate-500">¿Cuántas unidades base contiene esta presentación?</p>
+                                    <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Producto Maestro (Base)</Label>
+                                    <Select value={newProduct.masterProductId} onValueChange={(v) => setNewProduct({ ...newProduct, masterProductId: v === "none" ? "" : v })}>
+                                      <SelectTrigger className="bg-slate-900/50 border-slate-800 focus:border-blue-500/50 transition-all">
+                                        <SelectValue placeholder="Seleccionar Base..." />
+                                      </SelectTrigger>
+                                      <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                                        <SelectItem value="none">-- Es Producto Maestro --</SelectItem>
+                                        {products.filter((p: any) => !p.masterProductId && p.id !== selectedProduct?.id).map((p: any) => (
+                                          <SelectItem key={p.id} value={p.id}>{p.name} ({p.unit})</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    <p className="text-[9px] text-slate-500 italic">Si este item es una presentación alternativa (ej. Bulto), selecciona su unidad base.</p>
                                   </div>
-                                )}
+
+                                  {newProduct.masterProductId && (
+                                    <div className="space-y-2">
+                                      <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Factor de Conversión</Label>
+                                      <div className="relative">
+                                        <Input
+                                          type="number"
+                                          placeholder="Ej. 100"
+                                          value={newProduct.expectedYield}
+                                          onChange={(e) => setNewProduct({ ...newProduct, expectedYield: parseFloat(e.target.value) || 0 })}
+                                          className="bg-slate-900/50 border-slate-800 focus:border-blue-500/50 transition-all font-mono text-blue-400 font-bold pr-12"
+                                        />
+                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-blue-500/60 uppercase">
+                                          {products.find(p => p.id === newProduct.masterProductId)?.unit || 'u'}
+                                        </span>
+                                      </div>
+                                      <p className="text-[9px] text-slate-500">¿Cuántas unidades base contiene esta presentación?</p>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                            </div>
+                            )}
 
                             {/* AI / Expected Behavior Config */}
                             <div className="rounded-xl border border-purple-500/20 bg-purple-500/5 p-4 space-y-4">
@@ -1680,7 +1683,7 @@ export default function Inventory() {
                             entityId={item.id}
                             entityName={item.name}
                           />
-                          {item.isProductionInput && (
+                          {item.isProductionInput && enabledModules.includes("production") && (
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button
