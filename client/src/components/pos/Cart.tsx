@@ -275,11 +275,26 @@ export function Cart({
                           <body>
                             <h3 style="text-align:center;">Nexus ERP</h3>
                             <p style="text-align:center;">Ticket de Venta</p>
-                            <hr/>
-                            ${cart.map(i => `<div style="display:flex; justify-content:space-between;"><span>${i.name} x${i.quantity}</span><span>${formatCurrency(i.price * i.quantity)}</span></div>`).join('')}
-                            <hr/>
-                            <div style="display:flex; justify-content:space-between; font-weight:bold;"><span>TOTAL</span><span>${formatCurrency(total)}</span></div>
-                            <p style="text-align:center; margin-top:20px;">¡Gracias por su compra!</p>
+                            <p style="text-align:center; font-size: 12px;">${new Date().toLocaleString()}</p>
+                            ${(() => {
+                                            const customer = customers.find(c => c.id === selectedCustomer);
+                                            if (customer) {
+                                                return `
+                                    <div style="border-bottom: 1px dashed black; margin-bottom: 10px; padding-bottom: 5px;">
+                                        <strong>Cliente:</strong> ${customer.name}<br/>
+                                        ${customer.address ? `<strong>Dirección:</strong> ${customer.address}<br/>` : ''}
+                                        ${customer.rfc ? `<strong>RFC:</strong> ${customer.rfc}<br/>` : ''}
+                                    </div>`;
+                                            }
+                                            return '';
+                                        })()}
+                            <hr style="border-top: 1px dashed black;"/>
+                            <table style="width:100%; border-collapse:collapse; font-size: 12px;">
+                            ${cart.map(i => `<tr><td>${i.name} <br/> <span style="font-size:10px;">x${i.quantity}</span></td><td style="text-align:right;">${formatCurrency(i.price * i.quantity)}</td></tr>`).join('')}
+                            </table>
+                            <hr style="border-top: 1px dashed black;"/>
+                            <div style="display:flex; justify-content:space-between; font-weight:bold; font-size: 14px;"><span>TOTAL</span><span>${formatCurrency(total)}</span></div>
+                            <p style="text-align:center; margin-top:20px; font-size: 12px;">¡Gracias por su compra!</p>
                           </body>
                         </html>`);
                                     win.print();

@@ -160,6 +160,28 @@ router.get("/orders", requirePermission("sales.read"), async (req, res) => {
     }
 });
 
+router.get("/customer/:customerId", requirePermission("sales.read"), async (req, res) => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const customerOrders = await db.query.sales.findMany({
+            where: and(
+                eq(sales.organizationId, orgId),
+                eq(sales.customerId, req.params.customerId)
+            ),
+            orderBy: [desc(sales.date)],
+            limit: 50,
+            with: { product: true }
+        });
+
+        res.json(customerOrders);
+    } catch (error) {
+        console.error("Customer History Error:", error);
+        res.status(500).json({ message: "Error fetching customer history" });
+    }
+});
+
 router.get("/stats", requirePermission("sales.read"), async (req, res) => {
     try {
         const orgId = await getOrgIdFromRequest(req);

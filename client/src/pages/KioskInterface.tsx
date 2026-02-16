@@ -42,6 +42,7 @@ import { usePresence } from "@/hooks/usePresence";
 import { supabase } from "@/lib/supabase";
 import ProductionTerminal from "./kiosks/ProductionTerminal";
 import CashierTerminal from "./kiosks/CashierTerminal";
+import SalesTerminal from "./kiosks/SalesTerminal";
 import AdminTerminal from "./kiosks/AdminTerminal";
 import LogisticsTerminal from "./kiosks/LogisticsTerminal";
 import { DriverTerminalMobile } from "./kiosks/DriverMobileTerminal";
@@ -587,7 +588,7 @@ export default function KioskInterface(): React.JSX.Element {
 
           {activeView === "sales" && (
             authenticatedEmployee ? (
-              <CashierTerminal
+              <SalesTerminal
                 sessionContext={{ terminal: kioskInfo as Terminal, driver: authenticatedEmployee as any }}
                 onLogout={() => { setAuthenticatedEmployee(null); setActiveView(kioskInfo.capabilities.length === 1 ? 'login' : 'launcher'); }}
               />

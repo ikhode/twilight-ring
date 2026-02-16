@@ -324,6 +324,7 @@ function EditCustomerDialog({ customer, open, onOpenChange }: { customer: Custom
                 <TabsList className="grid w-full grid-cols-2 mb-4">
                   <TabsTrigger value="general">Información General</TabsTrigger>
                   <TabsTrigger value="billing">Cobranza y Crédito</TabsTrigger>
+                  <TabsTrigger value="history">Historial de Compras</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="general" className="space-y-4">
@@ -462,6 +463,10 @@ function EditCustomerDialog({ customer, open, onOpenChange }: { customer: Custom
                       placeholder="Acuerdos especiales, condiciones de crédito..."
                     />
                   </div>
+                </TabsContent>
+
+                <TabsContent value="history" className="space-y-4">
+                  <CustomerHistory customerId={customer.id} />
                 </TabsContent>
               </Tabs>
 
@@ -1506,5 +1511,61 @@ export default function CRM() {
         </Tabs>
       </div>
     </AppLayout>
+  );
+}
+
+function CustomerHistory({ customerId }: { customerId: string }) {
+  const { session } = useAuth();
+
+  const { data: history = [], isLoading } = useQuery({
+    queryKey: [`/api/sales/customer/${customerId}`],
+    queryFn: async () => {
+      const res = await fetch(`/api/sales/customer/${customerId}`, {
+        headers: { Authorization: `Bearer ${session?.access_token}` }
+      });
+      if (!res.ok) throw new Error("Failed to fetch history");
+      return res.json();
+    },
+    enabled: !!customerId && !!session?.access_token
+  });
+
+  if (isLoading) return <div className="p-4 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto opacity-50" /></div>;
+
+  if (history.length === 0) return <div className="p-8 text-center text-muted-foreground border border-dashed rounded-lg">Sin historial de compras.</div>;
+
+  return (
+    <div className="space-y-4 h-[400px] overflow-auto pr-2">
+      <div className="rounded-md border border-slate-800">
+        <table className="w-full text-sm text-left">
+          <thead className="bg-slate-900/50 text-muted-foreground font-medium sticky top-0">
+            <tr>
+              <th className="p-3">Fecha</th>
+              <th className="p-3">Producto</th>
+              <th className="p-3 text-right">Cantidad</th>
+              <th className="p-3 text-right">Total</th>
+              <th className="p-3 text-center">Estado</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800">
+            {history.map((sale: any) => (
+              <tr key={sale.id} className="hover:bg-slate-900/30">
+                <td className="p-3">{new Date(sale.date).toLocaleDateString()}</td>
+                <td className="p-3">
+                  <div className="font-medium text-white">{sale.product?.name || "N/A"}</div>
+                  <div className="text-xs text-muted-foreground">{sale.orderType === 'dine_in' ? 'Mesa ' + sale.tableNumber : 'Para llevar'}</div>
+                </td>
+                <td className="p-3 text-right">{sale.quantity}</td>
+                <td className="p-3 text-right font-mono text-emerald-500">${(sale.totalPrice / 100).toFixed(2)}</td>
+                <td className="p-3 text-center">
+                  <Badge variant={sale.paymentStatus === "paid" ? "outline" : "secondary"} className={cn(sale.paymentStatus === "paid" ? "border-emerald-500 text-emerald-500" : "bg-amber-500/10 text-amber-500")}>
+                    {sale.paymentStatus === "paid" ? "Pagado" : "Pendiente"}
+                  </Badge>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
