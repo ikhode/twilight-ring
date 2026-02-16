@@ -105,7 +105,7 @@ router.post("/", requirePermission("sales.pos"), async (req, res) => {
                             await db.execute(sql`
                                 UPDATE customers 
                                 SET loyalty_points = COALESCE(loyalty_points, 0) + ${pointsToAward}
-                                WHERE id = ${customerId}
+                                WHERE id = ${customerId} AND organization_id = ${orgId}
                             `);
                         }
                     } catch (loyaltyErr) {
