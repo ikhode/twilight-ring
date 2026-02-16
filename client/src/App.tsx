@@ -49,6 +49,7 @@ import Manufacturing from "@/pages/Manufacturing";
 import KitchenDisplay from "@/pages/KitchenDisplay";
 import Integrations from "@/pages/Integrations";
 import TimeClock from "@/pages/TimeClock";
+import CustomerDisplay from "@/pages/CustomerDisplay";
 
 import { AuthProvider } from "@/hooks/use-auth";
 import { RealtimeProvider } from "@/lib/realtime";
@@ -78,6 +79,7 @@ function Router() {
       <Route path="/kiosk-link" component={TerminalLink} />
       <Route path="/sign/:token" component={Signature} />
       <Route path="/time-clock" component={TimeClock} />
+      <Route path="/customer-display" component={CustomerDisplay} />
 
       {/* Protected System Routes (Admin/Owner/Manager only) */}
       <ProtectedRoute path="/dashboard" component={Dashboard} />

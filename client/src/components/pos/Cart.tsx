@@ -6,7 +6,7 @@ import { ShoppingCart, Trash2, Save, Clock, Minus, Plus, Activity, CreditCard, B
 import { CognitiveProvider, CognitiveField, GuardianDiagnostic, GuardianSafeStatus } from "@/components/cognitive";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { CustomerCombobox } from "./CustomerCombobox"; // We need to extract this too
+import { CustomerCombobox } from "@/components/pos/CustomerCombobox";
 
 interface CartItem {
     id: number; // Keeping as number to match Sales.tsx, though ProductGrid uses string. Need to verify.
@@ -175,11 +175,19 @@ export function Cart({
                                         </p>
                                     </div>
                                     {selectedCustomer ? (
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-1 h-1 rounded-full bg-emerald-500" />
-                                            <p className="text-[10px] text-slate-400">
-                                                Afectando <span className="text-slate-200">{currentLabels?.insight}</span> del {currentLabels?.client.toLowerCase()} seleccionado.
-                                            </p>
+                                        <div className="space-y-1">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-1 h-1 rounded-full bg-emerald-500" />
+                                                <p className="text-[10px] text-slate-400">
+                                                    Afectando <span className="text-slate-200">{currentLabels?.insight}</span> del {currentLabels?.client.toLowerCase()} seleccionado.
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-1 h-1 rounded-full bg-purple-500" />
+                                                <p className="text-[10px] text-slate-400">
+                                                    Ganarás <span className="text-purple-200 font-bold">{Math.floor(subtotal / 10)} pts</span> de lealtad.
+                                                </p>
+                                            </div>
                                         </div>
                                     ) : (
                                         <div className="flex items-center gap-2">

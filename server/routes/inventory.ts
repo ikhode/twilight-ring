@@ -9,6 +9,7 @@ import {
 import { getOrgIdFromRequest } from "../auth_util";
 import { AuthenticatedRequest } from "../types";
 import { logAudit } from "../lib/audit";
+import { eq, and, sql, desc } from "drizzle-orm";
 import { requirePermission } from "../middleware/permission_check";
 
 const router = Router();

@@ -84,6 +84,34 @@ export function POSView({ defaultDriverId, customHeaders, isKioskMode = false }:
         };
     }, []);
 
+    // Broadcast to Customer Display
+    useEffect(() => {
+        const channel = new BroadcastChannel("pos_customer_display");
+        const subtotal = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
+        const tax = subtotal * 0.16;
+        const total = subtotal + tax;
+
+        const customerData = selectedCustomer
+            ? customers.find((c: any) => c.id === selectedCustomer)
+            : null;
+
+        channel.postMessage({
+            type: 'CART_UPDATE',
+            payload: {
+                cart,
+                customer: customerData ? {
+                    name: customerData.name,
+                    points: customerData.loyaltyPoints || 0
+                } : null,
+                subtotal,
+                tax,
+                total
+            }
+        });
+
+        return () => channel.close();
+    }, [cart, selectedCustomer, customers]);
+
     const syncOfflineSales = async () => {
         const stored = localStorage.getItem("offline_sales");
         if (stored) {
