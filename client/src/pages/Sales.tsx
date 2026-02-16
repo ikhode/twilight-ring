@@ -32,7 +32,9 @@ import {
   CheckCircle2,
   Check,
   ChevronsUpDown,
-  Eye
+  Eye,
+  ShieldCheck,
+  FileText
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
@@ -86,7 +88,7 @@ function CreateCustomerDialog() {
   const labels: Record<string, any> = {
     services: { title: "Nuevo Cliente", nameLabel: "Empresa / Razón Social", namePlaceholder: "Ej. Acme Corp", emailLabel: "Email de Contacto" },
     healthcare: { title: "Nuevo Paciente", nameLabel: "Nombre del Paciente", namePlaceholder: "Ej. Juan Pérez", emailLabel: "Email Personal" },
-    restaurant: { title: "Nuevo Comensal", nameLabel: "Nombre", namePlaceholder: "Ej. María González", emailLabel: "Email" },
+    hospitality: { title: "Nuevo Comensal", nameLabel: "Nombre", namePlaceholder: "Ej. María González", emailLabel: "Email" },
     generic: { title: "Nuevo Cliente", nameLabel: "Nombre", namePlaceholder: "Ej. Juan Pérez", emailLabel: "Email" }
   };
 
@@ -319,11 +321,46 @@ function POSView() {
   const [selectedBankId, setSelectedBankId] = useState<string>("");
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "transfer">("cash");
   const [isPayDialogOpen, setIsPayDialogOpen] = useState(false);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => { setIsOffline(false); toast({ title: "Conexión Restaurada", description: "Sincronizando ventas offline..." }); syncOfflineSales(); };
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  const syncOfflineSales = async () => {
+    const stored = localStorage.getItem("offline_sales");
+    if (stored) {
+      const sales = JSON.parse(stored);
+      for (const sale of sales) {
+        try {
+          await fetch("/api/sales", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+            body: JSON.stringify({ ...sale, isOfflineSync: true })
+          });
+        } catch (e) { console.error("Sync failed", e); }
+      }
+      localStorage.removeItem("offline_sales");
+      toast({ title: "Sincronización Completa", description: `${sales.length} ventas offline subidas.` });
+    }
+  };
+
+  // Restaurant / POS States
+  const [orderType, setOrderType] = useState<"dine-in" | "takeout" | "delivery">("takeout");
+  const [tableNumber, setTableNumber] = useState("");
+  const [pax, setPax] = useState(1);
 
   // Industry Labels
   const labels: Record<string, any> = {
     healthcare: { client: "Paciente", default: "Paciente Externo", insight: "historial clínico", anonymous: "paciente sin expediente" },
-    restaurant: { client: "Comensal", default: "Cliente de Barra/Mesa", insight: "preferencias de consumo", anonymous: "comensal casual" },
+    hospitality: { client: "Comensal", default: "Cliente de Barra/Mesa", insight: "preferencias de consumo", anonymous: "comensal casual" },
     services: { client: "Cliente", default: "Cliente General", insight: "historial de servicios", anonymous: "cliente sin contrato" },
     generic: { client: "Cliente", default: "Público en General", insight: "historial de crédito", anonymous: "público general" }
   };
@@ -336,22 +373,36 @@ function POSView() {
   // Pay Mutation
   const payMutation = useMutation({
     mutationFn: async (items: any[]) => {
+      const payload = {
+        items,
+        driverId: selectedDriver || null,
+        vehicleId: selectedVehicle || null,
+        customerId: selectedCustomer || null,
+        paymentStatus: paymentMethod === 'cash' ? "paid" : "pending",
+        paymentMethod: paymentMethod,
+        bankAccountId: selectedBankId || null,
+        status: "paid",
+        orderType,
+        tableNumber: orderType === 'dine-in' ? tableNumber : null,
+        pax: orderType === 'dine-in' ? pax : 1,
+        date: new Date(),
+        isOfflineSync: false
+      };
+
+      if (isOffline) {
+        const stored = JSON.parse(localStorage.getItem("offline_sales") || "[]");
+        stored.push(payload);
+        localStorage.setItem("offline_sales", JSON.stringify(stored));
+        return { stats: { success: items.length }, offline: true };
+      }
+
       const res = await fetch("/api/sales", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session?.access_token}`
         },
-        body: JSON.stringify({
-          items,
-          driverId: selectedDriver || null,
-          vehicleId: selectedVehicle || null,
-          customerId: selectedCustomer || null,
-          paymentStatus: paymentMethod === 'cash' ? "paid" : "pending",
-          paymentMethod: paymentMethod,
-          bankAccountId: selectedBankId || null,
-          status: "paid"
-        })
+        body: JSON.stringify(payload)
       });
       if (!res.ok) {
         const err = await res.json();
@@ -370,8 +421,8 @@ function POSView() {
       window.dispatchEvent(new CustomEvent('NEXUS_ONBOARDING_ACTION', { detail: 'sale_completed' }));
 
       toast({
-        title: "Venta Exitosa",
-        description: `Se procesaron ${data.stats.success} items.`
+        title: data.offline ? "Venta Offline Guardada" : "Venta Exitosa",
+        description: data.offline ? "Se sincronizará cuando haya conexión." : `Se procesaron ${data.stats.success} items.`
       });
     },
     onError: (error) => {
@@ -522,6 +573,59 @@ function POSView() {
       <div className="lg:col-span-2 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <SalesMetrics />
+        </div>
+
+        {/* Restaurant / Order Type Controls */}
+        <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800 space-y-4">
+          <div className="flex flex-wrap gap-4 items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Button
+                variant={orderType === "dine-in" ? "default" : "outline"}
+                className={cn(orderType === "dine-in" && "bg-primary text-primary-foreground")}
+                onClick={() => setOrderType("dine-in")}
+              >
+                Comedor
+              </Button>
+              <Button
+                variant={orderType === "takeout" ? "default" : "outline"}
+                className={cn(orderType === "takeout" && "bg-amber-500 hover:bg-amber-600 text-white border-amber-500")}
+                onClick={() => setOrderType("takeout")}
+              >
+                Para Llevar
+              </Button>
+              <Button
+                variant={orderType === "delivery" ? "default" : "outline"}
+                className={cn(orderType === "delivery" && "bg-blue-500 hover:bg-blue-600 text-white border-blue-500")}
+                onClick={() => setOrderType("delivery")}
+              >
+                Domicilio
+              </Button>
+            </div>
+
+            {orderType === "dine-in" && (
+              <div className="flex items-center gap-3 animate-in fade-in slide-in-from-left-5">
+                <div className="flex items-center gap-2">
+                  <Label>Mesa</Label>
+                  <Input
+                    className="w-16 h-9 bg-slate-950"
+                    placeholder="#"
+                    value={tableNumber}
+                    onChange={(e) => setTableNumber(e.target.value)}
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label>Pax</Label>
+                  <Input
+                    type="number"
+                    className="w-16 h-9 bg-slate-950"
+                    min={1}
+                    value={pax}
+                    onChange={(e) => setPax(parseInt(e.target.value) || 1)}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         <Card>
@@ -1099,46 +1203,143 @@ function PaySaleDialog({ sale }: { sale: any }) {
 }
 
 function SaleDetailsDialog({ open, onOpenChange, sale, formatCurrency }: { open: boolean, onOpenChange: (v: boolean) => void, sale: any, formatCurrency: (v: number) => string }) {
+  const { session } = useAuth();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const stampMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/sales/${sale.id}/stamp`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${session?.access_token}` }
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Failed to stamp");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sales/orders"] });
+      toast({ title: "CFDI Timbrado con éxito", description: "El UUID ha sido registrado en el sistema oficial." });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error de Timbrado", description: error.message });
+    }
+  });
+
+  const handleDownloadPdf = async () => {
+    try {
+      const res = await fetch(`/api/sales/${sale.id}/pdf`, {
+        headers: { "Authorization": `Bearer ${session?.access_token}` }
+      });
+      if (!res.ok) throw new Error("Failed to download PDF");
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Factura_${sale.fiscalUuid.slice(0, 8)}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch (error) {
+      toast({ variant: "destructive", title: "Error de descarga", description: "No se pudo obtener el PDF de la factura." });
+    }
+  };
+
   if (!sale) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Detalle de Venta #{sale.id.toString().slice(0, 6)}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
-              <p className="text-muted-foreground text-xs">Fecha</p>
+              <p className="text-muted-foreground text-xs font-bold uppercase tracking-widest mb-1">Operación</p>
               <p className="font-medium">{new Date(sale.date).toLocaleString()}</p>
             </div>
             <div>
-              <p className="text-muted-foreground text-xs">Total</p>
+              <p className="text-muted-foreground text-xs font-bold uppercase tracking-widest mb-1">Monto Total</p>
               <p className="font-bold text-primary">{formatCurrency(sale.totalPrice / 100)}</p>
             </div>
             <div>
-              <p className="text-muted-foreground text-xs">Producto</p>
+              <p className="text-muted-foreground text-xs font-bold uppercase tracking-widest mb-1">Producto / Servicio</p>
               <p className="font-medium">{sale.product?.name || "N/A"} (x{sale.quantity})</p>
             </div>
             <div>
-              <p className="text-muted-foreground text-xs">Método de Pago</p>
+              <p className="text-muted-foreground text-xs font-bold uppercase tracking-widest mb-1">Método de Pago</p>
               <p className="font-medium capitalize">{sale.paymentMethod || "N/A"}</p>
             </div>
             <div>
-              <p className="text-muted-foreground text-xs">Estado Pago</p>
-              <Badge variant={sale.paymentStatus === "paid" ? "default" : "secondary"}>
-                {sale.paymentStatus === "paid" ? "Pagado" : "Pendiente"}
+              <p className="text-muted-foreground text-xs font-bold uppercase tracking-widest mb-1">Cobranza</p>
+              <Badge variant={sale.paymentStatus === "paid" ? "default" : "secondary"} className={cn(sale.paymentStatus === "paid" ? "bg-emerald-500" : "bg-amber-100 text-amber-700")}>
+                {sale.paymentStatus === "paid" ? "Liquidado" : "Pago Pendiente"}
               </Badge>
             </div>
             <div>
-              <p className="text-muted-foreground text-xs">Estado Entrega</p>
-              <Badge variant="outline">{sale.deliveryStatus}</Badge>
+              <p className="text-muted-foreground text-xs font-bold uppercase tracking-widest mb-1">Logística</p>
+              <Badge variant="outline" className="border-blue-500/50 text-blue-500 capitalize">{sale.deliveryStatus}</Badge>
             </div>
+          </div>
+
+          <Separator />
+
+          {/* Fiscal Compliance Layer (Phase 3) */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-3.5 h-3.5 text-primary" />
+              <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Cumplimiento Fiscal (SAT)</h4>
+            </div>
+
+            {sale.fiscalUuid ? (
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] text-emerald-600 font-bold uppercase tracking-tighter">CFDI 4.0 Certificado</span>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                </div>
+                <div className="bg-slate-950/50 p-2 rounded font-mono text-[9px] text-slate-400 break-all border border-slate-800">
+                  {sale.fiscalUuid}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button variant="outline" size="sm" className="h-8 gap-2 border-slate-700 hover:bg-slate-800" onClick={handleDownloadPdf}>
+                    <FileText className="w-3.5 h-3.5" /> PDF
+                  </Button>
+                  <Button variant="outline" size="sm" className="h-8 gap-2 border-slate-700 hover:bg-slate-800" disabled>
+                    <Receipt className="w-3.5 h-3.5" /> XML
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 bg-slate-900/50 border border-slate-800 rounded-lg space-y-3">
+                <p className="text-[11px] text-slate-400 italic">Esta transacción no cuenta con comprobante fiscal digital (CFDI).</p>
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="w-full gap-2 font-bold shadow-lg shadow-primary/20"
+                  disabled={sale.paymentStatus !== 'paid' || stampMutation.isPending}
+                  onClick={() => stampMutation.mutate()}
+                >
+                  {stampMutation.isPending ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Activity className="w-3.5 h-3.5" />
+                  )}
+                  {sale.paymentStatus !== 'paid' ? "Liquidación Requerida" : "Timbrar Factura (PAC)"}
+                </Button>
+                {sale.paymentStatus === 'paid' && (
+                  <p className="text-[9px] text-slate-500 text-center">
+                    Al timbrar se consumirá 1 crédito de timbrado oficial.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cerrar</Button>
+          <Button variant="outline" className="border-slate-800" onClick={() => onOpenChange(false)}>Cerrar</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

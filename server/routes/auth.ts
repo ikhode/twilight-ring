@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../storage";
-import { users, organizations, userOrganizations, aiConfigurations, organizationModules } from "../../shared/schema";
-import { eq, and } from "drizzle-orm";
+import { users, organizations, userOrganizations, aiConfigurations, organizationModules, rolePermissions } from "../../shared/schema";
+import { eq, and, inArray } from "drizzle-orm";
 import { industryTemplates } from "../seed";
 import { supabaseAdmin } from "../supabase";
 import { MODULE_REGISTRY } from "../data/module-registry";
@@ -230,17 +230,28 @@ export function registerAuthRoutes(app: Express) {
             // Default to the first one, but return all
             const activeOrg = userOrgs.length > 0 ? userOrgs[0] : null;
 
+            // 4. Fetch all permission mappings for the roles the user has across orgs
+            const userRoles = Array.from(new Set(userOrgs.map(uo => uo.role)));
+            const allRolePermissions = userRoles.length > 0
+                ? await db.query.rolePermissions.findMany({
+                    where: inArray(rolePermissions.role, userRoles as any[])
+                })
+                : [];
+
             res.json({
                 user: {
                     id: user.id,
                     email: user.email,
                     name: user.name,
                 },
-                organization: activeOrg?.organization, // Kept for backward compatibility
-                role: activeOrg?.role, // Kept for backward compatibility
+                organization: activeOrg?.organization,
+                role: activeOrg?.role,
                 organizations: userOrgs.map(uo => ({
                     ...uo.organization,
-                    role: uo.role // Include role in the organization object
+                    role: uo.role,
+                    permissions: allRolePermissions
+                        .filter(rp => rp.role === uo.role)
+                        .map(rp => rp.permissionId)
                 }))
             });
 

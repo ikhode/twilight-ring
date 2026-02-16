@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { storage, db } from "../storage";
 import { getOrgIdFromRequest } from "../auth_util";
+import { requirePermission } from "../middleware/permission_check";
 import {
     insertAnalyticsMetricSchema, inventoryMovements, customReports, analyticsSnapshots,
     expenses, sales, payments, payrollAdvances, employees, workHistory,
@@ -18,7 +19,7 @@ const router = Router();
  * Real-time KPIs Endpoint
  * Replaces mockData in DynamicKPIs component
  */
-router.get("/kpis", async (req, res): Promise<void> => {
+router.get("/kpis", requirePermission("analytics.read"), async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) { res.status(401).json({ message: "Unauthorized" }); return; }
@@ -177,7 +178,7 @@ router.get("/kpis", async (req, res): Promise<void> => {
     }
 });
 
-router.get("/dashboard", async (req, res): Promise<void> => {
+router.get("/dashboard", requirePermission("analytics.read"), async (req, res): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) { res.status(401).json({ message: "Unauthorized" }); return; }
@@ -239,7 +240,7 @@ router.get("/dashboard", async (req, res): Promise<void> => {
 /**
  * Advanced Report Endpoint - The Core "Source of Truth"
  */
-router.get("/advanced/:type", async (req, res) => {
+router.get("/advanced/:type", requirePermission("analytics.read"), async (req, res) => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -568,7 +569,7 @@ router.get("/advanced/:type", async (req, res) => {
  * PRODUCTION YIELD ANALYSIS
  * Compares Purchase (Theoretical) vs. Payroll/Output (Actual)
  */
-router.get("/yield", async (req, res) => {
+router.get("/yield", requirePermission("analytics.read"), async (req, res) => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) { return res.status(401).json({ message: "Unauthorized" }); }

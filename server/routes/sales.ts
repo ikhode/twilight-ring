@@ -1,14 +1,16 @@
-import { Router } from "express";
 import { db } from "../storage";
 import {
     sales, products, inventoryMovements, payments, cashRegisters, cashTransactions, bankAccounts,
-    customers, insertSaleSchema
+    customers
 } from "../../shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
+import { Router } from "express";
 import { getOrgIdFromRequest, getAuthenticatedUser } from "../auth_util";
 import { logAudit } from "../lib/audit";
-
+import { EventBus } from "../services/event-bus";
 import { requireModule } from "../middleware/moduleGuard";
+import { FacturapiService } from "../services/FacturapiService";
+import { requirePermission } from "../middleware/permission_check";
 
 const router = Router();
 router.use(requireModule("/sales"));
@@ -16,7 +18,7 @@ router.use(requireModule("/sales"));
 /**
  * Registra una venta, actualiza inventario, genera movimiento y registra el pago.
  */
-router.post("/", async (req, res) => {
+router.post("/", requirePermission("sales.pos"), async (req, res) => {
     try {
         const user = await getAuthenticatedUser(req);
         if (!user) return res.status(401).json({ message: "Unauthorized" });
@@ -28,7 +30,7 @@ router.post("/", async (req, res) => {
             return res.status(400).json({ message: "Invalid payload: items array required" });
         }
 
-        // 1. Pre-Validation: Verify Stock for ALL items before processing any
+        // 1. Pre-Validation
         const inventoryErrors: string[] = [];
         const productData: Record<string, any> = {};
 
@@ -44,64 +46,46 @@ router.post("/", async (req, res) => {
         }
 
         if (inventoryErrors.length > 0) {
-            return res.status(400).json({
-                message: "Validación de Inventario Fallida",
-                errors: inventoryErrors
-            });
+            return res.status(400).json({ message: "Validación de Inventario Fallida", errors: inventoryErrors });
         }
 
         const stats = { success: 0, errors: 0 };
-        const successfulItems: any[] = [];
+        const successfulSales: any[] = [];
 
-        // 2. Process items (Now safe because we pre-validated)
+        // 2. Process items
         for (const item of items) {
             try {
                 const product = productData[item.productId];
 
-                // 1. Snapshot Customer Location (if applicable)
-                let deliveryAddress = null;
-                let locationLat = null;
-                let locationLng = null;
-
-                if (customerId) {
-                    const [customer] = await db.select().from(customers).where(eq(customers.id, customerId)).limit(1);
-                    if (customer) {
-                        deliveryAddress = customer.address;
-                        locationLat = customer.latitude ? parseFloat(customer.latitude) : null;
-                        locationLng = customer.longitude ? parseFloat(customer.longitude) : null;
-                    }
-                }
-
-                // 2. Create Sale Record
                 const [saleRecord] = await db.insert(sales).values({
                     organizationId: orgId,
                     productId: item.productId,
                     customerId: customerId || null,
                     quantity: item.quantity,
-                    totalPrice: item.price * item.quantity, // Price is unit price in cents
+                    totalPrice: item.price * item.quantity,
                     driverId: driverId || null,
                     vehicleId: vehicleId || null,
                     paymentStatus: paymentStatus || "pending",
                     paymentMethod: paymentMethod || null,
                     bankAccountId: bankAccountId || null,
                     deliveryStatus: "pending",
+                    // Restaurant / POS Fields
+                    orderType: (item as any).orderType || "takeout",
+                    tableNumber: (item as any).tableNumber || null,
+                    pax: (item as any).pax || 1,
+                    kitchenStatus: "pending",
+                    modifiers: (item as any).modifiers || [],
                     date: new Date(),
-                    // Location Snapshot
-                    deliveryAddress,
-                    locationLat,
-                    locationLng
-                }).returning();
+                } as any).returning();
 
-                // 3. Update Stock
                 await db.update(products)
                     .set({ stock: product.stock - item.quantity })
                     .where(eq(products.id, item.productId));
 
-                // 4. Record Inventory Movement
                 await db.insert(inventoryMovements).values({
                     organizationId: orgId,
                     productId: item.productId,
-                    quantity: -item.quantity, // Out
+                    quantity: -item.quantity,
                     type: "sale",
                     referenceId: saleRecord.id,
                     beforeStock: product.stock,
@@ -111,16 +95,25 @@ router.post("/", async (req, res) => {
                 });
 
                 stats.success++;
-                successfulItems.push(item);
+                successfulSales.push(saleRecord);
 
-                // Log individual sale action
-                await logAudit(
-                    orgId,
-                    user.id,
-                    "CREATE_SALE",
-                    saleRecord.id,
-                    { productId: item.productId, quantity: item.quantity, total: saleRecord.totalPrice }
-                );
+                // LOYALTY POINTS LOGIC
+                if (customerId) {
+                    try {
+                        const pointsToAward = Math.floor(saleRecord.totalPrice / 1000); // 1 point per $10.00 (1000 cents)
+                        if (pointsToAward > 0) {
+                            await db.execute(sql`
+                                UPDATE customers 
+                                SET loyalty_points = COALESCE(loyalty_points, 0) + ${pointsToAward}
+                                WHERE id = ${customerId}
+                            `);
+                        }
+                    } catch (loyaltyErr) {
+                        console.error("Failed to award loyalty points:", loyaltyErr);
+                    }
+                }
+
+                await logAudit(orgId, user.id, "CREATE_SALE", saleRecord.id, { total: saleRecord.totalPrice });
 
             } catch (err) {
                 console.error("Sale item error:", err);
@@ -128,63 +121,28 @@ router.post("/", async (req, res) => {
             }
         }
 
-        // 5. Record Financial Income (Real Movement) if any success
-        if (successfulItems.length > 0) {
-            const totalAmount = successfulItems.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
+        if (successfulSales.length > 0) {
+            const totalAmount = successfulSales.reduce((sum, s) => sum + s.totalPrice, 0);
 
-            // If paymentStatus is 'paid', trigger financial record
-            if (paymentStatus === 'paid') {
-                if (paymentMethod === 'cash') {
-                    // Affect Cash Register
-                    const register = await db.query.cashRegisters.findFirst({
-                        where: and(eq(cashRegisters.organizationId, orgId), eq(cashRegisters.status, 'open'))
-                    });
-                    if (register) {
-                        await db.insert(cashTransactions).values({
-                            organizationId: orgId,
-                            registerId: register.id,
-                            sessionId: register.currentSessionId as string,
-                            amount: totalAmount,
-                            type: 'in',
-                            category: 'sales',
-                            description: `Venta POS - Efectivo`,
-                            timestamp: new Date(),
-                            performedBy: user.id
-                        });
-                        await db.update(cashRegisters).set({ balance: sql`${cashRegisters.balance} + ${totalAmount}` }).where(eq(cashRegisters.id, register.id));
-                    }
-                } else if (paymentMethod === 'transfer' && bankAccountId) {
-                    // Affect Bank Account
-                    await db.update(bankAccounts).set({ balance: sql`${bankAccounts.balance} + ${totalAmount}` }).where(eq(bankAccounts.id, bankAccountId));
-                }
-
-                await db.insert(payments).values({
-                    organizationId: orgId,
-                    amount: totalAmount,
-                    type: "income",
-                    method: paymentMethod || "cash",
-                    referenceId: `SALE-BATCH-${Date.now()}`,
-                    date: new Date()
-                });
-            }
+            // Emit Event
+            EventBus.emit(orgId, "sale.completed", {
+                saleIds: successfulSales.map(s => s.id),
+                customerId,
+                totalAmount
+            }).catch(err => console.error("EventBus Error:", err));
 
             res.json({ message: "Sales processed", stats });
         } else {
-            // If nothing succeeded, it means everything failed (likely due to stock)
-            res.status(400).json({ message: "No se pudieron procesar los items. Verifique el stock.", stats });
+            res.status(400).json({ message: "No sales processed", stats });
         }
 
     } catch (error) {
         console.error("Sales Error:", error);
-        res.status(500).json({ message: "Error processing sales", error: String(error) });
+        res.status(500).json({ message: "Error processing sales" });
     }
 });
 
-/**
- * Obtiene el historial de pedidos de venta.
- * @route GET /api/sales/orders
- */
-router.get("/orders", async (req, res) => {
+router.get("/orders", requirePermission("sales.read"), async (req, res) => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
@@ -198,21 +156,15 @@ router.get("/orders", async (req, res) => {
 
         res.json(orders);
     } catch (error) {
-        console.error("Sales orders error:", error);
         res.status(500).json({ message: "Error fetching sales orders" });
     }
 });
 
-/**
- * Obtiene estadísticas de ventas para el dashboard (Tendencias).
- * @route GET /api/sales/stats
- */
-router.get("/stats", async (req, res) => {
+router.get("/stats", requirePermission("sales.read"), async (req, res) => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
 
-        // Fetch sales for last 30 days
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -231,7 +183,6 @@ router.get("/stats", async (req, res) => {
                 )
             );
 
-        // Calculate Daily Sales
         const salesByDate: Record<string, number> = {};
         allSales.forEach(s => {
             const day = s.date ? new Date(s.date).toISOString().split('T')[0] : 'unknown';
@@ -239,10 +190,9 @@ router.get("/stats", async (req, res) => {
         });
 
         const chartData = Object.entries(salesByDate)
-            .map(([date, amount]) => ({ date, amount: amount / 100 })) // convert cents to unit
+            .map(([date, amount]) => ({ date, amount: amount / 100 }))
             .sort((a, b) => a.date.localeCompare(b.date));
 
-        // Calculate Top Products
         const productSales: Record<string, { count: number, revenue: number, id: string }> = {};
         allSales.forEach(s => {
             if (!productSales[s.productId]) {
@@ -252,10 +202,9 @@ router.get("/stats", async (req, res) => {
             productSales[s.productId].revenue += s.totalPrice;
         });
 
-        // Enrich with Product Names
         const topProductIds = Object.keys(productSales).sort((a, b) => productSales[b].revenue - productSales[a].revenue).slice(0, 5);
 
-        let topProducts: { name: string; revenue: number; quantity: number }[] = [];
+        let topProducts: any[] = [];
         if (topProductIds.length > 0) {
             const productsInfo = await db.select({ id: products.id, name: products.name })
                 .from(products)
@@ -271,22 +220,14 @@ router.get("/stats", async (req, res) => {
             });
         }
 
-        res.json({
-            days: chartData,
-            topProducts
-        });
+        res.json({ days: chartData, topProducts });
 
     } catch (error) {
-        console.error("Sales stats error:", error);
-        res.status(500).json({ message: "Error fetching sales stats" });
+        res.status(500).json({ message: "Error fetching stats" });
     }
 });
 
-/**
- * Registra el pago de una venta pendiente.
- * @route PATCH /api/sales/:id/pay
- */
-router.patch("/:id/pay", async (req, res) => {
+router.patch("/:id/pay", requirePermission("sales.pos"), async (req, res) => {
     try {
         const user = await getAuthenticatedUser(req);
         if (!user) return res.status(401).json({ message: "Unauthorized" });
@@ -297,14 +238,11 @@ router.patch("/:id/pay", async (req, res) => {
         const [sale] = await db.select().from(sales).where(and(eq(sales.id, req.params.id), eq(sales.organizationId, orgId)));
 
         if (!sale) return res.status(404).json({ message: "Sale not found" });
-        if (sale.paymentStatus === 'paid') return res.status(400).json({ message: "Sale already paid" });
 
-        // Update Sale
         await db.update(sales)
             .set({ paymentStatus: 'paid', paymentMethod, bankAccountId })
             .where(eq(sales.id, sale.id));
 
-        // Finance Integration
         if (paymentMethod === 'cash') {
             const register = await db.query.cashRegisters.findFirst({
                 where: and(eq(cashRegisters.organizationId, orgId), eq(cashRegisters.status, 'open'))
@@ -336,33 +274,57 @@ router.patch("/:id/pay", async (req, res) => {
             date: new Date()
         });
 
-        // Log payment action
-        await logAudit(
-            orgId,
-            user.id,
-            "PAY_SALE",
-            sale.id,
-            { amount: sale.totalPrice, method: paymentMethod }
-        );
-
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ message: "Payment failed" });
     }
 });
 
-/**
- * Actualiza el estado de entrega.
- * @route PATCH /api/sales/:id/delivery
- */
-router.patch("/:id/delivery", async (req, res) => {
+router.patch("/:id/delivery", requirePermission("sales.pos"), async (req, res) => {
     try {
-        const orgId = await getOrgIdFromRequest(req);
         const { status } = req.body;
         await db.update(sales).set({ deliveryStatus: status }).where(eq(sales.id, req.params.id));
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ message: "Delivery update failed" });
+    }
+});
+
+/**
+ * CFDI 4.0 Stamping
+ */
+router.post("/:id/stamp", requirePermission("sales.stamp"), async (req, res) => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const result = await FacturapiService.stampInvoice(req.params.id, orgId);
+        res.json(result);
+    } catch (error: any) {
+        console.error("Stamping error:", error);
+        res.status(500).json({ message: error.message || "Failed to stamp invoice" });
+    }
+});
+
+/**
+ * Download Invoice PDF
+ */
+router.get("/:id/pdf", async (req, res) => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const [sale] = await db.select().from(sales).where(and(eq(sales.id, req.params.id), eq(sales.organizationId, orgId)));
+        if (!sale || !sale.fiscalUuid) return res.status(404).json({ message: "Invoice not found or not stamped" });
+
+        const pdfBuffer = await FacturapiService.downloadPdf(sale.fiscalUuid, orgId);
+
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader("Content-Disposition", `attachment; filename=Factura_${sale.fiscalUuid.slice(0, 8)}.pdf`);
+        res.send(Buffer.from(pdfBuffer));
+    } catch (error: any) {
+        console.error("PDF download error:", error);
+        res.status(500).json({ message: error.message || "Failed to download PDF" });
     }
 });
 

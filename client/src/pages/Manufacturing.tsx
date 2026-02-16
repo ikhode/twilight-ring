@@ -48,7 +48,7 @@ export default function Manufacturing() {
         { title: "Órdenes Activas", value: orders.filter((o: any) => o.status === 'in_progress').length, icon: Activity, variant: "primary" as const },
         { title: "Pendiente QC", value: orders.filter((o: any) => o.status === 'qc_pending').length, icon: ClipboardList, variant: "warning" as const },
         { title: "Faltantes MRP", value: recommendations.length, icon: PackageSearch, variant: "destructive" as const },
-        { title: "OEE Global", value: "84%", icon: Factory, variant: "success" as const, trend: 2.1 }
+        { title: "Eficiencia Estimada", value: "---", icon: Factory, variant: "success" as const }
     ];
 
     return (

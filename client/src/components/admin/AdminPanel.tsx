@@ -19,7 +19,12 @@ import {
     TrendingUp,
     Users,
     BookOpen,
-    ListTodo
+    ListTodo,
+    ShieldCheck,
+    Globe,
+    Clock,
+    Monitor,
+    Info
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
@@ -53,6 +58,20 @@ interface ChatStats {
     topQueries: Array<{ query: string; count: number }>;
 }
 
+interface AuditLog {
+    id: string;
+    action: string;
+    resourceId: string;
+    timestamp: string;
+    details: any;
+    clientIp: string | null;
+    userAgent: string | null;
+    user?: {
+        name: string;
+        email: string;
+    } | null;
+}
+
 export function AdminPanel() {
     const [agents, setAgents] = useState<Agent[]>([]);
     const [documents, setDocuments] = useState<Document[]>([]);
@@ -61,6 +80,8 @@ export function AdminPanel() {
     const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
     const [isEditing, setIsEditing] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
+    const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+    const [isLoadingLogs, setIsLoadingLogs] = useState(false);
     const { toast } = useToast();
     const { session } = useAuth();
 
@@ -68,6 +89,7 @@ export function AdminPanel() {
         loadAgents();
         loadDocuments();
         loadStats();
+        loadAuditLogs();
     }, []);
 
     const loadAgents = async () => {
@@ -115,6 +137,25 @@ export function AdminPanel() {
             }
         } catch (error) {
             console.error("Failed to load stats:", error);
+        }
+    };
+
+    const loadAuditLogs = async () => {
+        try {
+            setIsLoadingLogs(true);
+            const response = await fetch("/api/admin/audit-logs", {
+                headers: {
+                    Authorization: `Bearer ${session?.access_token}`
+                }
+            });
+            if (response.ok) {
+                const data = await response.json();
+                setAuditLogs(data.logs || []);
+            }
+        } catch (error) {
+            console.error("Failed to load audit logs:", error);
+        } finally {
+            setIsLoadingLogs(false);
         }
     };
 
@@ -260,7 +301,11 @@ export function AdminPanel() {
                     </TabsTrigger>
                     <TabsTrigger value="checklist">
                         <ListTodo className="h-4 w-4 mr-2" />
-                        Checklist Implementación
+                        Checklist
+                    </TabsTrigger>
+                    <TabsTrigger value="audit">
+                        <ShieldCheck className="h-4 w-4 mr-2" />
+                        Audit Trail
                     </TabsTrigger>
                 </TabsList>
 
@@ -558,6 +603,90 @@ export function AdminPanel() {
                 {/* Checklist Tab */}
                 <TabsContent value="checklist" className="space-y-4">
                     <ImplementationChecklist />
+                </TabsContent>
+
+                {/* Audit Trail Tab */}
+                <TabsContent value="audit" className="space-y-4">
+                    <Card>
+                        <CardHeader>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <CardTitle>Bitácora de Auditoría (Audit Trail)</CardTitle>
+                                    <CardDescription>Registro inmutable de acciones críticas del sistema</CardDescription>
+                                </div>
+                                <Button variant="outline" size="sm" onClick={loadAuditLogs} disabled={isLoadingLogs}>
+                                    <Clock className={`h-4 w-4 mr-2 ${isLoadingLogs ? 'animate-spin' : ''}`} />
+                                    Actualizar
+                                </Button>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <ScrollArea className="h-[600px] pr-4">
+                                <div className="space-y-4">
+                                    {auditLogs.length === 0 ? (
+                                        <div className="py-20 text-center text-muted-foreground border-2 border-dashed rounded-xl">
+                                            <ShieldCheck className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                                            <p>No se encontraron registros de auditoría.</p>
+                                        </div>
+                                    ) : (
+                                        auditLogs.map((log) => (
+                                            <div key={log.id} className="p-4 rounded-lg border bg-card hover:border-primary/50 transition-all">
+                                                <div className="flex flex-wrap items-start justify-between gap-4">
+                                                    <div className="flex-1 min-w-[200px]">
+                                                        <div className="flex items-center gap-2 mb-2">
+                                                            <Badge variant={log.action.includes('DELETE') ? 'destructive' : 'default'} className="font-mono text-[10px]">
+                                                                {log.action}
+                                                            </Badge>
+                                                            <span className="text-xs text-muted-foreground flex items-center">
+                                                                <Clock className="h-3 w-3 mr-1" />
+                                                                {new Date(log.timestamp).toLocaleString()}
+                                                            </span>
+                                                        </div>
+                                                        <h4 className="font-semibold text-sm mb-1">
+                                                            {log.details?.message || `Acción en recurso: ${log.resourceId}`}
+                                                        </h4>
+                                                        <div className="flex flex-wrap gap-4 mt-3">
+                                                            <div className="flex items-center text-xs text-muted-foreground">
+                                                                <Users className="h-3 w-3 mr-1.5" />
+                                                                {log.user?.name || 'Sistema'} ({log.user?.email || 'N/A'})
+                                                            </div>
+                                                            {log.clientIp && (
+                                                                <div className="flex items-center text-xs text-muted-foreground bg-muted/50 px-2 py-0.5 rounded border border-border/50">
+                                                                    <Globe className="h-3 w-3 mr-1.5" />
+                                                                    IP: {log.clientIp}
+                                                                </div>
+                                                            )}
+                                                            {log.userAgent && (
+                                                                <div className="flex items-center text-xs text-muted-foreground bg-muted/50 px-2 py-0.5 rounded border border-border/50 max-w-[300px] truncate" title={log.userAgent}>
+                                                                    <Monitor className="h-3 w-3 mr-1.5" />
+                                                                    UA: {log.userAgent.split(')')[0] + ')'}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    {log.details && Object.keys(log.details).length > 1 && (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-7 text-[10px]"
+                                                            onClick={() => {
+                                                                // Future: Expandable details JSON viewer
+                                                                console.log("Details:", log.details);
+                                                            }}
+                                                        >
+                                                            <Info className="h-3 w-3 mr-1" />
+                                                            Detalles JSON
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </ScrollArea>
+                        </CardContent>
+                    </Card>
                 </TabsContent>
             </Tabs>
         </div>

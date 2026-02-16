@@ -44,6 +44,7 @@ import { pieceworkRoutes } from "./routes/piecework";
 import salesRoutes from "./routes/sales";
 import purchasesRoutes from "./routes/purchases";
 import inventoryRoutes from "./routes/inventory";
+import inventoryAdvancedRoutes from "./routes/inventory_advanced";
 import tensorRoutes from "./routes/tensors";
 import notificationsRoutes from "./routes/notifications";
 import eventsRoutes from "./routes/events";
@@ -55,6 +56,7 @@ import dossierRoutes from "./routes/dossier";
 import shieldlineRouter from "./routes/shieldline";
 import lendingRoutes from "./routes/lending";
 import manufacturingRoutes from "./routes/manufacturing";
+import integrationsRoutes from "./routes/integrations";
 import { requireModule } from "./middleware/moduleGuard";
 
 
@@ -89,9 +91,12 @@ export async function registerRoutes(
   // Public/Kiosk Routes
   app.use("/api/kiosks", kioskRoutes);
 
-  // Apply authentication guard to all subsequent API routes
+  // Apply authentication guards
   const { requireAuth } = await import("./auth_util");
-  app.use("/api", requireAuth);
+  const { apiKeyAuth } = await import("./middleware/apiKeyAuth");
+
+  app.use("/api", apiKeyAuth); // Check for API Key first
+  app.use("/api", requireAuth); // Fall back to session auth
 
   registerModuleRoutes(app);
   registerAIRoutes(app);
@@ -129,6 +134,7 @@ export async function registerRoutes(
   app.use("/api/logistics", driverTrackingRoutes); // Driver GPS tracking (no module guard for kiosks)
   app.use("/api/logistics", driverRoutesRoutes); // Driver routes and delivery completion (no module guard for kiosks)
   app.use("/api/inventory", requireModule("/inventory"), inventoryRoutes); // Protected Inventory Logic
+  app.use("/api/inventory", requireModule("/inventory"), inventoryAdvancedRoutes); // Phase 7: Advanced Inventory
 
   registerCPERoutes(app);
   // Piecework
@@ -184,6 +190,9 @@ export async function registerRoutes(
   // Manufacturing (Advanced)
   app.use("/api/manufacturing", requireModule("/production"), manufacturingRoutes);
 
+
+  // Integrations / API
+  app.use("/api/integrations", integrationsRoutes);
 
   return httpServer;
 }

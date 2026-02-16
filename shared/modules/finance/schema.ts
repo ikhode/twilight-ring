@@ -1,5 +1,5 @@
-import { pgTable, text, varchar, timestamp, boolean, integer, jsonb, customType } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
+import { pgTable, text, varchar, timestamp, boolean, integer, jsonb, customType, AnyPgColumn } from "drizzle-orm/pg-core";
+import { sql, relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { organizations, users } from "../../core/schema";
@@ -141,6 +141,107 @@ export const bankAccounts = pgTable("bank_accounts", {
 });
 
 
+
+// Accounting Accounts (Chart of Accounts)
+export const accountingAccounts = pgTable("accounting_accounts", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    code: varchar("code").notNull(),
+    name: text("name").notNull(),
+    type: text("type").notNull(), // "asset", "liability", "equity", "revenue", "expense"
+    parentId: varchar("parent_id").references((): AnyPgColumn => accountingAccounts.id),
+    level: integer("level").notNull().default(1),
+    isSelectable: boolean("is_selectable").notNull().default(true),
+    balance: integer("balance").notNull().default(0),
+    currency: varchar("currency").notNull().default("MXN"),
+    satGroupingCode: varchar("sat_grouping_code"), // Mapping to SAT codes (e.g. 101.01)
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Journal Entries
+export const journalEntries = pgTable("journal_entries", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    date: timestamp("date").notNull().defaultNow(),
+    reference: varchar("reference"),
+    description: text("description"),
+    status: text("status").notNull().default("draft"), // "draft", "posted", "cancelled"
+    type: text("type").notNull().default("manual"), // "manual", "sale", "purchase", "expense", "depreciation"
+    createdBy: varchar("created_by").references(() => users.id),
+    createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Journal Items
+export const journalItems = pgTable("journal_items", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    entryId: varchar("entry_id").notNull().references(() => journalEntries.id, { onDelete: "cascade" }),
+    accountId: varchar("account_id").notNull().references(() => accountingAccounts.id),
+    debit: integer("debit").notNull().default(0),
+    credit: integer("credit").notNull().default(0),
+    description: text("description"),
+    createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Taxes
+export const taxes = pgTable("taxes", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    rate: integer("rate").notNull(), // percentage * 100
+    type: text("type").notNull(), // "sales", "purchase"
+    satTaxType: text("sat_tax_type"), // 002 (IVA), 001 (ISR), 003 (IEPS)
+    accountId: varchar("account_id").references(() => accountingAccounts.id),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Fixed Assets
+export const fixedAssets = pgTable("fixed_assets", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    description: text("description"),
+    purchaseDate: timestamp("purchase_date").notNull(),
+    purchaseValue: integer("purchase_value").notNull(),
+    salvageValue: integer("salvage_value").notNull().default(0),
+    usefulLifeMonths: integer("useful_life_months").notNull(),
+    depreciationMethod: text("depreciation_method").notNull().default("straight_line"),
+    assetAccountId: varchar("asset_account_id").references(() => accountingAccounts.id),
+    depExpenseAccountId: varchar("dep_expense_account_id").references(() => accountingAccounts.id),
+    accumDepAccountId: varchar("accum_dep_account_id").references(() => accountingAccounts.id),
+    status: text("status").notNull().default("active"),
+    createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Relationships
+export const accountingAccountsRelations = relations(accountingAccounts, ({ one, many }) => ({
+    parent: one(accountingAccounts, {
+        fields: [accountingAccounts.parentId],
+        references: [accountingAccounts.id],
+        relationName: "parentChild",
+    }),
+    children: many(accountingAccounts, {
+        relationName: "parentChild",
+    }),
+}));
+
+export const journalEntriesRelations = relations(journalEntries, ({ many }) => ({
+    items: many(journalItems),
+}));
+
+export const journalItemsRelations = relations(journalItems, ({ one }) => ({
+    entry: one(journalEntries, {
+        fields: [journalItems.entryId],
+        references: [journalEntries.id],
+    }),
+    account: one(accountingAccounts, {
+        fields: [journalItems.accountId],
+        references: [accountingAccounts.id],
+    }),
+}));
+
 // Types
 export type CashRegister = typeof cashRegisters.$inferSelect;
 export type CashSession = typeof cashSessions.$inferSelect;
@@ -148,6 +249,11 @@ export type CashTransaction = typeof cashTransactions.$inferSelect;
 export type Expense = typeof expenses.$inferSelect;
 export type Payment = typeof payments.$inferSelect;
 export type BankAccount = typeof bankAccounts.$inferSelect;
+export type AccountingAccount = typeof accountingAccounts.$inferSelect;
+export type JournalEntry = typeof journalEntries.$inferSelect;
+export type JournalItem = typeof journalItems.$inferSelect;
+export type Tax = typeof taxes.$inferSelect;
+export type FixedAsset = typeof fixedAssets.$inferSelect;
 
 export type AnalyticsMetric = typeof analyticsMetrics.$inferSelect;
 export type InsertAnalyticsMetric = z.infer<typeof insertAnalyticsMetricSchema>;
@@ -156,18 +262,22 @@ export type InsertMetricModel = z.infer<typeof insertMetricModelSchema>;
 export type Budget = typeof budgets.$inferSelect;
 export type BankReconciliation = typeof bankReconciliations.$inferSelect;
 
-
 export const insertCashRegisterSchema = createInsertSchema(cashRegisters);
 export const insertCashSessionSchema = createInsertSchema(cashSessions);
 export const insertCashTransactionSchema = createInsertSchema(cashTransactions);
 export const insertExpenseSchema = createInsertSchema(expenses);
 export const insertPaymentSchema = createInsertSchema(payments);
 export const insertBankAccountSchema = createInsertSchema(bankAccounts);
+export const insertAccountingAccountSchema = createInsertSchema(accountingAccounts);
+export const insertJournalEntrySchema = createInsertSchema(journalEntries);
+export const insertJournalItemSchema = createInsertSchema(journalItems);
+export const insertTaxSchema = createInsertSchema(taxes);
+export const insertFixedAssetSchema = createInsertSchema(fixedAssets);
+
 export const insertAnalyticsMetricSchema = createInsertSchema(analyticsMetrics);
 export const insertMetricModelSchema = createInsertSchema(metricModels);
 export const insertBudgetSchema = createInsertSchema(budgets);
 export const insertBankReconciliationSchema = createInsertSchema(bankReconciliations);
-
 
 export type InsertCashRegister = z.infer<typeof insertCashRegisterSchema>;
 export type InsertCashSession = z.infer<typeof insertCashSessionSchema>;
@@ -175,3 +285,8 @@ export type InsertCashTransaction = z.infer<typeof insertCashTransactionSchema>;
 export type InsertBudget = z.infer<typeof insertBudgetSchema>;
 export type InsertBankReconciliation = z.infer<typeof insertBankReconciliationSchema>;
 export type InsertBankAccount = z.infer<typeof insertBankAccountSchema>;
+export type InsertAccountingAccount = z.infer<typeof insertAccountingAccountSchema>;
+export type InsertJournalEntry = z.infer<typeof insertJournalEntrySchema>;
+export type InsertJournalItem = z.infer<typeof insertJournalItemSchema>;
+export type InsertTax = z.infer<typeof insertTaxSchema>;
+export type InsertFixedAsset = z.infer<typeof insertFixedAssetSchema>;

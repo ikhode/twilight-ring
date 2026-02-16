@@ -38,11 +38,11 @@ export function CognitiveBridge() {
         refetchInterval: 300000, // Refresh every 5 minutes
     });
 
-    // Subscriptions to ensure AI context is always fresh
-    useSupabaseRealtime({ table: 'sales', queryKey: ["/api/analytics/tensors"] });
-    useSupabaseRealtime({ table: 'products', queryKey: ["/api/analytics/tensors"] });
-    useSupabaseRealtime({ table: 'purchases', queryKey: ["/api/analytics/tensors"] });
-    useSupabaseRealtime({ table: 'process_events', queryKey: ["/api/analytics/tensors"] });
+    // Subscriptions for state updates without aggressive refetching
+    useSupabaseRealtime({ table: 'sales' });
+    useSupabaseRealtime({ table: 'products' });
+    useSupabaseRealtime({ table: 'purchases' });
+    useSupabaseRealtime({ table: 'process_events' });
 
     // 1. Context Sync (Metadata)
     useEffect(() => {

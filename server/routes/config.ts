@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { getOrgIdFromRequest } from "../auth_util";
 import { db } from "../storage";
+import { requirePermission } from "../middleware/permission_check";
 import { aiConfigurations, organizations, organizationModules, modules, organizationModules as orgModulesTable } from "@shared/schema";
 import { eq, inArray, and } from "drizzle-orm";
 
@@ -69,7 +70,7 @@ router.get("/", async (req, res) => {
 });
 
 // PATCH /api/config - Unified Update
-router.patch("/", async (req, res) => {
+router.patch("/", requirePermission("config.write"), async (req, res) => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });

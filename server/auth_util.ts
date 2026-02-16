@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { db } from "./storage";
-import { userOrganizations, terminals, users, employees, User } from "../shared/schema";
+import { userOrganizations, terminals, users, employees, User, rolePermissions, permissions } from "../shared/schema";
 import { eq, and } from "drizzle-orm";
 import { supabaseAdmin } from "./supabase";
 import { AuthenticatedRequest } from "./types";

@@ -120,7 +120,38 @@ export const auditLogs = pgTable("audit_logs", {
     action: text("action").notNull(), // e.g., 'UPDATE_PRICE', 'APPROVE_TICKET'
     resourceId: text("resource_id"), // ID of the object being modified
     details: jsonb("details").default({}), // Metadata, previous values, etc.
+    clientIp: text("client_ip"),
+    userAgent: text("user_agent"),
+    hash: text("hash"), // For cryptographic chain validation
     createdAt: timestamp("created_at").defaultNow()
+});
+
+// RBAC: Granular Permissions
+export const permissions = pgTable("permissions", {
+    id: varchar("id").primaryKey(), // e.g., 'inventory.write', 'finance.void'
+    name: text("name").notNull(),
+    description: text("description"),
+    category: text("category").notNull(), // 'inventory', 'sales', 'hr', etc.
+});
+
+export const rolePermissions = pgTable("role_permissions", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    role: roleEnum("role").notNull(),
+    permissionId: varchar("permission_id").notNull().references(() => permissions.id, { onDelete: "cascade" }),
+});
+
+export const customRoles = pgTable("custom_roles", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    description: text("description"),
+    createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const customRolePermissions = pgTable("custom_role_permissions", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    roleId: varchar("role_id").notNull().references(() => customRoles.id, { onDelete: "cascade" }),
+    permissionId: varchar("permission_id").notNull().references(() => permissions.id, { onDelete: "cascade" }),
 });
 
 export const insertAuditLogSchema = createInsertSchema(auditLogs);

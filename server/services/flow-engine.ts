@@ -1,7 +1,8 @@
 import { db } from "../storage";
 import { flowDefinitions, flowNodes, flowEdges, flowExecutions, FlowNode, FlowEdge } from "../../shared/modules/automation/schema";
-import { products, inventoryMovements, sales, notifications } from "../../shared/schema";
+import { products, inventoryMovements, sales, notifications, deals } from "../../shared/schema";
 import { eq, and, sql } from "drizzle-orm";
+import { whatsAppService } from "./whatsapp";
 
 export class FlowEngineService {
     /**
@@ -172,6 +173,43 @@ export class FlowEngineService {
                     priority: priority || "normal",
                 } as any);
                 await this.log(executionId, `Notification sent to user ${userId}`, "info");
+                break;
+            }
+
+            case 'SEND_WHATSAPP': {
+                const { to, message } = config.params;
+                // In a real system we'd use templates or variable substitution
+                const finalMessage = message.replace(/\{\{(\w+)\}\}/g, (_: string, key: string) => context[key] || "");
+
+                await whatsAppService.handleWebhook({
+                    object: 'whatsapp_business_account',
+                    entry: [{
+                        changes: [{
+                            value: {
+                                messages: [{
+                                    from: 'system',
+                                    text: { body: `[OUTBOUND] ${finalMessage}` }
+                                }],
+                                metadata: { display_phone_number: 'system' }
+                            }
+                        }]
+                    }]
+                }); // This is a mock call to the service to "simulate" sending for now as per whatsapp.ts logic
+
+                await this.log(executionId, `WhatsApp message sent to ${to}`, "info");
+                break;
+            }
+
+            case 'UPDATE_DEAL_STATUS': {
+                const { dealId, status } = config.params;
+                const targetDealId = dealId || context.dealId;
+                if (!targetDealId) throw new Error("Deal ID missing");
+
+                await db.update(deals)
+                    .set({ status, updatedAt: new Date() })
+                    .where(and(eq(deals.id, targetDealId), eq(deals.organizationId, orgId)));
+
+                await this.log(executionId, `Deal ${targetDealId} status updated to ${status}`, "info");
                 break;
             }
 

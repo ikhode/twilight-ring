@@ -15,6 +15,7 @@ import KioskInterface from "@/pages/KioskInterface";
 import DriverTerminal from "@/pages/DriverTerminal";
 import Employees from "@/pages/Employees";
 import Inventory from "@/pages/Inventory";
+
 import ProductionHub from "@/pages/ProductionHub";
 import Sales from "@/pages/Sales";
 import Logistics from "@/pages/Logistics";
@@ -45,6 +46,8 @@ import TerminalManager from "@/pages/admin/TerminalManager";
 import ShieldLine from "@/pages/ShieldLine";
 import Lending from "@/pages/Lending";
 import Manufacturing from "@/pages/Manufacturing";
+import KitchenDisplay from "@/pages/KitchenDisplay";
+import Integrations from "@/pages/Integrations";
 
 import { AuthProvider } from "@/hooks/use-auth";
 import { RealtimeProvider } from "@/lib/realtime";
@@ -79,8 +82,10 @@ function Router() {
       <ProtectedRoute path="/kiosks" component={Kiosks} />
       <ProtectedRoute path="/employees" component={Employees} />
       <ProtectedRoute path="/inventory" component={Inventory} />
+
       <ProtectedRoute path="/production" component={ProductionHub} />
       <ProtectedRoute path="/sales" component={Sales} />
+      <ProtectedRoute path="/kitchen" component={KitchenDisplay} />
       <ProtectedRoute path="/logistics" component={Logistics} />
       <ProtectedRoute path="/finance" component={Finance} />
       <ProtectedRoute path="/finance/accounts" component={BankAccounts} />
@@ -106,6 +111,7 @@ function Router() {
       <ProtectedRoute path="/shieldline" component={ShieldLine} />
       <ProtectedRoute path="/lending" component={Lending} />
       <ProtectedRoute path="/manufacturing" component={Manufacturing} />
+      <ProtectedRoute path="/settings/integrations" component={Integrations} />
 
       <Route component={NotFound} />
     </Switch>

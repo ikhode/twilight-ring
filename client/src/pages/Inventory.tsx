@@ -52,7 +52,12 @@ import {
   Loader2,
   Pencil,
   BrainCircuit,
-  Sparkles
+  Sparkles,
+  Truck,
+  Database,
+  FileSpreadsheet,
+  Printer,
+  PieChart
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -70,6 +75,12 @@ import { useAppStore } from "@/store/app-store";
 import { ProductionImpactDialog } from "@/components/inventory/ProductionImpactDialog";
 import { ReasoningChatDialog } from "@/components/inventory/ReasoningChatDialog";
 import { DossierView } from "@/components/shared/DossierView";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { LocationsManager } from "@/components/inventory/LocationsManager";
+import { TransfersManager } from "@/components/inventory/TransfersManager";
+import { BulkImportManager } from "@/components/inventory/BulkImportManager";
+import { LabelsManager } from "@/components/inventory/LabelsManager";
+import { ValuationReport } from "@/components/inventory/ValuationReport";
 
 
 
@@ -92,6 +103,7 @@ export default function Inventory() {
   const [selectedReasoningProduct, setSelectedReasoningProduct] = useState<any>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("products");
 
   // Popover form states for inline creation
   const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
@@ -115,7 +127,7 @@ export default function Inventory() {
     manufacturing: "Ej: Placa de Acero Calibre 18",
     retail: "Ej: Vestido de Noche Rojo",
     logistics: "Ej: Tarima Euro 120x80",
-    restaurant: "Ej: Hamburguesa Doble con Queso",
+    hospitality: "Ej: Hamburguesa Doble con Queso",
     services: "Ej: Hora de Desarrollo Senior",
     generic: "Ej: Producto General"
   };
@@ -133,7 +145,7 @@ export default function Inventory() {
       optimizationTitle: "Optimización de Recursos",
       stockStatus: "Disponibilidad Operativa"
     },
-    restaurant: {
+    hospitality: {
       addProductTitle: "Alta de Nuevo Platillo",
       description: "Registre los detalles del menú y control de porciones.",
       itemName: "Nombre del Platillo",
@@ -641,1231 +653,1277 @@ export default function Inventory() {
     }).format(amount);
 
   return (
-    <AppLayout title="Inventario Inteligente" subtitle="Este inventario toma decisiones contigo">
+    <AppLayout title="Inventario Unificado" subtitle="Gestión integral de productos, existencias y movimientos.">
       <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="cursor-help">
-                  <StatCard
-                    title="Items en Inventario"
-                    value={<AliveValue value={stats.totalProducts} unit="" />}
-                    icon={Package}
-                    variant="primary"
-                  />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-3 max-w-xs">
-                <p className="font-bold text-primary uppercase tracking-widest text-[9px] mb-1">Catálogo Activo</p>
-                <p>Número total de referencias únicas registradas en el sistema que no han sido archivadas.</p>
-              </TooltipContent>
-            </Tooltip>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+          <TabsList className="grid w-full grid-cols-2 md:grid-cols-6 h-auto p-1 bg-muted/50 rounded-xl">
+            <TabsTrigger value="products" className="gap-2 py-3">
+              <Package className="h-4 w-4" /> Productos
+            </TabsTrigger>
+            <TabsTrigger value="locations" className="gap-2 py-3">
+              <Database className="h-4 w-4" /> Ubicaciones
+            </TabsTrigger>
+            <TabsTrigger value="transfers" className="gap-2 py-3">
+              <Truck className="h-4 w-4" /> Transferencias
+            </TabsTrigger>
+            <TabsTrigger value="import" className="gap-2 py-3">
+              <FileSpreadsheet className="h-4 w-4" /> Importar
+            </TabsTrigger>
+            <TabsTrigger value="labels" className="gap-2 py-3">
+              <Printer className="h-4 w-4" /> Etiquetas
+            </TabsTrigger>
+            <TabsTrigger value="reports" className="gap-2 py-3">
+              <BarChart3 className="h-4 w-4" /> Valoración
+            </TabsTrigger>
+          </TabsList>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="cursor-help">
-                  <StatCard
-                    title="Salud de Stock"
-                    value={`${stats.stockHealthScore}%`}
-                    icon={CheckCircle2}
-                    variant={stats.stockHealthScore > 90 ? "success" : stats.stockHealthScore > 70 ? "warning" : "destructive"}
-                  />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-3 max-w-xs">
-                <p className="font-bold text-emerald-500 uppercase tracking-widest text-[9px] mb-1">Disponibilidad Óptima</p>
-                <div className="space-y-1 my-2">
-                  <div className="flex justify-between">
-                    <span>Saludable:</span>
-                    <span className="font-bold text-emerald-500">{stats.healthyStock}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Stock Bajo:</span>
-                    <span className="font-bold text-amber-500">{stats.lowStock}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Crítico:</span>
-                    <span className="font-bold text-red-500">{stats.criticalStock}</span>
-                  </div>
-                </div>
-                <p className="text-[10px] text-slate-400 border-t border-white/5 pt-1 italic">
-                  Calculado como porcentaje de productos con stock suficiente vs total.
-                </p>
-              </TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="cursor-help">
-                  <StatCard
-                    title="Stock Bajo"
-                    value={<AliveValue value={stats.lowStock} unit="" allowTrend />}
-                    icon={TrendingDown}
-                    variant="warning"
-                  />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-3 max-w-xs">
-                <p className="font-bold text-amber-500 uppercase tracking-widest text-[9px] mb-1">Alerta de Reabastecimiento</p>
-                <p>Productos con existencias por debajo del umbral seguro (100 unidades). Requieren compra próxima.</p>
-              </TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="cursor-help">
-                  <StatCard
-                    title="Stock Crítico"
-                    value={<AliveValue value={stats.criticalStock} unit="" allowTrend />}
-                    icon={AlertTriangle}
-                    variant="destructive"
-                  />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-3 max-w-xs">
-                <p className="font-bold text-red-500 uppercase tracking-widest text-[9px] mb-1">Riesgo de Quiebre</p>
-                <p>Productos agotados o casi agotados (0 unidades). Afectan inmediatamente la capacidad de producción.</p>
-              </TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="cursor-help">
-                  <StatCard
-                    title="Valor Total"
-                    value={formatCurrency(stats.totalValue)}
-                    icon={DollarSign}
-                    variant="success"
-                  />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-3 max-w-xs">
-                <p className="font-bold text-emerald-500 uppercase tracking-widest text-[9px] mb-1">Capital Inmovilizado</p>
-                <p>Valor monetario total del inventario actual, calculado a precio de costo promedio.</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <CardTitle className="font-display">Inventario General</CardTitle>
-              <div className="flex items-center gap-3">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar producto..."
-                    className="pl-9 w-64"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    data-testid="input-search-products"
-                  />
-                </div>
+          <TabsContent value="products" className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="outline" size="icon">
-                      <Filter className="w-4 h-4" />
-                    </Button>
+                    <div className="cursor-help">
+                      <StatCard
+                        title="Items en Inventario"
+                        value={<AliveValue value={stats.totalProducts} unit="" />}
+                        icon={Package}
+                        variant="primary"
+                      />
+                    </div>
                   </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Filtrar productos</p>
+                  <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-3 max-w-xs">
+                    <p className="font-bold text-primary uppercase tracking-widest text-[9px] mb-1">Catálogo Activo</p>
+                    <p>Número total de referencias únicas registradas en el sistema que no han sido archivadas.</p>
                   </TooltipContent>
                 </Tooltip>
 
-                <div className="flex items-center space-x-2 bg-slate-900/50 p-2 rounded-lg border border-slate-800">
-                  <Switch id="decision-mode" checked={decisionMode} onCheckedChange={setDecisionMode} />
-                  <Label htmlFor="decision-mode" className={cn("text-xs font-bold cursor-pointer transition-colors", decisionMode ? "text-purple-400" : "text-slate-500")}>
-                    Modo Decisión (IA)
-                  </Label>
-                </div>
-
-                <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-                  <DialogTrigger asChild>
-                    <CognitiveButton
-                      className="gap-2"
-                      data-testid="button-add-product"
-                      data-tour="add-product-btn"
-                      intent="register_inventory"
-                      onClick={() => {
-                        resetForm();
-                        window.dispatchEvent(new CustomEvent('NEXUS_ONBOARDING_ACTION', { detail: 'modal_opened_inventory' }));
-                      }}
-                    >
-                      <Plus className="w-4 h-4" />
-                      Nuevo Producto
-                    </CognitiveButton>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-2xl bg-slate-950/95 backdrop-blur-xl border-slate-800 shadow-[0_0_50px_rgba(0,0,0,0.5)] border-t-primary/20 overflow-y-auto max-h-[90vh]" data-tour="add-product-modal">
-                    <DialogTitle className="sr-only">Añadir Nuevo Producto</DialogTitle>
-                    <CognitiveProvider>
-                      <DialogHeader className="pb-4 border-b border-white/5">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center border border-primary/30">
-                            <Package className="w-5 h-5 text-primary" />
-                          </div>
-                          <div>
-                            <DialogTitle className="text-xl font-bold tracking-tight uppercase italic">
-                              {isEditing ? (editingGroupId ? "Editar Grupo" : "Editar Producto") : currentLabels.addProductTitle}
-                            </DialogTitle>
-                            <DialogDescription className="text-slate-500 text-xs">
-                              {isEditing ? "Modifique los detalles técnicos del item seleccionado." : currentLabels.description}
-                            </DialogDescription>
-                          </div>
-                        </div>
-                      </DialogHeader>
-
-                      <div className="pt-4 px-1">
-                        <GuardianDiagnostic />
-                        <GuardianSafeStatus />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="cursor-help">
+                      <StatCard
+                        title="Salud de Stock"
+                        value={`${stats.stockHealthScore}%`}
+                        icon={CheckCircle2}
+                        variant={stats.stockHealthScore > 90 ? "success" : stats.stockHealthScore > 70 ? "warning" : "destructive"}
+                      />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-3 max-w-xs">
+                    <p className="font-bold text-emerald-500 uppercase tracking-widest text-[9px] mb-1">Disponibilidad Óptima</p>
+                    <div className="space-y-1 my-2">
+                      <div className="flex justify-between">
+                        <span>Saludable:</span>
+                        <span className="font-bold text-emerald-500">{stats.healthyStock}</span>
                       </div>
+                      <div className="flex justify-between">
+                        <span>Stock Bajo:</span>
+                        <span className="font-bold text-amber-500">{stats.lowStock}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Crítico:</span>
+                        <span className="font-bold text-red-500">{stats.criticalStock}</span>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-slate-400 border-t border-white/5 pt-1 italic">
+                      Calculado como porcentaje de productos con stock suficiente vs total.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
 
-                      <div className="grid grid-cols-2 gap-x-8 gap-y-5 py-6">
-                        {/* Row 1 */}
-                        <div className="space-y-2" data-tour="product-name-field">
-                          <Label htmlFor="name" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">{currentLabels.itemName}</Label>
-                          <CognitiveInput
-                            id="name"
-                            placeholder={currentPlaceholder}
-                            value={newProduct.name}
-                            onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
-                            semanticType="name"
-                            context={newProduct.category}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="sku" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Referencia / SKU</Label>
-                          <CognitiveInput
-                            id="sku"
-                            placeholder="Auto-generado si vacío"
-                            value={newProduct.sku}
-                            onChange={(e) => setNewProduct({ ...newProduct, sku: e.target.value })}
-                            semanticType="sku"
-                          />
-                        </div>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="cursor-help">
+                      <StatCard
+                        title="Stock Bajo"
+                        value={<AliveValue value={stats.lowStock} unit="" allowTrend />}
+                        icon={TrendingDown}
+                        variant="warning"
+                      />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-3 max-w-xs">
+                    <p className="font-bold text-amber-500 uppercase tracking-widest text-[9px] mb-1">Alerta de Reabastecimiento</p>
+                    <p>Productos con existencias por debajo del umbral seguro (100 unidades). Requieren compra próxima.</p>
+                  </TooltipContent>
+                </Tooltip>
 
-                        {/* Row 2 */}
-                        <div className="space-y-2">
-                          <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Categoría</Label>
-                          <div className="flex gap-2">
-                            <Select value={newProduct.categoryId} onValueChange={(v) => setNewProduct({ ...newProduct, categoryId: v })}>
-                              <SelectTrigger className="bg-slate-900/50 border-slate-800 focus:border-primary/50 transition-all flex-1">
-                                <SelectValue placeholder="Seleccionar..." />
-                              </SelectTrigger>
-                              <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                                {categoriesList.map((c: any) => (
-                                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <Popover open={categoryPopoverOpen} onOpenChange={setCategoryPopoverOpen}>
-                              <PopoverTrigger asChild>
-                                <Button variant="outline" size="icon">
-                                  <Plus className="w-4 h-4" />
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-80 bg-slate-950 border-slate-800 p-4" align="start">
-                                <div className="space-y-3">
-                                  <div className="space-y-1">
-                                    <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nueva Categoría</Label>
-                                    <p className="text-[10px] text-slate-500">Crea una nueva categoría para clasificar productos.</p>
-                                  </div>
-                                  <Input
-                                    placeholder="Ej: Materia Prima, Producto Terminado..."
-                                    value={newCategoryName}
-                                    onChange={(e) => setNewCategoryName(e.target.value)}
-                                    className="bg-slate-900/50 border-slate-700 focus:border-primary/50"
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter' && newCategoryName.trim()) {
-                                        createCategoryMutation.mutate(newCategoryName.trim());
-                                      }
-                                    }}
-                                  />
-                                  <div className="flex gap-2 justify-end">
-                                    <Button variant="ghost" size="sm" onClick={() => { setCategoryPopoverOpen(false); setNewCategoryName(""); }}>
-                                      Cancelar
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      onClick={() => newCategoryName.trim() && createCategoryMutation.mutate(newCategoryName.trim())}
-                                      disabled={!newCategoryName.trim() || createCategoryMutation.isPending}
-                                    >
-                                      {createCategoryMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Crear"}
-                                    </Button>
-                                  </div>
-                                </div>
-                              </PopoverContent>
-                            </Popover>
-                            {/* Edit Category Button */}
-                            {newProduct.categoryId && (
-                              <Popover open={editCategoryPopoverOpen} onOpenChange={setEditCategoryPopoverOpen}>
-                                <PopoverTrigger asChild>
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    onClick={() => {
-                                      const cat = categoriesList.find((c: any) => c.id === newProduct.categoryId);
-                                      if (cat) setEditingCategory({ id: cat.id, name: cat.name });
-                                    }}
-                                  >
-                                    <Pencil className="w-4 h-4" />
-                                  </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-80 bg-slate-950 border-slate-800 p-4" align="start">
-                                  <div className="space-y-3">
-                                    <div className="space-y-1">
-                                      <Label className="text-xs font-bold text-amber-400 uppercase tracking-wider">Editar Categoría</Label>
-                                      <p className="text-[10px] text-slate-500">Modifica el nombre de la categoría seleccionada.</p>
-                                    </div>
-                                    <Input
-                                      placeholder="Nuevo nombre..."
-                                      value={editingCategory?.name || ""}
-                                      onChange={(e) => setEditingCategory(prev => prev ? { ...prev, name: e.target.value } : null)}
-                                      className="bg-slate-900/50 border-slate-700 focus:border-amber-500/50"
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter' && editingCategory?.name.trim()) {
-                                          updateCategoryMutation.mutate({ id: editingCategory.id, name: editingCategory.name.trim() });
-                                        }
-                                      }}
-                                    />
-                                    <div className="flex gap-2 justify-end">
-                                      <Button variant="ghost" size="sm" onClick={() => { setEditCategoryPopoverOpen(false); setEditingCategory(null); }}>
-                                        Cancelar
-                                      </Button>
-                                      <Button
-                                        size="sm"
-                                        className="bg-amber-600 hover:bg-amber-700"
-                                        onClick={() => editingCategory?.name.trim() && updateCategoryMutation.mutate({ id: editingCategory.id, name: editingCategory.name.trim() })}
-                                        disabled={!editingCategory?.name.trim() || updateCategoryMutation.isPending}
-                                      >
-                                        {updateCategoryMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Guardar"}
-                                      </Button>
-                                    </div>
-                                  </div>
-                                </PopoverContent>
-                              </Popover>
-                            )}
-                          </div>
-                        </div>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="cursor-help">
+                      <StatCard
+                        title="Stock Crítico"
+                        value={<AliveValue value={stats.criticalStock} unit="" allowTrend />}
+                        icon={AlertTriangle}
+                        variant="destructive"
+                      />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-3 max-w-xs">
+                    <p className="font-bold text-red-500 uppercase tracking-widest text-[9px] mb-1">Riesgo de Quiebre</p>
+                    <p>Productos agotados o casi agotados (0 unidades). Afectan inmediatamente la capacidad de producción.</p>
+                  </TooltipContent>
+                </Tooltip>
 
-                        {/* Row 2 */}
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Familia del Producto</Label>
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Info className="w-3 h-3 text-slate-500 cursor-help" />
-                                </TooltipTrigger>
-                                <TooltipContent className="max-w-xs bg-slate-900 border-slate-700 text-white">
-                                  <p className="font-bold text-xs mb-1">¿Para qué sirve la Familia?</p>
-                                  <p className="text-xs">
-                                    Agrupa productos similares para <strong>reportes financieros</strong>.
-                                    <br /><br />
-                                    Ejemplo: "Familia Cocos" agrupa "Coco Unidad", "Bulto de Coco" y "Coco Pelado" para saber cuánto gastaste en total en cocos, sin importar su presentación.
-                                  </p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </div>
-                          <div className="flex gap-2">
-                            <Select value={newProduct.groupId || 'none'} onValueChange={(v) => setNewProduct({ ...newProduct, groupId: v === 'none' ? '' : v })}>
-                              <SelectTrigger className="bg-slate-900/50 border-slate-800 focus:border-primary/50 transition-all flex-1">
-                                <SelectValue placeholder="Sin familia asignada" />
-                              </SelectTrigger>
-                              <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                                <SelectItem value="none">-- Sin familia --</SelectItem>
-                                {groupsList.map((g: any) => (
-                                  <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <Popover open={groupPopoverOpen} onOpenChange={setGroupPopoverOpen}>
-                              <PopoverTrigger asChild>
-                                <Button variant="outline" size="icon">
-                                  <Plus className="w-4 h-4" />
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-80 bg-slate-950 border-slate-800 p-4" align="start">
-                                <div className="space-y-3">
-                                  <div className="space-y-1">
-                                    <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nueva Familia</Label>
-                                    <p className="text-[10px] text-slate-500">Agrupa productos similares para reportes financieros consolidados.</p>
-                                  </div>
-                                  <Input
-                                    placeholder="Ej: Familia Cocos, Familia Lácteos..."
-                                    value={newGroupName}
-                                    onChange={(e) => setNewGroupName(e.target.value)}
-                                    className="bg-slate-900/50 border-slate-700 focus:border-primary/50"
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter' && newGroupName.trim()) {
-                                        createGroupMutation.mutate({ name: newGroupName.trim(), description: "" });
-                                      }
-                                    }}
-                                  />
-                                  <div className="flex gap-2 justify-end">
-                                    <Button variant="ghost" size="sm" onClick={() => { setGroupPopoverOpen(false); setNewGroupName(""); }}>
-                                      Cancelar
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      onClick={() => newGroupName.trim() && createGroupMutation.mutate({ name: newGroupName.trim(), description: "" })}
-                                      disabled={!newGroupName.trim() || createGroupMutation.isPending}
-                                    >
-                                      {createGroupMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Crear"}
-                                    </Button>
-                                  </div>
-                                </div>
-                              </PopoverContent>
-                            </Popover>
-                            {/* Edit Group Button - Show when a group is selected */}
-                            {newProduct.groupId && newProduct.groupId !== 'none' && (
-                              <Popover open={editGroupPopoverOpen} onOpenChange={setEditGroupPopoverOpen}>
-                                <PopoverTrigger asChild>
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    onClick={() => {
-                                      const grp = groupsList.find((g: any) => g.id === newProduct.groupId);
-                                      if (grp) setEditingGroup({ id: grp.id, name: grp.name });
-                                    }}
-                                  >
-                                    <Pencil className="w-4 h-4" />
-                                  </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-80 bg-slate-950 border-slate-800 p-4" align="start">
-                                  <div className="space-y-3">
-                                    <div className="space-y-1">
-                                      <Label className="text-xs font-bold text-amber-400 uppercase tracking-wider">Editar Familia</Label>
-                                      <p className="text-[10px] text-slate-500">Modifica el nombre de la familia seleccionada.</p>
-                                    </div>
-                                    <Input
-                                      placeholder="Nuevo nombre..."
-                                      value={editingGroup?.name || ""}
-                                      onChange={(e) => setEditingGroup(prev => prev ? { ...prev, name: e.target.value } : null)}
-                                      className="bg-slate-900/50 border-slate-700 focus:border-amber-500/50"
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter' && editingGroup?.name.trim()) {
-                                          updateGroupMutation.mutate({ id: editingGroup.id, name: editingGroup.name.trim() });
-                                          setEditGroupPopoverOpen(false);
-                                          setEditingGroup(null);
-                                        }
-                                      }}
-                                    />
-                                    <div className="flex gap-2 justify-end">
-                                      <Button variant="ghost" size="sm" onClick={() => { setEditGroupPopoverOpen(false); setEditingGroup(null); }}>
-                                        Cancelar
-                                      </Button>
-                                      <Button
-                                        size="sm"
-                                        className="bg-amber-600 hover:bg-amber-700"
-                                        onClick={() => {
-                                          if (editingGroup?.name.trim()) {
-                                            updateGroupMutation.mutate({ id: editingGroup.id, name: editingGroup.name.trim() });
-                                            setEditGroupPopoverOpen(false);
-                                            setEditingGroup(null);
-                                          }
-                                        }}
-                                        disabled={!editingGroup?.name.trim() || updateGroupMutation.isPending}
-                                      >
-                                        {updateGroupMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Guardar"}
-                                      </Button>
-                                    </div>
-                                  </div>
-                                </PopoverContent>
-                              </Popover>
-                            )}
-                          </div>
-                        </div>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="cursor-help">
+                      <StatCard
+                        title="Valor Total"
+                        value={formatCurrency(stats.totalValue)}
+                        icon={DollarSign}
+                        variant="success"
+                      />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-3 max-w-xs">
+                    <p className="font-bold text-emerald-500 uppercase tracking-widest text-[9px] mb-1">Capital Inmovilizado</p>
+                    <p>Valor monetario total del inventario actual, calculado a precio de costo promedio.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
 
-                        <div className="col-span-2 space-y-3 bg-slate-900/30 p-4 rounded-lg border border-slate-800/50">
-                          <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Lógica de Operación</Label>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="flex items-center space-x-2">
-                              <Checkbox id="sell" checked={newProduct.isSellable} onCheckedChange={(c) => setNewProduct({ ...newProduct, isSellable: c as boolean })} />
-                              <label htmlFor="sell" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-slate-300">Se Vende</label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <Checkbox id="buy" checked={newProduct.isPurchasable} onCheckedChange={(c) => setNewProduct({ ...newProduct, isPurchasable: c as boolean })} />
-                              <label htmlFor="buy" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-slate-300">Se Compra</label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <Checkbox id="input" checked={newProduct.isProductionInput} onCheckedChange={(c) => setNewProduct({ ...newProduct, isProductionInput: c as boolean })} />
-                              <label htmlFor="input" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-slate-300">Insumo Prod.</label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <Checkbox id="output" checked={newProduct.isProductionOutput} onCheckedChange={(c) => setNewProduct({ ...newProduct, isProductionOutput: c as boolean })} />
-                              <label htmlFor="output" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-slate-300">Producto Final</label>
-                            </div>
-                          </div>
-                        </div>
+            <Card>
+              <CardHeader>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <CardTitle className="font-display">Inventario General</CardTitle>
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar producto..."
+                        className="pl-9 w-64"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        data-testid="input-search-products"
+                      />
+                    </div>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="outline" size="icon">
+                          <Filter className="w-4 h-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Filtrar productos</p>
+                      </TooltipContent>
+                    </Tooltip>
 
+                    <div className="flex items-center space-x-2 bg-slate-900/50 p-2 rounded-lg border border-slate-800">
+                      <Switch id="decision-mode" checked={decisionMode} onCheckedChange={setDecisionMode} />
+                      <Label htmlFor="decision-mode" className={cn("text-xs font-bold cursor-pointer transition-colors", decisionMode ? "text-purple-400" : "text-slate-500")}>
+                        Modo Decisión (IA)
+                      </Label>
+                    </div>
 
-
-
-                        {/* Financials */}
-                        {newProduct.isSellable && (
-                          <div className="space-y-2">
-                            <Label htmlFor="price" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Precio Venta</Label>
-                            <div className="relative">
-                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs">$</span>
-                              <Input id="price" type="number" step="0.01" value={newProduct.price} onChange={(e) => setNewProduct({ ...newProduct, price: parseFloat(e.target.value) || 0 })} className="pl-7 bg-slate-900/50 border-slate-800 focus:border-primary/50 transition-all" />
-                            </div>
-                          </div>
-                        )}
-
-                        {newProduct.isPurchasable && (
-                          <div className="space-y-4 border-l-2 border-slate-800 pl-4">
-                            <div className="space-y-2" data-tour="product-cost-field">
-                              <Label htmlFor="cost" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Costo Unitario</Label>
-                              <div className="relative">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs">$</span>
-                                <Input id="cost" type="number" step="0.01" value={newProduct.cost} onChange={(e) => setNewProduct({ ...newProduct, cost: parseFloat(e.target.value) || 0 })} className="pl-7 bg-slate-900/50 border-slate-800 focus:border-primary/50 transition-all" />
+                    <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                      <DialogTrigger asChild>
+                        <CognitiveButton
+                          className="gap-2"
+                          data-testid="button-add-product"
+                          data-tour="add-product-btn"
+                          intent="register_inventory"
+                          onClick={() => {
+                            resetForm();
+                            window.dispatchEvent(new CustomEvent('NEXUS_ONBOARDING_ACTION', { detail: 'modal_opened_inventory' }));
+                          }}
+                        >
+                          <Plus className="w-4 h-4" />
+                          Nuevo Producto
+                        </CognitiveButton>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-2xl bg-slate-950/95 backdrop-blur-xl border-slate-800 shadow-[0_0_50px_rgba(0,0,0,0.5)] border-t-primary/20 overflow-y-auto max-h-[90vh]" data-tour="add-product-modal">
+                        <DialogTitle className="sr-only">Añadir Nuevo Producto</DialogTitle>
+                        <CognitiveProvider>
+                          <DialogHeader className="pb-4 border-b border-white/5">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center border border-primary/30">
+                                <Package className="w-5 h-5 text-primary" />
+                              </div>
+                              <div>
+                                <DialogTitle className="text-xl font-bold tracking-tight uppercase italic">
+                                  {isEditing ? (editingGroupId ? "Editar Grupo" : "Editar Producto") : currentLabels.addProductTitle}
+                                </DialogTitle>
+                                <DialogDescription className="text-slate-500 text-xs">
+                                  {isEditing ? "Modifique los detalles técnicos del item seleccionado." : currentLabels.description}
+                                </DialogDescription>
                               </div>
                             </div>
+                          </DialogHeader>
 
-                            {/* Purchase Control - Admin Only */}
-                            {isAdmin && (
-                              <div className="bg-slate-900/40 p-3 rounded-lg border border-indigo-500/20">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <Label className="text-[10px] font-bold uppercase tracking-widest text-indigo-400">Control de Compras</Label>
-                                  <Badge variant="outline" className="text-[9px] h-4 border-indigo-500/30 text-indigo-400">Admin</Badge>
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                  <div className="space-y-1">
-                                    <Label htmlFor="minPrice" className="text-[9px] text-slate-500">Mínimo</Label>
-                                    <div className="relative">
-                                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500 text-[10px]">$</span>
-                                      <Input id="minPrice" type="number" step="0.01" value={newProduct.minPurchasePrice} onChange={(e) => setNewProduct({ ...newProduct, minPurchasePrice: parseFloat(e.target.value) || 0 })} className="pl-5 h-8 text-xs bg-slate-950 border-slate-800" />
-                                    </div>
-                                  </div>
-                                  <div className="space-y-1">
-                                    <Label htmlFor="maxPrice" className="text-[9px] text-slate-500">Máximo</Label>
-                                    <div className="relative">
-                                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500 text-[10px]">$</span>
-                                      <Input id="maxPrice" type="number" step="0.01" value={newProduct.maxPurchasePrice} onChange={(e) => setNewProduct({ ...newProduct, maxPurchasePrice: parseFloat(e.target.value) || 0 })} className="pl-5 h-8 text-xs bg-slate-950 border-slate-800" />
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
+                          <div className="pt-4 px-1">
+                            <GuardianDiagnostic />
+                            <GuardianSafeStatus />
                           </div>
-                        )}
 
-                        {/* Logistics */}
-                        <div className="space-y-2">
-                          <Label htmlFor="unit" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">{currentLabels.unitLabel}</Label>
-                          <div className="flex gap-2">
-                            <Select
-                              value={newProduct.unitId}
-                              onValueChange={(v) => setNewProduct({ ...newProduct, unitId: v })}
-                            >
-                              <SelectTrigger className="bg-slate-900/50 border-slate-800 focus:border-primary/50 transition-all flex-1">
-                                <SelectValue placeholder="Unidad..." />
-                              </SelectTrigger>
-                              <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                                {unitsList.map((u: any) => (
-                                  <SelectItem key={u.id} value={u.id}>{u.name} ({u.abbreviation})</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <Popover open={unitPopoverOpen} onOpenChange={setUnitPopoverOpen}>
-                              <PopoverTrigger asChild>
-                                <Button variant="outline" size="icon">
-                                  <Plus className="w-4 h-4" />
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-80 bg-slate-950 border-slate-800 p-4" align="start">
-                                <div className="space-y-3">
-                                  <div className="space-y-1">
-                                    <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nueva Unidad de Medida</Label>
-                                    <p className="text-[10px] text-slate-500">Define cómo se mide este tipo de producto.</p>
-                                  </div>
-                                  <div className="grid grid-cols-2 gap-2">
-                                    <div className="space-y-1">
-                                      <Label className="text-[9px] text-slate-500">Nombre</Label>
-                                      <Input
-                                        placeholder="Ej: Bulto 50kg"
-                                        value={newUnitName}
-                                        onChange={(e) => setNewUnitName(e.target.value)}
-                                        className="bg-slate-900/50 border-slate-700 focus:border-primary/50 text-sm"
-                                      />
-                                    </div>
-                                    <div className="space-y-1">
-                                      <Label className="text-[9px] text-slate-500">Abreviatura</Label>
-                                      <Input
-                                        placeholder="Ej: b50"
-                                        value={newUnitAbbreviation}
-                                        onChange={(e) => setNewUnitAbbreviation(e.target.value)}
-                                        className="bg-slate-900/50 border-slate-700 focus:border-primary/50 text-sm"
-                                        onKeyDown={(e) => {
-                                          if (e.key === 'Enter' && newUnitName.trim() && newUnitAbbreviation.trim()) {
-                                            createUnitMutation.mutate({ name: newUnitName.trim(), abbreviation: newUnitAbbreviation.trim() });
-                                          }
-                                        }}
-                                      />
-                                    </div>
-                                  </div>
-                                  <div className="flex gap-2 justify-end">
-                                    <Button variant="ghost" size="sm" onClick={() => { setUnitPopoverOpen(false); setNewUnitName(""); setNewUnitAbbreviation(""); }}>
-                                      Cancelar
+                          <div className="grid grid-cols-2 gap-x-8 gap-y-5 py-6">
+                            {/* Row 1 */}
+                            <div className="space-y-2" data-tour="product-name-field">
+                              <Label htmlFor="name" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">{currentLabels.itemName}</Label>
+                              <CognitiveInput
+                                id="name"
+                                placeholder={currentPlaceholder}
+                                value={newProduct.name}
+                                onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
+                                semanticType="name"
+                                context={newProduct.category}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="sku" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Referencia / SKU</Label>
+                              <CognitiveInput
+                                id="sku"
+                                placeholder="Auto-generado si vacío"
+                                value={newProduct.sku}
+                                onChange={(e) => setNewProduct({ ...newProduct, sku: e.target.value })}
+                                semanticType="sku"
+                              />
+                            </div>
+
+                            {/* Row 2 */}
+                            <div className="space-y-2">
+                              <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Categoría</Label>
+                              <div className="flex gap-2">
+                                <Select value={newProduct.categoryId} onValueChange={(v) => setNewProduct({ ...newProduct, categoryId: v })}>
+                                  <SelectTrigger className="bg-slate-900/50 border-slate-800 focus:border-primary/50 transition-all flex-1">
+                                    <SelectValue placeholder="Seleccionar..." />
+                                  </SelectTrigger>
+                                  <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                                    {categoriesList.map((c: any) => (
+                                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <Popover open={categoryPopoverOpen} onOpenChange={setCategoryPopoverOpen}>
+                                  <PopoverTrigger asChild>
+                                    <Button variant="outline" size="icon">
+                                      <Plus className="w-4 h-4" />
                                     </Button>
-                                    <Button
-                                      size="sm"
-                                      onClick={() => newUnitName.trim() && newUnitAbbreviation.trim() && createUnitMutation.mutate({ name: newUnitName.trim(), abbreviation: newUnitAbbreviation.trim() })}
-                                      disabled={!newUnitName.trim() || !newUnitAbbreviation.trim() || createUnitMutation.isPending}
-                                    >
-                                      {createUnitMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Crear"}
-                                    </Button>
-                                  </div>
-                                </div>
-                              </PopoverContent>
-                            </Popover>
-                            {/* Edit Unit Button */}
-                            {newProduct.unitId && (
-                              <Popover open={editUnitPopoverOpen} onOpenChange={setEditUnitPopoverOpen}>
-                                <PopoverTrigger asChild>
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    onClick={() => {
-                                      const unit = unitsList.find((u: any) => u.id === newProduct.unitId);
-                                      if (unit) setEditingUnit({ id: unit.id, name: unit.name, abbreviation: unit.abbreviation || "" });
-                                    }}
-                                  >
-                                    <Pencil className="w-4 h-4" />
-                                  </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-80 bg-slate-950 border-slate-800 p-4" align="start">
-                                  <div className="space-y-3">
-                                    <div className="space-y-1">
-                                      <Label className="text-xs font-bold text-amber-400 uppercase tracking-wider">Editar Unidad</Label>
-                                      <p className="text-[10px] text-slate-500">Modifica el nombre y abreviatura de la unidad.</p>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-2">
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-80 bg-slate-950 border-slate-800 p-4" align="start">
+                                    <div className="space-y-3">
                                       <div className="space-y-1">
-                                        <Label className="text-[9px] text-slate-500">Nombre</Label>
-                                        <Input
-                                          placeholder="Ej: Bulto 50kg"
-                                          value={editingUnit?.name || ""}
-                                          onChange={(e) => setEditingUnit(prev => prev ? { ...prev, name: e.target.value } : null)}
-                                          className="bg-slate-900/50 border-slate-700 focus:border-amber-500/50 text-sm"
-                                        />
+                                        <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nueva Categoría</Label>
+                                        <p className="text-[10px] text-slate-500">Crea una nueva categoría para clasificar productos.</p>
                                       </div>
-                                      <div className="space-y-1">
-                                        <Label className="text-[9px] text-slate-500">Abreviatura</Label>
+                                      <Input
+                                        placeholder="Ej: Materia Prima, Producto Terminado..."
+                                        value={newCategoryName}
+                                        onChange={(e) => setNewCategoryName(e.target.value)}
+                                        className="bg-slate-900/50 border-slate-700 focus:border-primary/50"
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter' && newCategoryName.trim()) {
+                                            createCategoryMutation.mutate(newCategoryName.trim());
+                                          }
+                                        }}
+                                      />
+                                      <div className="flex gap-2 justify-end">
+                                        <Button variant="ghost" size="sm" onClick={() => { setCategoryPopoverOpen(false); setNewCategoryName(""); }}>
+                                          Cancelar
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          onClick={() => newCategoryName.trim() && createCategoryMutation.mutate(newCategoryName.trim())}
+                                          disabled={!newCategoryName.trim() || createCategoryMutation.isPending}
+                                        >
+                                          {createCategoryMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Crear"}
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  </PopoverContent>
+                                </Popover>
+                                {/* Edit Category Button */}
+                                {newProduct.categoryId && (
+                                  <Popover open={editCategoryPopoverOpen} onOpenChange={setEditCategoryPopoverOpen}>
+                                    <PopoverTrigger asChild>
+                                      <Button
+                                        variant="outline"
+                                        size="icon"
+                                        onClick={() => {
+                                          const cat = categoriesList.find((c: any) => c.id === newProduct.categoryId);
+                                          if (cat) setEditingCategory({ id: cat.id, name: cat.name });
+                                        }}
+                                      >
+                                        <Pencil className="w-4 h-4" />
+                                      </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-80 bg-slate-950 border-slate-800 p-4" align="start">
+                                      <div className="space-y-3">
+                                        <div className="space-y-1">
+                                          <Label className="text-xs font-bold text-amber-400 uppercase tracking-wider">Editar Categoría</Label>
+                                          <p className="text-[10px] text-slate-500">Modifica el nombre de la categoría seleccionada.</p>
+                                        </div>
                                         <Input
-                                          placeholder="Ej: b50"
-                                          value={editingUnit?.abbreviation || ""}
-                                          onChange={(e) => setEditingUnit(prev => prev ? { ...prev, abbreviation: e.target.value } : null)}
-                                          className="bg-slate-900/50 border-slate-700 focus:border-amber-500/50 text-sm"
+                                          placeholder="Nuevo nombre..."
+                                          value={editingCategory?.name || ""}
+                                          onChange={(e) => setEditingCategory(prev => prev ? { ...prev, name: e.target.value } : null)}
+                                          className="bg-slate-900/50 border-slate-700 focus:border-amber-500/50"
                                           onKeyDown={(e) => {
-                                            if (e.key === 'Enter' && editingUnit?.name.trim() && editingUnit?.abbreviation.trim()) {
-                                              updateUnitMutation.mutate({ id: editingUnit.id, name: editingUnit.name.trim(), abbreviation: editingUnit.abbreviation.trim() });
+                                            if (e.key === 'Enter' && editingCategory?.name.trim()) {
+                                              updateCategoryMutation.mutate({ id: editingCategory.id, name: editingCategory.name.trim() });
                                             }
                                           }}
                                         />
+                                        <div className="flex gap-2 justify-end">
+                                          <Button variant="ghost" size="sm" onClick={() => { setEditCategoryPopoverOpen(false); setEditingCategory(null); }}>
+                                            Cancelar
+                                          </Button>
+                                          <Button
+                                            size="sm"
+                                            className="bg-amber-600 hover:bg-amber-700"
+                                            onClick={() => editingCategory?.name.trim() && updateCategoryMutation.mutate({ id: editingCategory.id, name: editingCategory.name.trim() })}
+                                            disabled={!editingCategory?.name.trim() || updateCategoryMutation.isPending}
+                                          >
+                                            {updateCategoryMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Guardar"}
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    </PopoverContent>
+                                  </Popover>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Row 2 */}
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Familia del Producto</Label>
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Info className="w-3 h-3 text-slate-500 cursor-help" />
+                                    </TooltipTrigger>
+                                    <TooltipContent className="max-w-xs bg-slate-900 border-slate-700 text-white">
+                                      <p className="font-bold text-xs mb-1">¿Para qué sirve la Familia?</p>
+                                      <p className="text-xs">
+                                        Agrupa productos similares para <strong>reportes financieros</strong>.
+                                        <br /><br />
+                                        Ejemplo: "Familia Cocos" agrupa "Coco Unidad", "Bulto de Coco" y "Coco Pelado" para saber cuánto gastaste en total en cocos, sin importar su presentación.
+                                      </p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              </div>
+                              <div className="flex gap-2">
+                                <Select value={newProduct.groupId || 'none'} onValueChange={(v) => setNewProduct({ ...newProduct, groupId: v === 'none' ? '' : v })}>
+                                  <SelectTrigger className="bg-slate-900/50 border-slate-800 focus:border-primary/50 transition-all flex-1">
+                                    <SelectValue placeholder="Sin familia asignada" />
+                                  </SelectTrigger>
+                                  <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                                    <SelectItem value="none">-- Sin familia --</SelectItem>
+                                    {groupsList.map((g: any) => (
+                                      <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <Popover open={groupPopoverOpen} onOpenChange={setGroupPopoverOpen}>
+                                  <PopoverTrigger asChild>
+                                    <Button variant="outline" size="icon">
+                                      <Plus className="w-4 h-4" />
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-80 bg-slate-950 border-slate-800 p-4" align="start">
+                                    <div className="space-y-3">
+                                      <div className="space-y-1">
+                                        <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nueva Familia</Label>
+                                        <p className="text-[10px] text-slate-500">Agrupa productos similares para reportes financieros consolidados.</p>
+                                      </div>
+                                      <Input
+                                        placeholder="Ej: Familia Cocos, Familia Lácteos..."
+                                        value={newGroupName}
+                                        onChange={(e) => setNewGroupName(e.target.value)}
+                                        className="bg-slate-900/50 border-slate-700 focus:border-primary/50"
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter' && newGroupName.trim()) {
+                                            createGroupMutation.mutate({ name: newGroupName.trim(), description: "" });
+                                          }
+                                        }}
+                                      />
+                                      <div className="flex gap-2 justify-end">
+                                        <Button variant="ghost" size="sm" onClick={() => { setGroupPopoverOpen(false); setNewGroupName(""); }}>
+                                          Cancelar
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          onClick={() => newGroupName.trim() && createGroupMutation.mutate({ name: newGroupName.trim(), description: "" })}
+                                          disabled={!newGroupName.trim() || createGroupMutation.isPending}
+                                        >
+                                          {createGroupMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Crear"}
+                                        </Button>
                                       </div>
                                     </div>
-                                    <div className="flex gap-2 justify-end">
-                                      <Button variant="ghost" size="sm" onClick={() => { setEditUnitPopoverOpen(false); setEditingUnit(null); }}>
-                                        Cancelar
-                                      </Button>
+                                  </PopoverContent>
+                                </Popover>
+                                {/* Edit Group Button - Show when a group is selected */}
+                                {newProduct.groupId && newProduct.groupId !== 'none' && (
+                                  <Popover open={editGroupPopoverOpen} onOpenChange={setEditGroupPopoverOpen}>
+                                    <PopoverTrigger asChild>
                                       <Button
-                                        size="sm"
-                                        className="bg-amber-600 hover:bg-amber-700"
-                                        onClick={() => editingUnit?.name.trim() && editingUnit?.abbreviation.trim() && updateUnitMutation.mutate({ id: editingUnit.id, name: editingUnit.name.trim(), abbreviation: editingUnit.abbreviation.trim() })}
-                                        disabled={!editingUnit?.name.trim() || !editingUnit?.abbreviation.trim() || updateUnitMutation.isPending}
+                                        variant="outline"
+                                        size="icon"
+                                        onClick={() => {
+                                          const grp = groupsList.find((g: any) => g.id === newProduct.groupId);
+                                          if (grp) setEditingGroup({ id: grp.id, name: grp.name });
+                                        }}
                                       >
-                                        {updateUnitMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Guardar"}
+                                        <Pencil className="w-4 h-4" />
                                       </Button>
-                                    </div>
-                                  </div>
-                                </PopoverContent>
-                              </Popover>
-                            )}
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="stock" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">{currentLabels.stockLabel}</Label>
-                          <Input id="stock" type="number" value={newProduct.stock} onChange={(e) => setNewProduct({ ...newProduct, stock: parseInt(e.target.value) || 0 })} className="bg-slate-900/50 border-slate-800 focus:border-primary/50 transition-all" />
-                        </div>
-
-                        {/* Master/Variant Yield Config */}
-                        <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-4 space-y-4">
-                          <div className="flex items-center gap-2 border-b border-blue-500/20 pb-2 mb-2">
-                            <Settings2 className="w-4 h-4 text-blue-400" />
-                            <Label className="text-xs font-bold uppercase text-blue-400">Equivalencia y Rendimiento</Label>
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Info className="w-3 h-3 text-blue-400 cursor-help" />
-                                </TooltipTrigger>
-                                <TooltipContent className="max-w-sm bg-slate-900 border-slate-700 text-white">
-                                  <p className="font-bold text-xs mb-1 text-blue-400">Control de Inventario Unificado</p>
-                                  <p className="text-xs">
-                                    Esta sección conecta productos que son lo mismo pero en diferentes presentaciones.
-                                    <br /><br />
-                                    <strong>Ejemplo Clave:</strong>
-                                    <br />
-                                    Si compras por "Camión" o "Bulto", pero vendes o procesas por "Pieza":
-                                    <ul className="list-disc pl-4 mt-1 space-y-1">
-                                      <li>Crea "Coco (Pieza)" como producto base.</li>
-                                      <li>Crea "Bulto de Coco" y selecciona a "Coco (Pieza)" como Maestro.</li>
-                                      <li>Define que 1 Bulto = 50 Piezas.</li>
-                                    </ul>
-                                    <br />
-                                    Al comprar 1 Bulto, el sistema sumará automáticamente 50 Piezas a tu inventario.
-                                  </p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Producto Maestro (Base)</Label>
-                              <Select value={newProduct.masterProductId} onValueChange={(v) => setNewProduct({ ...newProduct, masterProductId: v === "none" ? "" : v })}>
-                                <SelectTrigger className="bg-slate-900/50 border-slate-800 focus:border-blue-500/50 transition-all">
-                                  <SelectValue placeholder="Seleccionar Base..." />
-                                </SelectTrigger>
-                                <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                                  <SelectItem value="none">-- Es Producto Maestro --</SelectItem>
-                                  {products.filter((p: any) => !p.masterProductId && p.id !== selectedProduct?.id).map((p: any) => (
-                                    <SelectItem key={p.id} value={p.id}>{p.name} ({p.unit})</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <p className="text-[9px] text-slate-500 italic">Si este item es una presentación alternativa (ej. Bulto), selecciona su unidad base.</p>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-80 bg-slate-950 border-slate-800 p-4" align="start">
+                                      <div className="space-y-3">
+                                        <div className="space-y-1">
+                                          <Label className="text-xs font-bold text-amber-400 uppercase tracking-wider">Editar Familia</Label>
+                                          <p className="text-[10px] text-slate-500">Modifica el nombre de la familia seleccionada.</p>
+                                        </div>
+                                        <Input
+                                          placeholder="Nuevo nombre..."
+                                          value={editingGroup?.name || ""}
+                                          onChange={(e) => setEditingGroup(prev => prev ? { ...prev, name: e.target.value } : null)}
+                                          className="bg-slate-900/50 border-slate-700 focus:border-amber-500/50"
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && editingGroup?.name.trim()) {
+                                              updateGroupMutation.mutate({ id: editingGroup.id, name: editingGroup.name.trim() });
+                                              setEditGroupPopoverOpen(false);
+                                              setEditingGroup(null);
+                                            }
+                                          }}
+                                        />
+                                        <div className="flex gap-2 justify-end">
+                                          <Button variant="ghost" size="sm" onClick={() => { setEditGroupPopoverOpen(false); setEditingGroup(null); }}>
+                                            Cancelar
+                                          </Button>
+                                          <Button
+                                            size="sm"
+                                            className="bg-amber-600 hover:bg-amber-700"
+                                            onClick={() => {
+                                              if (editingGroup?.name.trim()) {
+                                                updateGroupMutation.mutate({ id: editingGroup.id, name: editingGroup.name.trim() });
+                                                setEditGroupPopoverOpen(false);
+                                                setEditingGroup(null);
+                                              }
+                                            }}
+                                            disabled={!editingGroup?.name.trim() || updateGroupMutation.isPending}
+                                          >
+                                            {updateGroupMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Guardar"}
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    </PopoverContent>
+                                  </Popover>
+                                )}
+                              </div>
                             </div>
 
-                            {newProduct.masterProductId && (
-                              <div className="space-y-2">
-                                <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Factor de Conversión</Label>
-                                <div className="relative">
-                                  <Input
-                                    type="number"
-                                    placeholder="Ej. 100"
-                                    value={newProduct.expectedYield}
-                                    onChange={(e) => setNewProduct({ ...newProduct, expectedYield: parseFloat(e.target.value) || 0 })}
-                                    className="bg-slate-900/50 border-slate-800 focus:border-blue-500/50 transition-all font-mono text-blue-400 font-bold pr-12"
-                                  />
-                                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-blue-500/60 uppercase">
-                                    {products.find(p => p.id === newProduct.masterProductId)?.unit || 'u'}
-                                  </span>
+                            <div className="col-span-2 space-y-3 bg-slate-900/30 p-4 rounded-lg border border-slate-800/50">
+                              <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Lógica de Operación</Label>
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="flex items-center space-x-2">
+                                  <Checkbox id="sell" checked={newProduct.isSellable} onCheckedChange={(c) => setNewProduct({ ...newProduct, isSellable: c as boolean })} />
+                                  <label htmlFor="sell" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-slate-300">Se Vende</label>
                                 </div>
-                                <p className="text-[9px] text-slate-500">¿Cuántas unidades base contiene esta presentación?</p>
+                                <div className="flex items-center space-x-2">
+                                  <Checkbox id="buy" checked={newProduct.isPurchasable} onCheckedChange={(c) => setNewProduct({ ...newProduct, isPurchasable: c as boolean })} />
+                                  <label htmlFor="buy" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-slate-300">Se Compra</label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <Checkbox id="input" checked={newProduct.isProductionInput} onCheckedChange={(c) => setNewProduct({ ...newProduct, isProductionInput: c as boolean })} />
+                                  <label htmlFor="input" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-slate-300">Insumo Prod.</label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <Checkbox id="output" checked={newProduct.isProductionOutput} onCheckedChange={(c) => setNewProduct({ ...newProduct, isProductionOutput: c as boolean })} />
+                                  <label htmlFor="output" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-slate-300">Producto Final</label>
+                                </div>
+                              </div>
+                            </div>
+
+
+
+
+                            {/* Financials */}
+                            {newProduct.isSellable && (
+                              <div className="space-y-2">
+                                <Label htmlFor="price" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Precio Venta</Label>
+                                <div className="relative">
+                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs">$</span>
+                                  <Input id="price" type="number" step="0.01" value={newProduct.price} onChange={(e) => setNewProduct({ ...newProduct, price: parseFloat(e.target.value) || 0 })} className="pl-7 bg-slate-900/50 border-slate-800 focus:border-primary/50 transition-all" />
+                                </div>
                               </div>
                             )}
-                          </div>
-                        </div>
 
-                        {/* AI / Expected Behavior Config */}
-                        <div className="rounded-xl border border-purple-500/20 bg-purple-500/5 p-4 space-y-4">
-                          <div className="flex items-center gap-2 border-b border-purple-500/20 pb-2 mb-2">
-                            <BrainCircuit className="w-4 h-4 text-purple-400" />
-                            <Label className="text-xs font-bold uppercase text-purple-400">Comportamiento Esperado (IA)</Label>
-                          </div>
+                            {newProduct.isPurchasable && (
+                              <div className="space-y-4 border-l-2 border-slate-800 pl-4">
+                                <div className="space-y-2" data-tour="product-cost-field">
+                                  <Label htmlFor="cost" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Costo Unitario</Label>
+                                  <div className="relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs">$</span>
+                                    <Input id="cost" type="number" step="0.01" value={newProduct.cost} onChange={(e) => setNewProduct({ ...newProduct, cost: parseFloat(e.target.value) || 0 })} className="pl-7 bg-slate-900/50 border-slate-800 focus:border-primary/50 transition-all" />
+                                  </div>
+                                </div>
 
-                          <div className="grid grid-cols-3 gap-4">
+                                {/* Purchase Control - Admin Only */}
+                                {isAdmin && (
+                                  <div className="bg-slate-900/40 p-3 rounded-lg border border-indigo-500/20">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <Label className="text-[10px] font-bold uppercase tracking-widest text-indigo-400">Control de Compras</Label>
+                                      <Badge variant="outline" className="text-[9px] h-4 border-indigo-500/30 text-indigo-400">Admin</Badge>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                      <div className="space-y-1">
+                                        <Label htmlFor="minPrice" className="text-[9px] text-slate-500">Mínimo</Label>
+                                        <div className="relative">
+                                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500 text-[10px]">$</span>
+                                          <Input id="minPrice" type="number" step="0.01" value={newProduct.minPurchasePrice} onChange={(e) => setNewProduct({ ...newProduct, minPurchasePrice: parseFloat(e.target.value) || 0 })} className="pl-5 h-8 text-xs bg-slate-950 border-slate-800" />
+                                        </div>
+                                      </div>
+                                      <div className="space-y-1">
+                                        <Label htmlFor="maxPrice" className="text-[9px] text-slate-500">Máximo</Label>
+                                        <div className="relative">
+                                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500 text-[10px]">$</span>
+                                          <Input id="maxPrice" type="number" step="0.01" value={newProduct.maxPurchasePrice} onChange={(e) => setNewProduct({ ...newProduct, maxPurchasePrice: parseFloat(e.target.value) || 0 })} className="pl-5 h-8 text-xs bg-slate-950 border-slate-800" />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Logistics */}
                             <div className="space-y-2">
-                              <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Variabilidad Demanda</Label>
-                              <Select value={newProduct.demandVariability} onValueChange={(v) => setNewProduct({ ...newProduct, demandVariability: v })}>
-                                <SelectTrigger className="bg-slate-900/50 border-slate-800 focus:border-purple-500/50">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                                  <SelectItem value="stable">Estable</SelectItem>
-                                  <SelectItem value="variable">Variable</SelectItem>
-                                  <SelectItem value="seasonal">Estacional</SelectItem>
-                                </SelectContent>
-                              </Select>
+                              <Label htmlFor="unit" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">{currentLabels.unitLabel}</Label>
+                              <div className="flex gap-2">
+                                <Select
+                                  value={newProduct.unitId}
+                                  onValueChange={(v) => setNewProduct({ ...newProduct, unitId: v })}
+                                >
+                                  <SelectTrigger className="bg-slate-900/50 border-slate-800 focus:border-primary/50 transition-all flex-1">
+                                    <SelectValue placeholder="Unidad..." />
+                                  </SelectTrigger>
+                                  <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                                    {unitsList.map((u: any) => (
+                                      <SelectItem key={u.id} value={u.id}>{u.name} ({u.abbreviation})</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <Popover open={unitPopoverOpen} onOpenChange={setUnitPopoverOpen}>
+                                  <PopoverTrigger asChild>
+                                    <Button variant="outline" size="icon">
+                                      <Plus className="w-4 h-4" />
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-80 bg-slate-950 border-slate-800 p-4" align="start">
+                                    <div className="space-y-3">
+                                      <div className="space-y-1">
+                                        <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nueva Unidad de Medida</Label>
+                                        <p className="text-[10px] text-slate-500">Define cómo se mide este tipo de producto.</p>
+                                      </div>
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <div className="space-y-1">
+                                          <Label className="text-[9px] text-slate-500">Nombre</Label>
+                                          <Input
+                                            placeholder="Ej: Bulto 50kg"
+                                            value={newUnitName}
+                                            onChange={(e) => setNewUnitName(e.target.value)}
+                                            className="bg-slate-900/50 border-slate-700 focus:border-primary/50 text-sm"
+                                          />
+                                        </div>
+                                        <div className="space-y-1">
+                                          <Label className="text-[9px] text-slate-500">Abreviatura</Label>
+                                          <Input
+                                            placeholder="Ej: b50"
+                                            value={newUnitAbbreviation}
+                                            onChange={(e) => setNewUnitAbbreviation(e.target.value)}
+                                            className="bg-slate-900/50 border-slate-700 focus:border-primary/50 text-sm"
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter' && newUnitName.trim() && newUnitAbbreviation.trim()) {
+                                                createUnitMutation.mutate({ name: newUnitName.trim(), abbreviation: newUnitAbbreviation.trim() });
+                                              }
+                                            }}
+                                          />
+                                        </div>
+                                      </div>
+                                      <div className="flex gap-2 justify-end">
+                                        <Button variant="ghost" size="sm" onClick={() => { setUnitPopoverOpen(false); setNewUnitName(""); setNewUnitAbbreviation(""); }}>
+                                          Cancelar
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          onClick={() => newUnitName.trim() && newUnitAbbreviation.trim() && createUnitMutation.mutate({ name: newUnitName.trim(), abbreviation: newUnitAbbreviation.trim() })}
+                                          disabled={!newUnitName.trim() || !newUnitAbbreviation.trim() || createUnitMutation.isPending}
+                                        >
+                                          {createUnitMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Crear"}
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  </PopoverContent>
+                                </Popover>
+                                {/* Edit Unit Button */}
+                                {newProduct.unitId && (
+                                  <Popover open={editUnitPopoverOpen} onOpenChange={setEditUnitPopoverOpen}>
+                                    <PopoverTrigger asChild>
+                                      <Button
+                                        variant="outline"
+                                        size="icon"
+                                        onClick={() => {
+                                          const unit = unitsList.find((u: any) => u.id === newProduct.unitId);
+                                          if (unit) setEditingUnit({ id: unit.id, name: unit.name, abbreviation: unit.abbreviation || "" });
+                                        }}
+                                      >
+                                        <Pencil className="w-4 h-4" />
+                                      </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-80 bg-slate-950 border-slate-800 p-4" align="start">
+                                      <div className="space-y-3">
+                                        <div className="space-y-1">
+                                          <Label className="text-xs font-bold text-amber-400 uppercase tracking-wider">Editar Unidad</Label>
+                                          <p className="text-[10px] text-slate-500">Modifica el nombre y abreviatura de la unidad.</p>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2">
+                                          <div className="space-y-1">
+                                            <Label className="text-[9px] text-slate-500">Nombre</Label>
+                                            <Input
+                                              placeholder="Ej: Bulto 50kg"
+                                              value={editingUnit?.name || ""}
+                                              onChange={(e) => setEditingUnit(prev => prev ? { ...prev, name: e.target.value } : null)}
+                                              className="bg-slate-900/50 border-slate-700 focus:border-amber-500/50 text-sm"
+                                            />
+                                          </div>
+                                          <div className="space-y-1">
+                                            <Label className="text-[9px] text-slate-500">Abreviatura</Label>
+                                            <Input
+                                              placeholder="Ej: b50"
+                                              value={editingUnit?.abbreviation || ""}
+                                              onChange={(e) => setEditingUnit(prev => prev ? { ...prev, abbreviation: e.target.value } : null)}
+                                              className="bg-slate-900/50 border-slate-700 focus:border-amber-500/50 text-sm"
+                                              onKeyDown={(e) => {
+                                                if (e.key === 'Enter' && editingUnit?.name.trim() && editingUnit?.abbreviation.trim()) {
+                                                  updateUnitMutation.mutate({ id: editingUnit.id, name: editingUnit.name.trim(), abbreviation: editingUnit.abbreviation.trim() });
+                                                }
+                                              }}
+                                            />
+                                          </div>
+                                        </div>
+                                        <div className="flex gap-2 justify-end">
+                                          <Button variant="ghost" size="sm" onClick={() => { setEditUnitPopoverOpen(false); setEditingUnit(null); }}>
+                                            Cancelar
+                                          </Button>
+                                          <Button
+                                            size="sm"
+                                            className="bg-amber-600 hover:bg-amber-700"
+                                            onClick={() => editingUnit?.name.trim() && editingUnit?.abbreviation.trim() && updateUnitMutation.mutate({ id: editingUnit.id, name: editingUnit.name.trim(), abbreviation: editingUnit.abbreviation.trim() })}
+                                            disabled={!editingUnit?.name.trim() || !editingUnit?.abbreviation.trim() || updateUnitMutation.isPending}
+                                          >
+                                            {updateUnitMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Guardar"}
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    </PopoverContent>
+                                  </Popover>
+                                )}
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="stock" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">{currentLabels.stockLabel}</Label>
+                              <Input id="stock" type="number" value={newProduct.stock} onChange={(e) => setNewProduct({ ...newProduct, stock: parseInt(e.target.value) || 0 })} className="bg-slate-900/50 border-slate-800 focus:border-primary/50 transition-all" />
                             </div>
 
-                            <div className="space-y-2">
-                              <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Días Reorden</Label>
-                              <Input type="number" value={newProduct.reorderPointDays} onChange={(e) => setNewProduct({ ...newProduct, reorderPointDays: parseInt(e.target.value) || 0 })} className="bg-slate-900/50 border-slate-800 focus:border-purple-500/50" />
+                            {/* Master/Variant Yield Config */}
+                            <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-4 space-y-4">
+                              <div className="flex items-center gap-2 border-b border-blue-500/20 pb-2 mb-2">
+                                <Settings2 className="w-4 h-4 text-blue-400" />
+                                <Label className="text-xs font-bold uppercase text-blue-400">Equivalencia y Rendimiento</Label>
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Info className="w-3 h-3 text-blue-400 cursor-help" />
+                                    </TooltipTrigger>
+                                    <TooltipContent className="max-w-sm bg-slate-900 border-slate-700 text-white">
+                                      <p className="font-bold text-xs mb-1 text-blue-400">Control de Inventario Unificado</p>
+                                      <p className="text-xs">
+                                        Esta sección conecta productos que son lo mismo pero en diferentes presentaciones.
+                                        <br /><br />
+                                        <strong>Ejemplo Clave:</strong>
+                                        <br />
+                                        Si compras por "Camión" o "Bulto", pero vendes o procesas por "Pieza":
+                                        <ul className="list-disc pl-4 mt-1 space-y-1">
+                                          <li>Crea "Coco (Pieza)" como producto base.</li>
+                                          <li>Crea "Bulto de Coco" y selecciona a "Coco (Pieza)" como Maestro.</li>
+                                          <li>Define que 1 Bulto = 50 Piezas.</li>
+                                        </ul>
+                                        <br />
+                                        Al comprar 1 Bulto, el sistema sumará automáticamente 50 Piezas a tu inventario.
+                                      </p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Producto Maestro (Base)</Label>
+                                  <Select value={newProduct.masterProductId} onValueChange={(v) => setNewProduct({ ...newProduct, masterProductId: v === "none" ? "" : v })}>
+                                    <SelectTrigger className="bg-slate-900/50 border-slate-800 focus:border-blue-500/50 transition-all">
+                                      <SelectValue placeholder="Seleccionar Base..." />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                                      <SelectItem value="none">-- Es Producto Maestro --</SelectItem>
+                                      {products.filter((p: any) => !p.masterProductId && p.id !== selectedProduct?.id).map((p: any) => (
+                                        <SelectItem key={p.id} value={p.id}>{p.name} ({p.unit})</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <p className="text-[9px] text-slate-500 italic">Si este item es una presentación alternativa (ej. Bulto), selecciona su unidad base.</p>
+                                </div>
+
+                                {newProduct.masterProductId && (
+                                  <div className="space-y-2">
+                                    <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Factor de Conversión</Label>
+                                    <div className="relative">
+                                      <Input
+                                        type="number"
+                                        placeholder="Ej. 100"
+                                        value={newProduct.expectedYield}
+                                        onChange={(e) => setNewProduct({ ...newProduct, expectedYield: parseFloat(e.target.value) || 0 })}
+                                        className="bg-slate-900/50 border-slate-800 focus:border-blue-500/50 transition-all font-mono text-blue-400 font-bold pr-12"
+                                      />
+                                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-blue-500/60 uppercase">
+                                        {products.find(p => p.id === newProduct.masterProductId)?.unit || 'u'}
+                                      </span>
+                                    </div>
+                                    <p className="text-[9px] text-slate-500">¿Cuántas unidades base contiene esta presentación?</p>
+                                  </div>
+                                )}
+                              </div>
                             </div>
 
-                            <div className="space-y-2">
-                              <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Criticidad</Label>
-                              <Select value={newProduct.criticalityLevel} onValueChange={(v) => setNewProduct({ ...newProduct, criticalityLevel: v })}>
-                                <SelectTrigger className="bg-slate-900/50 border-slate-800 focus:border-red-500/50">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                                  <SelectItem value="low">Baja</SelectItem>
-                                  <SelectItem value="medium">Media</SelectItem>
-                                  <SelectItem value="high">Alta</SelectItem>
-                                  <SelectItem value="critical">Crítica</SelectItem>
-                                </SelectContent>
-                              </Select>
+                            {/* AI / Expected Behavior Config */}
+                            <div className="rounded-xl border border-purple-500/20 bg-purple-500/5 p-4 space-y-4">
+                              <div className="flex items-center gap-2 border-b border-purple-500/20 pb-2 mb-2">
+                                <BrainCircuit className="w-4 h-4 text-purple-400" />
+                                <Label className="text-xs font-bold uppercase text-purple-400">Comportamiento Esperado (IA)</Label>
+                              </div>
+
+                              <div className="grid grid-cols-3 gap-4">
+                                <div className="space-y-2">
+                                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Variabilidad Demanda</Label>
+                                  <Select value={newProduct.demandVariability} onValueChange={(v) => setNewProduct({ ...newProduct, demandVariability: v })}>
+                                    <SelectTrigger className="bg-slate-900/50 border-slate-800 focus:border-purple-500/50">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                                      <SelectItem value="stable">Estable</SelectItem>
+                                      <SelectItem value="variable">Variable</SelectItem>
+                                      <SelectItem value="seasonal">Estacional</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                <div className="space-y-2">
+                                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Días Reorden</Label>
+                                  <Input type="number" value={newProduct.reorderPointDays} onChange={(e) => setNewProduct({ ...newProduct, reorderPointDays: parseInt(e.target.value) || 0 })} className="bg-slate-900/50 border-slate-800 focus:border-purple-500/50" />
+                                </div>
+
+                                <div className="space-y-2">
+                                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Criticidad</Label>
+                                  <Select value={newProduct.criticalityLevel} onValueChange={(v) => setNewProduct({ ...newProduct, criticalityLevel: v })}>
+                                    <SelectTrigger className="bg-slate-900/50 border-slate-800 focus:border-red-500/50">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                                      <SelectItem value="low">Baja</SelectItem>
+                                      <SelectItem value="medium">Media</SelectItem>
+                                      <SelectItem value="high">Alta</SelectItem>
+                                      <SelectItem value="critical">Crítica</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </div>
 
-                      <DialogFooter className="pt-6 border-t border-white/5" data-tour="product-save-footer">
-                        <Button
-                          className="bg-primary hover:bg-primary/90 text-white font-bold px-8 shadow-[0_0_20px_rgba(59,130,246,0.3)] transition-all hover:scale-105"
-                          onClick={() => {
-                            handleAddProduct();
-                          }}
-                          disabled={createProductMutation.isPending || updateProductMutation.isPending || updateGroupMutation.isPending}
-                        >
-                          {createProductMutation.isPending || updateProductMutation.isPending || updateGroupMutation.isPending ? "Guardando..." : (isEditing ? "Guardar Cambios" : "Confirmar Registro")}
-                        </Button>
-                      </DialogFooter>
-                    </CognitiveProvider>
-                  </DialogContent>
-                </Dialog>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent data-tour="product-list">
-            <DataTable
-              columns={[
-                {
-                  key: "name",
-                  header: "Producto",
-                  render: (item) => (
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center">
-                        <Package className="w-6 h-6 text-muted-foreground" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium">{item.name}</p>
-                          {item.isGroup && (
-                            <Badge variant="outline" className="text-[9px] uppercase border-blue-500/30 text-blue-400 bg-blue-500/5">Grupo</Badge>
-                          )}
+                          <DialogFooter className="pt-6 border-t border-white/5" data-tour="product-save-footer">
+                            <Button
+                              className="bg-primary hover:bg-primary/90 text-white font-bold px-8 shadow-[0_0_20px_rgba(59,130,246,0.3)] transition-all hover:scale-105"
+                              onClick={() => {
+                                handleAddProduct();
+                              }}
+                              disabled={createProductMutation.isPending || updateProductMutation.isPending || updateGroupMutation.isPending}
+                            >
+                              {createProductMutation.isPending || updateProductMutation.isPending || updateGroupMutation.isPending ? "Guardando..." : (isEditing ? "Guardar Cambios" : "Confirmar Registro")}
+                            </Button>
+                          </DialogFooter>
+                        </CognitiveProvider>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent data-tour="product-list">
+                <DataTable
+                  columns={[
+                    {
+                      key: "name",
+                      header: "Producto",
+                      render: (item) => (
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center">
+                            <Package className="w-6 h-6 text-muted-foreground" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium">{item.name}</p>
+                              {item.isGroup && (
+                                <Badge variant="outline" className="text-[9px] uppercase border-blue-500/30 text-blue-400 bg-blue-500/5">Grupo</Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground font-mono">{item.sku}</p>
+                          </div>
                         </div>
-                        <p className="text-xs text-muted-foreground font-mono">{item.sku}</p>
-                      </div>
-                    </div>
-                  ),
-                },
-                {
-                  key: "cognitive",
-                  header: (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="flex items-center gap-1 cursor-help">
-                          {decisionMode ? "Análisis Neuronal" : "IA Insight"}
-                          <Sparkles className="w-3 h-3 text-purple-400" />
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-2 max-w-xs">
-                        {decisionMode
-                          ? "Razonamiento detallado sobre por qué se recomienda esta acción."
-                          : "Predicción basada en patrones históricos de demanda y stock actual."}
-                      </TooltipContent>
-                    </Tooltip>
-                  ) as any,
-                  render: (item: any) => decisionMode ? (
-                    <div className="flex flex-col gap-2 min-w-[220px]">
-                      <div className="flex items-center gap-2">
-                        {item.cognitive?.riskFactor === 'High' ? (
-                          <motion.div
-                            animate={{ opacity: [0.7, 1, 0.7] }}
-                            transition={{ duration: 2, repeat: Infinity }}
-                          >
-                            <Badge variant="destructive" className="text-[10px] uppercase font-bold tracking-tighter bg-red-500/10 border-red-500/30 text-red-400">
-                              <AlertTriangle className="w-3 h-3 mr-1" />
-                              Riesgo Crítico
-                            </Badge>
-                          </motion.div>
-                        ) : (
-                          <Badge variant="outline" className="text-[10px] uppercase font-bold tracking-tighter border-emerald-500/20 text-emerald-400 bg-emerald-500/5">
-                            <CheckCircle2 className="w-3 h-3 mr-1" />
-                            Estable
-                          </Badge>
-                        )}
-                        <span className="text-[10px] uppercase font-black text-slate-500/50 tracking-widest">
-                          {item.cognitive?.demandVariability === 'seasonal' ? 'Estacional' : item.cognitive?.demandVariability === 'variable' ? 'Variable' : 'Estable'}
-                        </span>
-                      </div>
-                      <div className="text-xs pt-2 border-t border-white/5">
-                        <p className="text-[11px] text-slate-300 leading-relaxed font-medium">
-                          <span className="text-purple-400/80 font-bold uppercase tracking-tighter mr-1">Recomendación:</span>
-                          {item.cognitive?.reasoning?.recommendation || "Analizando patrones..."}
-                        </p>
-                        <Button
-                          variant="ghost"
-                          className="h-7 w-full mt-2 justify-between text-[10px] font-bold text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 border border-purple-500/10 rounded-lg group"
-                          onClick={() => {
-                            setSelectedReasoningProduct(item);
-                            setIsReasoningChatOpen(true);
-                          }}
-                        >
-                          <span>ABRIR RAZONAMIENTO</span>
-                          <BrainCircuit className="w-3.5 h-3.5 transition-transform group-hover:scale-125" />
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    item.cognitive?.shouldRestock ? (
-                      <div className="flex flex-col items-start gap-1.5">
-                        <motion.div
-                          animate={{ x: [0, 2, 0] }}
-                          transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 3 }}
-                        >
-                          <Badge variant="outline" className="border-amber-500/30 text-amber-500 bg-amber-500/5 text-[10px] uppercase font-black tracking-widest px-2 py-0.5">
-                            <RefreshCw className="w-3 h-3 mr-1 animate-spin-slow" />
-                            Agota en {item.cognitive?.daysRemaining ?? "..."}d
-                          </Badge>
-                        </motion.div>
-                        <span className="text-[10px] font-bold text-slate-500/80 bg-slate-800/50 px-2 py-0.5 rounded border border-white/5">
-                          SUGERIDO: <span className="text-white">+{item.cognitive?.suggestedOrder ?? 0}</span> {item.unit || "uds"}
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-500/80 uppercase tracking-wider">
-                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                          Saludable
-                        </div>
-                        <span className="text-[10px] text-slate-500 font-medium">
-                          Autonomía: {item.cognitive?.daysRemaining || "30+"} días
-                        </span>
-                      </div>
-                    )
-                  ),
-                },
-                {
-                  key: "category",
-                  header: (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="cursor-help">Categoría</span>
-                      </TooltipTrigger>
-                      <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-2">
-                        Clasificación organizativa del producto.
-                      </TooltipContent>
-                    </Tooltip>
-                  ) as any,
-                  render: (item) => (
-                    <Badge variant="secondary" className="bg-slate-800 text-slate-300 border-slate-700">{item.category || "Sin Categoría"}</Badge>
-                  ),
-                },
-                {
-                  key: "stock",
-                  header: (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="cursor-help">Existencias</span>
-                      </TooltipTrigger>
-                      <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-2">
-                        Cantidad física disponible en almacén.
-                      </TooltipContent>
-                    </Tooltip>
-                  ) as any,
-                  render: (item) => {
-                    const maxStock = 20000;
-                    const percentage = Math.min((item.stock / maxStock) * 100, 100);
-                    return (
-                      <div className="space-y-1.5 min-w-32">
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold font-mono">
-                            {item.stock.toLocaleString()} {item.unit || "units"}
-                          </span>
-                          <StatusBadge status={item.status} />
-                        </div>
-                        <Progress
-                          value={percentage}
-                          className={cn(
-                            "h-1.5",
-                            item.status === "critical" && "[&>div]:bg-destructive",
-                            item.status === "low" && "[&>div]:bg-warning"
-                          )}
-                        />
-                      </div>
-                    );
-                  },
-                },
-                {
-                  key: "price",
-                  header: (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="cursor-help">Precio Público</span>
-                      </TooltipTrigger>
-                      <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-2">
-                        Precio de venta actual para el cliente final.
-                      </TooltipContent>
-                    </Tooltip>
-                  ) as any,
-                  render: (item) => (
-                    <span className="font-mono font-bold text-white">
-                      {formatCurrency(item.price)}
-                    </span>
-                  ),
-                },
-                {
-                  key: "value",
-                  header: (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="cursor-help">Valor Activo</span>
-                      </TooltipTrigger>
-                      <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-2">
-                        Valor bursátil de las existencias (Stock x Precio).
-                      </TooltipContent>
-                    </Tooltip>
-                  ) as any,
-                  render: (item) => (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="font-mono text-emerald-400 capitalize cursor-help underline decoration-dotted decoration-emerald-500/30">
-                          {formatCurrency(item.stock * item.price)}
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-2">
-                        <p>Capital inmovilizado en este producto.</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  ),
-                },
-                {
-                  key: "actions",
-                  header: "",
-                  render: (item) => (
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleEdit(item)}
-                      >
-                        <Plus className="w-4 h-4 mr-1 rotate-45" />
-                        Editar
-                      </Button>
-                      <DossierView
-                        entityType="transaction"
-                        entityId={item.id}
-                        entityName={item.name}
-                      />
-                      {item.isProductionInput && (
+                      ),
+                    },
+                    {
+                      key: "cognitive",
+                      header: (
                         <Tooltip>
                           <TooltipTrigger asChild>
+                            <span className="flex items-center gap-1 cursor-help">
+                              {decisionMode ? "Análisis Neuronal" : "IA Insight"}
+                              <Sparkles className="w-3 h-3 text-purple-400" />
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-2 max-w-xs">
+                            {decisionMode
+                              ? "Razonamiento detallado sobre por qué se recomienda esta acción."
+                              : "Predicción basada en patrones históricos de demanda y stock actual."}
+                          </TooltipContent>
+                        </Tooltip>
+                      ) as any,
+                      render: (item: any) => decisionMode ? (
+                        <div className="flex flex-col gap-2 min-w-[220px]">
+                          <div className="flex items-center gap-2">
+                            {item.cognitive?.riskFactor === 'High' ? (
+                              <motion.div
+                                animate={{ opacity: [0.7, 1, 0.7] }}
+                                transition={{ duration: 2, repeat: Infinity }}
+                              >
+                                <Badge variant="destructive" className="text-[10px] uppercase font-bold tracking-tighter bg-red-500/10 border-red-500/30 text-red-400">
+                                  <AlertTriangle className="w-3 h-3 mr-1" />
+                                  Riesgo Crítico
+                                </Badge>
+                              </motion.div>
+                            ) : (
+                              <Badge variant="outline" className="text-[10px] uppercase font-bold tracking-tighter border-emerald-500/20 text-emerald-400 bg-emerald-500/5">
+                                <CheckCircle2 className="w-3 h-3 mr-1" />
+                                Estable
+                              </Badge>
+                            )}
+                            <span className="text-[10px] uppercase font-black text-slate-500/50 tracking-widest">
+                              {item.cognitive?.demandVariability === 'seasonal' ? 'Estacional' : item.cognitive?.demandVariability === 'variable' ? 'Variable' : 'Estable'}
+                            </span>
+                          </div>
+                          <div className="text-xs pt-2 border-t border-white/5">
+                            <p className="text-[11px] text-slate-300 leading-relaxed font-medium">
+                              <span className="text-purple-400/80 font-bold uppercase tracking-tighter mr-1">Recomendación:</span>
+                              {item.cognitive?.reasoning?.recommendation || "Analizando patrones..."}
+                            </p>
                             <Button
                               variant="ghost"
-                              size="sm"
-                              className="text-amber-500 hover:text-amber-400 hover:bg-amber-500/10"
+                              className="h-7 w-full mt-2 justify-between text-[10px] font-bold text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 border border-purple-500/10 rounded-lg group"
                               onClick={() => {
-                                setSelectedImpactProductId(item.id);
-                                setIsImpactDialogOpen(true);
+                                setSelectedReasoningProduct(item);
+                                setIsReasoningChatOpen(true);
                               }}
                             >
-                              <Activity className="w-4 h-4 mr-1" />
-                              Impacto
+                              <span>ABRIR RAZONAMIENTO</span>
+                              <BrainCircuit className="w-3.5 h-3.5 transition-transform group-hover:scale-125" />
                             </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        item.cognitive?.shouldRestock ? (
+                          <div className="flex flex-col items-start gap-1.5">
+                            <motion.div
+                              animate={{ x: [0, 2, 0] }}
+                              transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 3 }}
+                            >
+                              <Badge variant="outline" className="border-amber-500/30 text-amber-500 bg-amber-500/5 text-[10px] uppercase font-black tracking-widest px-2 py-0.5">
+                                <RefreshCw className="w-3 h-3 mr-1 animate-spin-slow" />
+                                Agota en {item.cognitive?.daysRemaining ?? "..."}d
+                              </Badge>
+                            </motion.div>
+                            <span className="text-[10px] font-bold text-slate-500/80 bg-slate-800/50 px-2 py-0.5 rounded border border-white/5">
+                              SUGERIDO: <span className="text-white">+{item.cognitive?.suggestedOrder ?? 0}</span> {item.unit || "uds"}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-500/80 uppercase tracking-wider">
+                              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              Saludable
+                            </div>
+                            <span className="text-[10px] text-slate-500 font-medium">
+                              Autonomía: {item.cognitive?.daysRemaining || "30+"} días
+                            </span>
+                          </div>
+                        )
+                      ),
+                    },
+                    {
+                      key: "category",
+                      header: (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="cursor-help">Categoría</span>
                           </TooltipTrigger>
-                          <TooltipContent><p>Analizar impacto en cadena de producción</p></TooltipContent>
+                          <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-2">
+                            Clasificación organizativa del producto.
+                          </TooltipContent>
                         </Tooltip>
-                      )}
-                      {!item.isGroup && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          data-testid={`button-adjust-stock-${item.id}`}
-                          onClick={() => {
-                            setSelectedProduct(item);
-                            setIsAdjustDialogOpen(true);
-                          }}
-                        >
-                          <ArrowUpDown className="w-4 h-4 mr-1" />
-                          Ajustar
-                        </Button>
-                      )}
-                      <Tooltip>
-                        <TooltipTrigger asChild>
+                      ) as any,
+                      render: (item) => (
+                        <Badge variant="secondary" className="bg-slate-800 text-slate-300 border-slate-700">{item.category || "Sin Categoría"}</Badge>
+                      ),
+                    },
+                    {
+                      key: "stock",
+                      header: (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="cursor-help">Existencias</span>
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-2">
+                            Cantidad física disponible en almacén.
+                          </TooltipContent>
+                        </Tooltip>
+                      ) as any,
+                      render: (item) => {
+                        const maxStock = 20000;
+                        const percentage = Math.min((item.stock / maxStock) * 100, 100);
+                        return (
+                          <div className="space-y-1.5 min-w-32">
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold font-mono">
+                                {item.stock.toLocaleString()} {item.unit || "units"}
+                              </span>
+                              <StatusBadge status={item.status} />
+                            </div>
+                            <Progress
+                              value={percentage}
+                              className={cn(
+                                "h-1.5",
+                                item.status === "critical" && "[&>div]:bg-destructive",
+                                item.status === "low" && "[&>div]:bg-warning"
+                              )}
+                            />
+                          </div>
+                        );
+                      },
+                    },
+                    {
+                      key: "price",
+                      header: (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="cursor-help">Precio Público</span>
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-2">
+                            Precio de venta actual para el cliente final.
+                          </TooltipContent>
+                        </Tooltip>
+                      ) as any,
+                      render: (item) => (
+                        <span className="font-mono font-bold text-white">
+                          {formatCurrency(item.price)}
+                        </span>
+                      ),
+                    },
+                    {
+                      key: "value",
+                      header: (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="cursor-help">Valor Activo</span>
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-2">
+                            Valor bursátil de las existencias (Stock x Precio).
+                          </TooltipContent>
+                        </Tooltip>
+                      ) as any,
+                      render: (item) => (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="font-mono text-emerald-400 capitalize cursor-help underline decoration-dotted decoration-emerald-500/30">
+                              {formatCurrency(item.stock * item.price)}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-2">
+                            <p>Capital inmovilizado en este producto.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      ),
+                    },
+                    {
+                      key: "actions",
+                      header: "",
+                      render: (item) => (
+                        <div className="flex items-center gap-2">
                           <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => {
-                              if (confirm("¿Está seguro de que desea archivar este producto?")) {
-                                archiveProductMutation.mutate(item.id);
-                              }
-                            }}
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEdit(item)}
                           >
-                            <Archive className="w-4 h-4" />
+                            <Plus className="w-4 h-4 mr-1 rotate-45" />
+                            Editar
                           </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Archivar producto</p>
-                        </TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-destructive/70 hover:text-destructive hover:bg-destructive/20 border border-transparent hover:border-destructive/30"
-                            onClick={() => {
-                              if (confirm("¿ELIMINAR PERMANENTEMENTE?\n\nEsta acción ocultará el producto de todas las operaciones futuras.\nEl historial se mantendrá intacto para auditoría.\n\n¿Confirmar eliminación segura?")) {
-                                deleteProductMutation.mutate(item.id);
-                              }
-                            }}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Eliminar permanentemente (Safe Delete)</p>
-                        </TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-slate-400 hover:text-white hover:bg-white/10"
-                            onClick={() => {
-                              setSelectedProductForHistory(item);
-                              setIsHistoryDialogOpen(true);
-                            }}
-                          >
-                            <HistoryIcon className="w-4 h-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Historial de movimientos</p>
-                        </TooltipContent>
-                      </Tooltip>
-                      <DossierView
-                        entityType="product"
-                        entityId={item.id}
-                        entityName={item.name}
-                      />
-                    </div>
-                  ),
-                  className: "text-right",
-                },
-              ]}
-              data={filteredProducts}
+                          <DossierView
+                            entityType="transaction"
+                            entityId={item.id}
+                            entityName={item.name}
+                          />
+                          {item.isProductionInput && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-amber-500 hover:text-amber-400 hover:bg-amber-500/10"
+                                  onClick={() => {
+                                    setSelectedImpactProductId(item.id);
+                                    setIsImpactDialogOpen(true);
+                                  }}
+                                >
+                                  <Activity className="w-4 h-4 mr-1" />
+                                  Impacto
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent><p>Analizar impacto en cadena de producción</p></TooltipContent>
+                            </Tooltip>
+                          )}
+                          {!item.isGroup && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              data-testid={`button-adjust-stock-${item.id}`}
+                              onClick={() => {
+                                setSelectedProduct(item);
+                                setIsAdjustDialogOpen(true);
+                              }}
+                            >
+                              <ArrowUpDown className="w-4 h-4 mr-1" />
+                              Ajustar
+                            </Button>
+                          )}
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => {
+                                  if (confirm("¿Está seguro de que desea archivar este producto?")) {
+                                    archiveProductMutation.mutate(item.id);
+                                  }
+                                }}
+                              >
+                                <Archive className="w-4 h-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Archivar producto</p>
+                            </TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-destructive/70 hover:text-destructive hover:bg-destructive/20 border border-transparent hover:border-destructive/30"
+                                onClick={() => {
+                                  if (confirm("¿ELIMINAR PERMANENTEMENTE?\n\nEsta acción ocultará el producto de todas las operaciones futuras.\nEl historial se mantendrá intacto para auditoría.\n\n¿Confirmar eliminación segura?")) {
+                                    deleteProductMutation.mutate(item.id);
+                                  }
+                                }}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Eliminar permanentemente (Safe Delete)</p>
+                            </TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-slate-400 hover:text-white hover:bg-white/10"
+                                onClick={() => {
+                                  setSelectedProductForHistory(item);
+                                  setIsHistoryDialogOpen(true);
+                                }}
+                              >
+                                <HistoryIcon className="w-4 h-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Historial de movimientos</p>
+                            </TooltipContent>
+                          </Tooltip>
+                          <DossierView
+                            entityType="product"
+                            entityId={item.id}
+                            entityName={item.name}
+                          />
+                        </div>
+                      ),
+                      className: "text-right",
+                    },
+                  ]}
+                  data={filteredProducts}
+                />
+              </CardContent>
+            </Card>
+
+            <StockAdjustmentDialog
+              isOpen={isAdjustDialogOpen}
+              onOpenChange={setIsAdjustDialogOpen}
+              product={selectedProduct}
+              onAdjust={(stock, reason) => {
+                adjustStockMutation.mutate({ productId: selectedProduct.id, stock, reason });
+                setIsAdjustDialogOpen(false);
+              }}
+              isPending={adjustStockMutation.isPending}
             />
-          </CardContent>
-        </Card>
 
-        <StockAdjustmentDialog
-          isOpen={isAdjustDialogOpen}
-          onOpenChange={setIsAdjustDialogOpen}
-          product={selectedProduct}
-          onAdjust={(stock, reason) => {
-            adjustStockMutation.mutate({ productId: selectedProduct.id, stock, reason });
-            setIsAdjustDialogOpen(false);
-          }}
-          isPending={adjustStockMutation.isPending}
-        />
+            <MovementHistoryDialog
+              isOpen={isHistoryDialogOpen}
+              onOpenChange={setIsHistoryDialogOpen}
+              product={selectedProductForHistory}
+            />
 
-        <MovementHistoryDialog
-          isOpen={isHistoryDialogOpen}
-          onOpenChange={setIsHistoryDialogOpen}
-          product={selectedProductForHistory}
-        />
+            <ProductionImpactDialog
+              isOpen={isImpactDialogOpen}
+              onOpenChange={setIsImpactDialogOpen}
+              productId={selectedImpactProductId}
+            />
 
-        <ProductionImpactDialog
-          isOpen={isImpactDialogOpen}
-          onOpenChange={setIsImpactDialogOpen}
-          productId={selectedImpactProductId}
-        />
+            <ReasoningChatDialog
+              isOpen={isReasoningChatOpen}
+              onOpenChange={setIsReasoningChatOpen}
+              product={selectedReasoningProduct}
+            />
 
-        <ReasoningChatDialog
-          isOpen={isReasoningChatOpen}
-          onOpenChange={setIsReasoningChatOpen}
-          product={selectedReasoningProduct}
-        />
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg font-display flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-warning" />
-                Productos con Stock Bajo
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {alerts.length > 0 ? alerts.map((product: any) => (
-                  <div
-                    key={product.id}
-                    className={cn(
-                      "flex items-center justify-between p-4 rounded-xl border border-white/5 transition-all hover:bg-white/5",
-                      product.stock < 20
-                        ? "bg-destructive/10 border-l-4 border-l-destructive"
-                        : "bg-warning/10 border-l-4 border-l-warning"
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg font-display flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-warning" />
+                    Productos con Stock Bajo
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {alerts.length > 0 ? alerts.map((product: any) => (
+                      <div
+                        key={product.id}
+                        className={cn(
+                          "flex items-center justify-between p-4 rounded-xl border border-white/5 transition-all hover:bg-white/5",
+                          product.stock < 20
+                            ? "bg-destructive/10 border-l-4 border-l-destructive"
+                            : "bg-warning/10 border-l-4 border-l-warning"
+                        )}
+                        data-testid={`low-stock-${product.id}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={cn(
+                            "w-10 h-10 rounded-lg flex items-center justify-center",
+                            product.stock < 20 ? "bg-destructive/20 text-destructive" : "bg-warning/20 text-warning"
+                          )}>
+                            <AlertTriangle className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <p className="font-bold text-sm">{product.name}</p>
+                            <p className="text-[10px] text-muted-foreground font-mono">{product.sku}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold font-mono text-lg">
+                            {product.stock.toLocaleString()} <span className="text-[10px] text-muted-foreground">{product.unit}</span>
+                          </p>
+                          <Badge variant="outline" className="text-[9px] uppercase border-primary/30 text-primary">
+                            Sugerido: +{product.recommendedReorder}
+                          </Badge>
+                        </div>
+                      </div>
+                    )) : (
+                      <div className="text-center py-12 rounded-xl bg-muted/20 border border-dashed border-white/5">
+                        <CheckCircle2 className="w-10 h-10 text-success/30 mx-auto mb-3" />
+                        <p className="text-sm text-muted-foreground italic font-display">Niveles de stock saludables.</p>
+                      </div>
                     )}
-                    data-testid={`low-stock-${product.id}`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={cn(
-                        "w-10 h-10 rounded-lg flex items-center justify-center",
-                        product.stock < 20 ? "bg-destructive/20 text-destructive" : "bg-warning/20 text-warning"
-                      )}>
-                        <AlertTriangle className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <p className="font-bold text-sm">{product.name}</p>
-                        <p className="text-[10px] text-muted-foreground font-mono">{product.sku}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold font-mono text-lg">
-                        {product.stock.toLocaleString()} <span className="text-[10px] text-muted-foreground">{product.unit}</span>
-                      </p>
-                      <Badge variant="outline" className="text-[9px] uppercase border-primary/30 text-primary">
-                        Sugerido: +{product.recommendedReorder}
-                      </Badge>
-                    </div>
                   </div>
-                )) : (
-                  <div className="text-center py-12 rounded-xl bg-muted/20 border border-dashed border-white/5">
-                    <CheckCircle2 className="w-10 h-10 text-success/30 mx-auto mb-3" />
-                    <p className="text-sm text-muted-foreground italic font-display">Niveles de stock saludables.</p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg font-display flex items-center gap-2">
-                <Layers className="w-5 h-5 text-primary" />
-                Categorías de Producto
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {categories.map((category) => {
-                  const categoryProducts = products.filter((p) => p.category === category);
-                  const totalValue = categoryProducts.reduce(
-                    (acc, p) => acc + p.stock * p.price,
-                    0
-                  );
-                  return (
-                    <div
-                      key={category}
-                      className="p-4 rounded-lg bg-muted/50"
-                      data-testid={`category-${category.toLowerCase().replace(" ", "-")}`}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-medium">{category}</span>
-                        <Badge variant="secondary">{categoryProducts.length} productos</Badge>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Valor en inventario</span>
-                        <span className="font-mono font-semibold">{formatCurrency(totalValue)}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg font-display flex items-center gap-2">
+                    <Layers className="w-5 h-5 text-primary" />
+                    Categorías de Producto
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {categories.map((category) => {
+                      const categoryProducts = products.filter((p) => p.category === category);
+                      const totalValue = categoryProducts.reduce(
+                        (acc, p) => acc + p.stock * p.price,
+                        0
+                      );
+                      return (
+                        <div
+                          key={category}
+                          className="p-4 rounded-lg bg-muted/50"
+                          data-testid={`category-${category.toLowerCase().replace(" ", "-")}`}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-medium">{category}</span>
+                            <Badge variant="secondary">{categoryProducts.length} productos</Badge>
+                          </div>
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">Valor en inventario</span>
+                            <span className="font-mono font-semibold">{formatCurrency(totalValue)}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="locations">
+            <LocationsManager />
+          </TabsContent>
+
+          <TabsContent value="transfers">
+            <TransfersManager />
+          </TabsContent>
+
+          <TabsContent value="import">
+            <BulkImportManager />
+          </TabsContent>
+
+          <TabsContent value="labels">
+            <LabelsManager />
+          </TabsContent>
+
+          <TabsContent value="reports">
+            <ValuationReport />
+          </TabsContent>
+
+        </Tabs>
       </div>
     </AppLayout >
   );

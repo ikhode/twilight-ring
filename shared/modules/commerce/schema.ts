@@ -26,6 +26,8 @@ export const suppliers = pgTable("suppliers", {
     longitude: text("longitude"),
     contactPerson: text("contact_person"),
     taxRegimeId: text("tax_regime_id"),
+    fiscalPersonaType: text("fiscal_persona_type").default("moral"),
+    zipCode: text("zip_code"),
     paymentTermsDays: integer("payment_terms_days").default(0),
     creditLimit: integer("credit_limit").default(0), // in cents
     bankName: text("bank_name"),
@@ -43,7 +45,10 @@ export const customers = pgTable("customers", {
     name: text("name").notNull(),
     legalName: text("legal_name"), // Razon Social
     rfc: text("rfc"),
-    taxRegime: text("tax_regime"), // 601, 612 etc
+    taxRegime: text("tax_regime"), // Legacy
+    taxRegimeId: varchar("tax_regime_id", { length: 10 }), // CFDI 4.0 Regime
+    fiscalPersonaType: text("fiscal_persona_type").default("moral"), // fisica/moral
+    zipCode: text("zip_code"),
     email: text("email"),
     phone: text("phone"),
     status: text("status").notNull().default("active"), // "active", "inactive", "lead"
@@ -60,6 +65,11 @@ export const customers = pgTable("customers", {
     creditLimit: integer("credit_limit").default(0), // in cents
     preferredPaymentMethod: text("preferred_payment_method"), // "cash", "transfer", "card", "check"
     notes: text("notes"),
+
+    // Loyalty Program
+    loyaltyPoints: integer("loyalty_points").default(0),
+    loyaltyCardCode: text("loyalty_card_code").unique(),
+
     attributes: jsonb("attributes").default({}), // Universal Extensibility
     createdAt: timestamp("created_at").defaultNow(),
 });
@@ -195,6 +205,22 @@ export const sales = pgTable("sales", {
     locationLat: customType<{ data: number }>({ dataType() { return "double precision"; } })("location_lat"),
     locationLng: customType<{ data: number }>({ dataType() { return "double precision"; } })("location_lng"),
 
+    // Restaurant & Mobile POS Features
+    orderType: text("order_type").default("takeout"), // "dine_in", "takeout", "delivery", "platform"
+    tableNumber: text("table_number"),
+    kitchenStatus: text("kitchen_status").default("pending"), // "pending", "cooking", "ready", "delivered"
+    pax: integer("pax").default(1),
+    isOfflineSync: boolean("is_offline_sync").default(false),
+    modifiers: jsonb("modifiers").default([]), // For item customizations
+
+    // CFDI 4.0 Metadata
+    fiscalUuid: varchar("fiscal_uuid", { length: 36 }),
+    cfdiUsage: varchar("cfdi_usage", { length: 10 }),
+    paymentForm: varchar("payment_form", { length: 2 }),
+    fiscalPaymentMethod: varchar("fiscal_payment_method", { length: 3 }),
+    fiscalStatus: text("fiscal_status").default("draft"),
+    billingZipCode: text("billing_zip_code"),
+
     // Secure Deletion & Archiving
     isArchived: boolean("is_archived").notNull().default(false),
     deletedAt: timestamp("deleted_at"),
@@ -228,6 +254,13 @@ export const purchases = pgTable("purchases", {
     pickupAddress: text("pickup_address"),
     locationLat: customType<{ data: number }>({ dataType() { return "double precision"; } })("location_lat"),
     locationLng: customType<{ data: number }>({ dataType() { return "double precision"; } })("location_lng"),
+
+    // CFDI 4.0 Metadata
+    fiscalUuid: varchar("fiscal_uuid", { length: 36 }),
+    cfdiUsage: varchar("cfdi_usage", { length: 10 }),
+    paymentForm: varchar("payment_form", { length: 2 }),
+    fiscalPaymentMethod: varchar("fiscal_payment_method", { length: 3 }),
+    fiscalStatus: text("fiscal_status").default("draft"),
 
     // Secure Deletion & Archiving
     isArchived: boolean("is_archived").notNull().default(false),
@@ -277,3 +310,63 @@ export const insertPurchaseSchema = createInsertSchema(purchases);
 
 
 // End of File
+// End of File
+export * from "./deals";
+
+// --- ADVANCED INVENTORY (PHASE 7) ---
+
+export const locations = pgTable("locations", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    type: text("type").notNull().default("warehouse"), // "warehouse", "store", "transit"
+    address: text("address"),
+    isMain: boolean("is_main").default(false),
+    isActive: boolean("is_active").default(true),
+    createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const productStocks = pgTable("product_stocks", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    productId: varchar("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+    locationId: varchar("location_id").notNull().references(() => locations.id, { onDelete: "cascade" }),
+    quantity: integer("quantity").notNull().default(0),
+    minStock: integer("min_stock").default(0),
+    maxStock: integer("max_stock"),
+    updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const transferOrders = pgTable("transfer_orders", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    sourceLocationId: varchar("source_location_id").references(() => locations.id),
+    destinationLocationId: varchar("destination_location_id").references(() => locations.id),
+    status: text("status").notNull().default("draft"), // "draft", "requested", "in_transit", "completed", "cancelled"
+    requestedBy: varchar("requested_by").references(() => users.id),
+    approvedBy: varchar("approved_by").references(() => users.id),
+    items: jsonb("items").$type<Array<{ productId: string, quantity: number, receivedQuantity?: number }>>().notNull(),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow(),
+    completedAt: timestamp("completed_at"),
+});
+
+export const inventoryCounts = pgTable("inventory_counts", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    locationId: varchar("location_id").references(() => locations.id),
+    status: text("status").notNull().default("in_progress"), // "in_progress", "completed", "cancelled"
+    performedBy: varchar("performed_by").references(() => users.id),
+    items: jsonb("items").$type<Array<{ productId: string, expected: number, counted: number, difference: number }>>().notNull(),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow(),
+    finalizedAt: timestamp("finalized_at"),
+});
+
+export type Location = typeof locations.$inferSelect;
+export type InsertLocation = z.infer<typeof insertLocationSchema>;
+export type TransferOrder = typeof transferOrders.$inferSelect;
+export type InsertTransferOrder = z.infer<typeof insertTransferOrderSchema>;
+
+export const insertLocationSchema = createInsertSchema(locations);
+export const insertTransferOrderSchema = createInsertSchema(transferOrders);

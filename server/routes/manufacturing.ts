@@ -20,11 +20,13 @@ import { getOrgIdFromRequest } from "../auth_util";
 import { AuthenticatedRequest } from "../types";
 import { ManufacturingService } from "../services/ManufacturingService";
 import { logAudit } from "../lib/audit";
+import { requirePermission } from "../middleware/permission_check";
+import { EventBus } from "../services/event-bus";
 
 const router = Router();
 
 // --- Work Centers ---
-router.get("/work-centers", async (req: Request, res: Response) => {
+router.get("/work-centers", requirePermission("manufacturing.read"), async (req: Request, res: Response) => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         const centers = await db.query.workCenters.findMany({
@@ -36,7 +38,7 @@ router.get("/work-centers", async (req: Request, res: Response) => {
     }
 });
 
-router.post("/work-centers", async (req: Request, res: Response) => {
+router.post("/work-centers", requirePermission("manufacturing.write"), async (req: Request, res: Response) => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         const parsed = insertWorkCenterSchema.safeParse({ ...req.body, organizationId: orgId });
@@ -50,7 +52,7 @@ router.post("/work-centers", async (req: Request, res: Response) => {
 });
 
 // --- BOMs ---
-router.get("/bom", async (req: Request, res: Response) => {
+router.get("/bom", requirePermission("manufacturing.read"), async (req: Request, res: Response) => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         const boms = await db.query.billOfMaterials.findMany({
@@ -67,7 +69,7 @@ router.get("/bom", async (req: Request, res: Response) => {
     }
 });
 
-router.post("/bom", async (req: Request, res: Response) => {
+router.post("/bom", requirePermission("manufacturing.write"), async (req: Request, res: Response) => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         const { header, items, routings } = req.body;
@@ -93,7 +95,7 @@ router.post("/bom", async (req: Request, res: Response) => {
 });
 
 // --- Production Orders ---
-router.get("/orders", async (req: Request, res: Response) => {
+router.get("/orders", requirePermission("manufacturing.read"), async (req: Request, res: Response) => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         const orders = await db.query.productionOrders.findMany({
@@ -112,7 +114,7 @@ router.get("/orders", async (req: Request, res: Response) => {
     }
 });
 
-router.post("/orders", async (req: Request, res: Response) => {
+router.post("/orders", requirePermission("manufacturing.write"), async (req: Request, res: Response) => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         const parsed = insertProductionOrderSchema.safeParse({ ...req.body, organizationId: orgId });
@@ -123,6 +125,13 @@ router.post("/orders", async (req: Request, res: Response) => {
         // Trigger MRP Planning automatically
         await ManufacturingService.planMRP(order.id, orgId);
 
+        // Emit Event
+        EventBus.emit(orgId, "production.order_created", {
+            orderId: order.id,
+            productId: order.productId,
+            quantity: order.quantityRequested
+        }).catch(err => console.error("EventBus Error (Order):", err));
+
         await logAudit(orgId, (req.user as any)?.id || "system", "CREATE_PRODUCTION_ORDER", order.id, { message: `Nueva orden de producción ${order.id} creada.` });
 
         res.status(201).json(order);
@@ -132,7 +141,7 @@ router.post("/orders", async (req: Request, res: Response) => {
     }
 });
 
-router.post("/orders/:id/finalize", async (req: Request, res: Response) => {
+router.post("/orders/:id/finalize", requirePermission("manufacturing.write"), async (req: Request, res: Response) => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         await ManufacturingService.finalizeProduction(req.params.id, orgId);
@@ -143,7 +152,7 @@ router.post("/orders/:id/finalize", async (req: Request, res: Response) => {
 });
 
 // --- MRP Status ---
-router.get("/mrp/recommendations", async (req: Request, res: Response) => {
+router.get("/mrp/recommendations", requirePermission("manufacturing.read"), async (req: Request, res: Response) => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         const recs = await db.query.mrpRecommendations.findMany({
@@ -158,7 +167,7 @@ router.get("/mrp/recommendations", async (req: Request, res: Response) => {
     }
 });
 
-router.post("/mrp/recommendations/:id/convert", async (req: Request, res: Response) => {
+router.post("/mrp/recommendations/:id/convert", requirePermission("manufacturing.write"), async (req: Request, res: Response) => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         const purchase = await ManufacturingService.convertToPurchaseOrder(req.params.id, orgId);
@@ -169,7 +178,7 @@ router.post("/mrp/recommendations/:id/convert", async (req: Request, res: Respon
 });
 
 // --- Station Activity ---
-router.post("/orders/:id/log", async (req: Request, res: Response) => {
+router.post("/orders/:id/log", requirePermission("manufacturing.write"), async (req: Request, res: Response) => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         const log = await ManufacturingService.logStationActivity({

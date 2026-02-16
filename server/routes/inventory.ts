@@ -6,10 +6,10 @@ import {
     insertProductCategorySchema, insertProductGroupSchema, insertProductUnitSchema,
     productionTasks
 } from "../../shared/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
 import { getOrgIdFromRequest } from "../auth_util";
 import { AuthenticatedRequest } from "../types";
 import { logAudit } from "../lib/audit";
+import { requirePermission } from "../middleware/permission_check";
 
 const router = Router();
 
@@ -17,7 +17,7 @@ const router = Router();
  * Obtiene el inventario de productos enriquecido con predicciones cognitivas de agotamiento.
  * @route GET /api/inventory/products
  */
-router.get("/products", async (req: Request, res: Response): Promise<void> => {
+router.get("/products", requirePermission("inventory.read"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         console.log(`[Inv GET] Requesting products for OrgID: ${orgId}`);
@@ -118,7 +118,7 @@ router.get("/products", async (req: Request, res: Response): Promise<void> => {
  * Obtiene un producto específico por ID.
  * @route GET /api/inventory/products/:id
  */
-router.get("/products/:id", async (req: Request, res: Response): Promise<void> => {
+router.get("/products/:id", requirePermission("inventory.read"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
@@ -150,7 +150,7 @@ router.get("/products/:id", async (req: Request, res: Response): Promise<void> =
 
 // --- Categories & Groups Management ---
 
-router.get("/categories", async (req: Request, res: Response): Promise<void> => {
+router.get("/categories", requirePermission("inventory.read"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
@@ -167,7 +167,7 @@ router.get("/categories", async (req: Request, res: Response): Promise<void> => 
     }
 });
 
-router.post("/categories", async (req: Request, res: Response): Promise<void> => {
+router.post("/categories", requirePermission('inventory.write'), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
@@ -188,7 +188,7 @@ router.post("/categories", async (req: Request, res: Response): Promise<void> =>
     }
 });
 
-router.patch("/categories/:id", async (req: Request, res: Response): Promise<void> => {
+router.patch("/categories/:id", requirePermission('inventory.write'), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
@@ -214,7 +214,7 @@ router.patch("/categories/:id", async (req: Request, res: Response): Promise<voi
     }
 });
 
-router.get("/groups", async (req: Request, res: Response): Promise<void> => {
+router.get("/groups", requirePermission("inventory.read"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
@@ -231,7 +231,7 @@ router.get("/groups", async (req: Request, res: Response): Promise<void> => {
     }
 });
 
-router.post("/groups", async (req: Request, res: Response): Promise<void> => {
+router.post("/groups", requirePermission('inventory.write'), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
@@ -252,7 +252,7 @@ router.post("/groups", async (req: Request, res: Response): Promise<void> => {
     }
 });
 
-router.patch("/groups/:id", async (req: Request, res: Response): Promise<void> => {
+router.patch("/groups/:id", requirePermission('inventory.write'), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
@@ -279,7 +279,7 @@ router.patch("/groups/:id", async (req: Request, res: Response): Promise<void> =
     }
 });
 
-router.get("/units", async (req: Request, res: Response): Promise<void> => {
+router.get("/units", requirePermission("inventory.read"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
@@ -296,7 +296,7 @@ router.get("/units", async (req: Request, res: Response): Promise<void> => {
     }
 });
 
-router.post("/units", async (req: Request, res: Response): Promise<void> => {
+router.post("/units", requirePermission('inventory.write'), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
@@ -317,7 +317,7 @@ router.post("/units", async (req: Request, res: Response): Promise<void> => {
     }
 });
 
-router.patch("/units/:id", async (req: Request, res: Response): Promise<void> => {
+router.patch("/units/:id", requirePermission('inventory.write'), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
@@ -351,7 +351,7 @@ router.patch("/units/:id", async (req: Request, res: Response): Promise<void> =>
  * Registra un nuevo producto en el inventario de la organización.
  * @route POST /api/inventory/products
  */
-router.post("/products", async (req: Request, res: Response): Promise<void> => {
+router.post("/products", requirePermission('inventory.write'), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
@@ -376,6 +376,7 @@ router.post("/products", async (req: Request, res: Response): Promise<void> => {
 
         // Log action
         await logAudit(
+            req,
             orgId,
             (req.user as any)?.id || "system",
             "CREATE_PRODUCT",
@@ -454,7 +455,7 @@ router.get("/alerts", async (req: Request, res: Response): Promise<void> => {
  * Actualiza un producto (Stock, Precio, Estado).
  * @route PATCH /api/inventory/products/:id
  */
-router.patch("/products/:id", async (req: Request, res: Response): Promise<void> => {
+router.patch("/products/:id", requirePermission('inventory.write'), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
@@ -521,6 +522,7 @@ router.patch("/products/:id", async (req: Request, res: Response): Promise<void>
 
             // Log action
             await logAudit(
+                req,
                 orgId,
                 (req.user as any)?.id || "system",
                 "UPDATE_PRODUCT",
@@ -596,7 +598,7 @@ router.get("/products/:id/history", async (req: Request, res: Response): Promise
  * Mantiene la integridad histórica ocultando el item de todas las listas activas.
  * @route DELETE /api/inventory/products/:id
  */
-router.delete("/products/:id", async (req: Request, res: Response): Promise<void> => {
+router.delete("/products/:id", requirePermission('inventory.write'), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
@@ -626,6 +628,7 @@ router.delete("/products/:id", async (req: Request, res: Response): Promise<void
 
         // Log action
         await logAudit(
+            req,
             orgId,
             req.user?.id || "system",
             "DELETE_PRODUCT",

@@ -5,6 +5,12 @@ import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { RefreshCw, Play, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface ScenarioSimulatorProps {
     baseRevenue?: number;
@@ -44,9 +50,14 @@ export function ScenarioSimulator({ baseRevenue = 1240000 }: ScenarioSimulatorPr
                             <p className="text-[10px] text-slate-500 font-bold uppercase">Proyecciones en tiempo real</p>
                         </div>
                     </div>
-                    <Badge variant="outline" className="border-purple-500/20 text-purple-400 text-[9px] uppercase tracking-widest">
-                        Motor Predictivo
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="border-purple-500/20 text-purple-400 text-[9px] uppercase tracking-widest bg-purple-500/5">
+                            BETA
+                        </Badge>
+                        <Badge variant="outline" className="border-slate-800 text-slate-500 text-[9px] uppercase tracking-widest">
+                            Motor Predictivo
+                        </Badge>
+                    </div>
                 </div>
             </CardHeader>
             <CardContent className="p-6 space-y-8">
@@ -84,41 +95,61 @@ export function ScenarioSimulator({ baseRevenue = 1240000 }: ScenarioSimulatorPr
 
                 {/* Results Visualization */}
                 <div className="grid grid-cols-2 gap-4">
-                    <div className="p-4 rounded-xl bg-slate-950/50 border border-white/5 space-y-1">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Ingresos Proyectados</p>
-                        <motion.div
-                            key={revenueImpact}
-                            initial={{ scale: 0.95, opacity: 0.5 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            className="text-xl font-black text-white"
-                        >
-                            ${(revenueImpact / 1000000).toFixed(2)}M
-                        </motion.div>
-                        <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden mt-2">
-                            <motion.div
-                                animate={{ width: `${Math.min(100, (revenueImpact / 1500000) * 100)}%` }}
-                                className="h-full bg-green-500"
-                            />
-                        </div>
-                    </div>
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <div className="p-4 rounded-xl bg-slate-950/50 border border-white/5 space-y-1 cursor-help hover:border-primary/20 transition-all">
+                                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Ingresos Proyectados</p>
+                                    <motion.div
+                                        key={revenueImpact}
+                                        initial={{ scale: 0.95, opacity: 0.5 }}
+                                        animate={{ scale: 1, opacity: 1 }}
+                                        className="text-xl font-black text-white"
+                                    >
+                                        ${(revenueImpact / 1000000).toFixed(2)}M
+                                    </motion.div>
+                                    <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden mt-2">
+                                        <motion.div
+                                            animate={{ width: `${Math.min(100, (revenueImpact / 1500000) * 100)}%` }}
+                                            className="h-full bg-green-500"
+                                        />
+                                    </div>
+                                </div>
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 border-slate-800 text-xs p-3 text-white max-w-xs transition-all">
+                                <p className="font-bold text-primary italic uppercase tracking-widest text-[9px] mb-1">Cálculo de Proyección</p>
+                                <p>Estimación lineal basada en ingresos actuales ajustados por factores de precio, stock y eficiencia. Fórmula: Ingr_Base * (1 + (ΔPrecio * 0.05) + (ΔEficiencia * 0.02)). Fuente: Motor Predictivo v1.</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
 
-                    <div className="p-4 rounded-xl bg-slate-950/50 border border-white/5 space-y-1">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Margen Neto</p>
-                        <motion.div
-                            key={marginImpact}
-                            initial={{ scale: 0.95, opacity: 0.5 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            className="text-xl font-black text-white"
-                        >
-                            {marginImpact.toFixed(1)}%
-                        </motion.div>
-                        <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden mt-2">
-                            <motion.div
-                                animate={{ width: `${Math.min(100, (marginImpact / 35) * 100)}%` }}
-                                className="h-full bg-purple-500"
-                            />
-                        </div>
-                    </div>
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <div className="p-4 rounded-xl bg-slate-950/50 border border-white/5 space-y-1 cursor-help hover:border-purple-500/20 transition-all">
+                                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Margen Neto</p>
+                                    <motion.div
+                                        key={marginImpact}
+                                        initial={{ scale: 0.95, opacity: 0.5 }}
+                                        animate={{ scale: 1, opacity: 1 }}
+                                        className="text-xl font-black text-white"
+                                    >
+                                        {marginImpact.toFixed(1)}%
+                                    </motion.div>
+                                    <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden mt-2">
+                                        <motion.div
+                                            animate={{ width: `${Math.min(100, (marginImpact / 35) * 100)}%` }}
+                                            className="h-full bg-purple-500"
+                                        />
+                                    </div>
+                                </div>
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 border-slate-800 text-xs p-3 text-white max-w-xs transition-all">
+                                <p className="font-bold text-primary italic uppercase tracking-widest text-[9px] mb-1">Consistencia de Margen</p>
+                                <p>Impacto residual en la rentabilidad tras ajustes operativos. Fórmula: Margen_Base * (1 + (ΔPrecio * 0.02) + (ΔEficiencia * 0.05)). Fuente: Análisis de Costos Estructurales.</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
                 </div>
 
                 <Button

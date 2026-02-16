@@ -1,7 +1,8 @@
-import { Router } from "express";
+import { Router, Request, Response } from "express";
 import { db } from "../storage";
 import { sql, eq } from "drizzle-orm";
 import { terminals } from "../../shared/schema";
+import { requirePermission } from "../middleware/permission_check";
 
 const router = Router();
 
@@ -70,7 +71,7 @@ router.post("/driver-location", async (req, res): Promise<void> => {
  * GET /api/logistics/driver-locations
  * Get all active driver locations for map display
  */
-router.get("/driver-locations", async (req, res): Promise<void> => {
+router.get("/driver-locations", requirePermission("logistics.read"), async (req: Request, res: Response): Promise<void> => {
     try {
         const locations = Array.from(driverLocations.values());
 
@@ -91,7 +92,7 @@ router.get("/driver-locations", async (req, res): Promise<void> => {
  * GET /api/logistics/driver-location/:employeeId
  * Get specific driver's current location
  */
-router.get("/driver-location/:employeeId", async (req, res): Promise<void> => {
+router.get("/driver-location/:employeeId", requirePermission("logistics.read"), async (req: Request, res: Response): Promise<void> => {
     try {
         const { employeeId } = req.params;
         const location = driverLocations.get(employeeId);

@@ -164,9 +164,21 @@ export default function Reports() {
 
                     {/* Placeholder for other tabs */}
                     {reportType !== "inventory" && (
-                        <div className="flex flex-col items-center justify-center h-full text-slate-500">
-                            <FileText className="w-16 h-16 mb-4 opacity-20" />
-                            <p>Reporte de {reportType} en construcción</p>
+                        <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center text-center p-6 animate-in fade-in duration-500">
+                            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6 border border-primary/20">
+                                <FileText className="w-10 h-10 text-primary animate-pulse" />
+                            </div>
+                            <h3 className="text-2xl font-black text-white mb-2 uppercase italic tracking-tighter">
+                                Módulo en Desarrollo
+                            </h3>
+                            <p className="text-slate-400 max-w-sm text-sm">
+                                Estamos perfeccionando los algoritmos de análisis para {reportType === 'sales' ? 'Ventas' : 'Finanzas'}.
+                                Estará disponible en la próxima actualización de <span className="text-primary font-bold">Cognitive OS</span>.
+                            </p>
+                            <div className="mt-8 flex gap-3">
+                                <Badge className="bg-primary/20 text-primary border-primary/30 px-3 py-1">TRAZABILIDAD 85%</Badge>
+                                <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30 px-3 py-1">IA ENGINE PRÓX.</Badge>
+                            </div>
                         </div>
                     )}
                 </CardContent>

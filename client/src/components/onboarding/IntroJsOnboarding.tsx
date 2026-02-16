@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { INDUSTRY_TEMPLATES } from '@/lib/industry-templates';
 import { useAuth } from '@/hooks/use-auth';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAppStore } from '@/store/app-store';
 import { apiRequest } from '@/lib/queryClient';
 import { useOnboarding } from '@/context/OnboardingContext';
@@ -34,16 +34,27 @@ export function IntroJsOnboarding() {
     // Sync from store on mount
     useEffect(() => {
         if (organization?.industry && organization.industry !== 'other') {
-            setSelectedIndustry(organization.industry);
+            const industryKey = organization.industry;
+            // Verificar que exista el template antes de setear
+            if (INDUSTRY_TEMPLATES[industryKey]) {
+                setSelectedIndustry(industryKey);
+            } else {
+                setSelectedIndustry('other');
+            }
         }
     }, [organization]);
 
-    // Initial check handled by AppLayout enforcement, but redundant check here is fine
+    const { data: config } = useQuery({
+        queryKey: ["/api/config"],
+        enabled: !!organization
+    });
+
     useEffect(() => {
-        if (organization?.onboardingStatus === 'completed' && organization?.industry !== 'other') {
-            setLocation('/dashboard');
+        // Redirigir si ya completó onboarding y no hay un tour activo
+        if (organization?.onboardingStatus === "completed" && !localStorage.getItem("nexus_tour_active")) {
+            setLocation("/dashboard");
         }
-    }, [organization, setLocation]);
+    }, [organization?.onboardingStatus, setLocation]);
 
     const handleIndustrySelect = async (industryKey: string) => {
         setIsSaving(true);
@@ -159,7 +170,7 @@ export function IntroJsOnboarding() {
                             >
                                 <Sparkles className="w-4 h-4 text-primary" />
                                 <span className="text-xs font-bold uppercase tracking-widest text-primary">
-                                    {selectedIndustry ? `Nexus ERP para ${INDUSTRY_TEMPLATES[selectedIndustry].name}` : 'Bienvenido a Nexus ERP'}
+                                    {selectedIndustry && INDUSTRY_TEMPLATES[selectedIndustry] ? `Nexus ERP para ${INDUSTRY_TEMPLATES[selectedIndustry].name}` : 'Bienvenido a Nexus ERP'}
                                 </span>
                             </motion.div>
 

@@ -10,6 +10,7 @@ import {
     purchases
 } from "../../shared/schema";
 import { eq, and, sql } from "drizzle-orm";
+import { EventBus } from "./event-bus";
 
 export class ManufacturingService {
     /**
@@ -97,8 +98,13 @@ export class ManufacturingService {
                     status: 'pending'
                 });
 
-                // AI Insight: Flag if this is a critical item with high lead time
-                // This would be consumed by the frontend to highlight urgency
+                // Emit MRP Event
+                EventBus.emit(organizationId, "mrp.recommendation_created", {
+                    orderId: order.id,
+                    productId: req.itemId,
+                    shortfall,
+                    suggestedPurchaseQuantity: shortfall
+                }).catch(err => console.error("EventBus Error (MRP):", err));
             }
         }
     }
@@ -256,5 +262,12 @@ export class ManufacturingService {
         await db.update(productionOrders)
             .set({ status: 'completed', updatedAt: new Date() })
             .where(eq(productionOrders.id, order.id));
+
+        // Emit Production Event
+        EventBus.emit(organizationId, "production.order_completed", {
+            orderId: order.id,
+            productId: order.productId,
+            quantityProduced: order.quantityProduced || order.quantityRequested
+        }).catch(err => console.error("EventBus Error (Production):", err));
     }
 }

@@ -10,6 +10,7 @@ import { UserRoleType } from "@/lib/ai/dashboard-engine";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { LogOut, ChevronRight, ChevronLeft, Settings } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 import { useConfiguration } from "@/context/ConfigurationContext";
 
@@ -109,14 +110,24 @@ export function Sidebar({ className, onLinkClick }: SidebarProps) {
 
             return (
               <motion.div key={item.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                <Link href={item.href} onClick={() => handleLinkClick(item.href)}>
+                <Link
+                  href={item.status === 'coming_soon' ? '#' : item.href}
+                  onClick={(e) => {
+                    if (item.status === 'coming_soon') {
+                      e.preventDefault();
+                      return;
+                    }
+                    handleLinkClick(item.href);
+                  }}
+                >
                   <div
                     data-tour={dataTourMap[item.href]}
                     className={cn(
                       "relative flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group cursor-pointer overflow-hidden",
                       isActive
                         ? "bg-primary text-primary-foreground shadow-[0_0_20px_rgba(59,130,246,0.5)]"
-                        : "text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent"
+                        : "text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent",
+                      item.status === 'coming_soon' && "opacity-50 cursor-not-allowed grayscale"
                     )}
                   >
                     {isActive && (
@@ -132,7 +143,15 @@ export function Sidebar({ className, onLinkClick }: SidebarProps) {
 
                     {/* Title */}
                     {!collapsed && (
-                      <span className="text-sm font-bold relative z-10 whitespace-nowrap">{item.title}</span>
+                      <div className="flex-1 flex justify-between items-center relative z-10 min-w-0">
+                        <span className="text-sm font-bold whitespace-nowrap truncate">{item.title}</span>
+                        {item.status === 'beta' && (
+                          <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/20 text-[8px] h-3 px-1 font-black italic">BETA</Badge>
+                        )}
+                        {item.status === 'coming_soon' && (
+                          <Badge className="bg-slate-800 text-slate-500 border-slate-700 text-[8px] h-3 px-1 font-black">PRÓX</Badge>
+                        )}
+                      </div>
                     )}
 
                     {/* Cognitive Indicator for High Priority Items */}

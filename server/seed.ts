@@ -106,7 +106,7 @@ export const industryTemplates = {
         "sales",
         "analytics"
     ],
-    restaurant: [
+    hospitality: [
         "operations",
         "cpe",
         "admin",

@@ -10,8 +10,8 @@ import { healthCheck, errorMiddleware } from "./lib/observability";
 const app = express();
 const httpServer = createServer(app);
 
-// Apply global rate limiting: 1000 requests per 15 minutes
-app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 1000 }));
+// Apply global rate limiting: 5000 requests per 15 minutes
+app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 5000 }));
 
 // Health check endpoint
 app.get("/health", healthCheck);

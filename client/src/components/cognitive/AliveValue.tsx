@@ -11,11 +11,13 @@ interface AliveValueProps {
     unit?: string;
     trend?: 'up' | 'down' | 'neutral';
     explanation?: string; // AI generated explanation
+    formula?: string; // Rule 11 requirement
+    source?: string; // Rule 11 requirement
     className?: string;
     allowTrend?: boolean; // Added validation for unknown prop
 }
 
-export function AliveValue({ label, value, unit, trend, explanation, className }: AliveValueProps) {
+export function AliveValue({ label, value, unit, trend, explanation, formula, source, className }: AliveValueProps) {
     const { systemConfidence } = useCognitiveEngine();
 
     // Calculate "aliveness" intensity based on system confidence (higher confidence = calmer pulse)
@@ -27,17 +29,33 @@ export function AliveValue({ label, value, unit, trend, explanation, className }
             {label && (
                 <p className="text-xs text-muted-foreground font-medium mb-1 flex items-center gap-1.5">
                     {label}
-                    {explanation && (
+                    {(explanation || formula || source) && (
                         <TooltipProvider>
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <Brain className="w-3 h-3 text-primary/40 hover:text-primary cursor-help" />
                                 </TooltipTrigger>
-                                <TooltipContent className="bg-slate-900 border-primary/20 p-3 max-w-[200px]">
-                                    <p className="text-xs text-slate-300 font-normal leading-relaxed">
-                                        <span className="font-bold text-primary block mb-1">Análisis Cognitivo:</span>
-                                        {explanation}
-                                    </p>
+                                <TooltipContent className="bg-slate-900 border-primary/20 p-3 max-w-[280px] shadow-2xl">
+                                    <div className="space-y-2.5">
+                                        {explanation && (
+                                            <p className="text-xs text-slate-300 font-normal leading-relaxed">
+                                                <span className="font-bold text-primary block mb-1">Análisis Cognitivo:</span>
+                                                {explanation}
+                                            </p>
+                                        )}
+                                        {formula && (
+                                            <p className="text-[10px] text-slate-400 font-mono bg-slate-950 p-1.5 rounded border border-slate-800">
+                                                <span className="font-bold text-emerald-500 block mb-1 uppercase tracking-wider text-[9px]">Fórmula:</span>
+                                                {formula}
+                                            </p>
+                                        )}
+                                        {source && (
+                                            <p className="text-[10px] text-slate-400 italic">
+                                                <span className="font-bold text-blue-400 block not-italic mb-0.5 uppercase tracking-wider text-[9px]">Fuente:</span>
+                                                {source}
+                                            </p>
+                                        )}
+                                    </div>
                                 </TooltipContent>
                             </Tooltip>
                         </TooltipProvider>

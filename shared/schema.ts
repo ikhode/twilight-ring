@@ -12,3 +12,4 @@ export * from "./modules/trustnet/schema";
 export * from "./modules/shieldline/schema";
 export * from "./modules/automation/schema";
 export * from "./modules/finance/lending";
+export * from "./modules/integrations/schema";

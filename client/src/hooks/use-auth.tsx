@@ -13,6 +13,7 @@ interface AuthContextType {
     organization: Organization | null; // Active Organization
     allOrganizations: Organization[]; // List of all linked organizations
     switchOrganization: (orgId: string) => void;
+    hasPermission: (permissionId: string) => boolean;
     loading: boolean;
     signOut: () => Promise<void>;
 }
@@ -27,6 +28,7 @@ const AuthContext = createContext<AuthContextType>({
     organization: null,
     allOrganizations: [],
     switchOrganization: () => { /* noop */ },
+    hasPermission: () => false,
     loading: true,
     signOut: async () => { /* noop */ },
 });
@@ -134,6 +136,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
+    const hasPermission = (permissionId: string): boolean => {
+        if (!organization || !profile) return false;
+        const currentOrg = profile.organizations.find(o => o.id === organization.id);
+        if (!currentOrg) return false;
+
+        // Admin bypass
+        if (currentOrg.role === 'admin') return true;
+
+        return currentOrg.permissions.includes(permissionId);
+    };
+
     const signOut = async () => {
         await supabase.auth.signOut();
         const loginPath = "/login";
@@ -148,6 +161,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             organization,
             allOrganizations,
             switchOrganization,
+            hasPermission,
             loading,
             signOut
         }}>

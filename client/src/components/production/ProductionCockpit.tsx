@@ -169,23 +169,30 @@ export function ProductionCockpit() {
                         </h3>
 
                         <div className="space-y-4">
-                            <div className="p-4 rounded-2xl bg-slate-950/50 border border-slate-800 hover:border-slate-700 transition-colors">
-                                <p className="text-xs text-slate-300 leading-relaxed font-medium">
-                                    El lote <span className="text-blue-400 font-bold">#4582</span> muestra una desviación del <span className="text-amber-500 font-bold">12%</span> respecto al rendimiento histórico.
-                                </p>
-                                <div className="mt-3 flex items-center gap-2">
-                                    <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20 text-[9px]">Revisar Yield</Badge>
+                            {summary?.insights?.map((insight: any) => (
+                                <div key={insight.id} className="p-4 rounded-2xl bg-slate-950/50 border border-slate-800 hover:border-slate-700 transition-colors">
+                                    <p className="text-xs text-slate-300 leading-relaxed font-medium">
+                                        {insight.message}
+                                    </p>
+                                    <div className="mt-3 flex items-center gap-2">
+                                        <Badge className={cn(
+                                            "text-[9px]",
+                                            insight.type === 'alert' ? "bg-amber-500/10 text-amber-500 border-amber-500/20" : "bg-blue-500/10 text-blue-500 border-blue-500/20"
+                                        )}>
+                                            {insight.type === 'alert' ? 'Atención' : 'Insight'}
+                                        </Badge>
+                                    </div>
                                 </div>
-                            </div>
+                            ))}
 
-                            <div className="p-4 rounded-2xl bg-slate-950/50 border border-slate-800 hover:border-slate-700 transition-colors">
-                                <p className="text-xs text-slate-300 leading-relaxed font-medium">
-                                    Capacidad instalada disponible en la estación de <span className="text-emerald-400 font-bold">Pelado</span>.
-                                </p>
-                                <div className="mt-3 flex items-center gap-2">
-                                    <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[9px]">Disponible</Badge>
+                            {(!summary?.insights || summary.insights.length === 0) && (
+                                <div className="p-8 border border-dashed border-slate-800 rounded-2xl flex flex-col items-center justify-center opacity-40">
+                                    <Zap className="w-5 h-5 text-slate-600 mb-2" />
+                                    <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest text-center">
+                                        Esperando datos para análisis cognitivo
+                                    </p>
                                 </div>
-                            </div>
+                            )}
                         </div>
 
                         <Button variant="ghost" className="w-full mt-4 text-[10px] text-slate-500 hover:text-white uppercase font-bold tracking-widest gap-2">
@@ -198,12 +205,14 @@ export function ProductionCockpit() {
                     <div className="p-6 rounded-3xl bg-slate-950/50 border border-slate-800">
                         <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Output de Hoy</h4>
                         <div className="flex items-end gap-2">
-                            <span className="text-3xl font-bold text-white tracking-tighter">1,284</span>
+                            <span className="text-3xl font-bold text-white tracking-tighter">
+                                {Number(summary?.todayOutput || 0).toLocaleString()}
+                            </span>
                             <span className="text-xs text-slate-500 mb-1.5 uppercase font-bold">Piezas</span>
                         </div>
                         <div className="mt-4 pt-4 border-t border-slate-900 flex justify-between">
                             <span className="text-[10px] text-slate-600 uppercase font-bold">Meta Diaria</span>
-                            <span className="text-[10px] text-emerald-500 font-bold">85% Completado</span>
+                            <span className="text-[10px] text-slate-500 font-bold">Sin meta configurada</span>
                         </div>
                     </div>
                 </div>

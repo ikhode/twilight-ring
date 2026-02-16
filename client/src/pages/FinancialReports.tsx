@@ -7,7 +7,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatCurrency, cn } from "@/lib/utils";
-import { CalendarIcon, Download, SlidersHorizontal, ArrowRight, Table as TableIcon, CreditCard, Banknote, ChevronLeft, ChevronRight, Info, Search, Filter, Zap } from "lucide-react";
+import { CalendarIcon, Download, SlidersHorizontal, ArrowRight, Table as TableIcon, CreditCard, Banknote, ChevronLeft, ChevronRight, Info, Search, Filter, Zap, FileCode, FileText } from "lucide-react";
 import {
     Tooltip as UiTooltip,
     TooltipContent,
@@ -319,7 +319,34 @@ export default function FinancialReports() {
                                     />
                                 </PopoverContent>
                             </Popover>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400"><Download className="w-4 h-4" /></Button>
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button variant="outline" size="sm" className="h-8 gap-2 border-emerald-500/50 text-emerald-500 hover:bg-emerald-500/10">
+                                        <Download className="w-4 h-4" /> Exportar SAT
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-56 bg-slate-950 border-slate-800 p-2" align="end">
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 px-2 py-1 mb-1 border-b border-white/5">Contabilidad Electrónica</p>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="w-full justify-start text-xs hover:bg-white/5 py-4"
+                                            onClick={() => window.open(`/api/finance/accounting/export/catalogo?year=${cursorDate.getFullYear()}&month=${cursorDate.getMonth() + 1}`, '_blank')}
+                                        >
+                                            <FileCode className="w-4 h-4 mr-2 text-primary" /> Catálogo de Cuentas (XML)
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="w-full justify-start text-xs hover:bg-white/5 py-4"
+                                            onClick={() => window.open(`/api/finance/accounting/export/balanza?year=${cursorDate.getFullYear()}&month=${cursorDate.getMonth() + 1}`, '_blank')}
+                                        >
+                                            <FileText className="w-4 h-4 mr-2 text-emerald-500" /> Balanza Comprobación (XML)
+                                        </Button>
+                                    </div>
+                                </PopoverContent>
+                            </Popover>
                         </div>
 
                     </CardContent>

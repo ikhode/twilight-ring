@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, Request, Response } from "express";
 import { db } from "../storage";
 import {
     vehicles, fuelLogs, maintenanceLogs, routes, routeStops, sales, purchases,
@@ -9,6 +9,7 @@ import {
 import { eq, and, desc, sql } from "drizzle-orm";
 import { getOrgIdFromRequest, getAuthenticatedUser } from "../auth_util";
 import { logAudit } from "../lib/audit";
+import { requirePermission } from "../middleware/permission_check";
 
 const router = Router();
 
@@ -30,7 +31,7 @@ async function getPerformerId(req: any, orgId: string): Promise<string> {
 /**
  * Obtiene el listado de todos los vehículos de la organización, ordenados por kilometraje.
  */
-router.get("/fleet/vehicles", async (req, res): Promise<void> => {
+router.get("/fleet/vehicles", requirePermission("logistics.read"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -53,7 +54,7 @@ router.get("/fleet/vehicles", async (req, res): Promise<void> => {
 /**
  * Registra un nuevo vehículo en la flotilla de la organización.
  */
-router.post("/fleet/vehicles", async (req, res): Promise<void> => {
+router.post("/fleet/vehicles", requirePermission("logistics.write"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -88,7 +89,7 @@ router.post("/fleet/vehicles", async (req, res): Promise<void> => {
 /**
  * Registra una bitácora de mantenimiento para un vehículo específico y actualiza su kilometraje.
  */
-router.post("/fleet/vehicles/:id/maintenance", async (req, res): Promise<void> => {
+router.post("/fleet/vehicles/:id/maintenance", requirePermission("logistics.write"), async (req: Request, res: Response): Promise<void> => {
     try {
         const { id: vehicleId } = req.params;
         const orgId = await getOrgIdFromRequest(req);
@@ -177,7 +178,7 @@ router.post("/fleet/vehicles/:id/maintenance", async (req, res): Promise<void> =
 /**
  * Obtiene el historial de mantenimiento de la flota.
  */
-router.get("/fleet/maintenance", async (req, res): Promise<void> => {
+router.get("/fleet/maintenance", requirePermission("logistics.read"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -202,7 +203,7 @@ router.get("/fleet/maintenance", async (req, res): Promise<void> => {
     }
 });
 
-router.get("/fleet/fuel", async (req, res): Promise<void> => {
+router.get("/fleet/fuel", requirePermission("logistics.read"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -225,7 +226,7 @@ router.get("/fleet/fuel", async (req, res): Promise<void> => {
     }
 });
 
-router.post("/fleet/vehicles/:id/fuel", async (req, res): Promise<void> => {
+router.post("/fleet/vehicles/:id/fuel", requirePermission("logistics.write"), async (req: Request, res: Response): Promise<void> => {
     try {
         const { id: vehicleId } = req.params;
         const orgId = await getOrgIdFromRequest(req);
@@ -301,7 +302,7 @@ router.post("/fleet/vehicles/:id/fuel", async (req, res): Promise<void> => {
 /**
  * Genera o recupera rutas activas.
  */
-router.get("/fleet/routes/active", async (req, res): Promise<void> => {
+router.get("/fleet/routes/active", requirePermission("logistics.read"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -332,7 +333,7 @@ router.get("/fleet/routes/active", async (req, res): Promise<void> => {
 /**
  * Genera una nueva ruta optimizada.
  */
-router.post("/fleet/routes/generate", async (req, res): Promise<void> => {
+router.post("/fleet/routes/generate", requirePermission("logistics.write"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -424,7 +425,7 @@ router.post("/fleet/routes/generate", async (req, res): Promise<void> => {
 /**
  * Obtiene la ruta activa para un conductor específico.
  */
-router.get("/fleet/routes/driver/:driverId", async (req, res): Promise<void> => {
+router.get("/fleet/routes/driver/:driverId", requirePermission("logistics.read"), async (req: Request, res: Response): Promise<void> => {
     try {
         const { driverId } = req.params;
         const orgId = await getOrgIdFromRequest(req);
@@ -456,7 +457,7 @@ router.get("/fleet/routes/driver/:driverId", async (req, res): Promise<void> => 
 /**
  * Marca una parada como completada y registra la prueba de entrega.
  */
-router.post("/fleet/routes/stops/:id/complete", async (req, res): Promise<void> => {
+router.post("/fleet/routes/stops/:id/complete", requirePermission("logistics.write"), async (req: Request, res: Response): Promise<void> => {
     try {
         const { id } = req.params;
         const { signature, lat, lng, isPaid, paymentAmount, paymentMethod } = req.body;
@@ -618,7 +619,7 @@ router.post("/fleet/routes/stops/:id/complete", async (req, res): Promise<void> 
  * Get all POIs (Points of Interest) for the organization.
  * Returns HQ, customers, suppliers, and employees with location data.
  */
-router.get("/pois", async (req, res): Promise<void> => {
+router.get("/pois", requirePermission("logistics.read"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -687,7 +688,7 @@ router.get("/pois", async (req, res): Promise<void> => {
 /**
  * Update organization headquarters location.
  */
-router.patch("/headquarters", async (req, res): Promise<void> => {
+router.patch("/headquarters", requirePermission("logistics.write"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {

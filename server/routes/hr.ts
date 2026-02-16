@@ -13,6 +13,8 @@ import {
 } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
+import { requirePermission } from "../middleware/permission_check";
+import { AuthenticatedRequest } from "../types";
 
 const router = Router();
 
@@ -23,7 +25,7 @@ const router = Router();
  * @param {import("express").Response} res - Respuesta de Express
  * @returns {Promise<void>}
  */
-router.get("/employees", async (req, res) => {
+router.get("/employees", requirePermission("hr.read"), async (req, res) => {
     const orgId = await getOrgIdFromRequest(req);
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
@@ -38,7 +40,7 @@ router.get("/employees", async (req, res) => {
  * @param {import("express").Response} res - Respuesta de Express
  * @returns {Promise<void>}
  */
-router.post("/employees", async (req, res) => {
+router.post("/employees", requirePermission("hr.write"), async (req, res) => {
     const orgId = await getOrgIdFromRequest(req);
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
@@ -49,6 +51,7 @@ router.post("/employees", async (req, res) => {
 
     // Log action
     await logAudit(
+        req,
         orgId,
         (req.user as any)?.id || "system",
         "CREATE_EMPLOYEE",
@@ -62,7 +65,7 @@ router.post("/employees", async (req, res) => {
 /**
  * Obtiene un empleado individual por ID.
  */
-router.get("/employees/:id", async (req, res) => {
+router.get("/employees/:id", requirePermission("hr.read"), async (req, res) => {
     const orgId = await getOrgIdFromRequest(req);
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
@@ -79,7 +82,7 @@ router.get("/employees/:id", async (req, res) => {
 /**
  * Actualiza la información de un empleado.
  */
-router.patch("/employees/:id", async (req, res) => {
+router.patch("/employees/:id", requirePermission("hr.write"), async (req, res) => {
     const orgId = await getOrgIdFromRequest(req);
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
@@ -93,6 +96,7 @@ router.patch("/employees/:id", async (req, res) => {
 
     // Log action
     await logAudit(
+        req,
         orgId,
         (req.user as any)?.id || "system",
         "UPDATE_EMPLOYEE",
@@ -106,7 +110,7 @@ router.patch("/employees/:id", async (req, res) => {
 /**
  * Elimina un empleado.
  */
-router.delete("/employees/:id", async (req, res) => {
+router.delete("/employees/:id", requirePermission('employees.write'), async (req, res) => {
     const orgId = await getOrgIdFromRequest(req);
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
@@ -120,6 +124,7 @@ router.delete("/employees/:id", async (req, res) => {
 
     // Log action
     await logAudit(
+        req,
         orgId,
         (req.user as any)?.id || "system",
         "DELETE_EMPLOYEE",
@@ -152,7 +157,7 @@ router.get("/payroll/advances", async (req, res) => {
  * @param {import("express").Response} res - Respuesta de Express
  * @returns {Promise<void>}
  */
-router.post("/invite", async (req, res) => {
+router.post("/invite", requirePermission('employees.write'), async (req, res) => {
     const orgId = await getOrgIdFromRequest(req);
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
@@ -224,7 +229,7 @@ router.post("/invite", async (req, res) => {
  */
 
 // Documents
-router.post("/employees/:id/documents", async (req, res) => {
+router.post("/employees/:id/documents", requirePermission('employees.write'), async (req, res) => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ error: "Unauthorized" });
@@ -263,7 +268,7 @@ router.get("/employees/:id/documents", async (req, res) => {
 });
 
 // Performance Reviews
-router.post("/employees/:id/reviews", async (req, res) => {
+router.post("/employees/:id/reviews", requirePermission('employees.write'), async (req, res) => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ error: "Unauthorized" });

@@ -17,7 +17,7 @@ export const INDUSTRY_TEMPLATES: Record<string, IndustryTemplate> = {
         name: "Tienda de Ropa / Retail",
         categories: ["Vestidos", "Pantalones", "Calzado", "Accesorios", "Liquidación"],
         units: ["pza", "par", "set"],
-        modules: ["inventory", "sales", "purchases", "crm", "finance", "employees", "cpe", "logistics", "documents", "shieldline"],
+        modules: ["inventory", "sales", "purchases", "finance", "employees", "documents"], // Removed: crm, cpe, logistics, shieldline (optional)
         suggestedProducts: [
             { name: "Vestido Rosa Mango Larga", category: "Vestidos", price: 850, cost: 320 },
             { name: "Jeans Azul Clásico", category: "Pantalones", price: 650, cost: 240 }
@@ -27,7 +27,7 @@ export const INDUSTRY_TEMPLATES: Record<string, IndustryTemplate> = {
         name: "Restaurante / Abarrotes",
         categories: ["Bebidas", "Perecederos", "Abarrotes", "Limpieza", "Congelados"],
         units: ["pza", "kg", "lt", "caja"],
-        modules: ["inventory", "sales", "purchases", "crm", "finance", "employees", "cpe", "logistics", "documents", "shieldline"],
+        modules: ["inventory", "sales", "purchases", "finance"], // Minimalist start for Abarrotes
         suggestedProducts: [
             { name: "Aceite Vegetal 1L", category: "Abarrotes", price: 45, cost: 32 },
             { name: "Caja de Refrescos (12pza)", category: "Bebidas", price: 280, cost: 210 }

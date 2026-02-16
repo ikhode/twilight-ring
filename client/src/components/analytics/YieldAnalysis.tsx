@@ -49,9 +49,14 @@ export function YieldAnalysis() {
                         <TrendingUp className="w-4 h-4 text-emerald-500" />
                         Análisis de Rendimiento (Yield)
                     </CardTitle>
-                    <Badge variant="outline" className="text-[10px] border-emerald-500/20 text-emerald-500">
-                        Tiempo Real
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-[10px] border-amber-500/20 text-amber-500 bg-amber-500/5">
+                            BETA
+                        </Badge>
+                        <Badge variant="outline" className="text-[10px] border-emerald-500/20 text-emerald-500">
+                            Tiempo Real
+                        </Badge>
+                    </div>
                 </div>
             </CardHeader>
             <CardContent>

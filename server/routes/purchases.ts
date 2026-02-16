@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, Request, Response } from "express";
 import { db } from "../storage";
 import {
     purchases, products, inventoryMovements, suppliers, expenses, cashRegisters, bankAccounts,
@@ -7,13 +7,14 @@ import {
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { getOrgIdFromRequest, getAuthenticatedUser } from "../auth_util";
 import { logAudit } from "../lib/audit";
+import { requirePermission } from "../middleware/permission_check";
 
 const router = Router();
 
 /**
  * Lists all purchases for the organization.
  */
-router.get("/", async (req, res): Promise<void> => {
+router.get("/", requirePermission("purchases.read"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -42,7 +43,7 @@ router.get("/", async (req, res): Promise<void> => {
  * Creates a new purchase order.
  * Expects: { supplierId, items: [{ productId, quantity, cost }], logisticsMethod, driverId, vehicleId, freightCost, paymentMethod, bankAccountId }
  */
-router.post("/", async (req, res): Promise<void> => {
+router.post("/", requirePermission("purchases.write"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -332,7 +333,7 @@ async function recordPurchasePayment(orgId: string, purchase: any) {
 /**
  * Approves a purchase batch or individual item.
  */
-router.patch("/batch/:batchId/approve", async (req, res): Promise<void> => {
+router.patch("/batch/:batchId/approve", requirePermission("purchases.write"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         const user = await getAuthenticatedUser(req);
@@ -374,7 +375,7 @@ router.patch("/batch/:batchId/approve", async (req, res): Promise<void> => {
 /**
  * Marks a single purchase as received.
  */
-router.patch("/:id/receive", async (req, res): Promise<void> => {
+router.patch("/:id/receive", requirePermission("purchases.write"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -414,7 +415,7 @@ router.patch("/:id/receive", async (req, res): Promise<void> => {
 /**
  * Marks a batch of purchases as received.
  */
-router.patch("/batch/:batchId/receive", async (req, res): Promise<void> => {
+router.patch("/batch/:batchId/receive", requirePermission("purchases.write"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -449,7 +450,7 @@ router.patch("/batch/:batchId/receive", async (req, res): Promise<void> => {
     }
 });
 
-router.patch("/:id/pay", async (req, res): Promise<void> => {
+router.patch("/:id/pay", requirePermission("purchases.write"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -546,7 +547,7 @@ router.patch("/:id/pay", async (req, res): Promise<void> => {
 /**
  * Registers payment for all items in a batch.
  */
-router.patch("/batch/:batchId/pay", async (req, res): Promise<void> => {
+router.patch("/batch/:batchId/pay", requirePermission("purchases.write"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -635,7 +636,7 @@ router.patch("/batch/:batchId/pay", async (req, res): Promise<void> => {
 /**
  * Cancels all items in a batch.
  */
-router.patch("/batch/:batchId/cancel", async (req, res): Promise<void> => {
+router.patch("/batch/:batchId/cancel", requirePermission("purchases.write"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -672,7 +673,7 @@ router.patch("/batch/:batchId/cancel", async (req, res): Promise<void> => {
  * Marks a purchase order as archived (Secure Deletion).
  * Admin can delete permanently, others can only archive.
  */
-router.delete("/batch/:batchId", async (req, res): Promise<void> => {
+router.delete("/batch/:batchId", requirePermission("purchases.write"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         const user = await getAuthenticatedUser(req);
@@ -728,7 +729,7 @@ router.delete("/batch/:batchId", async (req, res): Promise<void> => {
 /**
  * Updates logistics for all items in a batch.
  */
-router.patch("/batch/:batchId/logistics", async (req, res): Promise<void> => {
+router.patch("/batch/:batchId/logistics", requirePermission("purchases.write"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -789,7 +790,7 @@ router.patch("/batch/:batchId/logistics", async (req, res): Promise<void> => {
 /**
  * Updates logistics for a single purchase item.
  */
-router.patch("/:id/logistics", async (req, res): Promise<void> => {
+router.patch("/:id/logistics", requirePermission("purchases.write"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -826,7 +827,7 @@ router.patch("/:id/logistics", async (req, res): Promise<void> => {
 /**
  * Deletes a single purchase item.
  */
-router.delete("/:id", async (req, res): Promise<void> => {
+router.delete("/:id", requirePermission("purchases.write"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -886,7 +887,7 @@ router.delete("/batch/:batchId", async (req, res): Promise<void> => {
  */
 
 // Supplier Management
-router.get("/suppliers", async (req, res): Promise<void> => {
+router.get("/suppliers", requirePermission("crm.read"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -903,7 +904,7 @@ router.get("/suppliers", async (req, res): Promise<void> => {
     }
 });
 
-router.post("/suppliers", async (req, res): Promise<void> => {
+router.post("/suppliers", requirePermission("crm.write"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -924,7 +925,7 @@ router.post("/suppliers", async (req, res): Promise<void> => {
     }
 });
 
-router.put("/suppliers/:id", async (req, res): Promise<void> => {
+router.put("/suppliers/:id", requirePermission("crm.write"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -950,7 +951,7 @@ router.put("/suppliers/:id", async (req, res): Promise<void> => {
 });
 
 // Cost Analysis (Simple Average Cost History)
-router.get("/history/cost-analysis", async (req, res): Promise<void> => {
+router.get("/history/cost-analysis", requirePermission("purchases.read"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {

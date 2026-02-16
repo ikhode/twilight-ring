@@ -62,7 +62,7 @@ export default function Auth() {
         { id: "retail", name: "Retail", icon: Package, color: "from-blue-500 to-cyan-500" },
         { id: "manufacturing", name: "Manufactura", icon: Factory, color: "from-purple-500 to-pink-500" },
         { id: "services", name: "Servicios", icon: Users, color: "from-green-500 to-emerald-500" },
-        { id: "restaurant", name: "Restaurante", icon: Utensils, color: "from-orange-500 to-red-500" },
+        { id: "hospitality", name: "Restaurante", icon: Utensils, color: "from-orange-500 to-red-500" },
         { id: "healthcare", name: "Salud", icon: ShieldAlert, color: "from-red-500 to-orange-500" },
         { id: "logistics", name: "Logística", icon: Globe, color: "from-yellow-500 to-amber-500" },
         { id: "technology", name: "Tecnología", icon: Zap, color: "from-indigo-500 to-violet-500" },

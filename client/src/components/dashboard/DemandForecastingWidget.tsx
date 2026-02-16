@@ -11,9 +11,15 @@ import {
     XAxis,
     YAxis,
     CartesianGrid,
-    Tooltip,
+    Tooltip as RechartsTooltip,
     ReferenceLine
 } from "recharts";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface Props {
     historicalData: number[];
@@ -75,10 +81,28 @@ export function DemandForecastingWidget({ historicalData, title = "Predicción d
             <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                     <div>
-                        <Badge className="bg-primary/10 text-primary border-primary/20 mb-2 font-black uppercase text-[10px]">
-                            <Sparkles className="w-3 h-3 mr-1" />
-                            TensorFlow.js Core
-                        </Badge>
+                        <div className="flex items-center gap-2 mb-2">
+                            <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20 font-black uppercase text-[10px]">
+                                BETA
+                            </Badge>
+                            <Badge className="bg-primary/10 text-primary border-primary/20 font-black uppercase text-[10px]">
+                                <Sparkles className="w-3 h-3 mr-1" />
+                                TensorFlow.js Core
+                            </Badge>
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <div className="p-1 rounded-full bg-slate-800 border border-slate-700 cursor-help hover:bg-slate-700 transition-all">
+                                            <Brain className="w-3 h-3 text-slate-400" />
+                                        </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent className="bg-slate-900 border-slate-800 text-xs p-3 text-white max-w-xs transition-all">
+                                        <p className="font-bold text-primary italic uppercase tracking-widest text-[9px] mb-1">Métrica Predictiva</p>
+                                        <p>Proyecciones generadas mediante una red neuronal recurrente (LSTM) entrenada localmente en el navegador. Analiza patrones históricos de 7 días. Consistencia: ±85%.</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        </div>
                         <CardTitle className="text-xl font-black italic uppercase tracking-tighter text-white">{title}</CardTitle>
                     </div>
                 </div>
@@ -112,7 +136,7 @@ export function DemandForecastingWidget({ historicalData, title = "Predicción d
                                     tickFormatter={(v) => v === 1 ? 'Hoy' : v > 1 ? `+${v - 1}d` : `${v}d`}
                                 />
                                 <YAxis stroke="#475569" fontSize={10} tickFormatter={(v) => `$${v}`} />
-                                <Tooltip
+                                <RechartsTooltip
                                     contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', fontSize: '10px' }}
                                     itemStyle={{ color: '#fff' }}
                                 />

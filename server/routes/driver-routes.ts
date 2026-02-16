@@ -1,8 +1,9 @@
-import { Router } from "express";
+import { Router, Request, Response } from "express";
 import { db } from "../storage";
 import { sales, products, customers, purchases, suppliers } from "../../shared/schema";
 import { eq, and, inArray, sql, or } from "drizzle-orm";
 import { getOrgIdFromRequest } from "../auth_util";
+import { requirePermission } from "../middleware/permission_check";
 
 const router = Router();
 
@@ -10,7 +11,7 @@ const router = Router();
  * GET /api/logistics/driver-route/:employeeId
  * Get driver's assigned deliveries for the day
  */
-router.get("/driver-route/:employeeId", async (req, res): Promise<void> => {
+router.get("/driver-route/:employeeId", requirePermission("logistics.read"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -174,7 +175,7 @@ router.get("/driver-route/:employeeId", async (req, res): Promise<void> => {
  * POST /api/logistics/complete-stop
  * Mark a delivery stop as completed with signature and payment info
  */
-router.post("/complete-stop", async (req, res): Promise<void> => {
+router.post("/complete-stop", requirePermission("logistics.write"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -251,7 +252,7 @@ router.post("/complete-stop", async (req, res): Promise<void> => {
  * GET /api/logistics/driver-stats/:employeeId
  * Get driver's daily statistics
  */
-router.get("/driver-stats/:employeeId", async (req, res): Promise<void> => {
+router.get("/driver-stats/:employeeId", requirePermission("logistics.read"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {

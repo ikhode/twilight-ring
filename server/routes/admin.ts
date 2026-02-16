@@ -5,7 +5,8 @@ import {
     chatConversations,
     chatMessages,
     userOrganizations,
-    organizations
+    organizations,
+    auditLogs
 } from "@shared/schema";
 import { eq, and, desc, sql, count } from "drizzle-orm";
 import { supabaseAdmin } from "../supabase";
@@ -19,7 +20,7 @@ export function registerAdminRoutes(app: Express) {
     // Middleware to check admin role
     async function requireAdmin(req: Request, res: Response, next: Function) {
         try {
-            const authHeader = req.headers.authorization;
+            const authHeader = req.headers.authorization || req.headers['authorization'];
             if (!authHeader) return res.status(401).json({ message: "No token provided" });
 
             const token = authHeader.replace("Bearer ", "");
@@ -50,6 +51,29 @@ export function registerAdminRoutes(app: Express) {
             res.status(500).json({ message: "Internal server error" });
         }
     }
+
+    // GET /api/admin/audit-logs
+    app.get("/api/admin/audit-logs", requireAdmin, async (req: Request, res: Response) => {
+        try {
+            const organizationId = (req as any).organizationId;
+            const { limit = 100, offset = 0 } = req.query;
+
+            const logs = await db.query.auditLogs.findMany({
+                where: eq(auditLogs.organizationId, organizationId),
+                orderBy: [desc(auditLogs.timestamp)],
+                limit: Number(limit),
+                offset: Number(offset),
+                with: {
+                    user: true
+                }
+            });
+
+            res.json({ logs });
+        } catch (error) {
+            console.error("Get audit logs error:", error);
+            res.status(500).json({ message: "Internal server error" });
+        }
+    });
 
     // Get all agents
     app.get("/api/admin/agents", requireAdmin, async (req: Request, res: Response) => {

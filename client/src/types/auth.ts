@@ -1,14 +1,16 @@
 
 import { Organization } from "@shared/core/schema";
 
-export type UserProfile = {
+export interface UserProfile {
     user: {
         id: string;
         email: string;
         name: string;
     };
-    role?: string;
-    organizationId?: string;
     organization: Organization;
-    organizations: Organization[];
-};
+    role: "admin" | "manager" | "user" | "cashier";
+    organizations: (Organization & {
+        role: "admin" | "manager" | "user" | "cashier";
+        permissions: string[];
+    })[];
+}

@@ -7,6 +7,7 @@ import { CognitiveEngine } from "../lib/cognitive-engine";
 import { AuthenticatedRequest } from "../types";
 import { User, insertPieceworkTicketSchema, insertProductionTaskSchema, insertProductionActivityLogSchema } from "../../shared/schema";
 import { logAudit } from "../lib/audit";
+import { requirePermission } from "../middleware/permission_check";
 
 const router = Router();
 
@@ -16,7 +17,7 @@ const router = Router();
 /**
  * Lista procesos definidos para la organización.
  */
-router.post("/production/activity", async (req: Request, res: Response): Promise<void> => {
+router.post("/production/activity", requirePermission("production.write"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
@@ -53,7 +54,7 @@ router.post("/production/activity", async (req: Request, res: Response): Promise
 /**
  * Lista procesos definidos para la organización.
  */
-router.get("/processes", async (req: Request, res: Response): Promise<void> => {
+router.get("/processes", requirePermission("production.read"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
@@ -71,7 +72,7 @@ router.get("/processes", async (req: Request, res: Response): Promise<void> => {
 /**
  * Lista instancias activas (Lotes actuales).
  */
-router.get("/instances", async (req: Request, res: Response): Promise<void> => {
+router.get("/instances", requirePermission("production.read"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
@@ -102,7 +103,7 @@ router.get("/instances", async (req: Request, res: Response): Promise<void> => {
 /**
  * Get all production batches (active and completed) for traceability.
  */
-router.get("/instances/all", async (req: Request, res: Response): Promise<void> => {
+router.get("/instances/all", requirePermission("production.read"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -134,7 +135,7 @@ router.get("/instances/all", async (req: Request, res: Response): Promise<void> 
 /**
  * Get full traceability data for a specific instance.
  */
-router.get("/instances/:id/traceability", async (req: Request, res: Response): Promise<void> => {
+router.get("/instances/:id/traceability", requirePermission("production.read"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -186,7 +187,7 @@ router.get("/instances/:id/traceability", async (req: Request, res: Response): P
 /**
  * Crea una nueva instancia de proceso (Lote de producción).
  */
-router.post("/instances", async (req: Request, res: Response): Promise<void> => {
+router.post("/instances", requirePermission("production.write"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -222,7 +223,7 @@ router.post("/instances", async (req: Request, res: Response): Promise<void> => 
 /**
  * Registra un evento de proceso (Trazabilidad y Merma).
  */
-router.post("/events", async (req: Request, res: Response): Promise<void> => {
+router.post("/events", requirePermission("production.write"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -283,7 +284,7 @@ router.post("/events", async (req: Request, res: Response): Promise<void> => {
 /**
  * Reporta producción de destajo (Genera Ticket).
  */
-router.post("/report", async (req: Request, res: Response): Promise<void> => {
+router.post("/report", requirePermission("production.write"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -403,7 +404,7 @@ router.post("/report", async (req: Request, res: Response): Promise<void> => {
 /**
  * Obtiene el resumen de producción (OEE y Eficiencia).
  */
-router.get("/summary", async (req: Request, res: Response): Promise<void> => {
+router.get("/summary", requirePermission("production.read"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -485,6 +486,36 @@ router.get("/summary", async (req: Request, res: Response): Promise<void> => {
             ? ((completedCount / totalStarted) * 100).toFixed(1)
             : "0.0";
 
+        // 4. Daily Output (Sum of yields reported TODAY)
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        let todayOutput = 0;
+        completedInstances.forEach(i => {
+            if (i.completedAt && new Date(i.completedAt) >= today) {
+                const ctx = i.aiContext as any;
+                if (ctx?.yields) {
+                    if (typeof ctx.yields === 'object' && ctx.yields.final) {
+                        const final = ctx.yields.final;
+                        if (typeof final === 'object') {
+                            todayOutput += Object.values(final).reduce((a: number, b: any) => a + (Number(b) || 0), 0);
+                        } else {
+                            todayOutput += Number(final) || 0;
+                        }
+                    } else {
+                        todayOutput += Number(ctx.yields) || 0;
+                    }
+                }
+            }
+        });
+
+        // 5. Fetch Real AI Insights
+        const insights = await db.query.aiInsights.findMany({
+            where: eq(aiInsights.organizationId, orgId),
+            orderBy: [desc(aiInsights.createdAt)],
+            limit: 3
+        });
+
         res.json({
             activeCount,
             completedCount,
@@ -492,6 +523,13 @@ router.get("/summary", async (req: Request, res: Response): Promise<void> => {
             efficiency,
             waste: wastePercentage,
             avgCycleTime: avgCycleTimeHours,
+            todayOutput,
+            insights: insights.map(ins => ({
+                id: ins.id,
+                message: ins.insightText || (ins.data as any)?.message,
+                type: ins.type || 'info', // 'alert', 'info', etc
+                severity: ins.confidence > 0.8 ? 'high' : 'medium'
+            })),
             recentInstances: allInstances.slice(0, 5),
             activeInstances: allInstances.filter(i => i.status === "active")
         });
@@ -507,7 +545,7 @@ async function getProcess(processId: string, orgId: string) {
     });
 }
 
-router.post("/instances/:id/finish", async (req: Request, res: Response): Promise<void> => {
+router.post("/instances/:id/finish", requirePermission("production.write"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -737,7 +775,7 @@ router.post("/instances/:id/finish", async (req: Request, res: Response): Promis
 /**
  * FLOOR CONTROL: Get active activity logs for supervision.
  */
-router.get("/logs/active", async (req: Request, res: Response): Promise<void> => {
+router.get("/logs/active", requirePermission("production.read"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -776,7 +814,7 @@ router.get("/logs/active", async (req: Request, res: Response): Promise<void> =>
  * FLOOR CONTROL: Finalize a log (Supervisor Verification).
  * Creates a piecework ticket if it was a production task.
  */
-router.post("/logs/finalize", async (req: Request, res: Response): Promise<void> => {
+router.post("/logs/finalize", requirePermission("production.write"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {

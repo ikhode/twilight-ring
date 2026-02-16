@@ -311,7 +311,7 @@ export default function Dashboard() {
               </TooltipTrigger>
               <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-white p-3 max-w-xs">
                 <p className="font-bold text-primary uppercase tracking-widest text-[9px] mb-1">Métrica de Integridad</p>
-                <p>Calculado mediante la validación sintáctica de transacciones, consistencia en el libro mayor (TrustNet) y madurez de los datos históricos procesados por el motor de IA.</p>
+                <p>Calculado mediante la validación sintáctica de transacciones, consistencia en el libro mayor (TrustNet) y madurez de los datos históricos procesados por el motor de IA. Fuente: Protocolo TrustNet / Audit Engine.</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>

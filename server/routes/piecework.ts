@@ -18,6 +18,7 @@ import {
 } from "../../shared/schema";
 import { eq, and, desc, inArray, sql } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
+import { requirePermission } from "../middleware/permission_check";
 
 const router = Router();
 
@@ -41,7 +42,7 @@ async function getPerformerId(req: Request | AuthenticatedRequest, orgId: string
 /**
  * Obtiene el listado de tickets de destajo con filtros opcionales.
  */
-router.get("/tickets", async (req: Request, res: Response): Promise<void> => {
+router.get("/tickets", requirePermission("piecework.read"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
@@ -95,7 +96,7 @@ router.get("/tickets", async (req: Request, res: Response): Promise<void> => {
 /**
  * Obtiene un ticket individual por ID.
  */
-router.get("/tickets/:id", async (req: Request, res: Response): Promise<void> => {
+router.get("/tickets/:id", requirePermission("piecework.read"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
@@ -129,7 +130,7 @@ router.get("/tickets/:id", async (req: Request, res: Response): Promise<void> =>
 /**
  * Obtiene el listado de tareas disponibles desde la BD.
  */
-router.get("/tasks", async (req: Request, res: Response): Promise<void> => {
+router.get("/tasks", requirePermission("manufacturing.read"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
@@ -152,7 +153,7 @@ router.get("/tasks", async (req: Request, res: Response): Promise<void> => {
 });
 
 // NEW: Rate Management (Create Task)
-router.post("/tasks", async (req: Request, res: Response): Promise<void> => {
+router.post("/tasks", requirePermission("manufacturing.write"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
@@ -179,7 +180,7 @@ router.post("/tasks", async (req: Request, res: Response): Promise<void> => {
 });
 
 // Update Task
-router.put("/tasks/:id", async (req: Request, res: Response): Promise<void> => {
+router.put("/tasks/:id", requirePermission("manufacturing.write"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
@@ -213,7 +214,7 @@ router.put("/tasks/:id", async (req: Request, res: Response): Promise<void> => {
     }
 });
 
-router.delete("/tasks/:id", async (req: Request, res: Response): Promise<void> => {
+router.delete("/tasks/:id", requirePermission("manufacturing.write"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
@@ -242,7 +243,7 @@ router.delete("/tasks/:id", async (req: Request, res: Response): Promise<void> =
 /**
  * Obtiene el listado de adelantos de nómina pendientes.
  */
-router.get("/advances", async (req: Request, res: Response): Promise<void> => {
+router.get("/advances", requirePermission("piecework.read"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
@@ -279,7 +280,7 @@ router.get("/advances", async (req: Request, res: Response): Promise<void> => {
 /**
  * Registra un nuevo ticket de destajo.
  */
-router.post("/tickets", async (req: Request, res: Response): Promise<void> => {
+router.post("/tickets", requirePermission("piecework.write"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
@@ -425,7 +426,7 @@ router.post("/tickets", async (req: Request, res: Response): Promise<void> => {
 });
 
 // NEW: Approve Ticket
-router.post("/tickets/:id/approve", async (req: Request, res: Response): Promise<void> => {
+router.post("/tickets/:id/approve", requirePermission("piecework.pay"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
@@ -458,7 +459,7 @@ router.post("/tickets/:id/approve", async (req: Request, res: Response): Promise
 });
 
 // NEW: Pay Single Ticket (Quick Action)
-router.post("/tickets/:id/pay", async (req: Request, res: Response): Promise<void> => {
+router.post("/tickets/:id/pay", requirePermission("piecework.pay"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
@@ -523,7 +524,7 @@ router.post("/tickets/:id/pay", async (req: Request, res: Response): Promise<voi
 /**
  * Registra un nuevo adelanto de nómina.
  */
-router.post("/advances", async (req: Request, res: Response): Promise<void> => {
+router.post("/advances", requirePermission("piecework.write"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
@@ -594,7 +595,7 @@ router.post("/advances", async (req: Request, res: Response): Promise<void> => {
 /**
  * Procesa el pago de tickets y adelantos (Payout).
  */
-router.post("/payout", async (req: Request, res: Response): Promise<void> => {
+router.post("/payout", requirePermission("piecework.pay"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {
@@ -696,7 +697,7 @@ router.post("/payout", async (req: Request, res: Response): Promise<void> => {
 });
 
 // NEW: Productivity Reports
-router.get("/reports/productivity", async (req: Request, res: Response): Promise<void> => {
+router.get("/reports/productivity", requirePermission("piecework.read"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
         if (!orgId) {

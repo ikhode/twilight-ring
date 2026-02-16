@@ -9,6 +9,15 @@ import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { getAuthenticatedUser, getOrgIdFromRequest } from "../auth_util";
 import { requireModule } from "../middleware/moduleGuard";
 import { logAudit } from "../lib/audit";
+import { requirePermission } from "../middleware/permission_check";
+import { AccountingService } from "../services/AccountingService";
+
+const formatCurrency = (amountInCents: number) => {
+    return new Intl.NumberFormat('es-MX', {
+        style: 'currency',
+        currency: 'MXN'
+    }).format(amountInCents / 100);
+};
 
 const router = Router();
 
@@ -20,7 +29,7 @@ async function getContext(req: Request) {
 }
 
 // GET /api/finance/cash/stats - Get current register status
-router.get("/cash/stats", async (req: Request, res: Response) => {
+router.get("/cash/stats", requirePermission("finance.read"), async (req: Request, res: Response) => {
     try {
         const { user, orgId } = await getContext(req);
         if (!user || !orgId) {
@@ -67,7 +76,7 @@ router.get("/cash/stats", async (req: Request, res: Response) => {
 });
 
 // POST /api/finance/cash/open - Open a new session
-router.post("/cash/open", async (req: Request, res: Response) => {
+router.post("/cash/open", requirePermission("finance.write"), async (req: Request, res: Response) => {
     try {
         const { user, orgId } = await getContext(req);
         if (!user || !orgId) {
@@ -120,6 +129,7 @@ router.post("/cash/open", async (req: Request, res: Response) => {
 
         // Log action
         await logAudit(
+            req,
             orgId,
             user.id,
             "OPEN_CASH_SESSION",
@@ -140,7 +150,7 @@ router.post("/cash/open", async (req: Request, res: Response) => {
 });
 
 // POST /api/finance/cash/close - Close session (Arqueo)
-router.post("/cash/close", async (req: Request, res: Response) => {
+router.post("/cash/close", requirePermission("finance.write"), async (req: Request, res: Response) => {
     try {
         const { user, orgId } = await getContext(req);
         if (!user || !orgId) {
@@ -195,6 +205,7 @@ router.post("/cash/close", async (req: Request, res: Response) => {
 
         // Log action
         await logAudit(
+            req,
             orgId,
             user.id,
             "CLOSE_CASH_SESSION",
@@ -229,7 +240,7 @@ router.post("/cash/close", async (req: Request, res: Response) => {
 });
 
 // POST /api/finance/cash/transaction - Record movement
-router.post("/cash/transaction", async (req: Request, res: Response) => {
+router.post("/cash/transaction", requirePermission("finance.write"), async (req: Request, res: Response) => {
     try {
         const { user, orgId } = await getContext(req);
         if (!user || !orgId) {
@@ -269,11 +280,11 @@ router.post("/cash/transaction", async (req: Request, res: Response) => {
         const newBalance = type === 'in' ? register.balance + amount : register.balance - amount;
         await db.update(cashRegisters)
             .set({ balance: newBalance })
-            .set({ balance: newBalance })
             .where(eq(cashRegisters.id, register.id));
 
         // Log action
         await logAudit(
+            req,
             orgId,
             user.id,
             "CREATE_CASH_TRANSACTION",
@@ -388,16 +399,16 @@ router.post("/payout/confirm", async (req, res) => {
         // 4. Update Balance
         await db.update(cashRegisters)
             .set({ balance: sql`${cashRegisters.balance} - ${data.amount}` })
-            .set({ balance: sql`${cashRegisters.balance} - ${data.amount}` })
             .where(eq(cashRegisters.id, register.id));
 
         // Log action
         await logAudit(
+            req,
             data.orgId,
             (req as any).user?.id || 'system',
             "CONFIRM_PAYOUT",
             data.employeeId,
-            { amount: data.amount, ticketCount: data.ticketIds?.length || 1 }
+            { message: `Pago confirmado de ${formatCurrency(data.amount)} para ${data.employeeId}` }
         );
 
         res.json({ success: true, message: "Desembolso registrado correctamente" });
@@ -452,16 +463,16 @@ router.post("/driver-settlements/:saleId/receive", async (req, res) => {
         // Update Balance
         await db.update(cashRegisters)
             .set({ balance: sql`${cashRegisters.balance} + ${sale.totalPrice}` })
-            .set({ balance: sql`${cashRegisters.balance} + ${sale.totalPrice}` })
             .where(eq(cashRegisters.id, register.id));
 
         // Log action
         await logAudit(
+            req,
             orgId!,
             user.id,
             "RECEIVE_DRIVER_SETTLEMENT",
             saleId,
-            { amount: sale.totalPrice }
+            { message: `Recibida liquidación de chofer por ${formatCurrency(sale.totalPrice)}` }
         );
 
         res.json({ success: true, message: "Efectivo recibido correctamente" });
@@ -470,12 +481,52 @@ router.post("/driver-settlements/:saleId/receive", async (req, res) => {
     }
 });
 
+// --- SAT / ACCOUNTING EXPORTS ---
+
+router.get("/accounting/export/catalogo", requirePermission("finance.read"), async (req, res) => {
+    try {
+        const { user, orgId } = await getContext(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const year = parseInt(req.query.year as string) || new Date().getFullYear();
+        const month = parseInt(req.query.month as string) || new Date().getMonth() + 1;
+
+        const xml = await AccountingService.exportCatalogoXML(orgId, year, month);
+
+        res.header('Content-Type', 'application/xml');
+        res.header('Content-Disposition', `attachment; filename="Catalogo_Cuentas_${year}_${month}.xml"`);
+        res.send(xml);
+    } catch (error) {
+        console.error("Export Catalogo Error:", error);
+        res.status(500).json({ message: "Error generando XML" });
+    }
+});
+
+router.get("/accounting/export/balanza", requirePermission("finance.read"), async (req, res) => {
+    try {
+        const { user, orgId } = await getContext(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const year = parseInt(req.query.year as string) || new Date().getFullYear();
+        const month = parseInt(req.query.month as string) || new Date().getMonth() + 1;
+
+        const xml = await AccountingService.exportBalanzaXML(orgId, year, month);
+
+        res.header('Content-Type', 'application/xml');
+        res.header('Content-Disposition', `attachment; filename="Balanza_Comprobacion_${year}_${month}.xml"`);
+        res.send(xml);
+    } catch (error) {
+        console.error("Export Balanza Error:", error);
+        res.status(500).json({ message: "Error generando XML" });
+    }
+});
+
 /**
  * --- MIGRATED & NEW FEATURES ---
  */
 
 // GET /api/finance/summary
-router.get("/summary", async (req, res): Promise<void> => {
+router.get("/summary", requirePermission("finance.read"), async (req, res): Promise<void> => {
     try {
         const { user, orgId } = await getContext(req);
         if (!orgId || !user) {
@@ -819,7 +870,7 @@ router.get("/summary", async (req, res): Promise<void> => {
 });
 
 // POST /api/finance/transaction
-router.post("/transaction", async (req, res): Promise<void> => {
+router.post("/transaction", requirePermission('finance.write'), async (req, res): Promise<void> => {
     try {
         const { user, orgId } = await getContext(req);
         if (!orgId) {
@@ -850,6 +901,7 @@ router.post("/transaction", async (req, res): Promise<void> => {
 
             // Log action
             await logAudit(
+                req,
                 orgId,
                 user.id,
                 "CREATE_EXPENSE",
@@ -874,6 +926,7 @@ router.post("/transaction", async (req, res): Promise<void> => {
 
             // Log action
             await logAudit(
+                req,
                 orgId,
                 user.id,
                 "CREATE_INCOME",
@@ -894,7 +947,7 @@ router.post("/transaction", async (req, res): Promise<void> => {
 });
 
 // NEW: Budgets
-router.post("/budgets", async (req, res): Promise<void> => {
+router.post("/budgets", requirePermission('finance.write'), async (req, res): Promise<void> => {
     try {
         const { orgId } = await getContext(req);
         if (!orgId) {
@@ -934,7 +987,7 @@ router.get("/budgets", async (req, res): Promise<void> => {
 });
 
 // NEW: Reconciliation (Mock)
-router.post("/reconcile", async (req, res): Promise<void> => {
+router.post("/reconcile", requirePermission('finance.write'), async (req, res): Promise<void> => {
     try {
         const { orgId } = await getContext(req);
         if (!orgId) {
@@ -1001,7 +1054,7 @@ router.get("/accounts", async (req, res): Promise<void> => {
     }
 });
 
-router.post("/accounts", async (req, res): Promise<void> => {
+router.post("/accounts", requirePermission('finance.write'), async (req, res): Promise<void> => {
     try {
         const { orgId } = await getContext(req);
         if (!orgId) {
@@ -1065,7 +1118,6 @@ router.get("/all-transactions", async (req, res): Promise<void> => {
                 amount: -(e.amount),
                 date: e.date,
                 type: 'expense',
-                method: e.method || 'cash',
                 category: e.category,
                 details: e.supplier?.name
             })),
@@ -1113,6 +1165,46 @@ router.patch("/accounts/:id", async (req, res): Promise<void> => {
         res.json(acc);
     } catch (error) {
         res.status(500).json({ message: "Failed to update bank account" });
+    }
+});
+
+// --- SAT ELECTRONIC ACCOUNTING EXPORTS ---
+
+router.get("/accounting/export/catalogo", async (req, res) => {
+    try {
+        const { orgId } = await getContext(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const year = parseInt(req.query.year as string) || new Date().getFullYear();
+        const month = parseInt(req.query.month as string) || new Date().getMonth() + 1;
+
+        const xml = await AccountingService.exportCatalogoXML(orgId, year, month);
+
+        res.setHeader("Content-Type", "application/xml");
+        res.setHeader("Content-Disposition", `attachment; filename=Catalogo_${orgId}_${year}_${month}.xml`);
+        res.send(xml);
+    } catch (error) {
+        console.error("Catalogo export error:", error);
+        res.status(500).json({ message: "Error al generar el XML del catálogo" });
+    }
+});
+
+router.get("/accounting/export/balanza", async (req, res) => {
+    try {
+        const { orgId } = await getContext(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const year = parseInt(req.query.year as string) || new Date().getFullYear();
+        const month = parseInt(req.query.month as string) || new Date().getMonth() + 1;
+
+        const xml = await AccountingService.exportBalanzaXML(orgId, year, month);
+
+        res.setHeader("Content-Type", "application/xml");
+        res.setHeader("Content-Disposition", `attachment; filename=Balanza_${orgId}_${year}_${month}.xml`);
+        res.send(xml);
+    } catch (error) {
+        console.error("Balanza export error:", error);
+        res.status(500).json({ message: "Error al generar el XML de la balanza" });
     }
 });
 

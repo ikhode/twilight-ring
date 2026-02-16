@@ -23,12 +23,19 @@ import {
   MessageSquare,
   AlertTriangle,
   Activity,
-  Edit
+  Edit,
+  Gavel,
+  Target,
+  Handshake,
+  CheckCircle2,
+  XCircle,
+  Clock
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { Customer, Supplier } from "../../../shared/schema";
+import { Deal, InsertDeal } from "../../../shared/modules/commerce/deals";
 import { useAuth } from "@/hooks/use-auth";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -45,6 +52,15 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { DossierView } from "@/components/shared/DossierView";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { TAX_REGIMES, CFDI_USAGE, PAYMENT_FORMS, PAYMENT_METHODS } from "../../../shared/constants/fiscal";
+import { validateRFC, validateZipCode } from "../../../shared/utils/fiscal";
 
 function CreateCustomerDialog() {
   const { session } = useAuth();
@@ -52,14 +68,23 @@ function CreateCustomerDialog() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
-  const [formData, setFormData] = useState({ name: "", email: "", phone: "" });
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    rfc: "",
+    taxRegimeId: "",
+    zipCode: "",
+    fiscalPersonaType: "moral" as "moral" | "fisica",
+    loyaltyCardCode: ""
+  });
 
   const labels: Record<string, any> = {
     services: { title: "Nuevo Cliente Corporativo", nameLabel: "Razón Social / Empresa", namePlaceholder: "Ej. Acme Corp", emailLabel: "Email de Contacto" },
-    healthcare: { title: "Registrar Paciente", nameLabel: "Nombre del Paciente", namePlaceholder: "Ej. Juan Pérez", emailLabel: "Email Personal" },
-    restaurant: { title: "Registro de Comensal", nameLabel: "Nombre del Cliente", namePlaceholder: "Ej. María González", emailLabel: "Email (Fidelización)" },
-    retail: { title: "Nuevo Cliente", nameLabel: "Nombre Completo", namePlaceholder: "Ej. Juan Pérez", emailLabel: "Email" },
-    generic: { title: "Nuevo Cliente", nameLabel: "Nombre de la Empresa / Persona", namePlaceholder: "Ej. Acme Corp", emailLabel: "Email" }
+    healthcare: { title: "Registrar Paciente", nameLabel: "Nombre del Paciente", namePlaceholder: "Ej. Juan Pérez", emailLabel: "Email Personal", loyaltyLabel: "ID Expediente" },
+    hospitality: { title: "Registro de Comensal", nameLabel: "Nombre del Cliente", namePlaceholder: "Ej. María González", emailLabel: "Email (Fidelización)", loyaltyLabel: "Tarjeta Lealtad" },
+    retail: { title: "Nuevo Cliente", nameLabel: "Nombre Completo", namePlaceholder: "Ej. Juan Pérez", emailLabel: "Email", loyaltyLabel: "Código Cliente" },
+    generic: { title: "Nuevo Cliente", nameLabel: "Nombre de la Empresa / Persona", namePlaceholder: "Ej. Acme Corp", emailLabel: "Email", loyaltyLabel: "Código Referencia" }
   };
 
   const currentLabels = labels[industry as string] || labels.generic;
@@ -80,8 +105,17 @@ function CreateCustomerDialog() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/crm/customers"] });
       setOpen(false);
-      setFormData({ name: "", email: "", phone: "" });
-      toast({ title: "Registro Exitoso", description: "Se ha dado de alta correctamente." });
+      setFormData({
+        name: "",
+        email: "",
+        phone: "",
+        rfc: "",
+        taxRegimeId: "",
+        zipCode: "",
+        fiscalPersonaType: "moral",
+        loyaltyCardCode: ""
+      });
+      toast({ title: "Cliente Creado", description: "El cliente ha sido registrado exitosamente." });
 
       // Onboarding Action
       window.dispatchEvent(new CustomEvent('NEXUS_ONBOARDING_ACTION', { detail: 'customer_created' }));
@@ -131,16 +165,63 @@ function CreateCustomerDialog() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Teléfono</Label>
+              <Label>Tipo de Persona</Label>
+              <Select
+                value={formData.fiscalPersonaType}
+                onValueChange={v => setFormData({ ...formData, fiscalPersonaType: v as any })}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="moral">Persona Moral (Empresa)</SelectItem>
+                  <SelectItem value="fisica">Persona Física (Individuo)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>RFC</Label>
               <CognitiveInput
-                value={formData.phone}
-                onChange={e => setFormData({ ...formData, phone: e.target.value })}
-                placeholder="+52 55..."
-                semanticType="phone"
+                value={formData.rfc}
+                onChange={e => setFormData({ ...formData, rfc: e.target.value.toUpperCase() })}
+                placeholder="XAXX010101000"
+                className={cn(!validateRFC(formData.rfc) && formData.rfc.length > 0 && "border-rose-500")}
+              />
+              {!validateRFC(formData.rfc) && formData.rfc.length > 0 && (
+                <p className="text-[10px] text-rose-500 mt-1">RFC Inválido</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>{currentLabels.loyaltyLabel || "Tarjeta Lealtad"}</Label>
+              <Input
+                value={formData.loyaltyCardCode}
+                onChange={e => setFormData({ ...formData, loyaltyCardCode: e.target.value })}
+                placeholder="Escanea o escribe código..."
               />
             </div>
           </div>
           <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Régimen Fiscal</Label>
+              <Select
+                value={formData.taxRegimeId}
+                onValueChange={v => setFormData({ ...formData, taxRegimeId: v })}
+              >
+                <SelectTrigger><SelectValue placeholder="Seleccionar Régimen" /></SelectTrigger>
+                <SelectContent>
+                  {TAX_REGIMES.map(r => (
+                    <SelectItem key={r.id} value={r.id}>{r.id} - {r.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Código Postal Fiscal</Label>
+              <Input
+                value={formData.zipCode}
+                onChange={e => setFormData({ ...formData, zipCode: e.target.value })}
+                placeholder="55000"
+                maxLength={5}
+              />
+            </div>
             <div className="space-y-2">
               <Label>Límite de Crédito (MXN)</Label>
               <div className="relative">
@@ -178,14 +259,6 @@ function CreateCustomerDialog() {
     </Dialog>
   );
 }
-
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 function EditCustomerDialog({ customer, open, onOpenChange }: { customer: Customer | null, open: boolean, onOpenChange: (open: boolean) => void }) {
   const { session } = useAuth();
@@ -241,6 +314,10 @@ function EditCustomerDialog({ customer, open, onOpenChange }: { customer: Custom
                 birthDate: formData.get("birth_date") as string,
                 notes: formData.get("notes") as string,
                 status: formData.get("status") as any,
+                rfc: formData.get("rfc") as string,
+                taxRegimeId: formData.get("taxRegimeId") as string,
+                zipCode: formData.get("zipCode") as string,
+                fiscalPersonaType: formData.get("fiscalPersonaType") as any,
               });
             }} className="space-y-4 py-4">
               <Tabs defaultValue="general" className="w-full">
@@ -277,6 +354,23 @@ function EditCustomerDialog({ customer, open, onOpenChange }: { customer: Custom
                     <Input name="address" defaultValue={customer.address || ""} placeholder="Calle, Número, Col..." />
                   </div>
 
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Tipo de Persona</Label>
+                      <Select name="fiscalPersonaType" defaultValue={customer.fiscalPersonaType || "moral"}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="moral">Persona Moral</SelectItem>
+                          <SelectItem value="fisica">Persona Física</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>RFC</Label>
+                      <Input name="rfc" defaultValue={customer.rfc || ""} placeholder="XAXX010101000" />
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
                     <Label>Estado de la Cuenta</Label>
                     <Select name="status" defaultValue={customer.status || "active"}>
@@ -291,6 +385,24 @@ function EditCustomerDialog({ customer, open, onOpenChange }: { customer: Custom
                 </TabsContent>
 
                 <TabsContent value="billing" className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Tarjeta de Lealtad / ID</Label>
+                      <Input
+                        name="loyaltyCardCode"
+                        defaultValue={customer.loyaltyCardCode || ""}
+                        placeholder="Código escaneado..."
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Puntos Acumulados</Label>
+                      <div className="flex items-center gap-2 h-10 px-3 py-2 bg-muted rounded-md text-sm font-bold text-primary">
+                        <Target className="w-4 h-4" />
+                        {customer.loyaltyPoints || 0} pts
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Límite de Crédito (MXN)</Label>
@@ -310,6 +422,24 @@ function EditCustomerDialog({ customer, open, onOpenChange }: { customer: Custom
                           <SelectItem value="check">Cheque</SelectItem>
                         </SelectContent>
                       </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Régimen Fiscal (SAT)</Label>
+                      <Select name="taxRegimeId" defaultValue={customer.taxRegimeId || ""}>
+                        <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                        <SelectContent>
+                          {TAX_REGIMES.map(r => (
+                            <SelectItem key={r.id} value={r.id}>{r.id} - {r.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>CP Fiscal</Label>
+                      <Input name="zipCode" defaultValue={customer.zipCode || ""} placeholder="55000" maxLength={5} />
                     </div>
                   </div>
 
@@ -363,7 +493,14 @@ function CreateSupplierDialog() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
-  const [formData, setFormData] = useState({ name: "", contact: "", phone: "" });
+  const [formData, setFormData] = useState({
+    name: "",
+    contact: "",
+    phone: "",
+    rfc: "",
+    taxRegimeId: "",
+    zipCode: ""
+  });
 
   const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
@@ -376,7 +513,10 @@ function CreateSupplierDialog() {
         body: JSON.stringify({
           name: data.name,
           contactInfo: { contact: data.contact },
-          phone: data.phone
+          phone: data.phone,
+          rfc: data.rfc,
+          taxRegimeId: data.taxRegimeId,
+          zipCode: data.zipCode
         })
       });
       if (!res.ok) throw new Error("Failed to create supplier");
@@ -385,7 +525,7 @@ function CreateSupplierDialog() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/crm/suppliers"] });
       setOpen(false);
-      setFormData({ name: "", contact: "", phone: "" });
+      setFormData({ name: "", contact: "", phone: "", rfc: "", taxRegimeId: "", zipCode: "" });
       toast({ title: "Proveedor creado", description: "El proveedor se ha registrado exitosamente." });
     },
     onError: () => {
@@ -428,6 +568,24 @@ function CreateSupplierDialog() {
               onChange={e => setFormData({ ...formData, phone: e.target.value })}
               placeholder="+52 55..."
             />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>RFC</Label>
+              <Input
+                value={formData.rfc}
+                onChange={e => setFormData({ ...formData, rfc: e.target.value.toUpperCase() })}
+                placeholder="RFC del SAT"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>CP Fiscal</Label>
+              <Input
+                value={formData.zipCode}
+                onChange={e => setFormData({ ...formData, zipCode: e.target.value })}
+                placeholder="55000"
+              />
+            </div>
           </div>
         </div>
         <DialogFooter>
@@ -490,13 +648,16 @@ function EditSupplierDialog({ supplier, open, onOpenChange }: { supplier: Suppli
                 category: formData.get("category") as string,
                 address: formData.get("address") as string,
                 contactPerson: formData.get("contact_person") as string,
-                taxRegimeId: formData.get("tax_regime_id") as string,
                 paymentTermsDays: Number(formData.get("payment_terms_days")),
                 creditLimit: Number(formData.get("credit_limit")) * 100,
                 bankName: formData.get("bank_name") as string,
                 bankAccountNumber: formData.get("bank_account_number") as string,
                 bankClabe: formData.get("bank_clabe") as string,
                 status: formData.get("status") as any,
+                rfc: formData.get("rfc") as string,
+                taxRegimeId: formData.get("tax_regime_id") as string,
+                zipCode: formData.get("zip_code") as string,
+                fiscalPersonaType: formData.get("fiscal_persona_type") as any,
               });
             }} className="space-y-4 py-4">
               <Tabs defaultValue="general" className="w-full">
@@ -535,6 +696,23 @@ function EditSupplierDialog({ supplier, open, onOpenChange }: { supplier: Suppli
                     </div>
                   </div>
 
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Tipo de Persona</Label>
+                      <Select name="fiscalPersonaType" defaultValue={supplier.fiscalPersonaType || "moral"}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="moral">Persona Moral</SelectItem>
+                          <SelectItem value="fisica">Persona Física</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>RFC</Label>
+                      <Input name="rfc" defaultValue={supplier.rfc || ""} placeholder="RFC del SAT" />
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
                     <Label>Dirección Fiscal / Oficina</Label>
                     <Input name="address" defaultValue={supplier.address || ""} placeholder="Calle, Número, Col..." />
@@ -542,6 +720,24 @@ function EditSupplierDialog({ supplier, open, onOpenChange }: { supplier: Suppli
                 </TabsContent>
 
                 <TabsContent value="financial" className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Régimen Fiscal (SAT)</Label>
+                      <Select name="taxRegimeId" defaultValue={supplier.taxRegimeId || ""}>
+                        <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                        <SelectContent>
+                          {TAX_REGIMES.map(r => (
+                            <SelectItem key={r.id} value={r.id}>{r.id} - {r.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>CP Fiscal</Label>
+                      <Input name="zipCode" defaultValue={supplier.zipCode || ""} placeholder="55000" maxLength={5} />
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Días de Crédito</Label>
@@ -601,6 +797,140 @@ function EditSupplierDialog({ supplier, open, onOpenChange }: { supplier: Suppli
             />
           </div>
         </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PipelineCard({ deal, onMove }: { deal: Deal & { customer: Customer }, onMove: (status: string) => void }) {
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="p-4 rounded-lg bg-slate-900 border border-slate-800 shadow-sm space-y-3"
+    >
+      <div className="flex justify-between items-start">
+        <h5 className="font-bold text-sm text-slate-200">{deal.name}</h5>
+        <Badge variant="outline" className="text-[10px] border-emerald-500/30 text-emerald-500">
+          {Math.round(deal.probability)}%
+        </Badge>
+      </div>
+      <div className="flex items-center gap-2 text-xs text-slate-400">
+        <Users className="w-3 h-3" />
+        {deal.customer?.name}
+      </div>
+      <div className="flex justify-between items-center text-sm">
+        <span className="font-mono text-primary font-bold">
+          {new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format((deal.value || 0) / 100)}
+        </span>
+        <div className="flex gap-1">
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onMove("qualified")} title="Calificar">
+            <TrendingUp className="w-3 h-3 text-blue-400" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onMove("closed_won")} title="Cerrar Ganado">
+            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+          </Button>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function CreateDealDialog({ customers }: { customers: Customer[] }) {
+  const { session } = useAuth();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [formData, setFormData] = useState<Partial<InsertDeal>>({
+    name: "",
+    customerId: "",
+    status: "lead",
+    value: 0,
+    probability: 10
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: Partial<InsertDeal>) => {
+      const res = await fetch("/api/crm/deals", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify(data)
+      });
+      if (!res.ok) throw new Error("Failed to create deal");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/crm/deals"] });
+      setOpen(false);
+      setFormData({ name: "", customerId: "", status: "lead", value: 0, probability: 10 });
+      toast({ title: "Negocio Registrado", description: "El trato se ha iniciado exitosamente en el pipeline." });
+    }
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button className="gap-2 bg-emerald-600 hover:bg-emerald-700">
+          <Target className="w-4 h-4" /> Nuevo Negocio
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Apertura de Negocio</DialogTitle>
+          <DialogDescription>Inicia un nuevo trato en el pipeline de ventas.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label>Nombre del Trato</Label>
+            <Input
+              value={formData.name}
+              onChange={e => setFormData({ ...formData, name: e.target.value })}
+              placeholder="Ej. Suministro Anual Acme"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Cliente</Label>
+            <Select onValueChange={v => setFormData({ ...formData, customerId: v })}>
+              <SelectTrigger><SelectValue placeholder="Seleccionar Cliente" /></SelectTrigger>
+              <SelectContent>
+                {customers.map(c => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Valor Estimado (MXN)</Label>
+              <Input
+                type="number"
+                value={(formData.value || 0) / 100}
+                onChange={e => setFormData({ ...formData, value: Number(e.target.value) * 100 })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Probabilidad (%)</Label>
+              <Input
+                type="number"
+                min="0"
+                max="100"
+                value={formData.probability}
+                onChange={e => setFormData({ ...formData, probability: Number(e.target.value) })}
+              />
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+          <Button onClick={() => createMutation.mutate(formData)} disabled={createMutation.isPending}>
+            {createMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            Iniciar Trato
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
@@ -740,6 +1070,47 @@ export default function CRM() {
     totalDebt: customers.filter((c) => (c.balance || 0) < 0).reduce((acc, c) => acc + Math.abs(c.balance || 0), 0),
   };
 
+  const { data: dealsData = [], isLoading: loadingDeals } = useQuery<(Deal & { customer: Customer })[]>({
+    queryKey: ["/api/crm/deals"],
+    queryFn: async () => {
+      if (!session?.access_token) return [];
+      const res = await fetch("/api/crm/deals", {
+        headers: { Authorization: `Bearer ${session.access_token}` }
+      });
+      if (!res.ok) throw new Error("Fetch failed");
+      return res.json();
+    },
+    enabled: isEnabled && !!session?.access_token
+  });
+
+  const dealStages = [
+    { id: "lead", label: "Lead", icon: Target, color: "bg-slate-500" },
+    { id: "qualified", label: "Calificado", icon: Activity, color: "bg-blue-500" },
+    { id: "proposal", label: "Propuesta", icon: Gavel, color: "bg-purple-500" },
+    { id: "negotiation", label: "Negociación", icon: Handshake, color: "bg-amber-500" },
+    { id: "closed_won", label: "Cerrado Ganado", icon: CheckCircle2, color: "bg-emerald-500" },
+    { id: "closed_lost", label: "Cerrado Perdido", icon: XCircle, color: "bg-rose-500" },
+  ];
+
+  const updateDealMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string, status: string }) => {
+      const res = await fetch(`/api/crm/deals/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify({ status })
+      });
+      if (!res.ok) throw new Error("Update failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/crm/deals"] });
+      toast({ title: "Pipeline Actualizado", description: "El estado del negocio se ha sincronizado." });
+    }
+  });
+
   const filteredCustomers = customers.filter(c =>
     c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (c.email && c.email.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -771,6 +1142,10 @@ export default function CRM() {
             <TabsTrigger value="suppliers" className="data-[state=active]:bg-primary data-[state=active]:text-white">
               <Truck className="w-4 h-4 mr-2" />
               Proveedores
+            </TabsTrigger>
+            <TabsTrigger value="pipeline" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
+              <TrendingUp className="w-4 h-4 mr-2" />
+              Pipeline de Ventas
             </TabsTrigger>
           </TabsList>
 
@@ -828,6 +1203,8 @@ export default function CRM() {
                     value={clientsStats.total}
                     trend="up"
                     explanation="Crecimiento del 5% respecto al mes anterior."
+                    formula="COUNT(id) FROM customers"
+                    source="Base de Datos CRM (Realtime)"
                   />
                 </CardContent>
               </Card>
@@ -837,6 +1214,8 @@ export default function CRM() {
                     label="Cartera Activa"
                     value={clientsStats.active}
                     explanation="85% de retención de clientes activos."
+                    formula="COUNT(id) FROM customers WHERE status = 'active'"
+                    source="Base de Datos CRM (Realtime)"
                   />
                 </CardContent>
               </Card>
@@ -848,6 +1227,8 @@ export default function CRM() {
                     trend="up"
                     className="text-emerald-500"
                     explanation="Flujo de caja positivo proyectado para fin de mes."
+                    formula="SUM(balance) FROM customers WHERE balance > 0"
+                    source="Contabilidad Directa"
                   />
                 </CardContent>
               </Card>
@@ -859,6 +1240,8 @@ export default function CRM() {
                     trend="down"
                     className="text-rose-500"
                     explanation="Reducción de deuda vencida en un 12% tras la última campaña."
+                    formula="SUM(balance) FROM customers WHERE balance < 0"
+                    source="Contabilidad Directa"
                   />
                 </CardContent>
               </Card>
@@ -937,6 +1320,16 @@ export default function CRM() {
                             </div>
                           );
                         }
+                      },
+                      {
+                        key: "loyaltyPoints",
+                        header: "Puntos",
+                        render: (item) => (
+                          <div className="flex items-center gap-1.5 text-amber-400 font-bold">
+                            <Target className="w-3.5 h-3.5" />
+                            {item.loyaltyPoints || 0}
+                          </div>
+                        ),
                       },
                       {
                         key: "balance",
@@ -1047,6 +1440,68 @@ export default function CRM() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+          {/* PIPELINE TAB */}
+          <TabsContent value="pipeline" className="space-y-6">
+            <div className="flex justify-between items-center bg-slate-900/50 p-6 rounded-xl border border-slate-800">
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-full bg-emerald-500/10 text-emerald-500">
+                  <Activity className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg">Sales Pipeline</h3>
+                  <p className="text-sm text-slate-400">Visualización de embudo y conversión de negocios</p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/crm/deals"] })}>
+                  <RefreshCcw className="w-4 h-4 mr-2" /> Actualizar
+                </Button>
+                <CreateDealDialog customers={customers} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 min-h-[600px]">
+              {dealStages.map(stage => {
+                const StageIcon = stage.icon;
+                const stageDeals = dealsData.filter(d => d.status === stage.id);
+                const stageTotal = stageDeals.reduce((sum, d) => sum + (d.value || 0), 0);
+
+                return (
+                  <div key={stage.id} className="flex flex-col space-y-4 bg-slate-950/30 rounded-xl p-3 border border-slate-800/50">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-800/50">
+                      <div className="flex items-center gap-2">
+                        <div className={cn("p-1.5 rounded-md", stage.color)}>
+                          <StageIcon className="w-3.5 h-3.5 text-white" />
+                        </div>
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-300">{stage.label}</span>
+                      </div>
+                      <Badge variant="secondary" className="bg-slate-800 text-slate-400">{stageDeals.length}</Badge>
+                    </div>
+
+                    <div className="text-[11px] font-mono text-primary/70 px-1">
+                      {new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(stageTotal / 100)}
+                    </div>
+
+                    <div className="flex-1 space-y-3 overflow-y-auto max-h-[500px] scrollbar-hide py-2 px-1">
+                      {stageDeals.map(deal => (
+                        <PipelineCard
+                          key={deal.id}
+                          deal={deal}
+                          onMove={(newStatus) => updateDealMutation.mutate({ id: deal.id, status: newStatus })}
+                        />
+                      ))}
+                      {stageDeals.length === 0 && (
+                        <div className="flex flex-col items-center justify-center py-10 opacity-20 filter grayscale">
+                          <Clock className="w-8 h-8 mb-2" />
+                          <span className="text-[10px] uppercase font-bold tracking-tighter">Sin Tratos</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </TabsContent>
         </Tabs>
       </div>

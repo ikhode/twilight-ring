@@ -30,6 +30,9 @@ import { CashControl } from "@/components/finance/CashControl";
 import { useConfiguration } from "@/context/ConfigurationContext";
 import { ReportViewerDialog } from "@/components/finance/ReportViewerDialog";
 import { CognitiveFinancials } from "@/components/finance/CognitiveFinancials";
+import { COATree } from "@/components/finance/COATree";
+import { JournalEntryForm } from "@/components/finance/JournalEntryForm";
+import { FinancialStatements } from "@/components/finance/FinancialStatements";
 import { DossierView } from "@/components/shared/DossierView";
 import {
   Tooltip as UiTooltip,
@@ -59,6 +62,18 @@ export default function Finance() {
         headers: { Authorization: `Bearer ${session?.access_token}` }
       });
       if (!res.ok) throw new Error("Failed to fetch finance summary");
+      return res.json();
+    },
+    enabled: !!session?.access_token
+  });
+
+  const { data: accounts = [] } = useQuery({
+    queryKey: ["/api/finance/accounts"],
+    queryFn: async () => {
+      const res = await fetch("/api/finance/accounts", {
+        headers: { Authorization: `Bearer ${session?.access_token}` }
+      });
+      if (!res.ok) throw new Error("Failed to fetch accounts");
       return res.json();
     },
     enabled: !!session?.access_token
@@ -295,117 +310,87 @@ export default function Finance() {
 
           {/* Main Operational Panel (Cash) */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Quick Actions Bar */}
-            <div className="flex items-center justify-between p-1">
-              <h3 className="text-lg font-semibold text-white">Resumen Financiero</h3>
-              <div className="flex gap-2">
-                <Select value={typeFilter} onValueChange={setTypeFilter}>
-                  <SelectTrigger className="h-8 w-32 border-dashed bg-transparent border-slate-700 text-xs">
-                    <SelectValue placeholder="Tipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="income">Ingresos</SelectItem>
-                    <SelectItem value="expense">Egresos</SelectItem>
-                  </SelectContent>
-                </Select>
+            {/* Main Operational Panel (Accounting) */}
+            <Tabs defaultValue="overview" className="space-y-6">
+              <div className="flex items-center justify-between p-1">
+                <TabsList className="bg-slate-900 border-slate-800">
+                  <TabsTrigger value="overview">Resumen</TabsTrigger>
+                  <TabsTrigger value="manual">Asientos</TabsTrigger>
+                  <TabsTrigger value="coa">Plan de Cuentas</TabsTrigger>
+                  <TabsTrigger value="statements">Estados Financieros</TabsTrigger>
+                </TabsList>
 
-                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                  <SelectTrigger className="h-8 w-40 border-dashed bg-transparent border-slate-700 text-xs">
-                    <SelectValue placeholder="Categoría" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todas</SelectItem>
-                    {uniqueCategories.map((c: any) => (
-                      <SelectItem key={c} value={c}>{c}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <Select value={typeFilter} onValueChange={setTypeFilter}>
+                    <SelectTrigger className="h-8 w-32 border-dashed bg-transparent border-slate-700 text-xs text-white">
+                      <SelectValue placeholder="Tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="income">Ingresos</SelectItem>
+                      <SelectItem value="expense">Egresos</SelectItem>
+                    </SelectContent>
+                  </Select>
 
-                <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="Reset Filters" onClick={() => { setTypeFilter("all"); setCategoryFilter("all"); }}>
-                  <Filter className="h-4 w-4" />
-                </Button>
-                <Link to="/finance/reports">
-                  <Button size="sm" variant="outline" className="h-8 gap-2 border-dashed">
-                    <History className="h-3 w-3" /> Reportes
+                  <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                    <SelectTrigger className="h-8 w-40 border-dashed bg-transparent border-slate-700 text-xs text-white">
+                      <SelectValue placeholder="Categoría" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas</SelectItem>
+                      {uniqueCategories.map((c: any) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="Reset Filters" onClick={() => { setTypeFilter("all"); setCategoryFilter("all"); }}>
+                    <Filter className="h-4 w-4" />
                   </Button>
-                </Link>
+                  <Link href="/finance/reports">
+                    <Button size="sm" variant="outline" className="h-8 gap-2 border-dashed">
+                      <History className="h-3 w-3" /> Reportes
+                    </Button>
+                  </Link>
+                </div>
               </div>
-            </div>
 
-            {/* KPI GRID */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <UiTooltip>
-                <TooltipTrigger asChild>
-                  <Card className="bg-emerald-950/20 border-emerald-900/50 p-4 relative overflow-hidden group cursor-help hover:border-emerald-500/50 transition-colors">
-                    <div className="absolute top-0 right-0 p-3 opacity-20"><ArrowUpRight className="h-10 w-10 text-emerald-500" /></div>
-                    <p className="text-xs text-emerald-400 font-medium mb-1">Por Cobrar</p>
-                    <h4 className="text-2xl font-bold text-white/90">{formatCurrency(summary?.accountsReceivable?.total / 100 || 0)}</h4>
-                    <p className="text-[10px] text-emerald-500/60 mt-1">{summary?.accountsReceivable?.count || 0} facturas pendientes</p>
-                  </Card>
-                </TooltipTrigger>
-                <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-slate-300">
-                  <p>Monto total de ventas con pago pendiente.</p>
-                </TooltipContent>
-              </UiTooltip>
+              <TabsContent value="overview" className="space-y-6 mt-0">
+                <Card className="bg-slate-950 border-slate-800/60">
+                  <CardHeader className="py-3 px-4 border-b border-slate-800/60">
+                    <CardTitle className="text-sm font-medium text-white">Movimientos Recientes</CardTitle>
+                    <p className="text-[10px] text-slate-500">Doble click en Categoría o Estado para filtrar.</p>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <DataTable
+                      columns={columns}
+                      data={filteredTransactions}
+                      onCellDoubleClick={(item, key, value) => {
+                        if (key === 'category') setCategoryFilter(value || "General");
+                      }}
+                    />
+                  </CardContent>
+                </Card>
+              </TabsContent>
 
-              <UiTooltip>
-                <TooltipTrigger asChild>
-                  <Card className="bg-rose-950/20 border-rose-900/50 p-4 relative overflow-hidden cursor-help group-hover:border-rose-500/50 transition-colors">
-                    <div className="absolute top-0 right-0 p-3 opacity-20"><ArrowDownRight className="h-10 w-10 text-rose-500" /></div>
-                    <p className="text-xs text-rose-400 font-medium mb-1">Por Pagar</p>
-                    <h4 className="text-2xl font-bold text-white/90">{formatCurrency(summary?.accountsPayable?.total / 100 || 0)}</h4>
-                    <p className="text-[10px] text-rose-500/60 mt-1">{summary?.accountsPayable?.count || 0} facturas pendientes</p>
-                  </Card>
-                </TooltipTrigger>
-                <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-slate-300">
-                  <p>Monto neto por pagar (excluye canceladas).</p>
-                  {summary?.accountsPayable?.cancelledTotal > 0 && (
-                    <p className="text-[10px] text-rose-400 mt-1">
-                      Cancelado: {formatCurrency(summary.accountsPayable.cancelledTotal / 100)} ({summary.accountsPayable.cancelledCount})
-                    </p>
-                  )}
-                </TooltipContent>
-              </UiTooltip>
-
-              <UiTooltip>
-                <TooltipTrigger asChild>
-                  <Card className="bg-blue-950/20 border-blue-900/50 p-4 relative overflow-hidden group cursor-help hover:border-blue-500/50 transition-colors">
-                    <div className="absolute top-0 right-0 p-3 opacity-20"><CreditCard className="h-10 w-10 text-blue-500" /></div>
-                    <p className="text-xs text-blue-400 font-medium mb-1">Adelantos de Nómina</p>
-                    <h4 className="text-2xl font-bold text-white/90">{formatCurrency(summary?.payroll?.total / 100 || 0)}</h4>
-                    <p className="text-[10px] text-blue-500/60 mt-1">{summary?.payroll?.count || 0} empleados</p>
-                  </Card>
-                </TooltipTrigger>
-                <TooltipContent className="bg-slate-900 border-slate-800 text-xs text-slate-300">
-                  <p>Adelantos de sueldo otorgados en el periodo actual.</p>
-                </TooltipContent>
-              </UiTooltip>
-            </div>
-
-            <Button className="w-full bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/20 h-10 font-semibold tracking-wide">
-              <Plus className="mr-2 h-4 w-4" /> Nueva Transacción
-            </Button>
-
-            {/* Main Transaction Table (Refactored) */}
-            <Card className="bg-slate-950 border-slate-800/60">
-              <CardHeader className="py-3 px-4 border-b border-slate-800/60">
-                <CardTitle className="text-sm font-medium">Movimientos Recientes</CardTitle>
-                <p className="text-[10px] text-slate-500">Doble click en Categoría o Estado para filtrar.</p>
-              </CardHeader>
-              <CardContent className="p-0">
-                <DataTable
-                  columns={columns}
-                  data={filteredTransactions}
-                  onCellDoubleClick={(item, key, value) => {
-                    if (key === 'category') setCategoryFilter(value || "General");
-                    if (item.type) {
-                      // If they click something that implies type, we could set it, but simplest is category.
-                    }
+              <TabsContent value="manual" className="mt-0">
+                <JournalEntryForm
+                  accounts={accounts}
+                  onSubmit={async (entry, items) => {
+                    // Logic to post entry
+                    console.log("Posting entry:", entry, items);
                   }}
                 />
-              </CardContent>
-            </Card>
+              </TabsContent>
+
+              <TabsContent value="coa" className="mt-0">
+                <COATree accounts={accounts} />
+              </TabsContent>
+
+              <TabsContent value="statements" className="mt-0">
+                <FinancialStatements accounts={accounts} />
+              </TabsContent>
+            </Tabs>
 
           </div>
 

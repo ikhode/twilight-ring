@@ -9,6 +9,7 @@ export interface NavItem {
     href: string;
     priority: number;
     reason?: string;
+    status?: 'ready' | 'beta' | 'coming_soon';
 }
 
 // Core modules that are always present or handled separately
@@ -25,12 +26,13 @@ class ContextEngine {
     getAdaptiveNavigation(role: UserRoleType, enabledModules: string[] = []): NavItem[] {
         const hour = new Date().getHours();
 
-        // 1. Filter ERP modules based on what is enabled
-        const activeERPModules = ERP_MODULES.filter(m => enabledModules.includes(m.id)).map(m => ({
+        // 1. Filter ERP modules based on what is enabled (Automatic enable inventory-advanced if inventory is on)
+        const activeERPModules = ERP_MODULES.filter(m => enabledModules.includes(m.id) || (m.id === 'inventory-advanced' && enabledModules.includes('inventory'))).map(m => ({
             id: m.id,
             title: m.name,
             icon: m.icon,
             href: m.href,
+            status: m.status,
             priority: 50 // Base priority
         }));
 

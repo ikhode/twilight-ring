@@ -3,11 +3,12 @@ import { db, storage } from "../storage";
 import { employees, workSessions } from "../../shared/schema";
 import { eq, and, isNull, desc } from "drizzle-orm";
 import { getOrgIdFromRequest } from "../auth_util";
+import { requirePermission } from "../middleware/permission_check";
 
 const router = Router();
 
 // Get recent attendance logs for an organization
-router.get("/recent", async (req, res) => {
+router.get("/recent", requirePermission("hr.read"), async (req, res) => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ error: "Unauthorized" });

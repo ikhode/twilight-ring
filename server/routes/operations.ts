@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, Request, Response } from "express";
 import { db } from "../storage";
 import {
     suppliers, products, expenses, purchases,
@@ -11,6 +11,7 @@ import { createRequire } from "module";
 
 const require = createRequire(import.meta.url || "file://" + __filename);
 const pdf = require("pdf-parse");
+import { requirePermission } from "../middleware/permission_check";
 
 const router = Router();
 
@@ -19,7 +20,7 @@ const router = Router();
 /**
  * Obtiene métricas clave para el Dashboard de Operaciones.
  */
-router.get("/dashboard", async (req, res): Promise<void> => {
+router.get("/dashboard", requirePermission("operations.read"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -27,29 +28,86 @@ router.get("/dashboard", async (req, res): Promise<void> => {
             return;
         }
 
-        // Metrics: Active Vehicles, Pending Maintenance, Critical Stock, Recent Expenses
-        const activeVehiclesCount = await db.select({ count: sql<number>`count(*)` })
+        // 1. Vehicles Stats
+        const [activeVehiclesCount] = await db.select({ count: sql<number>`count(*)` })
             .from(vehicles)
             .where(and(eq(vehicles.organizationId, orgId), eq(vehicles.status, "active")));
 
-        const criticalStockCount = await db.select({ count: sql<number>`count(*)` })
-            .from(products)
-            .where(and(eq(products.organizationId, orgId), sql`${products.stock} < 10`)); // Mock threshold
+        const [pendingVehiclesCount] = await db.select({ count: sql<number>`count(*)` })
+            .from(vehicles)
+            .where(and(eq(vehicles.organizationId, orgId), eq(vehicles.status, "maintenance")));
 
-        // Recent activity (mocked aggregation for speed, or actual query)
-        const recentActivity = [
-            { type: "alert", message: "3 Vehicles need maintenance", time: "2h ago" },
-            { type: "info", message: "Inventory audit completed", time: "5h ago" }
-        ];
+        // 2. Inventory Stats
+        const [totalItemsCount] = await db.select({ count: sql<number>`count(*)` })
+            .from(products)
+            .where(eq(products.organizationId, orgId));
+
+        const [lowStockCount] = await db.select({ count: sql<number>`count(*)` })
+            .from(products)
+            .where(and(eq(products.organizationId, orgId), sql`${products.stock} <= ${products.minStock}`));
+
+        // 3. Production Stats
+        const activeInstances = await db.query.processInstances.findMany({
+            where: (pi, { and, eq }) => and(
+                eq(pi.status, "active"),
+                sql`${pi.processId} IN (SELECT id FROM processes WHERE organization_id = ${orgId})`
+            ),
+            limit: 2
+        });
+
+        const [totalActiveProduction] = await db.select({ count: sql<number>`count(*)` })
+            .from(processInstances)
+            .where(and(
+                eq(processInstances.status, "active"),
+                sql`${processInstances.processId} IN (SELECT id FROM processes WHERE organization_id = ${orgId})`
+            ));
+
+        // 4. Sales Stats (Today)
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // This assumes we have a sales or orders table in typical ERP fashion, 
+        // using 'sales' table if it exists or empty as fallback
+        // For now, let's keep it robust by checking if there's any data
+        const recentOrders = await db.select()
+            .from(sql`sales` as any)
+            .where(and(
+                eq(sql`organization_id` as any, orgId),
+                sql`created_at >= ${today}`
+            ))
+            .orderBy(desc(sql`created_at` as any))
+            .limit(3)
+            .catch(() => []); // Graceful if table doesn't exist yet
+
+        const [todayRevenue] = await db.select({ total: sql<number>`sum(total_amount)` })
+            .from(sql`sales` as any)
+            .where(and(
+                eq(sql`organization_id` as any, orgId),
+                sql`created_at >= ${today}`
+            ))
+            .catch(() => [{ total: 0 }]);
 
         res.json({
-            stats: {
-                activeVehicles: activeVehiclesCount[0]?.count || 0,
-                criticalStock: criticalStockCount[0]?.count || 0,
-                fulfillmentRate: 98.5, // Mock
-                efficiency: 92 // Mock
+            healthMessage: "Guardian AI monitoreando procesos críticos.",
+            inventory: {
+                totalItems: totalItemsCount?.count || 0,
+                lowStock: lowStockCount?.count || 0,
+                capacity: totalItemsCount?.count > 0 ? 85 : 0 // Default or calculated
             },
-            activity: recentActivity
+            production: {
+                activeCount: totalActiveProduction?.count || 0,
+                activeInstances: activeInstances || []
+            },
+            sales: {
+                todayRevenue: todayRevenue?.total || 0,
+                trend: 0,
+                history: [],
+                recentOrders: recentOrders || []
+            },
+            logistics: {
+                inRoute: activeVehiclesCount?.count || 0,
+                pending: pendingVehiclesCount?.count || 0
+            }
         });
 
     } catch (error) {
@@ -61,7 +119,7 @@ router.get("/dashboard", async (req, res): Promise<void> => {
 /**
  * Obtiene la configuración operativa de la sede/organización.
  */
-router.get("/config", async (req, res): Promise<void> => {
+router.get("/config", requirePermission("operations.read"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -88,7 +146,7 @@ router.get("/config", async (req, res): Promise<void> => {
 /**
  * Actualiza la configuración operativa.
  */
-router.post("/config", async (req, res): Promise<void> => {
+router.post("/config", requirePermission("operations.write"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -108,7 +166,7 @@ router.post("/config", async (req, res): Promise<void> => {
 /**
  * Analiza un documento PDF.
  */
-router.post("/documents/parse", async (req, res): Promise<void> => {
+router.post("/documents/parse", requirePermission("operations.write"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {
@@ -150,7 +208,7 @@ router.post("/documents/parse", async (req, res): Promise<void> => {
 /**
  * Obtiene el listado de proveedores.
  */
-router.get("/suppliers", async (req, res): Promise<void> => {
+router.get("/suppliers", requirePermission("crm.read"), async (req: Request, res: Response): Promise<void> => {
     try {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) {

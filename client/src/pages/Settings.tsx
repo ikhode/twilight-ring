@@ -154,23 +154,31 @@ export default function Settings() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <TooltipProvider text-white>
+                  <TooltipProvider>
                     {ERP_MODULES.map((mod) => (
                       <Tooltip key={mod.id}>
                         <TooltipTrigger asChild>
-                          <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950/50 border border-slate-800 hover:border-primary/20 transition-all cursor-help">
+                          <div className={cn(
+                            "flex items-center justify-between p-3 rounded-xl bg-slate-950/50 border border-slate-800 transition-all",
+                            mod.status === 'coming_soon' ? "opacity-50 cursor-not-allowed" : "hover:border-primary/20 cursor-help"
+                          )}>
                             <div className="flex items-center gap-3">
                               <div className="p-2 bg-slate-900 rounded-lg text-slate-400">
                                 {React.createElement(mod.icon as any, { className: "w-4 h-4" })}
                               </div>
                               <div>
-                                <p className="text-xs font-bold text-white uppercase italic">{mod.name}</p>
+                                <div className="flex items-center gap-2">
+                                  <p className="text-xs font-bold text-white uppercase italic">{mod.name}</p>
+                                  {mod.status === 'beta' && <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/20 text-[8px] h-3 px-1 italic">BETA</Badge>}
+                                  {mod.status === 'coming_soon' && <Badge className="bg-slate-800 text-slate-500 border-slate-700 text-[8px] h-3 px-1">PRÓXIMAMENTE</Badge>}
+                                </div>
                                 <p className="text-[10px] text-slate-500">{mod.description}</p>
                               </div>
                             </div>
                             <Switch
                               checked={enabledModules.includes(mod.id)}
-                              onCheckedChange={() => toggleModule(mod.id)}
+                              onCheckedChange={() => mod.status !== 'coming_soon' && toggleModule(mod.id)}
+                              disabled={mod.status === 'coming_soon'}
                               onClick={(e) => e.stopPropagation()}
                             />
                           </div>
