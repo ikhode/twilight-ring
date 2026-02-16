@@ -165,10 +165,16 @@ router.get("/stats", requirePermission("sales.read"), async (req, res) => {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
 
+        // Date ranges for "Current Period" vs "Previous Period" (Last 30 days vs 30-60 days ago)
+        const today = new Date();
         const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        thirtyDaysAgo.setDate(today.getDate() - 30);
 
-        const allSales = await db.select({
+        const sixtyDaysAgo = new Date();
+        sixtyDaysAgo.setDate(today.getDate() - 60);
+
+        // Fetch Current Period
+        const currentSales = await db.select({
             id: sales.id,
             totalPrice: sales.totalPrice,
             date: sales.date,
@@ -183,8 +189,22 @@ router.get("/stats", requirePermission("sales.read"), async (req, res) => {
                 )
             );
 
+        // Fetch Previous Period (for Growth Calculation)
+        const previousSales = await db.select({
+            totalPrice: sales.totalPrice
+        })
+            .from(sales)
+            .where(
+                and(
+                    eq(sales.organizationId, orgId),
+                    sql`${sales.date} >= ${sixtyDaysAgo}`,
+                    sql`${sales.date} < ${thirtyDaysAgo}`
+                )
+            );
+
+        // Chart Data (Current Period)
         const salesByDate: Record<string, number> = {};
-        allSales.forEach(s => {
+        currentSales.forEach(s => {
             const day = s.date ? new Date(s.date).toISOString().split('T')[0] : 'unknown';
             salesByDate[day] = (salesByDate[day] || 0) + s.totalPrice;
         });
@@ -193,8 +213,9 @@ router.get("/stats", requirePermission("sales.read"), async (req, res) => {
             .map(([date, amount]) => ({ date, amount: amount / 100 }))
             .sort((a, b) => a.date.localeCompare(b.date));
 
+        // Top Products Logic
         const productSales: Record<string, { count: number, revenue: number, id: string }> = {};
-        allSales.forEach(s => {
+        currentSales.forEach(s => {
             if (!productSales[s.productId]) {
                 productSales[s.productId] = { count: 0, revenue: 0, id: s.productId };
             }
@@ -220,9 +241,32 @@ router.get("/stats", requirePermission("sales.read"), async (req, res) => {
             });
         }
 
-        res.json({ days: chartData, topProducts });
+        // Metrics Calculation
+        const totalRevenueCurrent = currentSales.reduce((sum, s) => sum + s.totalPrice, 0);
+        const totalRevenuePrevious = previousSales.reduce((sum, s) => sum + s.totalPrice, 0);
+
+        let growthPercentage = 0;
+        if (totalRevenuePrevious > 0) {
+            growthPercentage = ((totalRevenueCurrent - totalRevenuePrevious) / totalRevenuePrevious) * 100;
+        } else if (totalRevenueCurrent > 0) {
+            growthPercentage = 100; // 100% growth if started from 0
+        }
+
+        const stats = {
+            days: chartData,
+            topProducts,
+            metrics: [{
+                title: "Ventas Totales (30d)",
+                value: totalRevenueCurrent,
+                growth: growthPercentage,
+                previousValue: totalRevenuePrevious
+            }]
+        };
+
+        res.json(stats);
 
     } catch (error) {
+        console.error("Stats Error:", error);
         res.status(500).json({ message: "Error fetching stats" });
     }
 });
@@ -249,59 +293,26 @@ router.get("/kitchen", requirePermission("sales.read"), async (req, res) => {
             limit: 100
         });
 
-        // Grouping logic to simulate "Orders" from individual line items
-        // Group by Table+Date(minute) or just return as flat list?
-        // The Frontend KitchenDisplay expects { items: [...] }.
-        // Let's group by TableNumber + timestamp (approx) for Dine-in, 
-        // and maybe by Customer/Time for others.
+        // KDS APPROACH V1: Item-View (Flat List)
+        // To ensure atomic status updates, we will return individual items.
+        // Grouping can be done in Frontend if needed, or added later.
 
-        // For this iteration, let's allow the frontend to receive "Order Cards" 
-        // where each Card is actually just one Sale Record (one set of items?), 
-        // ACTUALLY, the `sales` table record IS one line item (product x quantity).
-        // So we MUST group them to make a usable KDS.
-
-        const groupedMap = new Map<string, any>();
-
-        for (const record of activeOrders) {
-            // Create a unique key for grouping. 
-            // For Dine-in: Table + Time (within 5 mins?)
-            // For Takeout: Customer? OR just group by ID if we aren't using a parent Order ID.
-            // CURRENT LIMITATION: We don't have a parent "Order ID". 
-            // We will use a loose grouping by Table/Type and Time Window (e.g. same minute).
-
-            const timeKey = new Date(record.date).toISOString().slice(0, 16); // Up to minute
-            const key = `${record.orderType}-${record.tableNumber || 'N/A'}-${timeKey}`;
-
-            if (!groupedMap.has(key)) {
-                groupedMap.set(key, {
-                    id: record.id, // Use first record ID as proxy for Order ID
-                    ids: [record.id], // Keep track of all IDs in this group
-                    tableNumber: record.tableNumber,
-                    orderType: record.orderType,
-                    date: record.date,
-                    kitchenStatus: record.kitchenStatus, // Take status of first item? Or aggregate?
-                    items: [],
-                    notes: ""
-                });
-            }
-
-            const group = groupedMap.get(key);
-            group.items.push({
-                id: record.id, // line item id
+        const kdsItems = activeOrders.map(record => ({
+            id: record.id,
+            tableNumber: record.tableNumber,
+            orderType: record.orderType,
+            date: record.date,
+            kitchenStatus: record.kitchenStatus,
+            items: [{
+                id: record.id,
                 product: record.product,
                 quantity: record.quantity,
                 modifiers: record.modifiers
-            });
-            group.ids.push(record.id);
+            }],
+            notes: ""
+        }));
 
-            // If any item is pending, the whole order is pending (lowest common denominator)
-            // Priority: pending > preparing > ready
-            if (record.kitchenStatus === 'pending') group.kitchenStatus = 'pending';
-            else if (record.kitchenStatus === 'preparing' && group.kitchenStatus !== 'pending') group.kitchenStatus = 'preparing';
-        }
-
-        const groupedOrders = Array.from(groupedMap.values());
-        res.json(groupedOrders);
+        res.json(kdsItems);
     } catch (error) {
         console.error("KDS Fetch Error:", error);
         res.status(500).json({ message: "Error fetching kitchen orders" });
@@ -494,6 +505,63 @@ router.get("/:id/pdf", async (req, res) => {
     } catch (error: any) {
         console.error("PDF download error:", error);
         res.status(500).json({ message: error.message || "Failed to download PDF" });
+    }
+});
+
+router.get("/export", requirePermission("sales.read"), async (req, res) => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const { startDate, endDate } = req.query;
+        const start = startDate ? new Date(startDate as string) : new Date(0); // Default to beginning of time
+        const end = endDate ? new Date(endDate as string) : new Date(); // Default to now
+
+        // Fetch all sales within range
+        const salesData = await db.query.sales.findMany({
+            where: and(
+                eq(sales.organizationId, orgId),
+                sql`${sales.date} >= ${start}`,
+                sql`${sales.date} <= ${end}`
+            ),
+            with: {
+                product: true,
+                customer: true,
+                driver: true
+            },
+            orderBy: [desc(sales.date)]
+        });
+
+        // Generate CSV
+        const headers = ["ID", "Fecha", "Producto", "Cantidad", "Precio Unitario", "Total", "Cliente", "Metodo Pago", "Estado Pago", "Entrega", "Chofer", "Notas"];
+        const rows = salesData.map(s => {
+            const priceUnit = (s.totalPrice / s.quantity) / 100;
+            const total = s.totalPrice / 100;
+            return [
+                s.id,
+                s.date ? new Date(s.date).toISOString() : "",
+                `"${s.product?.name || 'N/A'}"`,
+                s.quantity,
+                priceUnit.toFixed(2),
+                total.toFixed(2),
+                `"${s.customer?.name || 'Publico General'}"`,
+                s.paymentMethod || "N/A",
+                s.paymentStatus,
+                s.deliveryStatus,
+                s.driver?.name || "N/A",
+                `"${(s.modifiers as any)?.map((m: any) => m.name).join(', ') || ''}"`
+            ].join(",");
+        });
+
+        const csv = [headers.join(","), ...rows].join("\n");
+
+        res.header("Content-Type", "text/csv");
+        res.header("Content-Disposition", `attachment; filename="ventas_${new Date().toISOString().split('T')[0]}.csv"`);
+        res.send(csv);
+
+    } catch (error) {
+        console.error("Export Error:", error);
+        res.status(500).json({ message: "Error exporting sales" });
     }
 });
 

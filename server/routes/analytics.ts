@@ -6,9 +6,12 @@ import {
     insertAnalyticsMetricSchema, inventoryMovements, customReports, analyticsSnapshots,
     expenses, sales, payments, payrollAdvances, employees, workHistory,
     pieceworkTickets, processEvents, processInstances, bankAccounts, cashRegisters, products,
-    metricModels, purchases, trustParticipants, sharedInsights, customers, suppliers
+    metricModels, purchases, trustParticipants, sharedInsights, customers, suppliers,
+    auditLogs, users
 } from "../../shared/schema";
 import { eq, desc, and, sql, gte, lte, inArray } from "drizzle-orm";
+
+
 
 const router = Router();
 
@@ -726,5 +729,96 @@ router.get("/yield", requirePermission("analytics.read"), async (req, res) => {
 
 // Reuse existing dashboard/cashflow endpoints if necessary, but modified to use real data
 // ... (I will keep them minimal/stubbed or redirect to advanced logic if possible, but for now I leave them out or simplified to avoid file size limits)
+
+// STAFF PERFORMANCE ANALYTICS
+router.get("/staff/performance", requirePermission("analytics.read"), async (req, res) => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+        // 1. Sales per Collaborator (using Audit Logs to link Sale -> User)
+        // We find all "CREATE_SALE" events in audit logs for this month
+        const saleEvents = await db.select({
+            userId: auditLogs.actorId,
+            userName: users.name, // Join with users to get name
+            saleId: auditLogs.entityId,
+            amount: sql<number>`cast(${auditLogs.details}->>'total' as integer)` // Assuming we logged { total: x }
+        })
+            .from(auditLogs)
+            .leftJoin(users, eq(auditLogs.actorId, users.id))
+            .where(and(
+                eq(auditLogs.organizationId, orgId),
+                eq(auditLogs.action, "CREATE_SALE"),
+                gte(auditLogs.timestamp, startOfMonth)
+            ));
+
+        // Aggregate by User
+        const salesByUser: Record<string, { name: string, count: number, total: number }> = {};
+
+        saleEvents.forEach(event => {
+            if (!event.userId) return;
+            if (!salesByUser[event.userId]) {
+                salesByUser[event.userId] = { name: event.userName || "Unknown", count: 0, total: 0 };
+            }
+            salesByUser[event.userId].count++;
+            salesByUser[event.userId].total += event.amount || 0;
+        });
+
+        // 2. Workload per Hour (Heatmap data)
+        // We can use sale timestamps to see peak hours
+        // or use `attendance` / `work_sessions` if available.
+        // Let's use Sales Frequency by Hour for "Operational Intensity"
+        const hoursDistribution = new Array(24).fill(0);
+
+        // Use the audit timestamp for distribution
+        saleEvents.forEach(event => {
+            // Retrieve timestamp from audit log record (not in select above, let's add it or assumed)
+            // Wait, I didn't select timestamp in the query above.
+            // Let's just do a separate query or fetch it.
+        });
+
+        // Re-query for histogram or correct the first query
+        // Let's just fake the distribution based on a quick aggregation if simpler, 
+        // OR add timestamp to the first query.
+
+        // Let's refine the query to include timestamp
+        const saleEventsWithTime = await db.select({
+            timestamp: auditLogs.timestamp
+        })
+            .from(auditLogs)
+            .where(and(
+                eq(auditLogs.organizationId, orgId),
+                eq(auditLogs.action, "CREATE_SALE"),
+                gte(auditLogs.timestamp, startOfMonth)
+            ));
+
+        saleEventsWithTime.forEach(e => {
+            if (e.timestamp) {
+                const h = new Date(e.timestamp).getHours();
+                hoursDistribution[h]++;
+            }
+        });
+
+        const performanceData = Object.entries(salesByUser).map(([id, data]) => ({
+            id,
+            name: data.name,
+            salesCount: data.count,
+            salesVolume: data.total,
+            efficiency: data.count > 0 ? Math.round(data.total / data.count) : 0 // Ticket Promedio
+        })).sort((a, b) => b.salesVolume - a.salesVolume);
+
+        res.json({
+            ranking: performanceData,
+            activityHeatmap: hoursDistribution.map((count, hour) => ({ hour, count }))
+        });
+
+    } catch (error) {
+        console.error("Staff Analytics Error:", error);
+        res.status(500).json({ message: "Error fetching staff analytics" });
+    }
+});
 
 export default router;

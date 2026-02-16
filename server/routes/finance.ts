@@ -1208,4 +1208,62 @@ router.get("/accounting/export/balanza", async (req, res) => {
     }
 });
 
+// GET /api/finance/taxes - Tax Payable Report
+router.get("/taxes", requirePermission("finance.read"), async (req, res) => {
+    try {
+        const { user, orgId } = await getContext(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+
+        const { month, year } = req.query;
+        const targetDate = new Date();
+        if (month) targetDate.setMonth(parseInt(month as string) - 1);
+        if (year) targetDate.setFullYear(parseInt(year as string));
+
+        const startOfMonth = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
+        const endOfMonth = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0, 23, 59, 59);
+
+        // 1. Output VAT (IVA Trasladado) - From Sales
+        const periodSales = await db.query.sales.findMany({
+            where: and(
+                eq(sales.organizationId, orgId),
+                eq(sales.paymentStatus, 'paid'),
+                sql`${sales.date} >= ${startOfMonth}`,
+                sql`${sales.date} <= ${endOfMonth}`
+            )
+        });
+
+        const totalTaxableSales = periodSales.reduce((acc, curr) => acc + curr.totalPrice, 0);
+        const outputVat = Math.round(totalTaxableSales * 0.16);
+
+        // 2. Input VAT (IVA Acreditable) - From Expenses
+        const periodExpenses = await db.query.expenses.findMany({
+            where: and(
+                eq(expenses.organizationId, orgId),
+                sql`${expenses.date} >= ${startOfMonth}`,
+                sql`${expenses.date} <= ${endOfMonth}`
+            )
+        });
+
+        const totalTaxableExpenses = periodExpenses.reduce((acc, curr) => acc + curr.amount, 0);
+        const inputVat = Math.round((totalTaxableExpenses / 1.16) * 0.16);
+
+        res.json({
+            period: { month: targetDate.getMonth() + 1, year: targetDate.getFullYear() },
+            sales: {
+                total: totalTaxableSales,
+                vat: outputVat
+            },
+            expenses: {
+                total: totalTaxableExpenses,
+                vat: inputVat
+            },
+            payable: outputVat - inputVat
+        });
+
+    } catch (error) {
+        console.error("Tax Report Error:", error);
+        res.status(500).json({ message: "Error generating tax report" });
+    }
+});
+
 export const financeRoutes = router;

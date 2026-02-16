@@ -38,8 +38,12 @@ import {
   Edit,
   Trash2,
   Camera,
-  Copy
+
+  Copy,
+  Target,
+  Clock
 } from "lucide-react";
+import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -225,10 +229,11 @@ function EditEmployeeDialog({ employee, open, onOpenChange }: { employee: Employ
               </div>
 
               <Tabs defaultValue="general" className="w-full">
-                <TabsList className="grid w-full grid-cols-3 mb-4">
+                <TabsList className="grid w-full grid-cols-4 mb-4">
                   <TabsTrigger value="general">General</TabsTrigger>
                   <TabsTrigger value="financial">Financiero</TabsTrigger>
                   <TabsTrigger value="emergency">Emergencia</TabsTrigger>
+                  <TabsTrigger value="performance">Rendimiento</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="general" className="space-y-4">
@@ -381,6 +386,10 @@ function EditEmployeeDialog({ employee, open, onOpenChange }: { employee: Employ
                     />
                   </div>
                 </TabsContent>
+
+                <TabsContent value="performance" className="space-y-4">
+                  <StaffPerformance />
+                </TabsContent>
               </Tabs>
 
               <DialogFooter className="mt-6">
@@ -404,6 +413,97 @@ function EditEmployeeDialog({ employee, open, onOpenChange }: { employee: Employ
         </div>
       </DialogContent >
     </Dialog >
+  );
+}
+
+function StaffPerformance() {
+  const { session } = useAuth();
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["/api/analytics/staff/performance"],
+    queryFn: async () => {
+      const res = await fetch("/api/analytics/staff/performance", {
+        headers: { Authorization: `Bearer ${session?.access_token}` }
+      });
+      if (!res.ok) throw new Error("Failed to fetch performance");
+      return res.json();
+    },
+    enabled: !!session?.access_token
+  });
+
+  if (isLoading) return <div className="p-8 flex justify-center"><Loader2 className="w-8 h-8 animate-spin" /></div>;
+  if (!data) return <div className="p-8 text-center text-muted-foreground">No hay datos de rendimiento disponibles.</div>;
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Target className="w-5 h-5 text-primary" />
+            Ranking de Ventas (Mes Actual)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {data.ranking.map((user: any, i: number) => (
+              <div key={user.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm",
+                    i === 0 ? "bg-amber-500 text-white" : i === 1 ? "bg-slate-400 text-white" : i === 2 ? "bg-orange-700 text-white" : "bg-slate-800 text-slate-400"
+                  )}>
+                    #{i + 1}
+                  </div>
+                  <div>
+                    <p className="font-medium">{user.name}</p>
+                    <p className="text-xs text-muted-foreground">{user.salesCount} operaciones</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="font-bold text-emerald-500">
+                    {new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(user.salesVolume / 100)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Ticket Prom: ${Math.round(user.efficiency / 100)}</p>
+                </div>
+              </div>
+            ))}
+            {data.ranking.length === 0 && <p className="text-center text-muted-foreground py-4">Sin datos de ventas este mes.</p>}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="w-5 h-5 text-blue-500" />
+            Intensidad Operativa (Por Hora)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[300px] w-full mt-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={data.activityHeatmap}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.1} vertical={false} />
+                <XAxis
+                  dataKey="hour"
+                  tickFormatter={(h) => `${h}:00`}
+                  fontSize={12}
+                  stroke="#888888"
+                />
+                <Tooltip
+                  contentStyle={{ backgroundColor: "#0f172a", border: "1px solid #1e293b", color: "#f8fafc" }}
+                  labelFormatter={(h) => `${h}:00 - ${h}:59`}
+                />
+                <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Operaciones" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <p className="text-xs text-muted-foreground text-center mt-4">
+            Distribución de ventas y operaciones registradas por hora del día.
+          </p>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
