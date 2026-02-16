@@ -667,6 +667,10 @@ export default function Employees() {
                 </div>
               </div>
               <div className="flex items-center gap-3">
+                <Button variant="outline" size="sm" className="gap-2 border-slate-700" onClick={() => window.open('/time-clock', '_blank')}>
+                  <Clock className="w-4 h-4" />
+                  Abrir Reloj Checador
+                </Button>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input

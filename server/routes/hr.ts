@@ -335,4 +335,106 @@ router.get("/org-chart", async (req, res) => {
     }
 });
 
+// TIME CLOCK (Reloj Checador)
+router.post("/time-clock/check-in", requirePermission('hr.write'), async (req, res) => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
+        const { employeeId, area } = req.body;
+        // Verify employee belongs to org
+        const [emp] = await db.select().from(employees).where(and(eq(employees.id, employeeId), eq(employees.organizationId, orgId)));
+        if (!emp) return res.status(404).json({ message: "Employee not found" });
+
+        // Check if already active session
+        const [activeSession] = await db.select().from(workSessions).where(and(
+            eq(workSessions.employeeId, employeeId),
+            eq(workSessions.status, "active")
+        ));
+
+        if (activeSession) {
+            return res.status(400).json({ message: "Employee already checked in" });
+        }
+
+        // Create Check In
+        const [session] = await db.insert(workSessions).values({
+            organizationId: orgId,
+            employeeId,
+            area: area || "General",
+            status: "active",
+            startedAt: new Date()
+        } as any).returning();
+
+        // Update Employee Status
+        await db.update(employees)
+            .set({ currentStatus: "active", currentArea: area || "General" })
+            .where(eq(employees.id, employeeId));
+
+        res.json(session);
+    } catch (error) {
+        console.error("Check-in Error:", error);
+        res.status(500).json({ message: "Check-in failed" });
+    }
+});
+
+router.post("/time-clock/check-out", requirePermission('hr.write'), async (req, res) => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
+        const { employeeId, notes } = req.body;
+
+        // Find active session
+        const [activeSession] = await db.select().from(workSessions).where(and(
+            eq(workSessions.employeeId, employeeId),
+            eq(workSessions.status, "active")
+        ));
+
+        if (!activeSession) {
+            return res.status(400).json({ message: "No active session found" });
+        }
+
+        const endedAt = new Date();
+        const durationSeconds = Math.floor((endedAt.getTime() - new Date(activeSession.startedAt!).getTime()) / 1000);
+
+        // Update Session
+        const [session] = await db.update(workSessions)
+            .set({
+                status: "completed",
+                endedAt,
+                duration: durationSeconds,
+                notes
+            })
+            .where(eq(workSessions.id, activeSession.id))
+            .returning();
+
+        // Update Employee Status
+        await db.update(employees)
+            .set({ currentStatus: "offline", currentArea: null })
+            .where(eq(employees.id, employeeId));
+
+        res.json(session);
+    } catch (error) {
+        console.error("Check-out Error:", error);
+        res.status(500).json({ message: "Check-out failed" });
+    }
+});
+
+router.get("/time-clock/status/:employeeId", requirePermission('hr.read'), async (req, res) => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
+        const { employeeId } = req.params;
+        const [activeSession] = await db.select().from(workSessions).where(and(
+            eq(workSessions.employeeId, employeeId),
+            eq(workSessions.status, "active")
+        ));
+
+        res.json({ checkedIn: !!activeSession, session: activeSession });
+    } catch (error) {
+        res.status(500).json({ message: "Status check failed" });
+    }
+});
+
 export const hrRoutes = router;

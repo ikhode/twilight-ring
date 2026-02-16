@@ -48,6 +48,7 @@ import Lending from "@/pages/Lending";
 import Manufacturing from "@/pages/Manufacturing";
 import KitchenDisplay from "@/pages/KitchenDisplay";
 import Integrations from "@/pages/Integrations";
+import TimeClock from "@/pages/TimeClock";
 
 import { AuthProvider } from "@/hooks/use-auth";
 import { RealtimeProvider } from "@/lib/realtime";
@@ -73,8 +74,10 @@ function Router() {
       <Route path="/kiosk-terminal/:id" component={KioskInterface} />
       <Route path="/driver" component={DriverTerminal} />
       <Route path="/driver-pwa" component={DriverTerminal} />
+      <Route path="/driver-pwa" component={DriverTerminal} />
       <Route path="/kiosk-link" component={TerminalLink} />
       <Route path="/sign/:token" component={Signature} />
+      <Route path="/time-clock" component={TimeClock} />
 
       {/* Protected System Routes (Admin/Owner/Manager only) */}
       <ProtectedRoute path="/dashboard" component={Dashboard} />

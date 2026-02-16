@@ -12,6 +12,7 @@ import { DossierView } from "@/components/shared/DossierView";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { PaySaleDialog } from "./PaySaleDialog";
+import { TaxReportDialog } from "./TaxReportDialog";
 
 export function SalesHistory({ openSaleId }: { openSaleId?: string | null }) {
     const { session } = useAuth();
@@ -133,9 +134,6 @@ export function SalesHistory({ openSaleId }: { openSaleId?: string | null }) {
     return (
         <Card>
             <CardContent className="pt-6">
-                import {TaxReportDialog} from "./TaxReportDialog";
-
-                // ... inside SalesHistory component ...
                 <div className="flex justify-between items-center mb-4">
                     <h3 className="text-lg font-semibold">Historial de Transacciones</h3>
                     <div className="flex gap-2">
