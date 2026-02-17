@@ -8,6 +8,11 @@ import Landing from "@/pages/Landing";
 import Auth from "@/pages/Auth";
 import { IntroJsOnboarding } from "@/components/onboarding/IntroJsOnboarding";
 import { ProtectedRoute } from "@/lib/protected-route";
+
+// Initialize Sentry FIRST
+import { initSentry, ErrorBoundary, setUserContext } from "@/lib/sentry";
+import { ErrorFallback } from "@/components/ErrorFallback";
+initSentry();
 import Dashboard from "@/pages/Dashboard";
 import Vision from "@/pages/Vision";
 import Kiosks from "@/pages/Kiosks";
@@ -50,8 +55,9 @@ import KitchenDisplay from "@/pages/KitchenDisplay";
 import Integrations from "@/pages/Integrations";
 import TimeClock from "@/pages/TimeClock";
 import CustomerDisplay from "@/pages/CustomerDisplay";
+import SystemHealth from "@/pages/SystemHealth";
 
-import { AuthProvider } from "@/hooks/use-auth";
+import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { RealtimeProvider } from "@/lib/realtime";
 import { Copilot } from "@/components/ai/Copilot";
 import { ConfigurationProvider } from "@/context/ConfigurationContext";
@@ -117,6 +123,7 @@ function Router() {
       <ProtectedRoute path="/lending" component={Lending} />
       <ProtectedRoute path="/manufacturing" component={Manufacturing} />
       <ProtectedRoute path="/settings/integrations" component={Integrations} />
+      <ProtectedRoute path="/system-health" component={SystemHealth} />
 
       <Route component={NotFound} />
     </Switch>
@@ -165,28 +172,58 @@ import { MLInitialization } from "@/components/ai/MLInitialization";
 function App() {
   useResolutionScaler();
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <MLInitialization />
-        <ConfigurationProvider>
-          <RealtimeProvider>
-            <TooltipProvider>
-              <OnboardingProvider>
-                <Toaster />
-                <CognitiveBridge />
-                <AppLayout>
-                  <OnboardingGuard>
-                    <Router />
-                  </OnboardingGuard>
-                </AppLayout>
-              </OnboardingProvider>
-            </TooltipProvider>
-          </RealtimeProvider>
-        </ConfigurationProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+    <ErrorBoundary fallback={(props) => <ErrorFallback error={props.error as Error} resetError={props.resetError} />} showDialog>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <UserContextTracker />
+          <MLInitialization />
+          <ConfigurationProvider>
+            <RealtimeProvider>
+              <TooltipProvider>
+                <OnboardingProvider>
+                  <Toaster />
+                  <CognitiveBridge />
+                  <AppLayout>
+                    <OnboardingGuard>
+                      <Router />
+                    </OnboardingGuard>
+                  </AppLayout>
+                </OnboardingProvider>
+              </TooltipProvider>
+            </RealtimeProvider>
+          </ConfigurationProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 
+// Component to track user context in Sentry
+function UserContextTracker() {
+  const { user, profile } = useAuth();
+
+  useEffect(() => {
+    if (user && profile) {
+      setUserContext({
+        id: user.id,
+        email: user.email || undefined,
+        username: profile.user.name || user.email || undefined,
+        organizationId: profile.organization?.id || undefined,
+      });
+    } else if (user) {
+      // Fallback if profile is not yet loaded
+      setUserContext({
+        id: user.id,
+        email: user.email || undefined,
+      });
+    } else {
+      setUserContext(null);
+    }
+  }, [user, profile]);
+
+  return null;
+}
+
 // Export App
+
 export default App;

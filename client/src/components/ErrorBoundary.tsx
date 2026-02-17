@@ -1,5 +1,5 @@
 import { Component, ReactNode } from 'react';
-import { ErrorBoundary as SentryErrorBoundary } from './lib/sentry';
+import { ErrorBoundary as SentryErrorBoundary } from '@/lib/sentry';
 import { AlertTriangle } from 'lucide-react';
 
 interface Props {

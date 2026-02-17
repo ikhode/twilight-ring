@@ -4,6 +4,8 @@ import pg from "pg";
 import * as schema from "../shared/schema";
 import * as relations from "../shared/relations";
 
+import { monitorPool } from "./lib/db-monitor";
+
 const { Pool } = pg;
 
 // Database connection with Pooler optimization and SSL
@@ -16,6 +18,9 @@ const pool = new Pool({
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,
 });
+
+// Initialize DB Monitoring
+monitorPool(pool);
 
 // Drizzle instance with schema and relations
 export const db = drizzle(pool as any, { schema: { ...schema, ...relations } });
