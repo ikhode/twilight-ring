@@ -30,7 +30,6 @@ const BankAccounts = lazy(() => import("@/pages/finance/BankAccounts"));
 const PayrollManager = lazy(() => import("@/pages/finance/PayrollManager"));
 const FinancialReports = lazy(() => import("@/pages/FinancialReports"));
 const CRM = lazy(() => import("@/pages/CRM"));
-const Purchases = lazy(() => import("@/pages/Purchases"));
 const Tickets = lazy(() => import("@/pages/Tickets"));
 const Piecework = lazy(() => import("@/pages/Piecework"));
 const Documents = lazy(() => import("@/pages/Documents"));
@@ -85,7 +84,6 @@ function Router() {
       <Switch>
         <Route path="/" component={Landing} />
         <Route path="/login" component={Auth} />
-        <Route path="/signup" component={Auth} />
         <Route path="/onboarding" component={IntroJsOnboarding} />
 
         {/* Public / Kiosk Routes */}
@@ -117,7 +115,6 @@ function Router() {
         <ProtectedRoute path="/crm" component={CRM} />
         <ProtectedRoute path="/marketplace" component={Marketplace} />
         <ProtectedRoute path="/operations" component={Operations} />
-        <ProtectedRoute path="/purchases" component={Purchases} />
         <ProtectedRoute path="/tickets" component={Tickets} />
         <ProtectedRoute path="/documents" component={Documents} />
         <ProtectedRoute path="/piecework" component={Piecework} />

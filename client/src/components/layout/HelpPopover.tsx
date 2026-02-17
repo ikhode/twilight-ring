@@ -37,7 +37,7 @@ const GLOBAL_HELP: Record<string, HelpSection[]> = {
             ]
         }
     ],
-    "/purchases": [
+    "/inventory": [
         {
             title: "Gestión de Compras",
             icon: Layout,

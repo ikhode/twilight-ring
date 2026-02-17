@@ -15,7 +15,7 @@ const ACTIONS = [
     { id: "nav-finance", text: "View Financial Reports", keywords: "money profit expenses cost accounting", path: "/finance" },
     { id: "nav-inventory", text: "Check Inventory Levels", keywords: "stock products warehouse items", path: "/inventory" },
     { id: "action-add-employee", text: "Register New Employee", keywords: "hire add worker new staff", path: "/hr?action=new" },
-    { id: "action-add-supplier", text: "Add New Supplier", keywords: "vendor new purchase source", path: "/purchases?action=new" },
+    { id: "action-add-supplier", text: "Add New Supplier", keywords: "vendor new purchase source", path: "/inventory?tab=purchases&action=new" },
     { id: "action-route", text: "Optimize Delivery Routes", keywords: "plan map gps fast route", path: "/logistics?tab=routes" },
 ];
 

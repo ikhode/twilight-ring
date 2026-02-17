@@ -171,7 +171,7 @@ export default function Finance() {
       render: (t: any) => (
         <div className="flex items-center gap-1">
           {t.category === 'supplier' && t.referenceId && (
-            <Link href={`/purchases?openBatchId=${t.referenceId}`}>
+            <Link href={`/inventory?tab=purchases&openBatchId=${t.referenceId}`}>
               <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-slate-400 hover:text-white">
                 <ArrowUpRight className="w-3 h-3" />
               </Button>

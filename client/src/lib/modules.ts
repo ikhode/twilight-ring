@@ -149,16 +149,6 @@ export const ERP_MODULES: SystemModule[] = [
         status: 'ready'
     },
     {
-        id: 'purchases',
-        name: 'Compras',
-        description: 'Gestión de abastecimiento y proveedores',
-        tooltip: 'Órdenes de compra automatizadas, comparación de cotizaciones, evaluación de proveedores, control de recepciones y análisis de costos de adquisición.',
-        icon: ShoppingBag,
-        href: '/purchases',
-        category: 'finance',
-        status: 'ready'
-    },
-    {
         id: 'vision',
         name: 'Smart Vision',
         description: 'Conteo y medición por cámara',

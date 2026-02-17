@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -111,7 +112,22 @@ export default function Inventory() {
   const [selectedReasoningProduct, setSelectedReasoningProduct] = useState<any>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState("products");
+  const [location, setLocation] = useLocation();
+  const searchParams = new URLSearchParams(window.location.search);
+  const initialTab = searchParams.get("tab") || "products";
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  // Sync tab with URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (activeTab !== "products") {
+      params.set("tab", activeTab);
+    } else {
+      params.delete("tab");
+    }
+    const newUrl = window.location.pathname + (params.toString() ? "?" + params.toString() : "");
+    window.history.replaceState({}, "", newUrl);
+  }, [activeTab]);
 
   // Popover form states for inline creation
   const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
