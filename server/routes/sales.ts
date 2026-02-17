@@ -25,7 +25,7 @@ router.post("/", requirePermission("sales.pos"), async (req, res) => {
         const orgId = await getOrgIdFromRequest(req);
         if (!orgId) return res.status(401).json({ message: "Unauthorized" });
 
-        const { items, driverId, vehicleId, customerId, paymentStatus, paymentMethod, bankAccountId } = req.body;
+        const { items, driverId, sellerId, vehicleId, customerId, paymentStatus, paymentMethod, bankAccountId } = req.body;
         if (!items || !Array.isArray(items)) {
             return res.status(400).json({ message: "Invalid payload: items array required" });
         }
@@ -64,6 +64,7 @@ router.post("/", requirePermission("sales.pos"), async (req, res) => {
                     quantity: item.quantity,
                     totalPrice: item.price * item.quantity,
                     driverId: driverId || null,
+                    sellerId: sellerId || null,
                     vehicleId: vehicleId || null,
                     paymentStatus: paymentStatus || "pending",
                     paymentMethod: paymentMethod || null,
@@ -290,6 +291,107 @@ router.get("/stats", requirePermission("sales.read"), async (req, res) => {
     } catch (error) {
         console.error("Stats Error:", error);
         res.status(500).json({ message: "Error fetching stats" });
+    }
+});
+
+
+// SALES ANALYTICS
+router.get("/analytics/items", requirePermission("sales.read"), async (req, res) => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        const { startDate, endDate } = req.query;
+
+        const start = startDate ? new Date(startDate as string) : new Date(0);
+        const end = endDate ? new Date(endDate as string) : new Date();
+
+        const salesInPeriod = await db.query.sales.findMany({
+            where: and(
+                eq(sales.organizationId, orgId),
+                sql`${sales.date} >= ${start}`,
+                sql`${sales.date} <= ${end}`
+            ),
+            with: { product: true }
+        });
+
+        const productStats: Record<string, { name: string, quantity: number, revenue: number }> = {};
+        salesInPeriod.forEach(s => {
+            const id = s.productId;
+            if (!productStats[id]) {
+                productStats[id] = { name: s.product?.name || 'Unknown', quantity: 0, revenue: 0 };
+            }
+            productStats[id].quantity += s.quantity;
+            productStats[id].revenue += s.totalPrice;
+        });
+
+        res.json(Object.values(productStats).sort((a, b) => b.revenue - a.revenue));
+    } catch (error) {
+        console.error("Analytics Items Error:", error);
+        res.status(500).json({ message: "Error fetching item analytics" });
+    }
+});
+
+router.get("/analytics/payment-methods", requirePermission("sales.read"), async (req, res) => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        const { startDate, endDate } = req.query;
+
+        const start = startDate ? new Date(startDate as string) : new Date(0);
+        const end = endDate ? new Date(endDate as string) : new Date();
+
+        const salesInPeriod = await db.select({
+            method: sales.paymentMethod,
+            total: sql<number>`sum(${sales.totalPrice})`
+        })
+            .from(sales)
+            .where(
+                and(
+                    eq(sales.organizationId, orgId),
+                    sql`${sales.date} >= ${start}`,
+                    sql`${sales.date} <= ${end}`
+                )
+            )
+            .groupBy(sales.paymentMethod);
+
+        res.json(salesInPeriod);
+    } catch (error) {
+        console.error("Analytics Payment Error:", error);
+        res.status(500).json({ message: "Error fetching payment analytics" });
+    }
+});
+
+router.get("/by-employee", requirePermission("sales.read"), async (req, res) => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        if (!orgId) return res.status(401).json({ message: "Unauthorized" });
+        const { startDate, endDate } = req.query;
+
+        const start = startDate ? new Date(startDate as string) : new Date(0);
+        const end = endDate ? new Date(endDate as string) : new Date();
+
+        // Join with employees table
+        const result = await db.select({
+            employeeId: sales.sellerId,
+            employeeName: employees.name,
+            totalSales: sql<number>`count(${sales.id})`,
+            totalRevenue: sql<number>`sum(${sales.totalPrice})`
+        })
+            .from(sales)
+            .leftJoin(employees, eq(sales.sellerId, employees.id))
+            .where(
+                and(
+                    eq(sales.organizationId, orgId),
+                    sql`${sales.date} >= ${start}`,
+                    sql`${sales.date} <= ${end}`
+                )
+            )
+            .groupBy(sales.sellerId, employees.name);
+
+        res.json(result);
+    } catch (error) {
+        console.error("Employee Sales Error:", error);
+        res.status(500).json({ message: "Error fetching employee sales" });
     }
 });
 

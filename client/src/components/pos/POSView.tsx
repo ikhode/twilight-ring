@@ -52,6 +52,7 @@ export function POSView({ defaultDriverId, customHeaders, isKioskMode = false }:
     const [searchQuery, setSearchQuery] = useState("");
 
     const [selectedDriver, setSelectedDriver] = useState<string>(defaultDriverId || "");
+    const [selectedSeller, setSelectedSeller] = useState<string>("");
     const [selectedVehicle, setSelectedVehicle] = useState<string>("");
     const [selectedCustomer, setSelectedCustomer] = useState<string>("");
     const [isRecallOpen, setIsRecallOpen] = useState(false);
@@ -78,13 +79,17 @@ export function POSView({ defaultDriverId, customHeaders, isKioskMode = false }:
         }
     });
 
-    const { data: drivers = [] } = useQuery({
+    const { data: employees = [] } = useQuery({
         queryKey: ["/api/hr/employees"],
         queryFn: async () => {
             const res = await fetch("/api/hr/employees", { headers: getHeaders() });
-            return (await res.json()).filter((e: any) => e.role.toLowerCase().includes("driver") || e.role.toLowerCase().includes("conductor"));
+            return res.json();
         }
     });
+
+    const drivers = useMemo(() => employees.filter((e: any) => e.role.toLowerCase().includes("driver") || e.role.toLowerCase().includes("conductor")), [employees]);
+    // Assume all active employees can be sellers, or maybe filter? Let's use all for now as "Vendedor"
+    const sellers = useMemo(() => employees.filter((e: any) => e.status === 'active'), [employees]);
 
     const { data: vehicles = [] } = useQuery({
         queryKey: ["/api/logistics/fleet/vehicles"],
@@ -205,6 +210,7 @@ export function POSView({ defaultDriverId, customHeaders, isKioskMode = false }:
         mutationFn: async (items: any[]) => {
             const payload = {
                 items,
+                sellerId: selectedSeller || session?.user?.id || null, // Default to current user if no seller selected? Or force selection?
                 driverId: selectedDriver || null,
                 vehicleId: selectedVehicle || null,
                 customerId: selectedCustomer || null,
@@ -240,6 +246,7 @@ export function POSView({ defaultDriverId, customHeaders, isKioskMode = false }:
         onSuccess: (data) => {
             setCart([]);
             if (!defaultDriverId) setSelectedDriver("");
+            setSelectedSeller("");
             setSelectedVehicle("");
             setIsPayDialogOpen(false);
             queryClient.invalidateQueries({ queryKey: ["/api/inventory/products"] });
@@ -395,6 +402,9 @@ export function POSView({ defaultDriverId, customHeaders, isKioskMode = false }:
                     selectedDriver={selectedDriver}
                     setSelectedDriver={setSelectedDriver}
                     drivers={drivers}
+                    selectedSeller={selectedSeller}
+                    setSelectedSeller={setSelectedSeller}
+                    sellers={sellers}
                     selectedVehicle={selectedVehicle}
                     setSelectedVehicle={setSelectedVehicle}
                     vehicles={vehicles}

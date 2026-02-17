@@ -197,6 +197,7 @@ export const sales = pgTable("sales", {
     bankAccountId: varchar("bank_account_id"), // link to bank account if transfer
     deliveryStatus: text("delivery_status").notNull().default("pending"), // "pending", "shipped", "delivered", "returned"
     driverId: varchar("driver_id").references(() => employees.id),
+    sellerId: varchar("seller_id").references(() => employees.id), // Sales Attribution
     vehicleId: varchar("vehicle_id").references(() => vehicles.id),
     date: timestamp("date").defaultNow(),
 
@@ -288,6 +289,36 @@ export type InsertSale = z.infer<typeof insertSaleSchema>;
 export type Purchase = typeof purchases.$inferSelect;
 export type InsertPurchase = z.infer<typeof insertPurchaseSchema>;
 
+// Modifiers & Discounts
+export const modifiers = pgTable("modifiers", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    options: jsonb("options").$type<Array<{ name: string, price: number }>>().notNull(), // e.g. [{"name": "Extra Cheese", "price": 1500}]
+    allowMultiple: boolean("allow_multiple").default(true),
+    isRequired: boolean("is_required").default(false),
+    createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const discounts = pgTable("discounts", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    type: text("type").notNull(), // "percentage", "fixed"
+    value: integer("value").notNull(), // percentage (e.g. 10 for 10%) or fixed amount in cents
+    isActive: boolean("is_active").default(true),
+    createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type Modifier = typeof modifiers.$inferSelect;
+export type InsertModifier = z.infer<typeof insertModifierSchema>;
+export type Discount = typeof discounts.$inferSelect;
+export type InsertDiscount = z.infer<typeof insertDiscountSchema>;
+
+export const insertModifierSchema = createInsertSchema(modifiers);
+export const insertDiscountSchema = createInsertSchema(discounts);
+
+
 export const insertSupplierSchema = createInsertSchema(suppliers);
 export const insertCustomerSchema = createInsertSchema(customers);
 export const insertProductCategorySchema = createInsertSchema(productCategories);
@@ -309,8 +340,7 @@ export const insertSaleSchema = createInsertSchema(sales);
 export const insertPurchaseSchema = createInsertSchema(purchases);
 
 
-// End of File
-// End of File
+
 export * from "./deals";
 
 // --- ADVANCED INVENTORY (PHASE 7) ---

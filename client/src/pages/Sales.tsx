@@ -19,6 +19,7 @@ import { SalesMetrics } from "@/components/pos/SalesMetrics";
 import { SalesTrends } from "@/components/pos/SalesTrends";
 import { SalesHistory } from "@/components/pos/SalesHistory";
 import { UpsellSuggestion } from "@/components/pos/UpsellSuggestion";
+import { SalesReports } from "@/components/sales/SalesReports";
 
 import { CashCountDialog } from "@/components/pos/CashCountDialog";
 import { POSView as POSViewComponent } from "@/components/pos/POSView";
@@ -55,9 +56,9 @@ export default function Sales() {
                 <ShoppingBag className="w-4 h-4" />
                 Terminal POS
               </TabsTrigger>
-              <TabsTrigger value="trends" className="gap-2">
+              <TabsTrigger value="reports" className="gap-2">
                 <LineChart className="w-4 h-4" />
-                Tendencias
+                Reportes y Analytics
               </TabsTrigger>
               <TabsTrigger value="history" className="gap-2">
                 <History className="w-4 h-4" />
@@ -71,8 +72,8 @@ export default function Sales() {
             <POSView />
           </TabsContent>
 
-          <TabsContent value="trends">
-            <SalesTrends />
+          <TabsContent value="reports">
+            <SalesReports />
           </TabsContent>
 
           <TabsContent value="history">

@@ -44,6 +44,7 @@ import { pieceworkRoutes } from "./routes/piecework";
 import salesRoutes from "./routes/sales";
 import purchasesRoutes from "./routes/purchases";
 import inventoryRoutes from "./routes/inventory";
+import { commerceRoutes } from "./routes/commerce";
 import inventoryAdvancedRoutes from "./routes/inventory_advanced";
 import tensorRoutes from "./routes/tensors";
 import notificationsRoutes from "./routes/notifications";
@@ -138,6 +139,7 @@ export async function registerRoutes(
   app.use("/api/logistics", driverTrackingRoutes); // Driver GPS tracking (no module guard for kiosks)
   app.use("/api/logistics", driverRoutesRoutes); // Driver routes and delivery completion (no module guard for kiosks)
   app.use("/api/inventory", requireModule("/inventory"), inventoryRoutes); // Protected Inventory Logic
+  app.use("/api/inventory", requireModule("/inventory"), commerceRoutes); // Modifiers & Discounts
   app.use("/api/inventory", requireModule("/inventory"), inventoryAdvancedRoutes); // Phase 7: Advanced Inventory
 
   registerCPERoutes(app);

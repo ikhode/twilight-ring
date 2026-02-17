@@ -30,6 +30,10 @@ interface CartProps {
     customers: any[];
     currentLabels: any;
 
+    selectedSeller: string;
+    setSelectedSeller: (id: string) => void;
+    sellers: any[];
+
     selectedDriver: string;
     setSelectedDriver: (id: string) => void;
     drivers: any[];
@@ -55,6 +59,7 @@ interface CartProps {
 export function Cart({
     cart, setCart, updateQuantity, removeFromCart, handleHoldOrder, setIsRecallOpen,
     selectedCustomer, setSelectedCustomer, customers, currentLabels,
+    selectedSeller, setSelectedSeller, sellers,
     selectedDriver, setSelectedDriver, drivers,
     selectedVehicle, setSelectedVehicle, vehicles,
     isPayDialogOpen, setIsPayDialogOpen, paymentMethod, setPaymentMethod,
@@ -101,6 +106,12 @@ export function Cart({
                                     customers={customers}
                                     labels={currentLabels}
                                 />
+                            </CognitiveField>
+                            <CognitiveField label="Vendedor / Asesor" value={selectedSeller} semanticType="person">
+                                <select className="w-full bg-background border border-border rounded-md p-2 text-sm" value={selectedSeller} onChange={(e) => setSelectedSeller(e.target.value)}>
+                                    <option value="">Auto-asignar (Yo)</option>
+                                    {sellers.map((s: any) => (<option key={s.id} value={s.id}>{s.name} ({s.role})</option>))}
+                                </select>
                             </CognitiveField>
                             <CognitiveField label="Conductor" value={selectedDriver} semanticType="method">
                                 <select className="w-full bg-background border border-border rounded-md p-2 text-sm" value={selectedDriver} onChange={(e) => setSelectedDriver(e.target.value)}>

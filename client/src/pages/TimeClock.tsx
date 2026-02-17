@@ -16,7 +16,9 @@ import {
   Shield,
   Bath,
   Activity,
+  Activity,
   ChevronRight,
+  Keypad
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -47,6 +49,8 @@ export default function TimeClock() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [authenticatedEmployee, setAuthenticatedEmployee] = useState<any>(null);
   const [isActivityDialogOpen, setIsActivityDialogOpen] = useState(false);
+  const [isPinLoginOpen, setIsPinLoginOpen] = useState(false);
+  const [pinInput, setPinInput] = useState("");
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -94,6 +98,31 @@ export default function TimeClock() {
         description: (error as Error).message,
         variant: "destructive"
       });
+    }
+  });
+
+  const pinLoginMutation = useMutation({
+    mutationFn: async (pin: string) => {
+      const res = await fetch("/api/hr/auth/employee-login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}` // Optional if public endpoint, but usually good to have
+        },
+        body: JSON.stringify({ pin })
+      });
+      if (!res.ok) throw new Error("PIN Inválido");
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setAuthenticatedEmployee(data);
+      setIsPinLoginOpen(false);
+      setPinInput("");
+      toast({ title: "Bienvenido", description: `Hola, ${data.name}` });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "PIN Incorrecto", variant: "destructive" });
+      setPinInput("");
     }
   });
 
@@ -163,6 +192,12 @@ export default function TimeClock() {
                     terminalId="Attendance-Kiosk-1"
                     onAuthenticated={(emp) => setAuthenticatedEmployee(emp)}
                   />
+                  <div className="flex justify-center">
+                    <Button variant="outline" className="gap-2" onClick={() => setIsPinLoginOpen(true)}>
+                      <Keypad className="w-4 h-4" />
+                      Usar PIN de Acceso
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
@@ -334,6 +369,53 @@ export default function TimeClock() {
             </div>
 
           </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isPinLoginOpen} onOpenChange={setIsPinLoginOpen}>
+        <DialogContent className="sm:max-w-xs bg-slate-950 border-slate-800">
+          <DialogHeader>
+            <DialogTitle className="text-center">Ingresa tu PIN</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-4 py-4">
+            <div className="flex gap-2 justify-center mb-4">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i} className={cn("w-3 h-3 rounded-full transition-all", i <= pinInput.length ? "bg-primary scale-110" : "bg-slate-800")} />
+              ))}
+            </div>
+            <div className="grid grid-cols-3 gap-3 w-full max-w-[240px]">
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                <Button
+                  key={num}
+                  variant="outline"
+                  className="h-14 text-xl font-mono border-slate-800 hover:bg-slate-900 active:bg-primary/20"
+                  onClick={() => {
+                    if (pinInput.length < 6) setPinInput(prev => prev + num);
+                  }}
+                >
+                  {num}
+                </Button>
+              ))}
+              <Button variant="ghost" className="h-14 text-destructive hover:bg-destructive/10" onClick={() => setPinInput("")}>C</Button>
+              <Button
+                variant="outline"
+                className="h-14 text-xl font-mono border-slate-800 hover:bg-slate-900"
+                onClick={() => {
+                  if (pinInput.length < 6) setPinInput(prev => prev + "0");
+                }}
+              >
+                0
+              </Button>
+              <Button
+                variant="default" // Changed to default for primary action
+                className="h-14 bg-primary hover:bg-primary/90 text-primary-foreground"
+                onClick={() => pinLoginMutation.mutate(pinInput)}
+                disabled={pinInput.length < 4 || pinLoginMutation.isPending}
+              >
+                {pinLoginMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <ChevronRight className="w-6 h-6" />}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

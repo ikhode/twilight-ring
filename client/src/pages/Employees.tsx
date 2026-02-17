@@ -41,7 +41,8 @@ import {
 
   Copy,
   Target,
-  Clock
+  Clock,
+  Lock
 } from "lucide-react";
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import {
@@ -188,6 +189,28 @@ function EditEmployeeDialog({ employee, open, onOpenChange }: { employee: Employ
     }
   });
 
+  const pinMutation = useMutation({
+    mutationFn: async (pin: string) => {
+      const res = await fetch(`/api/hr/employees/${employee?.id}/pin`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify({ pin })
+      });
+      if (!res.ok) throw new Error("Failed to update PIN");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Seguridad Actualizada", description: "El PIN de acceso ha sido modificado." });
+      // Don't close dialog, just notify
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  });
+
   if (!employee) return null;
 
   return (
@@ -234,6 +257,7 @@ function EditEmployeeDialog({ employee, open, onOpenChange }: { employee: Employ
                   <TabsTrigger value="financial">Financiero</TabsTrigger>
                   <TabsTrigger value="emergency">Emergencia</TabsTrigger>
                   <TabsTrigger value="performance">Rendimiento</TabsTrigger>
+                  <TabsTrigger value="security">Seguridad</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="general" className="space-y-4">
@@ -389,6 +413,55 @@ function EditEmployeeDialog({ employee, open, onOpenChange }: { employee: Employ
 
                 <TabsContent value="performance" className="space-y-4">
                   <StaffPerformance />
+                </TabsContent>
+
+                <TabsContent value="security" className="space-y-4">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-4 p-4 border border-blue-900/50 bg-blue-950/20 rounded-lg">
+                      <div className="p-2 bg-blue-900/30 rounded-full">
+                        <Lock className="w-6 h-6 text-blue-400" />
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-blue-100">Control de Acceso (PIN)</h4>
+                        <p className="text-sm text-blue-300/80">
+                          Este PIN permite al empleado acceder al Punto de Venta (POS) y Reloj Checador.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                      <div className="space-y-4">
+                        <Label>Nuevo PIN de Acceso</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            type="password"
+                            placeholder="4-6 dígitos"
+                            maxLength={6}
+                            className="font-mono tracking-widest"
+                            id="new-pin-input"
+                          />
+                          <Button
+                            type="button"
+                            onClick={() => {
+                              const input = document.getElementById('new-pin-input') as HTMLInputElement;
+                              if (input.value.length < 4) {
+                                toast({ title: "PIN Inválido", description: "El PIN debe tener al menos 4 dígitos.", variant: "destructive" });
+                                return;
+                              }
+                              pinMutation.mutate(input.value);
+                              input.value = "";
+                            }}
+                            disabled={pinMutation.isPending}
+                          >
+                            {pinMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Actualizar PIN"}
+                          </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          * El PIN debe ser numérico y confidencial.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </TabsContent>
               </Tabs>
 

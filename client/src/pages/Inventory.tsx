@@ -56,8 +56,11 @@ import {
   Truck,
   Database,
   FileSpreadsheet,
+  FileSpreadsheet,
   Printer,
-  PieChart
+  PieChart,
+  Tag,
+  Percent
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -81,6 +84,8 @@ import { TransfersManager } from "@/components/inventory/TransfersManager";
 import { BulkImportManager } from "@/components/inventory/BulkImportManager";
 import { LabelsManager } from "@/components/inventory/LabelsManager";
 import { ValuationReport } from "@/components/inventory/ValuationReport";
+import { ModifiersManager } from "@/components/inventory/ModifiersManager";
+import { DiscountsManager } from "@/components/inventory/DiscountsManager";
 
 
 
@@ -671,6 +676,12 @@ export default function Inventory() {
             </TabsTrigger>
             <TabsTrigger value="labels" className="gap-2 py-3">
               <Printer className="h-4 w-4" /> Etiquetas
+            </TabsTrigger>
+            <TabsTrigger value="modifiers" className="gap-2 py-3">
+              <Tag className="h-4 w-4" /> Modificadores
+            </TabsTrigger>
+            <TabsTrigger value="discounts" className="gap-2 py-3">
+              <Percent className="h-4 w-4" /> Promociones
             </TabsTrigger>
             <TabsTrigger value="reports" className="gap-2 py-3">
               <BarChart3 className="h-4 w-4" /> Valoración
@@ -1922,8 +1933,16 @@ export default function Inventory() {
             <LabelsManager />
           </TabsContent>
 
+          <TabsContent value="modifiers">
+            <ModifiersManager />
+          </TabsContent>
+
+          <TabsContent value="discounts">
+            <DiscountsManager />
+          </TabsContent>
+
           <TabsContent value="reports">
-            <ValuationReport />
+            <ValuationReport products={products} />
           </TabsContent>
 
         </Tabs>

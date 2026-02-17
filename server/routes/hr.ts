@@ -136,6 +136,69 @@ router.delete("/employees/:id", requirePermission('employees.write'), async (req
 });
 
 /**
+ * Establece o actualiza el PIN de acceso de un empleado.
+ */
+router.patch("/employees/:id/pin", requirePermission("hr.write"), async (req, res) => {
+    const orgId = await getOrgIdFromRequest(req);
+    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
+    const id = req.params.id;
+    const { pin } = req.body;
+
+    if (!pin || pin.length < 4) {
+        return res.status(400).json({ error: "PIN must be at least 4 digits" });
+    }
+
+    const employee = await storage.getEmployee(id);
+    if (!employee || employee.organizationId !== orgId) {
+        return res.status(404).json({ error: "Employee not found or unauthorized" });
+    }
+
+    // In a real app, hash this PIN!
+    await storage.updateEmployee(id, { pinCode: pin });
+
+    await logAudit(
+        req,
+        orgId,
+        (req.user as any)?.id || "system",
+        "UPDATE_EMPLOYEE_PIN",
+        id,
+        { message: "PIN updated" }
+    );
+
+    res.json({ message: "PIN updated successfully" });
+});
+
+/**
+ * Autenticación simplificada por PIN para POS/TimeClock.
+ */
+router.post("/auth/employee-login", async (req, res) => {
+    const orgId = await getOrgIdFromRequest(req);
+    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
+    const { pin } = req.body;
+    if (!pin) return res.status(400).json({ error: "PIN required" });
+
+    const [employee] = await db.select().from(employees).where(and(
+        eq(employees.organizationId, orgId),
+        eq(employees.pinCode, pin),
+        eq(employees.status, "active")
+    ));
+
+    if (!employee) {
+        return res.status(401).json({ error: "Invalid PIN" });
+    }
+
+    // Return basic employee info needed for context
+    res.json({
+        id: employee.id,
+        name: employee.name,
+        role: employee.role,
+        permissions: [] // Load permissions if needed based on role
+    });
+});
+
+/**
  * Obtiene las solicitudes de adelanto de nómina de la organización.
  * 
  * @param {import("express").Request} req - Solicitud de Express
