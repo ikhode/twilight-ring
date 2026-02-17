@@ -8,54 +8,55 @@ import Landing from "@/pages/Landing";
 import Auth from "@/pages/Auth";
 import { IntroJsOnboarding } from "@/components/onboarding/IntroJsOnboarding";
 import { ProtectedRoute } from "@/lib/protected-route";
+import { useEffect, Suspense, lazy } from "react";
 
 // Initialize Sentry FIRST
 import { initSentry, ErrorBoundary, setUserContext } from "@/lib/sentry";
 import { ErrorFallback } from "@/components/ErrorFallback";
 initSentry();
-import Dashboard from "@/pages/Dashboard";
-import Vision from "@/pages/Vision";
-import Kiosks from "@/pages/Kiosks";
-import KioskInterface from "@/pages/KioskInterface";
-import DriverTerminal from "@/pages/DriverTerminal";
-import Employees from "@/pages/Employees";
-import Inventory from "@/pages/Inventory";
+const Dashboard = lazy(() => import("@/pages/Dashboard"));
+const Vision = lazy(() => import("@/pages/Vision"));
+const Kiosks = lazy(() => import("@/pages/Kiosks"));
+const KioskInterface = lazy(() => import("@/pages/KioskInterface"));
+const DriverTerminal = lazy(() => import("@/pages/DriverTerminal"));
+const Employees = lazy(() => import("@/pages/Employees"));
+const Inventory = lazy(() => import("@/pages/Inventory"));
 
-import ProductionHub from "@/pages/ProductionHub";
-import Sales from "@/pages/Sales";
-import Logistics from "@/pages/Logistics";
-import Finance from "@/pages/Finance";
-import BankAccounts from "@/pages/finance/BankAccounts";
-import PayrollManager from "@/pages/finance/PayrollManager";
-import FinancialReports from "@/pages/FinancialReports";
-import CRM from "@/pages/CRM";
-import Purchases from "@/pages/Purchases";
-import Tickets from "@/pages/Tickets";
-import Piecework from "@/pages/Piecework";
-import Documents from "@/pages/Documents";
-import Analytics from "@/pages/Analytics";
-import Settings from "@/pages/Settings";
-import TrustNet from "@/pages/TrustNet";
-import Admin from "@/pages/Admin";
-import Query from "@/pages/Query";
-import Marketplace from "@/pages/Marketplace";
-import Demo from "@/pages/Demo";
-import TerminalLink from "@/pages/TerminalLink";
-import SubscriptionSuccess from "@/pages/SubscriptionSuccess";
-import WorkflowEditor from "@/pages/WorkflowEditor";
-import Workflows from "@/pages/Workflows";
-import Operations from "@/pages/Operations";
-import Kiosk from "@/pages/Kiosk";
-import Signature from "@/pages/Signature";
-import TerminalManager from "@/pages/admin/TerminalManager";
-import ShieldLine from "@/pages/ShieldLine";
-import Lending from "@/pages/Lending";
-import Manufacturing from "@/pages/Manufacturing";
-import KitchenDisplay from "@/pages/KitchenDisplay";
-import Integrations from "@/pages/Integrations";
-import TimeClock from "@/pages/TimeClock";
-import CustomerDisplay from "@/pages/CustomerDisplay";
-import SystemHealth from "@/pages/SystemHealth";
+const ProductionHub = lazy(() => import("@/pages/ProductionHub"));
+const Sales = lazy(() => import("@/pages/Sales"));
+const Logistics = lazy(() => import("@/pages/Logistics"));
+const Finance = lazy(() => import("@/pages/Finance"));
+const BankAccounts = lazy(() => import("@/pages/finance/BankAccounts"));
+const PayrollManager = lazy(() => import("@/pages/finance/PayrollManager"));
+const FinancialReports = lazy(() => import("@/pages/FinancialReports"));
+const CRM = lazy(() => import("@/pages/CRM"));
+const Purchases = lazy(() => import("@/pages/Purchases"));
+const Tickets = lazy(() => import("@/pages/Tickets"));
+const Piecework = lazy(() => import("@/pages/Piecework"));
+const Documents = lazy(() => import("@/pages/Documents"));
+const Analytics = lazy(() => import("@/pages/Analytics"));
+const Settings = lazy(() => import("@/pages/Settings"));
+const TrustNet = lazy(() => import("@/pages/TrustNet"));
+const Admin = lazy(() => import("@/pages/Admin"));
+const Query = lazy(() => import("@/pages/Query"));
+const Marketplace = lazy(() => import("@/pages/Marketplace"));
+const Demo = lazy(() => import("@/pages/Demo"));
+const TerminalLink = lazy(() => import("@/pages/TerminalLink"));
+const SubscriptionSuccess = lazy(() => import("@/pages/SubscriptionSuccess"));
+const WorkflowEditor = lazy(() => import("@/pages/WorkflowEditor"));
+const Workflows = lazy(() => import("@/pages/Workflows"));
+const Operations = lazy(() => import("@/pages/Operations"));
+const Kiosk = lazy(() => import("@/pages/Kiosk"));
+const Signature = lazy(() => import("@/pages/Signature"));
+const TerminalManager = lazy(() => import("@/pages/admin/TerminalManager"));
+const ShieldLine = lazy(() => import("@/pages/ShieldLine"));
+const Lending = lazy(() => import("@/pages/Lending"));
+const Manufacturing = lazy(() => import("@/pages/Manufacturing"));
+const KitchenDisplay = lazy(() => import("@/pages/KitchenDisplay"));
+const Integrations = lazy(() => import("@/pages/Integrations"));
+const TimeClock = lazy(() => import("@/pages/TimeClock"));
+const CustomerDisplay = lazy(() => import("@/pages/CustomerDisplay"));
+const SystemHealth = lazy(() => import("@/pages/SystemHealth"));
 
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { RealtimeProvider } from "@/lib/realtime";
@@ -70,63 +71,65 @@ import { OnboardingProvider } from "@/context/OnboardingContext";
  */
 function Router() {
   return (
-    <Switch>
-      <Route path="/" component={Landing} />
-      <Route path="/login" component={Auth} />
-      <Route path="/signup" component={Auth} />
-      <Route path="/onboarding" component={IntroJsOnboarding} />
+    <Suspense fallback={<PageLoader />}>
+      <Switch>
+        <Route path="/" component={Landing} />
+        <Route path="/login" component={Auth} />
+        <Route path="/signup" component={Auth} />
+        <Route path="/onboarding" component={IntroJsOnboarding} />
 
-      {/* Public / Kiosk Routes */}
-      <Route path="/kiosk" component={Kiosk} />
-      <Route path="/kiosk-terminal/:id" component={KioskInterface} />
-      <Route path="/driver" component={DriverTerminal} />
-      <Route path="/driver-pwa" component={DriverTerminal} />
-      <Route path="/driver-pwa" component={DriverTerminal} />
-      <Route path="/kiosk-link" component={TerminalLink} />
-      <Route path="/sign/:token" component={Signature} />
-      <Route path="/time-clock" component={TimeClock} />
-      <Route path="/customer-display" component={CustomerDisplay} />
+        {/* Public / Kiosk Routes */}
+        <Route path="/kiosk" component={Kiosk} />
+        <Route path="/kiosk-terminal/:id" component={KioskInterface} />
+        <Route path="/driver" component={DriverTerminal} />
+        <Route path="/driver-pwa" component={DriverTerminal} />
+        <Route path="/driver-pwa" component={DriverTerminal} />
+        <Route path="/kiosk-link" component={TerminalLink} />
+        <Route path="/sign/:token" component={Signature} />
+        <Route path="/time-clock" component={TimeClock} />
+        <Route path="/customer-display" component={CustomerDisplay} />
 
-      {/* Protected System Routes (Admin/Owner/Manager only) */}
-      <ProtectedRoute path="/dashboard" component={Dashboard} />
-      <ProtectedRoute path="/vision" component={Vision} />
-      <ProtectedRoute path="/kiosks" component={Kiosks} />
-      <ProtectedRoute path="/employees" component={Employees} />
-      <ProtectedRoute path="/inventory" component={Inventory} />
+        {/* Protected System Routes (Admin/Owner/Manager only) */}
+        <ProtectedRoute path="/dashboard" component={Dashboard} />
+        <ProtectedRoute path="/vision" component={Vision} />
+        <ProtectedRoute path="/kiosks" component={Kiosks} />
+        <ProtectedRoute path="/employees" component={Employees} />
+        <ProtectedRoute path="/inventory" component={Inventory} />
 
-      <ProtectedRoute path="/production" component={ProductionHub} />
-      <ProtectedRoute path="/sales" component={Sales} />
-      <ProtectedRoute path="/kitchen" component={KitchenDisplay} />
-      <ProtectedRoute path="/logistics" component={Logistics} />
-      <ProtectedRoute path="/finance" component={Finance} />
-      <ProtectedRoute path="/finance/accounts" component={BankAccounts} />
-      <ProtectedRoute path="/finance/payroll" component={PayrollManager} />
-      <ProtectedRoute path="/finance/reports" component={FinancialReports} />
-      <ProtectedRoute path="/crm" component={CRM} />
-      <ProtectedRoute path="/marketplace" component={Marketplace} />
-      <ProtectedRoute path="/operations" component={Operations} />
-      <ProtectedRoute path="/purchases" component={Purchases} />
-      <ProtectedRoute path="/tickets" component={Tickets} />
-      <ProtectedRoute path="/documents" component={Documents} />
-      <ProtectedRoute path="/piecework" component={Piecework} />
-      <ProtectedRoute path="/analytics" component={Analytics} />
-      <ProtectedRoute path="/settings" component={Settings} />
-      <ProtectedRoute path="/trust" component={TrustNet} />
-      <ProtectedRoute path="/admin" component={Admin} />
-      <ProtectedRoute path="/admin/terminals" component={TerminalManager} />
-      <ProtectedRoute path="/query" component={Query} />
-      <ProtectedRoute path="/demo" component={Demo} />
-      <ProtectedRoute path="/subscription-success" component={SubscriptionSuccess} />
-      <ProtectedRoute path="/workflows" component={Workflows} />
-      <ProtectedRoute path="/workflow-editor" component={WorkflowEditor} />
-      <ProtectedRoute path="/shieldline" component={ShieldLine} />
-      <ProtectedRoute path="/lending" component={Lending} />
-      <ProtectedRoute path="/manufacturing" component={Manufacturing} />
-      <ProtectedRoute path="/settings/integrations" component={Integrations} />
-      <ProtectedRoute path="/system-health" component={SystemHealth} />
+        <ProtectedRoute path="/production" component={ProductionHub} />
+        <ProtectedRoute path="/sales" component={Sales} />
+        <ProtectedRoute path="/kitchen" component={KitchenDisplay} />
+        <ProtectedRoute path="/logistics" component={Logistics} />
+        <ProtectedRoute path="/finance" component={Finance} />
+        <ProtectedRoute path="/finance/accounts" component={BankAccounts} />
+        <ProtectedRoute path="/finance/payroll" component={PayrollManager} />
+        <ProtectedRoute path="/finance/reports" component={FinancialReports} />
+        <ProtectedRoute path="/crm" component={CRM} />
+        <ProtectedRoute path="/marketplace" component={Marketplace} />
+        <ProtectedRoute path="/operations" component={Operations} />
+        <ProtectedRoute path="/purchases" component={Purchases} />
+        <ProtectedRoute path="/tickets" component={Tickets} />
+        <ProtectedRoute path="/documents" component={Documents} />
+        <ProtectedRoute path="/piecework" component={Piecework} />
+        <ProtectedRoute path="/analytics" component={Analytics} />
+        <ProtectedRoute path="/settings" component={Settings} />
+        <ProtectedRoute path="/trust" component={TrustNet} />
+        <ProtectedRoute path="/admin" component={Admin} />
+        <ProtectedRoute path="/admin/terminals" component={TerminalManager} />
+        <ProtectedRoute path="/query" component={Query} />
+        <ProtectedRoute path="/demo" component={Demo} />
+        <ProtectedRoute path="/subscription-success" component={SubscriptionSuccess} />
+        <ProtectedRoute path="/workflows" component={Workflows} />
+        <ProtectedRoute path="/workflow-editor" component={WorkflowEditor} />
+        <ProtectedRoute path="/shieldline" component={ShieldLine} />
+        <ProtectedRoute path="/lending" component={Lending} />
+        <ProtectedRoute path="/manufacturing" component={Manufacturing} />
+        <ProtectedRoute path="/settings/integrations" component={Integrations} />
+        <ProtectedRoute path="/system-health" component={SystemHealth} />
 
-      <Route component={NotFound} />
-    </Switch>
+        <Route component={NotFound} />
+      </Switch>
+    </Suspense>
   );
 }
 
@@ -142,9 +145,9 @@ import { useLocation } from "wouter";
  * Root Application component layout to handle conditional global elements
  */
 import { initializeEventSubscription } from "@/lib/events";
-import { useEffect } from "react";
 import { useAnalytics } from "@/lib/analytics";
 import { FeedbackWidget } from "@/components/feedback/FeedbackWidget";
+import { PageLoader } from "@/components/ui/PageLoader";
 
 function EventSubscriber() {
   useEffect(() => {

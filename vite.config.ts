@@ -6,6 +6,8 @@ import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 import { metaImagesPlugin } from "./vite-plugin-meta-images";
 import { sentryVitePlugin } from "@sentry/vite-plugin";
 
+import { visualizer } from "rollup-plugin-visualizer";
+
 export default defineConfig({
   plugins: [
     react(),
@@ -26,6 +28,12 @@ export default defineConfig({
       // Only upload source maps in production
       disable: process.env.NODE_ENV !== "production",
     }),
+    ...(process.env.ANALYZE === 'true' ? [visualizer({
+      open: true,
+      filename: 'dist/stats.html',
+      gzipSize: true,
+      brotliSize: true,
+    })] : []),
     ...(process.env.NODE_ENV !== "production" &&
       process.env.REPL_ID !== undefined
       ? [
