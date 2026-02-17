@@ -1,4 +1,9 @@
 import "dotenv/config";
+
+// Initialize Sentry FIRST before any other imports
+import { initSentry } from "./lib/sentry";
+initSentry();
+
 import express, { type Request, Response, NextFunction } from "express";
 import cookieParser from "cookie-parser";
 import { registerRoutes } from "./routes";
@@ -91,6 +96,10 @@ import { guardian } from "./services/guardian";
 
   // Start the Cognitive Guardian
   guardian.start();
+
+  // Sentry error handler (must be after all routes)
+  const { Sentry } = await import('./lib/sentry');
+  app.use(Sentry.Handlers.errorHandler());
 
   // Unified production error tracking
   app.use(errorMiddleware);
