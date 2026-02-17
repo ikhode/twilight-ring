@@ -58,6 +58,16 @@ const TimeClock = lazy(() => import("@/pages/TimeClock"));
 const CustomerDisplay = lazy(() => import("@/pages/CustomerDisplay"));
 const SystemHealth = lazy(() => import("@/pages/SystemHealth"));
 
+import { useResolutionScaler } from "@/hooks/use-resolution-scaler";
+import { MLInitialization } from "@/components/ai/MLInitialization";
+
+import { OnboardingGuard } from "@/components/layout/OnboardingGuard";
+import { useLocation } from "wouter";
+import { initializeEventSubscription } from "@/lib/events";
+import { useAnalytics } from "@/lib/analytics";
+import { FeedbackWidget } from "@/components/feedback/FeedbackWidget";
+import { PageLoader } from "@/components/ui/PageLoader";
+
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { RealtimeProvider } from "@/lib/realtime";
 import { Copilot } from "@/components/ai/Copilot";
@@ -137,17 +147,6 @@ function Router() {
  * Root Application component setting up providers and router.
  * @returns {JSX.Element} The root application component.
  */
-import { OnboardingGuard } from "@/components/layout/OnboardingGuard";
-
-import { useLocation } from "wouter";
-
-/**
- * Root Application component layout to handle conditional global elements
- */
-import { initializeEventSubscription } from "@/lib/events";
-import { useAnalytics } from "@/lib/analytics";
-import { FeedbackWidget } from "@/components/feedback/FeedbackWidget";
-import { PageLoader } from "@/components/ui/PageLoader";
 
 function EventSubscriber() {
   useEffect(() => {
@@ -187,9 +186,6 @@ function AppLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
-import { useResolutionScaler } from "@/hooks/use-resolution-scaler";
-
-import { MLInitialization } from "@/components/ai/MLInitialization";
 
 function App() {
   useResolutionScaler();

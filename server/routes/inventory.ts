@@ -750,4 +750,74 @@ router.get("/products/:id/production-impact", async (req: Request, res: Response
     }
 });
 
+/**
+ * Registra un conteo físico de inventario y genera ajustes automáticos.
+ * @route POST /api/inventory/counts
+ */
+router.post("/counts", requirePermission('inventory.write'), async (req: Request, res: Response): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req as AuthenticatedRequest);
+        if (!orgId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        const { items, notes, date } = req.body;
+
+        if (!Array.isArray(items)) {
+            res.status(400).json({ message: "Items array is required" });
+            return;
+        }
+
+        const adjustments = [];
+
+        await db.transaction(async (tx) => {
+            for (const item of items) {
+                const { productId, countedQuantity, systemQuantity } = item;
+                const diff = Number(countedQuantity) - Number(systemQuantity);
+
+                if (diff !== 0) {
+                    // Update Product Stock
+                    await tx.update(products)
+                        .set({ stock: Number(countedQuantity) })
+                        .where(and(eq(products.id, productId), eq(products.organizationId, orgId)));
+
+                    // Record Movement
+                    const [movement] = await tx.insert(inventoryMovements).values({
+                        organizationId: orgId,
+                        productId: productId,
+                        userId: req.user?.id || null,
+                        quantity: diff,
+                        type: "adjustment", // or "reconciliation"
+                        beforeStock: Number(systemQuantity),
+                        afterStock: Number(countedQuantity),
+                        notes: `Conteo Físico: ${notes || "Ajuste por inventario"}`,
+                        date: date ? new Date(date) : new Date()
+                    } as any).returning(); // Cast as any if TS complains about schema mismatch, though it should match
+
+                    adjustments.push(movement);
+                }
+            }
+        });
+
+        // Audit Log
+        await logAudit(
+            req,
+            orgId,
+            req.user?.id || "system",
+            "INVENTORY_COUNT",
+            "BATCH",
+            {
+                message: `Conteo físico realizado. ${adjustments.length} ajustes generados.`,
+                adjustmentCount: adjustments.length
+            }
+        );
+
+        res.json({ success: true, message: "Inventory count processed", adjustmentsCount: adjustments.length });
+    } catch (error) {
+        console.error("Inventory count error:", error);
+        res.status(500).json({ message: "Failed to process inventory count" });
+    }
+});
+
 export default router;

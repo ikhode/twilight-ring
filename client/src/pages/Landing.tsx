@@ -50,22 +50,22 @@ export default function Landing() {
 
     const features = [
         {
+            icon: DollarSign,
+            title: "Stripe Financial Core",
+            description: "Infraestructura bancaria nativa. Gestiona cobros, payouts y conciliación automática con la potencia de Stripe.",
+            color: "text-indigo-400"
+        },
+        {
             icon: Brain,
-            title: "Aprendizaje Adaptativo",
-            description: "Nuestra IA no usa datos genéricos. Aprende los flujos específicos de tu operación para una precisión quirúrgica.",
-            color: "text-primary"
+            title: "Orquestación Cognitiva",
+            description: "El sistema 'piensa' por tu negocio. Predice inventarios, detecta fraudes y sugiere líneas de crédito en tiempo real.",
+            color: "text-purple-400"
         },
         {
-            icon: Sparkles,
-            title: "Modo Calibración",
-            description: "Privacidad total. El sistema entra en modo oculto mientras recolecta datos iniciales, evitando proyecciones ruidosas.",
-            color: "text-cyan-400"
-        },
-        {
-            icon: ShieldAlert,
-            title: "Capa Guardian",
-            description: "Vigilancia 24/7 sobre anomalías operativas. Identifica fugas de capital y cuellos de botella antes de que impacten.",
-            color: "text-rose-400"
+            icon: Globe,
+            title: "Middleware de Pagos",
+            description: "Conecta cualquier terminal (Clip, PAX, WisePOS) al cerebro central. Unifica tus canales físicos y digitales.",
+            color: "text-emerald-400"
         },
         {
             icon: Target,
@@ -103,8 +103,8 @@ export default function Landing() {
                         className="space-y-6"
                     >
                         <h1 className="text-8xl md:text-[10rem] font-black tracking-tighter uppercase italic leading-[0.8] mb-10">
-                            <span className="bg-gradient-to-r from-white via-primary to-slate-500 bg-clip-text text-transparent">
-                                LA NUEVA ERA
+                            <span className="bg-gradient-to-r from-white via-primary to-indigo-400 bg-clip-text text-transparent">
+                                COGNITIVE OS + STRIPE
                             </span>
                         </h1>
                         <p className="text-2xl md:text-5xl font-bold text-slate-300 leading-tight h-[3em]">
@@ -167,7 +167,8 @@ export default function Landing() {
                         transition={{ duration: 0.6, delay: 0.4 }}
                         className="text-xl md:text-2xl text-slate-400 max-w-4xl mx-auto leading-relaxed"
                     >
-                        La siguiente generación de software empresarial ha llegado. Un ERP que <span className="text-white font-bold">aprende, predice y se adapta</span> a cualquier industria. Sin capacitación. Sin consultores. Solo inteligencia pura.
+                        Tu sistema operativo de negocio que <span className="text-white font-bold">piensa, predice y ejecuta</span> operaciones financieras.
+                        Infraestructura Stripe nativa para escalar sin límites.
                     </motion.p>
 
                     {/* CTA Buttons */}
@@ -334,24 +335,24 @@ export default function Landing() {
                         {[
                             {
                                 step: "01",
-                                title: "Ingestión Total",
-                                description: "Conectamos con tus cámaras, inventarios y finanzas para absorber cada bit de operación real.",
-                                icon: Globe,
-                                accent: "bg-blue-500"
+                                title: "Ingestión Transaccional",
+                                description: "Cada pago (en tienda o web) alimenta el Data Lake. Procesamos metadatos financieros en tiempo real via Stripe.",
+                                icon: DollarSign,
+                                accent: "bg-indigo-500"
                             },
                             {
                                 step: "02",
-                                title: "Mapeo Cognitivo",
-                                description: "Nuestra red neuronal identifica patrones, ineficiencias y oportunidades de optimización únicas de tu flujo.",
+                                title: "Análisis Semántico",
+                                description: "La IA cruza ventas con inventario y comportamiento. Detecta patrones de fraude, lealtad y demanda futura.",
                                 icon: Brain,
                                 accent: "bg-purple-500"
                             },
                             {
                                 step: "03",
-                                title: "Ejecución Predictiva",
-                                description: "El sistema automatiza decisiones y alerta sobre riesgos antes de que ocurran.",
-                                icon: Zap,
-                                accent: "bg-amber-500"
+                                title: "Ejecución Financiera",
+                                description: "El OS automatiza resurtido, facturación (CFDI 4.0) y sugiere financiamiento basado en tu flujo real.",
+                                icon: TrendingUp,
+                                accent: "bg-emerald-500"
                             }
                         ].map((item, i) => (
                             <div key={i} className="relative group">
@@ -413,12 +414,12 @@ export default function Landing() {
                             <h3 className="text-2xl font-black mb-8 text-primary">Cognitive OS</h3>
                             <ul className="space-y-4">
                                 {[
-                                    "Operativo en 24 horas",
-                                    "Cero consultoría requerida",
-                                    "Se adapta a tu negocio",
-                                    "IA automatiza todo",
-                                    "Predice antes de que surjan problemas",
-                                    "Solo lo que necesitas, cuando lo necesitas"
+                                    "Stripe Banking Infrastructure",
+                                    "IA Predictiva Financiera",
+                                    "Facturación CFDI 4.0 Auto",
+                                    "Marketplace Ready",
+                                    "Sin costos de consultoría",
+                                    "Ecosistema de Pagos Unificado"
                                 ].map((item, i) => (
                                     <li key={i} className="flex items-center gap-3">
                                         <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center shrink-0">

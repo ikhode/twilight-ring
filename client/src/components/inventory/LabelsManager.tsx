@@ -149,7 +149,10 @@ export function LabelsManager() {
                         <div key={item.uniqueKey} className="border border-black p-2 flex flex-col items-center justify-center text-center h-[120px] break-inside-avoid">
                             <p className="text-[10px] font-bold truncate w-full mb-1">{item.name.substring(0, 20)}</p>
                             <QRCodeSVG value={item.sku || item.id} size={64} level="M" />
-                            <p className="text-[8px] font-mono mt-1">{item.sku}</p>
+                            <div className="flex justify-between w-full px-1 mt-1">
+                                <p className="text-[8px] font-mono">{item.sku}</p>
+                                <p className="text-[8px] font-bold">${(item.price / 100).toFixed(2)}</p>
+                            </div>
                         </div>
                     ))}
                 </div>

@@ -60,7 +60,8 @@ import {
   Printer,
   PieChart,
   Tag,
-  Percent
+  Percent,
+  Calculator
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -86,6 +87,8 @@ import { LabelsManager } from "@/components/inventory/LabelsManager";
 import { ValuationReport } from "@/components/inventory/ValuationReport";
 import { ModifiersManager } from "@/components/inventory/ModifiersManager";
 import { DiscountsManager } from "@/components/inventory/DiscountsManager";
+import { PurchasesTab } from "@/components/inventory/PurchasesTab";
+import { InventoryCountManager } from "@/components/inventory/InventoryCountManager";
 
 
 
@@ -665,8 +668,14 @@ export default function Inventory() {
             <TabsTrigger value="products" className="gap-2 py-3">
               <Package className="h-4 w-4" /> Productos
             </TabsTrigger>
+            <TabsTrigger value="purchases" className="gap-2 py-3">
+              <DollarSign className="h-4 w-4" /> Compras
+            </TabsTrigger>
             <TabsTrigger value="locations" className="gap-2 py-3">
               <Database className="h-4 w-4" /> Ubicaciones
+            </TabsTrigger>
+            <TabsTrigger value="counts" className="gap-2 py-3">
+              <RefreshCw className="h-4 w-4" /> Recuentos
             </TabsTrigger>
             <TabsTrigger value="transfers" className="gap-2 py-3">
               <Truck className="h-4 w-4" /> Transferencias
@@ -683,10 +692,25 @@ export default function Inventory() {
             <TabsTrigger value="discounts" className="gap-2 py-3">
               <Percent className="h-4 w-4" /> Promociones
             </TabsTrigger>
+            <TabsTrigger value="counts" className="gap-2 py-3">
+              <Calculator className="h-4 w-4" /> Conteo Físico
+            </TabsTrigger>
             <TabsTrigger value="reports" className="gap-2 py-3">
               <BarChart3 className="h-4 w-4" /> Valoración
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="purchases" className="space-y-6">
+            <PurchasesTab />
+          </TabsContent>
+
+          <TabsContent value="counts" className="space-y-6">
+            <InventoryCountManager />
+          </TabsContent>
+
+          <TabsContent value="counts" className="space-y-6">
+            <InventoryCountManager />
+          </TabsContent>
 
           <TabsContent value="products" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
@@ -2047,6 +2071,8 @@ interface Movement {
 function MovementHistoryDialog({ isOpen, onOpenChange, product }: { isOpen: boolean, onOpenChange: (v: boolean) => void, product: any }) {
   const { session, profile } = useAuth();
   const isAdmin = profile?.role === 'admin' || profile?.role === 'owner';
+  const [filterReason, setFilterReason] = useState("");
+  const [filterSource, setFilterSource] = useState("");
   const { data: movements, isLoading } = useQuery<Movement[]>({
     queryKey: [product?.id ? `/api/inventory/products/${product.id}/history` : null],
     queryFn: async () => {
@@ -2083,8 +2109,35 @@ function MovementHistoryDialog({ isOpen, onOpenChange, product }: { isOpen: bool
               <p className="text-sm text-muted-foreground animate-pulse">Analizando serie de tiempo...</p>
             </div>
           ) : movements && movements.length > 0 ? (
+            <div className="flex gap-2 mb-4">
+              <Select onValueChange={(v) => setFilterReason(v === "all" ? "" : v)}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filtrar por Motivo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los Motivos</SelectItem>
+                  {Array.from(new Set(movements?.map(m => m.reason))).filter(Boolean).map(reason => (
+                    <SelectItem key={reason} value={reason}>{reason}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+               <Select onValueChange={(v) => setFilterSource(v === "all" ? "" : v)}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filtrar por Origen" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los Orígenes</SelectItem>
+                  {Array.from(new Set(movements?.map(m => m.source))).filter(Boolean).map(source => (
+                    <SelectItem key={source} value={source}>{source}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-              {movements.map((m) => (
+              {movements
+                .filter(m => (!filterReason || m.reason === filterReason) && (!filterSource || m.source === filterSource))
+                .map((m) => (
                 <div key={m.id} className="group flex items-center justify-between p-4 rounded-xl bg-slate-900/50 border border-white/5 hover:border-primary/20 transition-all duration-300">
                   <div className="flex items-center gap-4">
                     <div className={cn(
