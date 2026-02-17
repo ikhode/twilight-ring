@@ -53,3 +53,20 @@ export type TrustParticipant = typeof trustParticipants.$inferSelect;
 export type SharedInsight = typeof sharedInsights.$inferSelect;
 export const insertTrustParticipantSchema = createInsertSchema(trustParticipants);
 export const insertSharedInsightSchema = createInsertSchema(sharedInsights);
+
+// Analytics - Raw Events (Feature Adoption)
+export const analyticsEvents = pgTable("analytics_events", {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: varchar("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
+    userId: varchar("user_id"), // Nullable for anonymous events (if any)
+    eventType: text("event_type").notNull(), // 'page_view', 'feature_used', 'error'
+    eventName: text("event_name").notNull(), // '/dashboard', 'create_sale_click'
+    properties: jsonb("properties").default({}),
+    userAgent: text("user_agent"),
+    path: text("path"),
+    createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertAnalyticsEventSchema = createInsertSchema(analyticsEvents);
+export type AnalyticsEvent = typeof analyticsEvents.$inferSelect;
+export type InsertAnalyticsEvent = typeof analyticsEvents.$inferInsert;

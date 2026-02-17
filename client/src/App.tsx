@@ -143,12 +143,25 @@ import { useLocation } from "wouter";
  */
 import { initializeEventSubscription } from "@/lib/events";
 import { useEffect } from "react";
+import { useAnalytics } from "@/lib/analytics";
+import { FeedbackWidget } from "@/components/feedback/FeedbackWidget";
 
 function EventSubscriber() {
   useEffect(() => {
     const cleanup = initializeEventSubscription();
     return () => cleanup && cleanup();
   }, []);
+  return null;
+}
+
+function PageViewTracker() {
+  const { track } = useAnalytics();
+  const [location] = useLocation();
+
+  useEffect(() => {
+    track({ eventName: location, eventType: 'page_view' });
+  }, [location, track]);
+
   return null;
 }
 
@@ -159,7 +172,13 @@ function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
       <EventSubscriber />
-      {!isKiosk && <Copilot />}
+      <PageViewTracker />
+      {!isKiosk && (
+        <>
+          <Copilot />
+          <FeedbackWidget />
+        </>
+      )}
       {children}
     </>
   );

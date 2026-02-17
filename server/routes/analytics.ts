@@ -7,7 +7,8 @@ import {
     expenses, sales, payments, payrollAdvances, employees, workHistory,
     pieceworkTickets, processEvents, processInstances, bankAccounts, cashRegisters, products,
     metricModels, purchases, trustParticipants, sharedInsights, customers, suppliers,
-    auditLogs, users
+    metricModels, purchases, trustParticipants, sharedInsights, customers, suppliers,
+    auditLogs, users, insertAnalyticsEventSchema
 } from "../../shared/schema";
 import { eq, desc, and, sql, gte, lte, inArray } from "drizzle-orm";
 
@@ -178,6 +179,41 @@ router.get("/kpis", requirePermission("analytics.read"), async (req, res): Promi
     } catch (error) {
         console.error("KPIs error:", error);
         res.status(500).json({ message: "Failed to calculate KPIs" });
+    }
+});
+
+/**
+ * Track Analytics Event (Feature Adoption)
+ */
+router.post("/events", async (req, res): Promise<void> => {
+    try {
+        const orgId = await getOrgIdFromRequest(req);
+        // We allow anonymous events if orgId is present in body or if public event, 
+        // but for now enforce org context if possible or loose if pre-login.
+        // Let's assume most events are post-login.
+
+        const eventData = insertAnalyticsEventSchema.parse({
+            ...req.body,
+            userId: req.user?.id || req.body.userId,
+            organizationId: orgId || req.body.organizationId,
+            userAgent: req.headers['user-agent'],
+            createdAt: new Date(),
+        });
+
+        // If no organization, we might skip or log global. 
+        // Schema permits null organizationId? No, it has foreign key.
+        // If pre-login, we might need a public organization or optional field.
+        // For this task, we assume logged-in users mostly.
+        if (!eventData.organizationId) {
+            res.status(400).json({ error: "Organization context required" });
+            return;
+        }
+
+        const event = await storage.logAnalyticsEvent(eventData);
+        res.json(event);
+    } catch (error) {
+        console.error("Analytics event error:", error);
+        res.status(400).json({ error: "Invalid event data" });
     }
 });
 

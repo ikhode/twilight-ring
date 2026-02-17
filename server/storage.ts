@@ -62,6 +62,7 @@ export interface IStorage {
   getMetricModels(orgId: string): Promise<schema.MetricModel[]>;
   updateMetricModel(id: string, updates: Partial<schema.InsertMetricModel>): Promise<schema.MetricModel | undefined>;
   getDailySalesStats(orgId: string): Promise<{ date: string; value: number; count: number }[]>;
+  logAnalyticsEvent(event: schema.InsertAnalyticsEvent): Promise<schema.AnalyticsEvent>;
 
   // Piecework
   getPieceworkTickets(orgId: string): Promise<any[]>;
@@ -302,6 +303,11 @@ export class DrizzleStorage implements IStorage {
   async createAnalyticsMetric(metric: schema.InsertAnalyticsMetric): Promise<schema.AnalyticsMetric> {
     const [newMetric] = await db.insert(schema.analyticsMetrics).values(metric).returning();
     return newMetric;
+  }
+
+  async logAnalyticsEvent(event: schema.InsertAnalyticsEvent): Promise<schema.AnalyticsEvent> {
+    const [newEvent] = await db.insert(schema.analyticsEvents).values(event).returning();
+    return newEvent;
   }
 
   async getMetricModels(orgId: string): Promise<schema.MetricModel[]> {
