@@ -2125,79 +2125,81 @@ function MovementHistoryDialog({ isOpen, onOpenChange, product }: { isOpen: bool
               <p className="text-sm text-muted-foreground animate-pulse">Analizando serie de tiempo...</p>
             </div>
           ) : movements && movements.length > 0 ? (
-            <div className="flex gap-2 mb-4">
-              <Select onValueChange={(v) => setFilterReason(v === "all" ? "" : v)}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Filtrar por Motivo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los Motivos</SelectItem>
-                  {Array.from(new Set(movements?.map(m => m.reason))).filter(Boolean).map(reason => (
-                    <SelectItem key={reason} value={reason}>{reason}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-               <Select onValueChange={(v) => setFilterSource(v === "all" ? "" : v)}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Filtrar por Origen" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los Orígenes</SelectItem>
-                  {Array.from(new Set(movements?.map(m => m.source))).filter(Boolean).map(source => (
-                    <SelectItem key={source} value={source}>{source}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <>
+              <div className="flex gap-2 mb-4">
+                <Select onValueChange={(v) => setFilterReason(v === "all" ? "" : v)}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Filtrar por Motivo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los Motivos</SelectItem>
+                    {Array.from(new Set(movements?.map(m => m.reason))).filter(Boolean).map(reason => (
+                      <SelectItem key={reason} value={reason}>{reason}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select onValueChange={(v) => setFilterSource(v === "all" ? "" : v)}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Filtrar por Origen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los Orígenes</SelectItem>
+                    {Array.from(new Set(movements?.map(m => m.source))).filter(Boolean).map(source => (
+                      <SelectItem key={source} value={source}>{source}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-            <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-              {movements
-                .filter(m => (!filterReason || m.reason === filterReason) && (!filterSource || m.source === filterSource))
-                .map((m) => (
-                <div key={m.id} className="group flex items-center justify-between p-4 rounded-xl bg-slate-900/50 border border-white/5 hover:border-primary/20 transition-all duration-300">
-                  <div className="flex items-center gap-4">
-                    <div className={cn(
-                      "w-10 h-10 rounded-xl flex items-center justify-center shadow-lg",
-                      m.type === 'in' || m.quantity > 0
-                        ? "bg-success/20 text-success border border-success/30"
-                        : "bg-destructive/20 text-destructive border border-destructive/30"
-                    )}>
-                      {m.type === 'in' || m.quantity > 0 ? <Plus className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-bold text-white font-display">
-                          {m.reason || (m.quantity > 0 ? 'Entrada / Compra' : 'Salida / Venta')}
-                        </p>
-                        <Badge variant="outline" className="text-[10px] uppercase h-4">
-                          {m.type || 'ajuste'}
-                        </Badge>
+              <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                {movements
+                  .filter(m => (!filterReason || m.reason === filterReason) && (!filterSource || m.source === filterSource))
+                  .map((m) => (
+                    <div key={m.id} className="group flex items-center justify-between p-4 rounded-xl bg-slate-900/50 border border-white/5 hover:border-primary/20 transition-all duration-300">
+                      <div className="flex items-center gap-4">
+                        <div className={cn(
+                          "w-10 h-10 rounded-xl flex items-center justify-center shadow-lg",
+                          m.type === 'in' || m.quantity > 0
+                            ? "bg-success/20 text-success border border-success/30"
+                            : "bg-destructive/20 text-destructive border border-destructive/30"
+                        )}>
+                          {m.type === 'in' || m.quantity > 0 ? <Plus className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-bold text-white font-display">
+                              {m.reason || (m.quantity > 0 ? 'Entrada / Compra' : 'Salida / Venta')}
+                            </p>
+                            <Badge variant="outline" className="text-[10px] uppercase h-4">
+                              {m.type || 'ajuste'}
+                            </Badge>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1 font-mono">
+                            <HistoryIcon className="w-3 h-3" />
+                            {new Date(m.date || m.createdAt).toLocaleString()}
+                            {m.userName && (
+                              <span className="ml-2 flex items-center gap-1 text-primary/80">
+                                • Por: {m.userName}
+                              </span>
+                            )}
+                          </p>
+                        </div>
                       </div>
-                      <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1 font-mono">
-                        <HistoryIcon className="w-3 h-3" />
-                        {new Date(m.date || m.createdAt).toLocaleString()}
-                        {m.userName && (
-                          <span className="ml-2 flex items-center gap-1 text-primary/80">
-                            • Por: {m.userName}
-                          </span>
-                        )}
-                      </p>
+                      <div className="text-right">
+                        <p className={cn(
+                          "font-mono font-bold text-lg",
+                          m.quantity > 0 ? "text-success" : "text-destructive"
+                        )}>
+                          {m.quantity > 0 ? '+' : ''}{m.quantity} {product?.unit}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground italic opacity-70">
+                          Muelle: {m.source ?? 'Interno / Almacén'}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <p className={cn(
-                      "font-mono font-bold text-lg",
-                      m.quantity > 0 ? "text-success" : "text-destructive"
-                    )}>
-                      {m.quantity > 0 ? '+' : ''}{m.quantity} {product?.unit}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground italic opacity-70">
-                      Muelle: {m.source ?? 'Interno / Almacén'}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
+                  ))}
+              </div>
+            </>
           ) : (
             <div className="text-center py-16 rounded-2xl bg-slate-900/30 border border-dashed border-white/10">
               <HistoryIcon className="w-12 h-12 text-muted-foreground/20 mx-auto mb-4" />

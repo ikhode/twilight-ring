@@ -84,6 +84,7 @@ function Router() {
       <Switch>
         <Route path="/" component={Landing} />
         <Route path="/login" component={Auth} />
+        <Route path="/signup" component={Auth} />
         <Route path="/onboarding" component={IntroJsOnboarding} />
 
         {/* Public / Kiosk Routes */}
