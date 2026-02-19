@@ -238,7 +238,7 @@ function CreatePurchaseDialog({ purchases = [] }: { purchases: any[] }) {
       }),
   });
 
-   const { data: groups = [] } = useQuery({
+  const { data: groups = [] } = useQuery({
     queryKey: ["/api/inventory/groups"],
     queryFn: async () => {
       const res = await fetch("/api/inventory/groups", {
@@ -262,7 +262,7 @@ function CreatePurchaseDialog({ purchases = [] }: { purchases: any[] }) {
   const addToCart = (item: any) => {
     setCart((prev) => {
       if (item.type === "group") {
-         const groupProducts = dbProducts.filter(
+        const groupProducts = dbProducts.filter(
           (p: any) => p.groupId === item.id,
         );
 
@@ -278,7 +278,7 @@ function CreatePurchaseDialog({ purchases = [] }: { purchases: any[] }) {
           uniqueId: `${p.id}-${crypto.randomUUID()}`,
           productId: p.id,
           name: p.name,
-          cost: (p.cost || 0) / 100, 
+          cost: (p.cost || 0) / 100,
           quantity: 1,
           note: "",
         }));
@@ -355,100 +355,102 @@ function CreatePurchaseDialog({ purchases = [] }: { purchases: any[] }) {
               <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
                 <Label className="text-xs text-muted-foreground">Autorrelleno rápido</Label>
                 <div className="flex gap-2">
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 text-xs"
-                        onClick={async () => {
-                        try {
-                            const res = await fetch(`/api/purchases/supplier/${selectedSupplier}/products`, {
-                            headers: { Authorization: `Bearer ${session?.access_token}` },
-                            });
-                            if (!res.ok) throw new Error("Failed");
-                            const products = await res.json();
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 text-xs"
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(`/api/purchases/supplier/${selectedSupplier}/products`, {
+                          headers: { Authorization: `Bearer ${session?.access_token}` },
+                        });
+                        if (!res.ok) throw new Error("Failed");
+                        const products = await res.json();
 
-                            const newItems = products.map((p: any) => ({
-                            uniqueId: `${p.id}-${crypto.randomUUID()}`,
-                            productId: p.id,
-                            name: p.name,
-                            cost: (p.lastPurchasePrice || 0) / 100,
-                            quantity: 1,
-                            note: "",
-                            }));
+                        const newItems = products.map((p: any) => ({
+                          uniqueId: `${p.id}-${crypto.randomUUID()}`,
+                          productId: p.id,
+                          name: p.name,
+                          cost: (p.lastPurchasePrice || 0) / 100,
+                          quantity: 1,
+                          note: "",
+                        }));
 
-                            setCart((prev) => [...prev, ...newItems]);
-                            toast({
-                            title: "Productos agregados",
-                            description: `Se agregaron ${newItems.length} productos del proveedor.`,
-                            });
-                        } catch (error) {
-                            toast({
-                                title: "Error",
-                                description: "No se pudieron cargar los productos del proveedor. Verifique que tenga compras previas.",
-                                variant: "destructive"
-                            });
-                        }
-                        }}
-                    >
-                        Historial Proveedor
-                    </Button>
-                     <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 text-xs"
-                        onClick={async () => {
-                            // Logic for "Low Stock" could be client-side filtered if we have all products, 
-                            // or a specific endpoint. Implementing client-side filter for now since we have dbProducts.
-                            const lowStockProducts = dbProducts.filter((p: any) => p.stock < 100 && p.isPurchasable !== false);
-                            
-                             const newItems = lowStockProducts.map((p: any) => ({
-                                uniqueId: `${p.id}-${crypto.randomUUID()}`,
-                                productId: p.id,
-                                name: p.name,
-                                cost: (p.cost || 0) / 100,
-                                quantity: 1, // Default to 1, user adjusts
-                                note: "Stock Bajo",
-                            }));
-                             setCart((prev) => [...prev, ...newItems]);
-                             toast({
-                                title: "Productos agregados",
-                                description: `Se agregaron ${newItems.length} productos con stock bajo.`,
-                            });
-                        }}
-                    >
-                        Stock Bajo
-                    </Button>
+                        setCart((prev) => [...prev, ...newItems]);
+                        toast({
+                          title: "Productos agregados",
+                          description: `Se agregaron ${newItems.length} productos del proveedor.`,
+                        });
+                      } catch (error) {
+                        toast({
+                          title: "Error",
+                          description: "No se pudieron cargar los productos del proveedor. Verifique que tenga compras previas.",
+                          variant: "destructive"
+                        });
+                      }
+                    }}
+                  >
+                    Historial Proveedor
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 text-xs"
+                    onClick={async () => {
+                      // Logic now uses product's minStock or a default threshold if not set
+                      const lowStockProducts = dbProducts.filter((p: any) => {
+                        const threshold = p.minStock || 10;
+                        return (p.stock || 0) < threshold && p.isPurchasable !== false;
+                      });
+
+                      const newItems = lowStockProducts.map((p: any) => ({
+                        uniqueId: `${p.id}-${crypto.randomUUID()}`,
+                        productId: p.id,
+                        name: p.name,
+                        cost: (p.cost || 0) / 100,
+                        quantity: 1, // Default to 1, user adjusts
+                        note: "Stock Bajo",
+                      }));
+                      setCart((prev) => [...prev, ...newItems]);
+                      toast({
+                        title: "Productos agregados",
+                        description: `Se agregaron ${newItems.length} productos con stock bajo.`,
+                      });
+                    }}
+                  >
+                    Stock Bajo
+                  </Button>
                 </div>
               </div>
             )}
-            
+
             <div className="space-y-2">
-                <Label>Método de Logística</Label>
-                <Select value={logisticsMethod} onValueChange={setLogisticsMethod}>
-                    <SelectTrigger>
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="delivery">Entrega (Proveedor envía)</SelectItem>
-                        <SelectItem value="pickup">Recolección (Nosotros vamos)</SelectItem>
-                    </SelectContent>
-                </Select>
+              <Label>Método de Logística</Label>
+              <Select value={logisticsMethod} onValueChange={setLogisticsMethod}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="delivery">Entrega (Proveedor envía)</SelectItem>
+                  <SelectItem value="pickup">Recolección (Nosotros vamos)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
-                <Label>Costo de Flete (MXN)</Label>
-                <Input 
-                    type="number" 
-                    value={freightCost} 
-                    onChange={(e) => setFreightCost(e.target.value)} 
-                    placeholder="0.00"
-                />
+              <Label>Costo de Flete (MXN)</Label>
+              <Input
+                type="number"
+                value={freightCost}
+                onChange={(e) => setFreightCost(e.target.value)}
+                placeholder="0.00"
+              />
             </div>
           </div>
 
-           <div className="col-span-2 flex flex-col gap-4">
+          <div className="col-span-2 flex flex-col gap-4">
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -486,65 +488,65 @@ function CreatePurchaseDialog({ purchases = [] }: { purchases: any[] }) {
               </div>
               <div className="overflow-y-auto max-h-[300px]">
                 {cart.length === 0 ? (
-                    <div className="p-8 text-center text-muted-foreground text-sm">
-                        La orden está vacía. Busque productos para agregar.
-                    </div>
+                  <div className="p-8 text-center text-muted-foreground text-sm">
+                    La orden está vacía. Busque productos para agregar.
+                  </div>
                 ) : (
-                    <table className="w-full text-sm">
-                        <thead className="bg-slate-900/50 text-xs">
-                            <tr>
-                                <th className="text-left p-2">Producto</th>
-                                <th className="text-center p-2 w-20">Cant.</th>
-                                <th className="text-right p-2 w-24">Costo</th>
-                                <th className="text-right p-2 w-24">Total</th>
-                                <th className="w-8"></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {cart.map((item, idx) => (
-                                <tr key={item.uniqueId} className="border-b border-slate-800/50">
-                                    <td className="p-2">
-                                        <div className="font-medium">{item.name}</div>
-                                        <Input 
-                                            placeholder="Notas..." 
-                                            className="h-6 text-[10px] bg-transparent border-0 p-0 focus-visible:ring-0 text-muted-foreground" 
-                                            value={item.note}
-                                            onChange={(e) => updateItem(item.uniqueId, 'note', e.target.value)}
-                                        />
-                                    </td>
-                                    <td className="p-2">
-                                        <Input 
-                                            type="number" 
-                                            className="h-8 text-center" 
-                                            value={item.quantity} 
-                                            onChange={(e) => updateItem(item.uniqueId, 'quantity', Number(e.target.value))}
-                                        />
-                                    </td>
-                                     <td className="p-2">
-                                        <Input 
-                                            type="number" 
-                                            className="h-8 text-right" 
-                                            value={item.cost} 
-                                            onChange={(e) => updateItem(item.uniqueId, 'cost', Number(e.target.value))}
-                                        />
-                                    </td>
-                                    <td className="p-2 text-right font-mono">
-                                        {formatCurrency(item.cost * item.quantity)}
-                                    </td>
-                                    <td className="p-2 text-center">
-                                        <Button 
-                                            variant="ghost" 
-                                            size="icon" 
-                                            className="h-6 w-6" 
-                                            onClick={() => setCart(prev => prev.filter((_, i) => i !== idx))}
-                                        >
-                                            <XCircle className="w-3 h-3 text-red-500" />
-                                        </Button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-900/50 text-xs">
+                      <tr>
+                        <th className="text-left p-2">Producto</th>
+                        <th className="text-center p-2 w-20">Cant.</th>
+                        <th className="text-right p-2 w-24">Costo</th>
+                        <th className="text-right p-2 w-24">Total</th>
+                        <th className="w-8"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cart.map((item, idx) => (
+                        <tr key={item.uniqueId} className="border-b border-slate-800/50">
+                          <td className="p-2">
+                            <div className="font-medium">{item.name}</div>
+                            <Input
+                              placeholder="Notas..."
+                              className="h-6 text-[10px] bg-transparent border-0 p-0 focus-visible:ring-0 text-muted-foreground"
+                              value={item.note}
+                              onChange={(e) => updateItem(item.uniqueId, 'note', e.target.value)}
+                            />
+                          </td>
+                          <td className="p-2">
+                            <Input
+                              type="number"
+                              className="h-8 text-center"
+                              value={item.quantity}
+                              onChange={(e) => updateItem(item.uniqueId, 'quantity', Number(e.target.value))}
+                            />
+                          </td>
+                          <td className="p-2">
+                            <Input
+                              type="number"
+                              className="h-8 text-right"
+                              value={item.cost}
+                              onChange={(e) => updateItem(item.uniqueId, 'cost', Number(e.target.value))}
+                            />
+                          </td>
+                          <td className="p-2 text-right font-mono">
+                            {formatCurrency(item.cost * item.quantity)}
+                          </td>
+                          <td className="p-2 text-center">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => setCart(prev => prev.filter((_, i) => i !== idx))}
+                            >
+                              <XCircle className="w-3 h-3 text-red-500" />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 )}
               </div>
             </div>
@@ -570,7 +572,7 @@ export function PurchasesTab() {
   const isAdmin = profile?.role === "admin";
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  
+
   const [activePurchase, setActivePurchase] = useState<any>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
@@ -777,8 +779,8 @@ export function PurchasesTab() {
             title="Ver Detalles"
             className="h-7 w-7 p-0"
             onClick={() => {
-                setActivePurchase(it);
-                setIsDetailsOpen(true);
+              setActivePurchase(it);
+              setIsDetailsOpen(true);
             }}
           >
             <Eye className="w-3.5 h-3.5" />
@@ -835,49 +837,49 @@ export function PurchasesTab() {
     <div className="space-y-6">
       {/* Metrics Row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
-            <CardContent className="pt-6 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">
-                  Órdenes Pendientes
-                </p>
-                <div className="text-2xl font-bold">{pendingCount}</div>
-              </div>
-              <div className="p-3 bg-amber-500/10 rounded-full text-amber-500">
-                <Truck className="w-6 h-6" />
-              </div>
-            </CardContent>
-          </Card>
+        <Card>
+          <CardContent className="pt-6 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">
+                Órdenes Pendientes
+              </p>
+              <div className="text-2xl font-bold">{pendingCount}</div>
+            </div>
+            <div className="p-3 bg-amber-500/10 rounded-full text-amber-500">
+              <Truck className="w-6 h-6" />
+            </div>
+          </CardContent>
+        </Card>
 
-          <Card>
-            <CardContent className="pt-6 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">
-                  Recibidas / Cerradas
-                </p>
-                <div className="text-2xl font-bold">{receivedCount}</div>
-              </div>
-              <div className="p-3 bg-green-500/10 rounded-full text-green-500">
-                <CheckCircle className="w-6 h-6" />
-              </div>
-            </CardContent>
-          </Card>
+        <Card>
+          <CardContent className="pt-6 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">
+                Recibidas / Cerradas
+              </p>
+              <div className="text-2xl font-bold">{receivedCount}</div>
+            </div>
+            <div className="p-3 bg-green-500/10 rounded-full text-green-500">
+              <CheckCircle className="w-6 h-6" />
+            </div>
+          </CardContent>
+        </Card>
 
-          <Card>
-            <CardContent className="pt-6 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">
-                  Gasto Total (Histórico)
-                </p>
-                <div className="text-2xl font-bold">
-                  {formatCurrency(totalSpent)}
-                </div>
+        <Card>
+          <CardContent className="pt-6 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">
+                Gasto Total (Histórico)
+              </p>
+              <div className="text-2xl font-bold">
+                {formatCurrency(totalSpent)}
               </div>
-              <div className="p-3 bg-blue-500/10 rounded-full text-blue-500">
-                <ShoppingBag className="w-6 h-6" />
-              </div>
-            </CardContent>
-          </Card>
+            </div>
+            <div className="p-3 bg-blue-500/10 rounded-full text-blue-500">
+              <ShoppingBag className="w-6 h-6" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Main Content */}

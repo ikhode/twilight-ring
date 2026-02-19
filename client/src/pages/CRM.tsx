@@ -1075,6 +1075,12 @@ export default function CRM() {
     totalDebt: customers.filter((c) => (c.balance || 0) < 0).reduce((acc, c) => acc + Math.abs(c.balance || 0), 0),
   };
 
+  const suppliersStats = {
+    total: suppliers.length,
+    active: suppliers.filter((s) => s.status === "active").length,
+    totalCredit: suppliers.reduce((acc, s) => acc + (s.creditLimit || 0), 0),
+  };
+
   const { data: dealsData = [], isLoading: loadingDeals } = useQuery<(Deal & { customer: Customer })[]>({
     queryKey: ["/api/crm/deals"],
     queryFn: async () => {
@@ -1156,357 +1162,499 @@ export default function CRM() {
 
           {/* CLIENTS TAB */}
           <TabsContent value="clients" className="space-y-6">
-
-            {/* Portfolio Analysis Layer - Results Oriented */}
-            <AnimatePresence>
+            <AnimatePresence mode="wait">
+              {/* Clients Container */}
               <motion.div
-                initial={{ opacity: 0, y: -20 }}
+                initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="p-4 rounded-xl border border-primary/20 bg-primary/5 backdrop-blur-sm relative overflow-hidden"
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+                className="space-y-6"
               >
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent pointer-events-none" />
-                <div className="flex items-start gap-3 relative z-10">
-                  <div className="p-2 rounded-lg bg-primary/20 text-primary">
-                    <Activity className="w-5 h-5" />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="text-sm font-semibold text-primary flex items-center gap-2">
-                      Diagnóstico de Salud Crediticia
-                      <Badge variant="outline" className="text-[10px] h-4 border-primary/30 text-primary/80">Monitor Activo</Badge>
-                    </h4>
-                    <p className="text-sm text-slate-400 mt-1">
-                      {analysisData?.segments?.delinquentCount > 0
-                        ? `Se identificaron ${analysisData.segments.delinquentCount} socios con pagos demorados que requieren conciliación inmediata.`
-                        : "No se detectan discrepancias en los ciclos de cobro. La liquidez de cartera es óptima."}
-                    </p>
-                    {analysisData?.segments?.delinquentCount > 0 && (
-                      <div className="mt-3 flex gap-2">
-                        <CognitiveButton
-                          size="sm"
-                          className="h-8 text-xs bg-primary hover:bg-primary/90"
-                          intent="send_reminders"
-                          onClick={() => remindersMutation.mutate()}
-                          disabled={remindersMutation.isPending}
-                        >
-                          <MessageSquare className="w-3 h-3 mr-1.5" />
-                          {remindersMutation.isPending ? "Procesando..." : "Ejecutar Cobranza Preventiva"}
-                        </CognitiveButton>
-                        <Button size="sm" variant="ghost" className="h-8 text-xs">Omitir Ciclo</Button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </motion.div>
-            </AnimatePresence>
-
-            {/* Cognitive Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <Card className="bg-slate-900/50 border-slate-800">
-                <CardContent className="pt-6">
-                  <AliveValue
-                    label="Total Clientes"
-                    value={clientsStats.total}
-                    trend="up"
-                    explanation="Crecimiento del 5% respecto al mes anterior."
-                    formula="COUNT(id) FROM customers"
-                    source="Base de Datos CRM (Realtime)"
-                  />
-                </CardContent>
-              </Card>
-              <Card className="bg-slate-900/50 border-slate-800">
-                <CardContent className="pt-6">
-                  <AliveValue
-                    label="Cartera Activa"
-                    value={clientsStats.active}
-                    explanation="85% de retención de clientes activos."
-                    formula="COUNT(id) FROM customers WHERE status = 'active'"
-                    source="Base de Datos CRM (Realtime)"
-                  />
-                </CardContent>
-              </Card>
-              <Card className="bg-slate-900/50 border-slate-800">
-                <CardContent className="pt-6">
-                  <AliveValue
-                    label="Por Cobrar"
-                    value={formatCurrency(clientsStats.totalReceivables)}
-                    trend="up"
-                    className="text-emerald-500"
-                    explanation="Flujo de caja positivo proyectado para fin de mes."
-                    formula="SUM(balance) FROM customers WHERE balance > 0"
-                    source="Contabilidad Directa"
-                  />
-                </CardContent>
-              </Card>
-              <Card className="bg-slate-900/50 border-slate-800">
-                <CardContent className="pt-6">
-                  <AliveValue
-                    label="Vencido"
-                    value={formatCurrency(clientsStats.totalDebt)}
-                    trend="down"
-                    className="text-rose-500"
-                    explanation="Reducción de deuda vencida en un 12% tras la última campaña."
-                    formula="SUM(balance) FROM customers WHERE balance < 0"
-                    source="Contabilidad Directa"
-                  />
-                </CardContent>
-              </Card>
-            </div>
-
-            <Card className="border-slate-800 bg-slate-900/30">
-              <CardHeader>
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="flex items-center gap-2">
-                    <CardTitle className="font-display">Directorio de Clientes</CardTitle>
-                    {loadingCustomers && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
-
-                    <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20">
-                      <Activity className="w-3 h-3 text-primary" />
-                      <span className="text-[10px] font-bold text-primary uppercase tracking-wide">Monitor de Clientes</span>
+                {/* Portfolio Analysis Layer */}
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.98 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.1 }}
+                  className="p-5 rounded-xl border border-indigo-500/20 bg-indigo-500/5 backdrop-blur-sm relative overflow-hidden shadow-lg"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/10 to-transparent pointer-events-none" />
+                  <div className="flex items-start gap-4 relative z-10">
+                    <div className="p-2.5 rounded-lg bg-indigo-500/20 text-indigo-400 ring-1 ring-indigo-500/30">
+                      <Activity className="w-5 h-5" />
                     </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Búsqueda semántica..."
-                        className="pl-9 w-64 bg-slate-950/50 border-slate-800"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                      />
-                    </div>
-                    <CreateCustomerDialog />
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="rounded-md border border-slate-800 overflow-hidden">
-                  <DataTable
-                    columns={[
-                      {
-                        key: "name",
-                        header: "Cliente",
-                        render: (item) => (
-                          <div className={cn("flex items-center gap-3", item.isArchived && "opacity-50 grayscale line-through")}>
-                            <div className="w-10 h-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center font-bold text-primary">
-                              {item.name.charAt(0)}
-                            </div>
-                            <div>
-                              <p className="font-medium text-slate-200">{item.name}</p>
-                              <p className="text-xs text-muted-foreground">{item.email || "Sin email"}</p>
-                            </div>
-                          </div>
-                        ),
-                      },
-                      {
-                        key: "contact",
-                        header: "Contacto",
-                        render: (item) => (
-                          <div className="flex items-center gap-2 text-sm text-slate-400">
-                            <Phone className="w-3 h-3" />
-                            {item.phone || "---"}
-                          </div>
-                        ),
-                      },
-                      {
-                        key: "churn",
-                        header: "Riesgo de Fuga",
-                        render: (item: any) => {
-                          const analysisItem = analysisData?.analysis?.find((a: any) => a.customerId === item.id);
-                          const risk = analysisItem?.churnRisk || "Low";
-
-                          const color = risk === "High" ? "text-rose-400 border-rose-400/30 bg-rose-400/10" : risk === "Medium" ? "text-amber-400 border-amber-400/30 bg-amber-400/10" : "text-emerald-400 border-emerald-400/30 bg-emerald-400/10";
-
-                          return (
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className={cn("text-[10px] font-bold uppercase tracking-wider", color)}>
-                                {risk === "High" && <AlertTriangle className="w-3 h-3 mr-1" />}
-                                {risk} Risk
-                              </Badge>
-                            </div>
-                          );
-                        }
-                      },
-                      {
-                        key: "loyaltyPoints",
-                        header: "Puntos",
-                        render: (item) => (
-                          <div className="flex items-center gap-1.5 text-amber-400 font-bold">
-                            <Target className="w-3.5 h-3.5" />
-                            {item.loyaltyPoints || 0}
-                          </div>
-                        ),
-                      },
-                      {
-                        key: "balance",
-                        header: "Balance",
-                        render: (item) => (
-                          <span
-                            className={cn(
-                              "font-bold font-mono",
-                              (item.balance || 0) > 0 ? "text-emerald-400" : ((item.balance || 0) < 0 ? "text-rose-400" : "text-slate-500")
-                            )}
+                    <div className="flex-1">
+                      <h4 className="text-sm font-bold text-indigo-300 flex items-center gap-2 tracking-wide">
+                        Diagnóstico de Salud Crediticia
+                        <Badge variant="outline" className="text-[10px] h-5 border-indigo-500/30 text-indigo-300 bg-indigo-900/20">Monitor Activo</Badge>
+                      </h4>
+                      <p className="text-sm text-slate-300 mt-1 font-light">
+                        {analysisData?.segments?.delinquentCount > 0
+                          ? `Se identificaron ${analysisData.segments.delinquentCount} socios con pagos demorados que requieren conciliación inmediata.`
+                          : "No se detectan discrepancias en los ciclos de cobro. La liquidez de cartera es óptima."}
+                      </p>
+                      {analysisData?.segments?.delinquentCount > 0 && (
+                        <div className="mt-3 flex gap-2">
+                          <CognitiveButton
+                            size="sm"
+                            className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white border-none shadow-md"
+                            intent="send_reminders"
+                            onClick={() => remindersMutation.mutate()}
+                            disabled={remindersMutation.isPending}
                           >
-                            {formatCurrency(item.balance || 0)}
-                          </span>
-                        ),
-                      },
-                      {
-                        key: "status",
-                        header: "Estado",
-                        render: (item) => <StatusBadge status={item.status} />,
-                      },
-                      {
-                        key: "actions",
-                        header: "",
-                        render: (item) => (
-                          <div className="flex items-center gap-2">
-                            <DossierView
-                              entityType="customer"
-                              entityId={item.id}
-                              entityName={item.name}
-                            />
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setEditingCustomer(item)}>
-                              <Edit className="w-3 h-3" />
-                            </Button>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                              <RefreshCcw className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        ),
-                      },
-                    ]}
-                    data={filteredCustomers}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* SUPPLIERS TAB */}
-          <TabsContent value="suppliers" className="space-y-6">
-            <div className="flex justify-between items-center bg-slate-900/50 p-4 rounded-xl border border-slate-800">
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-full bg-emerald-500/10 text-emerald-500">
-                  <Truck className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-lg">Proveedores</h3>
-                  <p className="text-sm text-slate-400">Gestión de cadena de suministro</p>
-                </div>
-              </div>
-              <CreateSupplierDialog />
-            </div>
-
-            <Card className="border-slate-800 bg-slate-900/30">
-              <CardContent className="p-0">
-                <div className="rounded-md border border-slate-800 overflow-hidden">
-                  <DataTable
-                    columns={[
-                      {
-                        key: "name",
-                        header: "Proveedor",
-                        render: (item) => (
-                          <div className={cn("flex items-center gap-3", item.isArchived && "opacity-50 grayscale line-through")}>
-                            <div className="w-8 h-8 rounded bg-slate-800 flex items-center justify-center font-semibold text-slate-400">
-                              {item.name.charAt(0)}
-                            </div>
-                            <span className="font-medium text-slate-200">{item.name}</span>
-                          </div>
-                        ),
-                      },
-                      {
-                        key: "category",
-                        header: "Categoría",
-                        render: (item) => (
-                          <Badge variant="outline" className="border-slate-700 text-slate-400">
-                            {item.category || "General"}
-                          </Badge>
-                        ),
-                      },
-                      {
-                        key: "actions",
-                        header: "",
-                        render: (item) => (
-                          <div className="flex items-center gap-2">
-                            <DossierView
-                              entityType="supplier"
-                              entityId={item.id}
-                              entityName={item.name}
-                            />
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setEditingSupplier(item)}>
-                              <Edit className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        ),
-                      },
-                    ]}
-                    data={suppliers}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-          {/* PIPELINE TAB */}
-          <TabsContent value="pipeline" className="space-y-6">
-            <div className="flex justify-between items-center bg-slate-900/50 p-6 rounded-xl border border-slate-800">
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-full bg-emerald-500/10 text-emerald-500">
-                  <Activity className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-lg">Sales Pipeline</h3>
-                  <p className="text-sm text-slate-400">Visualización de embudo y conversión de negocios</p>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/crm/deals"] })}>
-                  <RefreshCcw className="w-4 h-4 mr-2" /> Actualizar
-                </Button>
-                <CreateDealDialog customers={customers} />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 min-h-[600px]">
-              {dealStages.map(stage => {
-                const StageIcon = stage.icon;
-                const stageDeals = dealsData.filter(d => d.status === stage.id);
-                const stageTotal = stageDeals.reduce((sum, d) => sum + (d.value || 0), 0);
-
-                return (
-                  <div key={stage.id} className="flex flex-col space-y-4 bg-slate-950/30 rounded-xl p-3 border border-slate-800/50">
-                    <div className="flex items-center justify-between pb-2 border-b border-slate-800/50">
-                      <div className="flex items-center gap-2">
-                        <div className={cn("p-1.5 rounded-md", stage.color)}>
-                          <StageIcon className="w-3.5 h-3.5 text-white" />
-                        </div>
-                        <span className="text-xs font-bold uppercase tracking-wider text-slate-300">{stage.label}</span>
-                      </div>
-                      <Badge variant="secondary" className="bg-slate-800 text-slate-400">{stageDeals.length}</Badge>
-                    </div>
-
-                    <div className="text-[11px] font-mono text-primary/70 px-1">
-                      {new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(stageTotal / 100)}
-                    </div>
-
-                    <div className="flex-1 space-y-3 overflow-y-auto max-h-[500px] scrollbar-hide py-2 px-1">
-                      {stageDeals.map(deal => (
-                        <PipelineCard
-                          key={deal.id}
-                          deal={deal}
-                          onMove={(newStatus) => updateDealMutation.mutate({ id: deal.id, status: newStatus })}
-                        />
-                      ))}
-                      {stageDeals.length === 0 && (
-                        <div className="flex flex-col items-center justify-center py-10 opacity-20 filter grayscale">
-                          <Clock className="w-8 h-8 mb-2" />
-                          <span className="text-[10px] uppercase font-bold tracking-tighter">Sin Tratos</span>
+                            <MessageSquare className="w-3 h-3 mr-1.5" />
+                            {remindersMutation.isPending ? "Procesando..." : "Ejecutar Cobranza Preventiva"}
+                          </CognitiveButton>
+                          <Button size="sm" variant="ghost" className="h-8 text-xs text-indigo-300 hover:text-white hover:bg-indigo-500/20">Omitir Ciclo</Button>
                         </div>
                       )}
                     </div>
                   </div>
-                );
-              })}
-            </div>
+                </motion.div>
+
+                {/* Cognitive Stats Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <motion.div variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }} initial="hidden" animate="show" transition={{ delay: 0.2 }}>
+                    <Card className="bg-slate-900/40 border-slate-800/60 backdrop-blur-md hover:bg-slate-900/60 transition-colors">
+                      <CardContent className="pt-6">
+                        <AliveValue
+                          label="Total Clientes"
+                          value={clientsStats.total}
+                          trend="up"
+                          explanation="Crecimiento del 5% respecto al mes anterior."
+                          formula="COUNT(id) FROM customers"
+                          source="Base de Datos CRM (Realtime)"
+                        />
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+
+                  <motion.div variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }} initial="hidden" animate="show" transition={{ delay: 0.3 }}>
+                    <Card className="bg-slate-900/40 border-slate-800/60 backdrop-blur-md hover:bg-slate-900/60 transition-colors">
+                      <CardContent className="pt-6">
+                        <AliveValue
+                          label="Cartera Activa"
+                          value={clientsStats.active}
+                          explanation="85% de retención de clientes activos."
+                          formula="COUNT(id) FROM customers WHERE status = 'active'"
+                          source="Base de Datos CRM (Realtime)"
+                        />
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+
+                  <motion.div variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }} initial="hidden" animate="show" transition={{ delay: 0.4 }}>
+                    <Card className="bg-slate-900/40 border-slate-800/60 backdrop-blur-md hover:bg-slate-900/60 transition-colors">
+                      <CardContent className="pt-6">
+                        <AliveValue
+                          label="Por Cobrar"
+                          value={formatCurrency(clientsStats.totalReceivables)}
+                          trend="up"
+                          className="text-emerald-400"
+                          explanation="Flujo de caja positivo proyectado para fin de mes."
+                          formula="SUM(balance) FROM customers WHERE balance > 0"
+                          source="Contabilidad Directa"
+                        />
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+
+                  <motion.div variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }} initial="hidden" animate="show" transition={{ delay: 0.5 }}>
+                    <Card className="bg-slate-900/40 border-slate-800/60 backdrop-blur-md hover:bg-slate-900/60 transition-colors">
+                      <CardContent className="pt-6">
+                        <AliveValue
+                          label="Vencido"
+                          value={formatCurrency(clientsStats.totalDebt)}
+                          trend="down"
+                          className="text-rose-500"
+                          explanation="Reducción de deuda vencida en un 12% tras la última campaña."
+                          formula="SUM(balance) FROM customers WHERE balance < 0"
+                          source="Contabilidad Directa"
+                        />
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                </div>
+
+                <Card className="border-slate-800/50 bg-slate-950/30 backdrop-blur-sm overflow-hidden">
+                  <CardHeader className="border-b border-slate-800/50 bg-slate-900/20 py-4">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400">
+                          <ShoppingBag className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <CardTitle className="font-display text-lg tracking-tight">Directorio de Clientes</CardTitle>
+                          <p className="text-xs text-slate-400 font-light">Gestión de relaciones y cuentas por cobrar</p>
+                        </div>
+                        {loadingCustomers && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground ml-2" />}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="relative group">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-indigo-400 transition-colors" />
+                          <Input
+                            placeholder="Búsqueda semántica..."
+                            className="pl-9 w-64 bg-slate-900/50 border-slate-800 focus:border-indigo-500/50 focus:ring-indigo-500/20 transition-all"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                          />
+                        </div>
+                        <CreateCustomerDialog />
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="border-t border-slate-800/50">
+                      <DataTable
+                        columns={[
+                          {
+                            key: "name",
+                            header: "Cliente",
+                            render: (item) => (
+                              <div className={cn("flex items-center gap-3", item.isArchived && "opacity-50 grayscale line-through")}>
+                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 flex items-center justify-center font-bold text-indigo-300 shadow-inner">
+                                  {item.name.charAt(0)}
+                                </div>
+                                <div>
+                                  <p className="font-bold text-slate-200">{item.name}</p>
+                                  <p className="text-xs text-slate-500">{item.email || "Sin email"}</p>
+                                </div>
+                              </div>
+                            ),
+                          },
+                          {
+                            key: "contact",
+                            header: "Contacto",
+                            render: (item) => (
+                              <div className="flex items-center gap-2 text-sm text-slate-400">
+                                <Phone className="w-3.5 h-3.5" />
+                                {item.phone || "---"}
+                              </div>
+                            ),
+                          },
+                          {
+                            key: "churn",
+                            header: "Riesgo de Fuga",
+                            render: (item: any) => {
+                              const analysisItem = analysisData?.analysis?.find((a: any) => a.customerId === item.id);
+                              const risk = analysisItem?.churnRisk || "Low";
+
+                              const color = risk === "High" ? "text-rose-400 border-rose-400/30 bg-rose-400/10" : risk === "Medium" ? "text-amber-400 border-amber-400/30 bg-amber-400/10" : "text-emerald-400 border-emerald-400/30 bg-emerald-400/10";
+
+                              return (
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline" className={cn("text-[10px] font-bold uppercase tracking-wider", color)}>
+                                    {risk === "High" && <AlertTriangle className="w-3 h-3 mr-1" />}
+                                    {risk} Risk
+                                  </Badge>
+                                </div>
+                              );
+                            }
+                          },
+                          {
+                            key: "loyaltyPoints",
+                            header: "Puntos",
+                            render: (item) => (
+                              <div className="flex items-center gap-1.5 text-amber-400 font-bold bg-amber-400/10 px-2 py-0.5 rounded-full border border-amber-400/20 w-fit">
+                                <Target className="w-3.5 h-3.5" />
+                                {item.loyaltyPoints || 0}
+                              </div>
+                            ),
+                          },
+                          {
+                            key: "balance",
+                            header: "Balance",
+                            render: (item) => (
+                              <span
+                                className={cn(
+                                  "font-bold font-mono text-sm tracking-tight",
+                                  (item.balance || 0) > 0 ? "text-emerald-400" : ((item.balance || 0) < 0 ? "text-rose-400" : "text-slate-500")
+                                )}
+                              >
+                                {formatCurrency(item.balance || 0)}
+                              </span>
+                            ),
+                          },
+                          {
+                            key: "status",
+                            header: "Estado",
+                            render: (item) => <StatusBadge status={item.status} className="border border-slate-700/50" />,
+                          },
+                          {
+                            key: "actions",
+                            header: "",
+                            render: (item) => (
+                              <div className="flex items-center gap-2 justify-end">
+                                <DossierView
+                                  entityType="customer"
+                                  entityId={item.id}
+                                  entityName={item.name}
+                                />
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-indigo-500/20 hover:text-indigo-300 transition-colors" onClick={() => setEditingCustomer(item)}>
+                                  <Edit className="w-4 h-4" />
+                                </Button>
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-slate-500 hover:text-white transition-colors">
+                                  <RefreshCcw className="w-3.5 h-3.5" />
+                                </Button>
+                              </div>
+                            ),
+                          },
+                        ]}
+                        data={filteredCustomers}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            </AnimatePresence>
+          </TabsContent>
+
+          {/* SUPPLIERS TAB -> Already Polished (Skipping content to keep replace block simpler if needed, but here we just leave it intact as context or replace if we targeted larger block. Actually we are replacing the WHOLE Clients block, let's keep Suppliers untouched by ending replacement before it) - Wait, I can't skip lines in a replacement chunk easily without targeting them. The prompt said "Consolidate". I will target the Clients block exclusively if I can find unique start/end. The `TabsContent value="clients"` is unique enough. */}
+
+          {/* SUPPLIERS TAB */}
+          <TabsContent value="suppliers" className="space-y-6">
+            <AnimatePresence mode="wait">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+                className="space-y-6"
+              >
+                {/* Header Section with Glassmorphism */}
+                <div className="relative overflow-hidden rounded-2xl border border-white/10 shadow-2xl">
+                  <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/40 via-slate-900/60 to-slate-950/80 backdrop-blur-xl z-0" />
+                  <div className="relative z-10 p-6 flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 rounded-xl bg-indigo-500/20 text-indigo-400 ring-1 ring-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.3)]">
+                        <Truck className="w-8 h-8" />
+                      </div>
+                      <div>
+                        <h3 className="font-display font-bold text-2xl text-white tracking-tight">Proveedores</h3>
+                        <p className="text-sm text-indigo-200/70 font-light">Gestión inteligente de cadena de suministro y socios estratégicos.</p>
+                      </div>
+                    </div>
+                    <CreateSupplierDialog />
+                  </div>
+                </div>
+
+                {/* Cognitive Stats Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.1 }}
+                  >
+                    <Card className="bg-slate-900/40 border-slate-800/60 backdrop-blur-md hover:bg-slate-900/60 transition-colors">
+                      <CardContent className="pt-6">
+                        <AliveValue
+                          label="Total Proveedores"
+                          value={suppliersStats.total}
+                          icon={Truck}
+                          trend="up"
+                          explanation="Red comercial activa."
+                          formula="COUNT(id) FROM suppliers"
+                          source="CRM Master Data"
+                        />
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.2 }}
+                  >
+                    <Card className="bg-slate-900/40 border-slate-800/60 backdrop-blur-md hover:bg-slate-900/60 transition-colors">
+                      <CardContent className="pt-6">
+                        <AliveValue
+                          label="Socios Activos"
+                          value={suppliersStats.active}
+                          icon={CheckCircle2}
+                          className="text-emerald-400"
+                          explanation="Proveedores con operaciones recientes."
+                          formula="COUNT(id) WHERE status='active'"
+                          source="CRM Master Data"
+                        />
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.3 }}
+                  >
+                    <Card className="bg-slate-900/40 border-slate-800/60 backdrop-blur-md hover:bg-slate-900/60 transition-colors">
+                      <CardContent className="pt-6">
+                        <AliveValue
+                          label="Crédito Disponible"
+                          value={formatCurrency(suppliersStats.totalCredit)}
+                          icon={DollarSign}
+                          className="text-indigo-400"
+                          explanation="Líneas de crédito autorizadas totales."
+                          formula="SUM(credit_limit)"
+                          source="Finance Module"
+                        />
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                </div>
+
+                {/* Main Content Card */}
+                <Card className="border-slate-800/50 bg-slate-950/30 backdrop-blur-sm overflow-hidden">
+                  <CardContent className="p-0">
+                    <div className="border-b border-slate-800/50 bg-slate-900/20 p-4 flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        <Activity className="w-4 h-4 text-indigo-400" />
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Listado de Socios</span>
+                      </div>
+                      <Badge variant="outline" className="bg-indigo-500/5 border-indigo-500/20 text-indigo-300">
+                        {suppliers.length} Registros
+                      </Badge>
+                    </div>
+                    <div className="overflow-hidden">
+                      <DataTable
+                        columns={[
+                          {
+                            key: "name",
+                            header: "Proveedor",
+                            render: (item) => (
+                              <div className={cn("flex items-center gap-3", item.isArchived && "opacity-50 grayscale line-through")}>
+                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 flex items-center justify-center font-bold text-indigo-300 shadow-inner">
+                                  {item.name.charAt(0)}
+                                </div>
+                                <div>
+                                  <span className="font-bold text-slate-200 block">{item.name}</span>
+                                  {item.contactInfo?.contact && (
+                                    <span className="text-[10px] text-slate-500 uppercase flex items-center gap-1">
+                                      <Users className="w-3 h-3" /> {item.contactInfo.contact}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            ),
+                          },
+                          {
+                            key: "category",
+                            header: "Categoría",
+                            render: (item) => (
+                              <Badge variant="outline" className="border-slate-700/50 bg-slate-800/30 text-slate-400 hover:bg-slate-800/50 transition-colors">
+                                {item.category || "General"}
+                              </Badge>
+                            ),
+                          },
+                          {
+                            key: "actions",
+                            header: "",
+                            render: (item) => (
+                              <div className="flex items-center gap-2 justify-end">
+                                <DossierView
+                                  entityType="supplier"
+                                  entityId={item.id}
+                                  entityName={item.name}
+                                />
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-indigo-500/20 hover:text-indigo-300 transition-colors" onClick={() => setEditingSupplier(item)}>
+                                  <Edit className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            ),
+                          },
+                        ]}
+                        data={suppliers}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            </AnimatePresence>
+          </TabsContent>
+          {/* PIPELINE TAB */}
+          <TabsContent value="pipeline" className="space-y-6">
+            <AnimatePresence mode="wait">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.98 }}
+                transition={{ duration: 0.3 }}
+                className="space-y-6"
+              >
+                {/* Enhanced Pipeline Header */}
+                <div className="relative overflow-hidden rounded-2xl border border-white/10 shadow-2xl">
+                  <div className="absolute inset-0 bg-gradient-to-br from-emerald-900/40 via-slate-900/60 to-slate-950/80 backdrop-blur-xl z-0" />
+                  <div className="relative z-10 p-6 flex justify-between items-center bg-slate-900/20">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 rounded-xl bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.3)]">
+                        <Activity className="w-8 h-8" />
+                      </div>
+                      <div>
+                        <h3 className="font-display font-bold text-2xl text-white tracking-tight">Sales Pipeline</h3>
+                        <p className="text-sm text-emerald-200/70 font-light">Visualización estratégica y conversión de oportunidades.</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-3">
+                      <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/crm/deals"] })} className="border-emerald-500/20 text-emerald-300 hover:bg-emerald-500/10 hover:text-white transition-colors">
+                        <RefreshCcw className="w-4 h-4 mr-2" /> Actualizar
+                      </Button>
+                      <CreateDealDialog customers={customers} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Kanban Board */}
+                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 min-h-[600px]">
+                  {dealStages.map((stage, index) => {
+                    const StageIcon = stage.icon;
+                    const stageDeals = dealsData.filter(d => d.status === stage.id);
+                    const stageTotal = stageDeals.reduce((sum, d) => sum + (d.value || 0), 0);
+
+                    return (
+                      <motion.div
+                        key={stage.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.1 }}
+                        className="flex flex-col space-y-4 bg-slate-950/40 rounded-xl p-3 border border-slate-800/60 backdrop-blur-sm hover:border-slate-700/80 transition-all h-full"
+                      >
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-800/50">
+                          <div className="flex items-center gap-2">
+                            <div className={cn("p-1.5 rounded-md shadow-sm", stage.color)}>
+                              <StageIcon className="w-3.5 h-3.5 text-white" />
+                            </div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-300">{stage.label}</span>
+                          </div>
+                          <Badge variant="secondary" className="bg-slate-800 text-slate-400 text-[10px] h-5 min-w-[20px] justify-center">{stageDeals.length}</Badge>
+                        </div>
+
+                        <div className="text-[11px] font-mono text-emerald-400/80 font-bold px-1 tracking-tight">
+                          {new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(stageTotal / 100)}
+                        </div>
+
+                        <div className="flex-1 space-y-3 overflow-y-auto max-h-[500px] scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent py-2 px-1">
+                          <AnimatePresence>
+                            {stageDeals.map(deal => (
+                              <PipelineCard
+                                key={deal.id}
+                                deal={deal}
+                                onMove={(newStatus) => updateDealMutation.mutate({ id: deal.id, status: newStatus })}
+                              />
+                            ))}
+                          </AnimatePresence>
+                          {stageDeals.length === 0 && (
+                            <div className="flex flex-col items-center justify-center py-10 opacity-30">
+                              <div className="w-12 h-12 rounded-full bg-slate-800/50 flex items-center justify-center mb-2">
+                                <Clock className="w-5 h-5 text-slate-500" />
+                              </div>
+                              <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Vacío</span>
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            </AnimatePresence>
           </TabsContent>
         </Tabs>
       </div>

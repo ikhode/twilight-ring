@@ -115,29 +115,33 @@ export function LabelsManager() {
                                             <p className="text-xs text-muted-foreground">{item.sku}</p>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <Input
-                                            type="number"
-                                            min="1"
-                                            className="w-16 h-8"
-                                            value={item.quantity}
-                                            onChange={(e) => updateQuantity(idx, parseInt(e.target.value))}
-                                        />
-                                        <Button variant="ghost" size="icon" onClick={() => removeFromQueue(idx)}>
-                                            <X className="w-4 h-4 text-muted-foreground hover:text-destructive" />
+                                    <div className="flex items-center gap-4">
+                                        <div className="text-right">
+                                            <p className="text-xs font-bold">${(item.price / 100).toFixed(2)}</p>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <Input
+                                                type="number"
+                                                min="1"
+                                                className="w-16 h-8"
+                                                value={item.quantity}
+                                                onChange={(e) => updateQuantity(idx, parseInt(e.target.value))}
+                                            />
+                                            <Button variant="ghost" size="icon" onClick={() => removeFromQueue(idx)}>
+                                                <X className="w-4 h-4 text-muted-foreground hover:text-destructive" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                            ))}
+                                    <div className="pt-4 flex justify-end">
+                                        <Button onClick={handlePrint} className="gap-2">
+                                            <Printer className="w-4 h-4" />
+                                            Imprimir {printQueue.reduce((acc, i) => acc + i.quantity, 0)} Etiquetas
                                         </Button>
                                     </div>
                                 </div>
-                            ))}
-                            <div className="pt-4 flex justify-end">
-                                <Button onClick={handlePrint} className="gap-2">
-                                    <Printer className="w-4 h-4" />
-                                    Imprimir {printQueue.reduce((acc, i) => acc + i.quantity, 0)} Etiquetas
-                                </Button>
-                            </div>
-                        </div>
-                    )}
-                </CardContent>
+                            )}
+                        </CardContent>
             </Card>
 
             {/* PRINT PREVIEW AREA (Visible only in Print Mode) */}

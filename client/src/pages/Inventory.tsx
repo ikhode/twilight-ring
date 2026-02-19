@@ -57,7 +57,6 @@ import {
   Truck,
   Database,
   FileSpreadsheet,
-  FileSpreadsheet,
   Printer,
   PieChart,
   Tag,
@@ -708,9 +707,7 @@ export default function Inventory() {
             <TabsTrigger value="discounts" className="gap-2 py-3">
               <Percent className="h-4 w-4" /> Promociones
             </TabsTrigger>
-            <TabsTrigger value="counts" className="gap-2 py-3">
-              <Calculator className="h-4 w-4" /> Conteo Físico
-            </TabsTrigger>
+
             <TabsTrigger value="reports" className="gap-2 py-3">
               <BarChart3 className="h-4 w-4" /> Valoración
             </TabsTrigger>
@@ -724,9 +721,7 @@ export default function Inventory() {
             <InventoryCountManager />
           </TabsContent>
 
-          <TabsContent value="counts" className="space-y-6">
-            <InventoryCountManager />
-          </TabsContent>
+
 
           <TabsContent value="products" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
