@@ -132,16 +132,17 @@ export function LabelsManager() {
                                             </Button>
                                         </div>
                                     </div>
-                            ))}
-                                    <div className="pt-4 flex justify-end">
-                                        <Button onClick={handlePrint} className="gap-2">
-                                            <Printer className="w-4 h-4" />
-                                            Imprimir {printQueue.reduce((acc, i) => acc + i.quantity, 0)} Etiquetas
-                                        </Button>
-                                    </div>
                                 </div>
-                            )}
-                        </CardContent>
+                            ))}
+                            <div className="pt-4 flex justify-end">
+                                <Button onClick={handlePrint} className="gap-2">
+                                    <Printer className="w-4 h-4" />
+                                    Imprimir {printQueue.reduce((acc, i) => acc + i.quantity, 0)} Etiquetas
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                </CardContent>
             </Card>
 
             {/* PRINT PREVIEW AREA (Visible only in Print Mode) */}

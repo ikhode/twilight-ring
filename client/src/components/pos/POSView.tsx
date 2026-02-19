@@ -13,6 +13,7 @@ import { Cart } from "@/components/pos/Cart";
 import { OrderTypeSelector } from "@/components/pos/OrderTypeSelector";
 import { OpenOrdersDialog } from "@/components/pos/OpenOrdersDialog";
 import { CreateCustomerDialog } from "@/components/pos/CreateCustomerDialog";
+import { CashCountDialog } from "@/components/pos/CashCountDialog";
 import { SalesMetrics } from "@/components/pos/SalesMetrics";
 import { UpsellSuggestion } from "@/components/pos/UpsellSuggestion";
 
@@ -370,8 +371,9 @@ export function POSView({ defaultDriverId, customHeaders, isKioskMode = false }:
                 />
 
                 <div className="space-y-4">
-                    <div className="flex justify-between items-center px-1">
+                    <div className="flex justify-between items-center px-1 gap-2">
                         <CreateCustomerDialog />
+                        <CashCountDialog />
                     </div>
 
                     <ProductGrid
